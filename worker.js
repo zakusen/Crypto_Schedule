@@ -332,7 +332,7 @@ async function newsEvents() {
   const out = new Map(), errors = [];
   await Promise.all(NEWS_FEEDS.map(async ([url, name, fixed]) => {
     try {
-      const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/rss+xml, application/xml, text/xml, */*' } });
+      const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/rss+xml, application/xml, text/xml, */*' }, signal: AbortSignal.timeout(8000) });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const items = rssItems(await r.text());
       if (!items.length) throw new Error('記事が読み取れません');
@@ -445,8 +445,10 @@ async function events(request, env, ctx) {
       try { er = await env.CAL.get('news:err', 'json'); } catch (_) {}
       if (er && er.reason) errors.push('銘柄ニュースを取得できませんでした: ' + er.reason);
       if (!er || Date.now() - Date.parse(er.at) > 10 * 60 * 1000) {
-        ctx.waitUntil(refreshNews(env).catch(() => {}));
-        if (!er) errors.push('銘柄ニュースを初回取得中です。少し待ってから再読み込みしてください');
+        const rr = await refreshNews(env).catch((e) => ({ ok: false, reason: String(e.message || e) }));      // 保存が無い時だけ、取得を待ってから返す
+        const ns2 = rr && rr.ok ? await readNews(env) : null;
+        if (ns2) { news = ns2.events; errors.push(...(ns2.errors || [])); }
+        else if (rr && rr.reason && !er) errors.push('銘柄ニュースを取得できませんでした: ' + rr.reason);
       }
     }
   }
