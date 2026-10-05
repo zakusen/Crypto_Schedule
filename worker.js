@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v19-resilient';
+const VERSION = '2026-10-06-clean-v20-evstore';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -828,7 +828,7 @@ function chainWithFallback(ch, stored) {
   return { out, errors, notes };
 }
 
-async function events(request, env, ctx) {
+async function buildEvents(request, env, ctx) {
   const errors = [];
   let macro = [], gen = new Date().toISOString();
   const stored = await readStore(env);
@@ -872,8 +872,32 @@ async function events(request, env, ctx) {
   errors.push(...chain.errors);
   const manual = await manualEvents(request, env);
   const all = macro.concat(chain.out, expiryEvents(Date.now()), bnbBurnEvents(Date.now()), news, manual).filter((e) => Date.parse(e.at) >= Date.now() - PAST_KEEP).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  const res = json({ generated_at: gen, version: VERSION, events: all, errors, notes: chain.notes });
-  if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
+  return { generated_at: gen, built_at: new Date().toISOString(), version: VERSION, events: all, errors, notes: chain.notes };
+}
+
+// 完成品の保存(2026-10-06): 画面が開いた瞬間にイベント一覧を組み立てると、無料プランの計算時間の上限に当たって
+//   時々失敗し、画面が空になっていた。定時実行(30分ごと)で完成品を作ってKVに文字列のまま置き、/api/events はそれを返すだけにする。
+const EV_KEY = 'events:v1', EV_FRESH = 45 * 60 * 1000;
+async function storeEvents(env) {
+  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
+  const p = await buildEvents(new Request('https://assets.local/'), env, null);
+  if (!p.events.length) return { ok: false, reason: '0件のため保存しない' };
+  await env.CAL.put(EV_KEY, JSON.stringify(p));
+  return { ok: true, count: p.events.length };
+}
+
+async function events(request, env, ctx) {
+  let txt = null;
+  try { txt = env.CAL ? await env.CAL.get(EV_KEY) : null; } catch (_) {}
+  if (txt) {
+    const m = txt.match(/"built_at":"([^"]+)"/), age = m ? Date.now() - Date.parse(m[1]) : Infinity;
+    if (age > EV_FRESH && ctx) ctx.waitUntil(storeEvents(env).catch(() => {}));   // 古ければ裏で作り直す(今回は保存分を返す)
+    return new Response(txt, { headers: { 'content-type': 'application/json; charset=utf-8' } });
+  }
+  const p = await buildEvents(request, env, ctx);                                 // 保存が無い時(初回)だけ、その場で組み立てる
+  if (ctx && env.CAL && p.events.length) ctx.waitUntil(env.CAL.put(EV_KEY, JSON.stringify(p)).catch(() => {}));
+  const res = json(p);
+  if (!p.events.length) res.headers.set('x-nocache', '1');
   return res;
 }
 
@@ -899,6 +923,7 @@ async function health(env) {
     pacifica_cooldown_s: Math.max(0, Math.ceil((PX_COOL - now) / 1000)),
     prices: px,
     macro: st ? { min_ago: min(Date.parse(st.generated_at)), count: st.events.length } : null,
+    events_built_min: await env.CAL.get(EV_KEY).then((t) => { const m = t && t.match(/"built_at":"([^"]+)"/); return m ? min(Date.parse(m[1])) : null; }).catch(() => null),
     chain: st && st.chain ? Object.fromEntries(Object.entries(st.chain.by || {}).map(([k, v]) => [k, { min_ago: min(v.at), count: v.out.length }])) : null,
     ethqueue: eq ? { min_ago: min(lastT(eq.samples)), act_error: eq.act_error || null } : null,
     stake: sk ? Object.fromEntries(['SOL', 'BNB'].map((k) => [k, { min_ago: min(lastT(sk[k] && sk[k].samples ? sk[k].samples : sk[k])) }])) : null,
@@ -922,7 +947,7 @@ export default {
   // 定時実行(wrangler.jsonc の triggers.crons)。結果はログ(Cloudflareの「ログ」)で確認できる。
   async scheduled(event, env, ctx) {
     if (event.cron === PX_CRON) { ctx.waitUntil(refreshPrices(env).then((r) => console.log('price refresh', JSON.stringify(r)))); return; }
-    ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))));
+    ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))).catch(() => {}).then(() => storeEvents(env)).then((r) => console.log('events store', JSON.stringify(r))));
     ctx.waitUntil(refreshEthQ(env).then((r) => console.log('ethq refresh', JSON.stringify(r))));
     ctx.waitUntil(refreshStake(env).then((r) => console.log('stake refresh', JSON.stringify(r))));
     if (NEWS_ENABLED) ctx.waitUntil(refreshNews(env).then((r) => console.log('news refresh', JSON.stringify(r))));
