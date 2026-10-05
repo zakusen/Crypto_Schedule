@@ -202,19 +202,22 @@ async function manualEvents(request, env) {
   } catch (_) { return []; }
 }
 
-// ---------- イベント(銘柄: CoinMarketCal) ----------
-// 鍵は Cloudflare のシークレット CMAL_API_KEY。回数制限が不明なので、取得は6時間ごと(cronの該当回のみ)に絞る。
-const CMAL = 'https://developers.coinmarketcal.com/v1';
-const ASSET_KEY = 'asset:v1';
+// ---------- イベント(銘柄: CoinMarketCal API v2) ----------
+// 鍵は Cloudflare のシークレット CMAL_API_KEY(ヘッダー x-api-key)。接続先は https://api.coinmarketcal.com/v2 (旧 developers.coinmarketcal.com/v1 は廃止)。
+// 無料プランは「今日から7日先まで」しか返らない(過去・説明・カテゴリ・影響度は無し)。範囲はプラン任せにし、from/to は付けない。
+// 回数制限に配慮し、取得は6時間ごと(cronの該当回のみ)。取れた分はKVに積み上げ、過去の分は消さない。
+const CMAL = 'https://api.coinmarketcal.com/v2';
+const ASSET_KEY = 'asset:v2';
 const ASSET_EVERY_H = 6;                    // 何時間ごとに取り直すか
 const ASSET_STALE_MS = 24 * 3600 * 1000;    // 保存がこれより古ければ画面に警告を出す
-const MAX_PAGES = 4, PAGE_MAX = 150;
-
-function mdy(ms) { const d = new Date(ms); return String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + String(d.getUTCDate()).padStart(2, '0') + '/' + d.getUTCFullYear(); }
+const MAX_PAGES = 4, PAGE_MAX = 100;
 
 async function cmalGet(path, env) {
-  const r = await fetch(CMAL + path, { headers: { 'x-api-key': env.CMAL_API_KEY, Accept: 'application/json', 'User-Agent': UA } });
-  if (r.status === 401 || r.status === 403) throw new Error('CoinMarketCal: 認証に失敗しました(キーを確認)');
+  const r = await fetch(CMAL + path, { headers: { 'x-api-key': env.CMAL_API_KEY, Accept: 'application/json', 'User-Agent': UA }, signal: AbortSignal.timeout(10000) });
+  if (r.status === 401 || r.status === 403) {
+    let b = ''; try { b = (await r.text()).slice(0, 160); } catch (_) {}
+    throw new Error('CoinMarketCal: 認証/権限エラー ' + r.status + '(キーを確認。プランで使えない条件の可能性もあります)' + (b ? ' 応答: ' + b : ''));
+  }
   if (r.status === 429) throw new Error('CoinMarketCal: 回数制限に達しました');
   if (!r.ok) {
     let body = '';
@@ -223,41 +226,46 @@ async function cmalGet(path, env) {
   }
   return r.json();
 }
-const bodyOf = (j) => (Array.isArray(j) ? j : (j && (j.body || j.data || j.result)) || []);
+const dataOf = (j) => (Array.isArray(j) ? j : (j && j.data) || []);
 
-// 銘柄記号(BTCなど) → CoinMarketCal上のコインID。コイン一覧から探す(複数あれば順位の高いもの)。
-async function cmalCoinIds(env) {
-  const list = bodyOf(await cmalGet('/coins', env));
+// 銘柄記号(BTCなど) → CoinMarketCal上のコインslug。記号は重複するので、一覧から記号が一致するものの中で順位が最上位のものを使う。
+async function cmalCoinSlugs(env) {
   const out = {};
   for (const sym of SYMS) {
-    const hits = list.filter((c) => c && String(c.symbol || '').toUpperCase() === sym);
+    const list = dataOf(await cmalGet('/coins?q=' + encodeURIComponent(sym) + '&limit=50', env));
+    const hits = list.filter((c) => c && c.slug && String(c.symbol || '').toUpperCase() === sym);
     hits.sort((a, b) => (+a.rank || 1e9) - (+b.rank || 1e9));
-    if (hits[0] && hits[0].id != null) out[sym] = String(hits[0].id);
+    if (hits[0]) out[sym] = String(hits[0].slug);
   }
   return out;
 }
 
-function cmalEvent(e, idToSym) {
-  const ts = Date.parse(e && e.date_event);
+function cmalEvent(e, slugToSym) {
+  const ts = Date.parse(e && e.date);
   if (!e || e.id == null || !isFinite(ts)) return null;
-  const title = String((e.title && (e.title.en || e.title)) || '').trim();
+  const title = String(e.title || '').trim();
   if (!title) return null;
-  const syms = (Array.isArray(e.coins) ? e.coins : []).map((c) => idToSym[String(c.id)] || String(c.symbol || '').toUpperCase()).filter((x) => SYMS.includes(x));
+  const syms = (Array.isArray(e.coins) ? e.coins : []).map((c) => slugToSym[String(c.slug)] || String(c.symbol || '').toUpperCase()).filter((x) => SYMS.includes(x));
   if (!syms.length) return null;
-  const high = e.is_hot === true || (+e.percentage || 0) >= 85;
-  return { id: 'cmal-' + e.id, l: 'asset', t: syms.join('/') + ' ' + title, s: syms[0] + ' ' + (title.length > 10 ? title.slice(0, 10) : title), src: 'CoinMarketCal', at: new Date(ts).toISOString(), im: high ? 'high' : 'mid', a: [...new Set(syms)] };
+  const hi = e.impact === 'High' || e.impact === 'Critical' || (typeof e.impact === 'number' && e.impact >= 7.5);
+  // 日付が「期限」や「期間」の予定(isEstimated)は、縦線の位置が目安なので、表示用の日付を見出しに添える
+  const est = e.isEstimated === true && e.displayedDate ? '（' + e.displayedDate + '）' : '';
+  const ev = { id: 'cmal-' + e.id, l: 'asset', t: syms.join('/') + ' ' + title + est, s: syms[0] + ' ' + (title.length > 10 ? title.slice(0, 10) : title), src: 'CoinMarketCal', at: new Date(ts).toISOString(), im: hi ? 'high' : 'mid', a: [...new Set(syms)] };
+  if (/^https?:\/\//.test(e.sourceUrl || '')) ev.u = e.sourceUrl;
+  return ev;
 }
 
 async function cmalEvents(env, coinMap) {
-  const ids = Object.values(coinMap);
-  const idToSym = Object.fromEntries(Object.entries(coinMap).map(([k, v]) => [v, k]));
-  const now = Date.now(), out = new Map();
+  const slugs = Object.values(coinMap);
+  const slugToSym = Object.fromEntries(Object.entries(coinMap).map(([k, v]) => [v, k]));
+  const out = new Map();
+  let cursor = '';
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const q = '/events?coins=' + encodeURIComponent(ids.join(',')) + '&dateRangeStart=' + encodeURIComponent(mdy(now - WIN_PAST)) +
-      '&dateRangeEnd=' + encodeURIComponent(mdy(now + 90 * DAY)) + '&max=' + PAGE_MAX + '&page=' + page + '&sortBy=created_desc';
-    const rows = bodyOf(await cmalGet(q, env));
-    for (const e of rows) { const v = cmalEvent(e, idToSym); if (v) out.set(v.id, v); }
-    if (rows.length < PAGE_MAX) break;
+    const q = '/events?coins=' + encodeURIComponent(slugs.join(',')) + '&limit=' + PAGE_MAX + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
+    const j = await cmalGet(q, env);
+    for (const e of dataOf(j)) { const v = cmalEvent(e, slugToSym); if (v) out.set(v.id, v); }
+    cursor = j && j.meta && j.meta.cursor ? String(j.meta.cursor) : '';
+    if (!cursor) break;
   }
   return [...out.values()];
 }
@@ -278,11 +286,14 @@ async function refreshAssets(env) {
   if (!env.CMAL_API_KEY) return { ok: false, reason: 'CMAL_API_KEY未設定' };
   const prev = await readAssets(env);
   try {
-    let coins = prev && prev.coins && Object.keys(prev.coins).length ? prev.coins : await cmalCoinIds(env);
+    const coins = prev && prev.coins && Object.keys(prev.coins).length === SYMS.length ? prev.coins : await cmalCoinSlugs(env);
     if (!Object.keys(coins).length) return await failAssets(env, 'コイン一覧から対象銘柄が見つかりません');
     const fresh = await cmalEvents(env, coins);
-    const now = Date.now();
-    const merged = mergeStore(prev, fresh, false, now);
+    const now = Date.now(), today = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate());
+    const byId = new Map();
+    for (const e of (prev ? prev.events : [])) { const ts = Date.parse(e.at); if (isFinite(ts) && ts < today && ts > now - KEEP_MS) byId.set(e.id, e); }   // 過去分は残す。今日以降は取得結果で置き換える(日程変更・取消の反映)
+    for (const e of fresh) byId.set(e.id, e);
+    const merged = [...byId.values()].sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
     await env.CAL.put(ASSET_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), coins, events: merged }));
     try { await env.CAL.delete('asset:err'); } catch (_) {}
     return { ok: true, count: merged.length, fetched: fresh.length };

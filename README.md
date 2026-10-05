@@ -39,7 +39,7 @@
 - マクロ（日米欧）: TradingViewの公開カレンダー（`economic-calendar.tradingview.com/events`、鍵なし・**非公式**）から、過去60日〜先90日分を自動取得。米・日・ユーロ圏（US/JP/EU）の重要度「高」「中」のみ。祝日と低重要度は除外。指標名は主要なものを日本語に置き換え（対応表は `worker.js` の `JA`）、それ以外は英語のまま。FOMC・日銀会合・ECB政策金利も同じ取得に含まれるため、手動登録は不要。
 - マクロの予備: TradingViewが取得できない時だけ、Forex Factoryの週次JSON（今週・来週分のみ、非公式）に切り替える。切り替わると画面下に警告が出る。
 - 非公式な取得元に依存するため、止まる・仕様が変わる可能性がある。`Check live site` で国別の件数（US/JP/EU）を定期的に確認すること。
-- 銘柄イベント: CoinMarketCal の API（`developers.coinmarketcal.com/v1`）から、BTC / ETH / SOL / SUI / BNB のイベントを取得。キーは Cloudflare のシークレット `CMAL_API_KEY`（ダッシュボードの「変数とシークレット」でタイプ「シークレット」。`wrangler.jsonc` やリポジトリには書かない）。回数制限が不明なので、取得は6時間ごと（cronの該当回のみ）。結果はKVの `asset:v1` に保存し、`/api/events` はそれを返す。キーが無い・認証に失敗した時は、銘柄イベントだけが出ない（マクロは影響なし）。画面の銘柄タブで、その銘柄のイベントだけが縦線になる。
+- 銘柄イベント: CoinMarketCal API v2（`https://api.coinmarketcal.com/v2`。旧 `developers.coinmarketcal.com/v1` は廃止）から、BTC / ETH / SOL / SUI / BNB のイベントを取得。キーは Cloudflare のシークレット `CMAL_API_KEY`（ダッシュボードの「変数とシークレット」でタイプ「シークレット」。`wrangler.jsonc` やリポジトリには書かない）。無料プランは「今日から7日先まで」だけが返る（過去・説明・カテゴリ・影響度は無し）ので、範囲はプラン任せにして `from`/`to` は付けない。日付が目安の予定（`isEstimated`）は、見出しに表示用の日付（`displayedDate`）を添える。コインは `/v2/coins` で記号からslugを引き、KVに覚える。取得は6時間ごと（cronの該当回のみ）で、結果はKVの `asset:v2` に積み上げる（過去分は残し、今日以降は取得結果で置き換える）。キーが無い・認証に失敗した時は、銘柄イベントだけが出ない（マクロ・ニュースは影響なし）。
 - 銘柄ニュース: 暗号資産メディア（Cointelegraph、CoinDesk、Decrypt）のRSSから、見出し・日時・リンクだけを30分ごとに取得し、KVの `news:v1` に積み上げる（90日分）。鍵は不要。銘柄はタイトルの言葉（Bitcoin、Solana、BNB、Suiなど）で判定。一部のメディアが取れなくても、他のメディアの分は出る（取れなかった所は画面に警告）。縦線を選ぶと「記事を開く」のリンクが出る。
 - 市場ニュースの層は準備中（`events_manual.json` に `l: "market"` / `"asset"` で追加すれば表示される）。
 - マクロ指標の保存: 定時実行（Cron Trigger、30分ごと）が指標を取得し、KV（名前空間 `cal`、バインディング名 `CAL`）に保存する。`/api/events` は保存済みの内容を返すので、見る人が増えても取得元への問い合わせは増えない。
