@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-05-clean-v15';
+const VERSION = '2026-10-05-clean-v15-pxfix1';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -49,14 +49,26 @@ async function kline(sym, iv, stepSec, n) {
   const now = Date.now();
   const u = PACIFICA + '/kline?symbol=' + encodeURIComponent(sym) + '&interval=' + iv +
     '&start_time=' + (now - (n + 2) * stepSec * 1000) + '&end_time=' + now;
-  const r = await fetch(u, { headers: { 'User-Agent': 'signal-archive/1.0' } });
-  if (!r.ok) throw new Error('pacifica ' + r.status);
-  const j = await r.json();
-  const rows = Array.isArray(j) ? j : (j && j.data) || [];
-  return rows
-    .map((x) => ({ t: +x.t, o: +x.o, h: +x.h, l: +x.l, c: +x.c, v: +x.v || 0 }))
-    .filter((x) => isFinite(x.t) && isFinite(x.o) && isFinite(x.c))
-    .sort((a, b) => a.t - b.t);
+  let lastErr;
+  // 通信エラー・タイムアウト・5xxは1回だけやり直す。429(取得回数の上限)はやり直しても同じ分内は通らないので、すぐ諦める。
+  for (let i = 0; i < 2; i++) {
+    const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 8000);
+    try {
+      const r = await fetch(u, { headers: { 'User-Agent': 'signal-archive/1.0', 'Accept': 'application/json' }, signal: ac.signal });
+      if (!r.ok) { const e = new Error('pacifica ' + r.status + (r.status === 429 ? '（取得回数の上限）' : '')); e.noRetry = r.status < 500; throw e; }
+      const j = await r.json();
+      const rows = Array.isArray(j) ? j : (j && j.data) || [];
+      return rows
+        .map((x) => ({ t: +x.t, o: +x.o, h: +x.h, l: +x.l, c: +x.c, v: +x.v || 0 }))
+        .filter((x) => isFinite(x.t) && isFinite(x.o) && isFinite(x.c))
+        .sort((a, b) => a.t - b.t);
+    } catch (e) {
+      lastErr = e && e.name === 'AbortError' ? new Error('pacifica timeout') : e;
+      if (lastErr.noRetry) break;
+      await new Promise((res) => setTimeout(res, 400));
+    } finally { clearTimeout(tm); }
+  }
+  throw lastErr;
 }
 
 // 区切りはUTC。週はUTCの月曜始まり、月はUTCの1日始まり。
@@ -76,27 +88,93 @@ function aggregate(rows, kind) {
   return out;
 }
 
-async function candles(url) {
+// 価格の取得は Pacifica のIP単位の回数制限(1分100回)に当たりやすい(Cloudflareの出口IPは他のWorkerと共有される)。
+// そのため、①同じ足は一定時間メモリから返す ②同時の同じ要求は1回にまとめる ③取れない時は古い値を「古い」と明示して返す、の3段で守る。
+const MEM = new Map(), FLIGHT = new Map();
+const STALE_MAX = 3 * 3600 * 1000;           // 古い値を代わりに返してよい上限(3時間)
+const PX_KEY = (sym) => 'px:v1:' + sym;      // KV: 銘柄ごとに、足ごとの最後の成功値を保存
+const WARM = ['15m', '1h', '4h', '1d', '1w', '1M'];   // 定時実行で保存しておく足(1分・5分は古いと役に立たないので除く)
+const PX_CRON = '7,37 * * * *';
+
+async function buildBars(sym, tf) {
+  const cfg = TFS[tf];
+  let rows = await kline(sym, cfg.iv, cfg.step, cfg.raw);
+  if (cfg.agg) {
+    // 取得窓の途中から始まる最初の1本は、始値・高安が不完全になるので捨てる。
+    // ただし窓より前のデータが無い(上場直後など)場合は、その足が本当の最初なので残す。
+    const winStart = Date.now() - (cfg.raw + 2) * cfg.step * 1000;
+    const cutByWindow = rows.length > 0 && rows[0].t <= winStart + cfg.step * 1000;
+    rows = aggregate(rows, cfg.agg);
+    if (cutByWindow && rows.length > 1) rows.shift();
+  }
+  rows = rows.slice(-cfg.bars);
+  if (!rows.length) throw new Error('no data');
+  return { sym, tf, source: 'Pacifica', at: Date.now(), bars: rows.map((r) => [Math.floor(r.t / 1000), r.o, r.h, r.l, r.c, r.v]) };
+}
+
+function liveBars(sym, tf) {
+  const key = sym + '|' + tf;
+  if (FLIGHT.has(key)) return FLIGHT.get(key);
+  const p = buildBars(sym, tf)
+    .then((o) => { MEM.set(key, { at: o.at, obj: o }); return o; })
+    .finally(() => FLIGHT.delete(key));
+  FLIGHT.set(key, p);
+  return p;
+}
+
+async function kvStale(env, sym, tf) {
+  try {
+    if (!env.CAL) return null;
+    const j = await env.CAL.get(PX_KEY(sym), 'json');
+    const e = j && j.tfs && j.tfs[tf];
+    return e && Date.now() - e.at < STALE_MAX ? { sym, tf, source: 'Pacifica', at: e.at, bars: e.bars } : null;
+  } catch (_) { return null; }
+}
+
+async function candles(url, env) {
   const sym = (url.searchParams.get('sym') || '').toUpperCase();
   const tf = url.searchParams.get('tf') || '';
   const cfg = TFS[tf];
   if (!SYMS.includes(sym) || !cfg) return json({ error: 'bad params' }, 400);
+  const key = sym + '|' + tf, m = MEM.get(key);
+  if (m && Date.now() - m.at < cfg.ttl * 1000) return json(m.obj);
   try {
-    let rows = await kline(sym, cfg.iv, cfg.step, cfg.raw);
-    if (cfg.agg) {
-      // 取得窓の途中から始まる最初の1本は、始値・高安が不完全になるので捨てる。
-      // ただし窓より前のデータが無い(上場直後など)場合は、その足が本当の最初なので残す。
-      const winStart = Date.now() - (cfg.raw + 2) * cfg.step * 1000;
-      const cutByWindow = rows.length > 0 && rows[0].t <= winStart + cfg.step * 1000;
-      rows = aggregate(rows, cfg.agg);
-      if (cutByWindow && rows.length > 1) rows.shift();
-    }
-    rows = rows.slice(-cfg.bars);
-    if (!rows.length) return json({ error: 'no data' }, 502);
-    return json({ sym, tf, source: 'Pacifica', bars: rows.map((r) => [Math.floor(r.t / 1000), r.o, r.h, r.l, r.c, r.v]) });
+    return json(await liveBars(sym, tf));
   } catch (e) {
-    return json({ error: String(e.message || e) }, 502);
+    const msg = String((e && e.message) || e);
+    const st = (m && Date.now() - m.at < STALE_MAX ? m.obj : null) || await kvStale(env, sym, tf);
+    if (st) {
+      const r = json({ ...st, stale: true, age_s: Math.round((Date.now() - st.at) / 1000), reason: msg });
+      r.headers.set('x-nocache', '1');
+      return r;
+    }
+    return json({ error: msg }, 502);
   }
+}
+
+// 定時実行(PX_CRON): 主な足の最新値をKVに保存しておく。取得に失敗した足は、前回の保存を残す。
+async function refreshPrices(env) {
+  if (!env.CAL) return { skipped: 'KVが未接続' };
+  const out = {};
+  for (const sym of SYMS) {
+    let blob = null;
+    try { blob = await env.CAL.get(PX_KEY(sym), 'json'); } catch (_) {}
+    if (!blob || !blob.tfs) blob = { tfs: {} };
+    let ok = 0, stop = false;
+    const ng = [];
+    for (const tf of WARM) {
+      try { const o = await liveBars(sym, tf); blob.tfs[tf] = { at: o.at, bars: o.bars }; ok++; }
+      catch (e) {
+        const msg = String((e && e.message) || e);
+        ng.push(tf + ':' + msg.slice(0, 40));
+        if (msg.includes('429')) { stop = true; break; }
+      }
+    }
+    if (ok) { try { await env.CAL.put(PX_KEY(sym), JSON.stringify(blob)); } catch (e) { ng.push('kv:' + String((e && e.message) || e).slice(0, 40)); } }
+    out[sym] = { ok, ng };
+    if (stop) { out.stopped = '429のため中断'; break; }
+  }
+  return out;
 }
 
 // ---------- イベント(マクロ: 日米欧) ----------
@@ -629,7 +707,7 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/api/candles') {
       const cfg = TFS[url.searchParams.get('tf') || ''];
-      return cached(ctx, request, cfg ? cfg.ttl : 60, () => candles(url));
+      return cached(ctx, request, cfg ? cfg.ttl : 60, () => candles(url, env));
     }
     if (url.pathname === '/api/events') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
@@ -639,6 +717,7 @@ export default {
   },
   // 定時実行(wrangler.jsonc の triggers.crons)。結果はログ(Cloudflareの「ログ」)で確認できる。
   async scheduled(event, env, ctx) {
+    if (event.cron === PX_CRON) { ctx.waitUntil(refreshPrices(env).then((r) => console.log('price refresh', JSON.stringify(r)))); return; }
     ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))));
     ctx.waitUntil(refreshEthQ(env).then((r) => console.log('ethq refresh', JSON.stringify(r))));
     ctx.waitUntil(refreshStake(env).then((r) => console.log('stake refresh', JSON.stringify(r))));
