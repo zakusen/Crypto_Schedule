@@ -1,12 +1,12 @@
 // CRYPTO SIGNAL ARCHIVE の小さなサーバー部分(Cloudflare Worker)。
 //   /api/candles?sym=BTC&tf=1h  … Pacificaのローソク足(公開API・鍵なし)
 //   /api/events                 … 日米欧のマクロ指標カレンダー(TradingViewの公開カレンダー。予備: Forex Factory) + 任意の追加イベント(public/events_manual.json)
-//   銘柄イベントは CoinMarketCal(シークレット CMAL_API_KEY)から6時間ごとに取得し、KV(asset:v1)へ保存する。
+//   銘柄イベントは CoinMarketCal(シークレット CMAL_API_KEY)から6時間ごとに取得し、KV(asset:v2)へ保存する。
 // 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-05-cmal-v2';
+const VERSION = '2026-10-05-ethq-v7';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'SUI', 'BNB'];
 
@@ -302,7 +302,205 @@ async function refreshAssets(env) {
   } catch (e) { return await failAssets(env, String(e.message || e)); }
 }
 
+// ---------- イベント(銘柄: Coindar API v2) ----------
+// 無料のアクセストークン(https://coindar.org/en/api/tokens で登録)を Cloudflare のシークレット COINDAR_TOKEN に入れる。
+// 未来の日付範囲を指定でき、銘柄で絞れる。無料枠の回数制限は公式に記載が無いので、6時間ごとに最大数回だけ取る。
+// 応答の形(公式例): [{caption, source, source_reliable, important, date_public, date_start, date_end, coin_id, tags}]。日付は "2026-10-9 17:23" のようにゼロ埋めなし。時刻帯の記載が無いのでUTCとして扱う。
+const COINDAR = 'https://coindar.org/api/v2';
+const COINDAR_KEY = 'coindar:v1', COINDAR_ERR = 'coindar:err';
+const COINDAR_AHEAD = 180 * DAY;
+const COINDAR_NAMES = { BTC: ['bitcoin'], ETH: ['ethereum'], SOL: ['solana'], SUI: ['sui'], BNB: ['bnb', 'binance coin', 'bnb chain', 'binancecoin'] };
+
+async function coindarGet(path, env) {
+  const sep = path.includes('?') ? '&' : '?';
+  const r = await fetch(COINDAR + path + sep + 'access_token=' + encodeURIComponent(env.COINDAR_TOKEN), { headers: { Accept: 'application/json', 'User-Agent': UA }, signal: AbortSignal.timeout(15000) });
+  if (!r.ok) {
+    let body = ''; try { body = (await r.text()).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160); } catch (_) {}
+    throw new Error('Coindar ' + r.status + (body ? ' 応答: ' + body : ''));
+  }
+  return r.json();
+}
+function coindarDate(str) {
+  const m = String(str || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/);
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : NaN;
+}
+async function coindarCoinIds(env) {
+  const list = await coindarGet('/coins', env);
+  const out = {};
+  if (!Array.isArray(list)) return out;
+  for (const sym of SYMS) {
+    const hits = list.filter((c) => c && String(c.symbol || '').toUpperCase() === sym);
+    const named = hits.find((c) => COINDAR_NAMES[sym].includes(String(c.name || '').toLowerCase()));
+    const pick = named || (hits.length === 1 ? hits[0] : null);      // 名前が合わず記号が複数ある時は、取り違え防止のため使わない
+    if (pick) out[sym] = String(pick.id);
+  }
+  return out;
+}
+async function coindarFetch(env, ids) {
+  const idToSym = Object.fromEntries(Object.entries(ids).map(([k, v]) => [v, k]));
+  const from = new Date(Date.now() - 1 * DAY).toISOString().slice(0, 10), to = new Date(Date.now() + COINDAR_AHEAD).toISOString().slice(0, 10);
+  const out = new Map();
+  for (let page = 1; page <= 3; page++) {
+    const q = '/events?filter_coins=' + Object.values(ids).join(',') + '&filter_date_start=' + from + '&filter_date_end=' + to + '&page=' + page + '&page_size=100&sort_by=date_start';
+    const rows = await coindarGet(q, env);
+    if (!Array.isArray(rows)) throw new Error('Coindar 形式が想定と違います');
+    for (const e of rows) {
+      const ts = coindarDate(e && e.date_start), sym = idToSym[String(e && e.coin_id)], title = String((e && e.caption) || '').trim();
+      if (!isFinite(ts) || !sym || !title) continue;
+      const id = 'cdr-' + hash(sym + '|' + String(e.date_start) + '|' + title);
+      const ev = { id, l: 'asset', t: sym + ' ' + title, s: sym + ' ' + (title.length > 10 ? title.slice(0, 10) : title), src: 'Coindar', at: new Date(ts).toISOString(), im: String(e.important) === 'true' ? 'high' : 'mid', a: [sym] };
+      if (/^https?:\/\//.test(e.source || '')) ev.u = e.source;
+      out.set(id, ev);
+    }
+    if (rows.length < 100) break;
+  }
+  return [...out.values()];
+}
+async function readCoindar(env) {
+  if (!env.CAL) return null;
+  try { const j = await env.CAL.get(COINDAR_KEY, 'json'); return j && Array.isArray(j.events) && j.generated_at ? j : null; } catch (_) { return null; }
+}
+async function refreshCoindar(env) {
+  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
+  if (!env.COINDAR_TOKEN) return { ok: false, reason: 'COINDAR_TOKEN未設定' };
+  try {
+    const prev = await readCoindar(env);
+    const ids = prev && prev.ids && Object.keys(prev.ids).length === SYMS.length ? prev.ids : await coindarCoinIds(env);
+    if (!Object.keys(ids).length) throw new Error('コイン一覧から対象銘柄が見つかりません');
+    const fresh = await coindarFetch(env, ids), now = Date.now();
+    await env.CAL.put(COINDAR_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), ids, events: fresh, missing: SYMS.filter((x) => !ids[x]) }));
+    try { await env.CAL.delete(COINDAR_ERR); } catch (_) {}
+    return { ok: true, count: fresh.length };
+  } catch (e) {
+    const reason = String(e.message || e);
+    try { await env.CAL.put(COINDAR_ERR, JSON.stringify({ at: new Date().toISOString(), reason })); } catch (_) {}
+    return { ok: false, reason };
+  }
+}
+
+// ---------- イベント(銘柄: チェーンから直接読む予定) ----------
+// 出どころが「チェーンそのもの」なので、見出しの出典に確度を明記する。鍵・申請は不要(公開API)。
+//  ・BTC: 半減期。次のブロック高(210,000の倍数)と現在のブロック高から、10分/ブロックで逆算(推定)。
+//  ・ETH: コンセンサス層の fork_schedule に載った未来のフォーク(エポック→時刻はジェネシス時刻から計算)。載っていなければ何も出さない。
+const BTC_HEIGHT_URL = 'https://mempool.space/api/blocks/tip/height';
+const ETH_BEACON = 'https://ethereum-beacon-api.publicnode.com/eth/v1';
+const FAR_EPOCH = '18446744073709551615';
+
+async function chainEvents() {
+  const out = [], errors = [], now = Date.now();
+  const get = async (u) => { const r = await fetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) }); if (!r.ok) throw new Error('HTTP ' + r.status); return r; };
+  await Promise.all([
+    (async () => {
+      try {
+        const h = parseInt(await (await get(BTC_HEIGHT_URL)).text(), 10);
+        if (!isFinite(h) || h <= 0) throw new Error('ブロック高が読めません');
+        const next = (Math.floor(h / 210000) + 1) * 210000, ts = now + (next - h) * 600000;
+        out.push({ id: 'btc-halving-' + next, l: 'asset', a: ['BTC'], im: 'high', t: 'BTC 半減期（ブロック ' + next.toLocaleString('en-US') + '・日付は推定）', s: 'BTC半減期(推定)', src: 'チェーン由来・推定（現在のブロック高 ' + h.toLocaleString('en-US') + ' から10分/ブロックで逆算）', at: new Date(ts).toISOString() });
+      } catch (e) { errors.push('チェーン読み取り(BTC): ' + (e.message || e)); }
+    })(),
+    (async () => {
+      try {
+        const [fs, gs] = await Promise.all([get(ETH_BEACON + '/config/fork_schedule').then((r) => r.json()), get(ETH_BEACON + '/beacon/genesis').then((r) => r.json())]);
+        const g = +gs.data.genesis_time * 1000;
+        if (!isFinite(g) || !Array.isArray(fs.data)) throw new Error('形式が想定と違います');
+        for (const f of fs.data) {
+          if (String(f.epoch) === FAR_EPOCH) continue;
+          const ts = g + Number(f.epoch) * 32 * 12000;
+          if (ts <= now) continue;                                     // 過去のフォークは出さない
+          out.push({ id: 'eth-fork-' + f.current_version, l: 'asset', a: ['ETH'], im: 'high', t: 'ETH ネットワークアップグレード（エポック ' + f.epoch + '・version ' + f.current_version + '）', s: 'ETHフォーク', src: 'チェーン確定（コンセンサス層の fork_schedule）', at: new Date(ts).toISOString() });
+        }
+      } catch (e) { errors.push('チェーン読み取り(ETH): ' + (e.message || e)); }
+    })(),
+  ]);
+  return { out, errors };
+}
+
+// ---------- ETHの出口待ち(時系列を自前で貯める) ----------
+// ビーコンチェーンの公開API(鍵なし)から、出口待ちのバリデータ(active_exiting)を読み、
+//   件数 と 待ち日数(最後の exit_epoch − 現在のエポック、1エポック=6.4分) を30分ごとにKVへ記録する。
+// 履歴を返す公開APIは使わないので、記録は導入した日から貯まる。保存は120日分。
+const ETHQ_KEY = 'ethq:v1', ETHQ_KEEP = 120 * DAY, ETHQ_STALE = 90 * 60 * 1000;
+
+async function ethQueueSample() {
+  const j = async (u, ms) => { const r = await fetch(u, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(ms) }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
+  const head = await j(ETH_BEACON + '/beacon/headers/head', 8000);
+  const slot = +head.data.header.message.slot;
+  const list = await j(ETH_BEACON + '/beacon/states/head/validators?status=active_exiting', 25000);
+  if (!isFinite(slot) || !Array.isArray(list.data)) throw new Error('形式が想定と違います');
+  const epoch = Math.floor(slot / 32);
+  let maxExit = epoch;
+  for (const v of list.data) { const x = +(v.validator && v.validator.exit_epoch); if (isFinite(x) && x < 1e15 && x > maxExit) maxExit = x; }
+  const days = Math.round(((maxExit - epoch) * 384 / 86400) * 10) / 10;
+  return [Math.floor(Date.now() / 1000), list.data.length, days];
+}
+
+async function readEthQ(env) {
+  if (!env.CAL) return null;
+  try { const j = await env.CAL.get(ETHQ_KEY, 'json'); return j && Array.isArray(j.samples) ? j : null; } catch (_) { return null; }
+}
+
+async function refreshEthQ(env) {
+  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
+  try {
+    const sample = await ethQueueSample();
+    const prev = await readEthQ(env), cutoff = Date.now() / 1000 - ETHQ_KEEP / 1000;
+    const samples = (prev ? prev.samples : []).filter((x) => x[0] > cutoff && x[0] < sample[0]);
+    samples.push(sample);
+    await env.CAL.put(ETHQ_KEY, JSON.stringify({ samples }));
+    return { ok: true, sample, count: samples.length };
+  } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+}
+
+async function ethQueueApi(env, ctx) {
+  if (!env.CAL) return json({ error: 'KV未接続', samples: [] }, 503);
+  let st = await readEthQ(env);
+  const last = st && st.samples.length ? st.samples[st.samples.length - 1][0] * 1000 : 0;
+  if (!st || Date.now() - last > ETHQ_STALE) {                       // 記録が無い・古い時は、その場で1回取る(cronが止まっていても動く)
+    const rr = await refreshEthQ(env);
+    st = await readEthQ(env);
+    if (!st) return json({ error: rr.reason || '取得できません', samples: [] }, 502);
+  }
+  return json({ samples: st.samples, source: 'ビーコンチェーン公開API(自前で記録)' });
+}
+
+// ---------- イベント(銘柄: 満期日の自動計算) ----------
+// Deribitの規則(公式): 全て08:00 UTC。月次=月末の最終金曜、四半期=各四半期(3・6・9・12月)の最終金曜。
+// BTC/ETH/SOL にオプション・先物がある。取得元が無く、規則だけで未来の日付が確実に出せる。
+const EXPIRY_SYMS = ['BTC', 'ETH', 'SOL'];
+function lastFriday(y, m) {
+  const d = new Date(Date.UTC(y, m + 1, 0, 8, 0, 0));          // その月の末日 08:00 UTC
+  while (d.getUTCDay() !== 5) d.setUTCDate(d.getUTCDate() - 1);
+  return d.getTime();
+}
+function expiryEvents(now) {
+  const out = [], base = new Date(now);
+  for (let k = -1; k <= 6; k++) {
+    const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + k, 1));
+    const y = d.getUTCFullYear(), m = d.getUTCMonth(), ts = lastFriday(y, m), q = (m + 1) % 3 === 0;
+    out.push({
+      id: 'exp-' + y + '-' + (m + 1), l: 'asset', a: EXPIRY_SYMS, im: q ? 'high' : 'mid',
+      t: 'Deribit ' + (q ? '四半期' : '月次') + 'オプション・先物の満期（' + EXPIRY_SYMS.join('/') + '）',
+      s: q ? '四半期満期' : '月次満期', src: 'Deribit満期規則（自動計算）', at: new Date(ts).toISOString(),
+    });
+  }
+  return out;
+}
+
+// BNBの四半期オートバーン: 公式発表では「四半期ごと」で、第36回は2026-07-15に実施。次回は10月中旬の見込み。
+// 正確な日付は直前の告知まで分からないので、各四半期(1・4・7・10月)の15日を「目安」として出す(時刻は12:00 UTCの仮置き)。
+function bnbBurnEvents(now) {
+  const out = [], base = new Date(now);
+  for (let k = -1; k <= 9; k++) {
+    const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + k, 15, 12, 0, 0));
+    if (d.getUTCMonth() % 3 !== 0) continue;
+    out.push({ id: 'bnbburn-' + d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1), l: 'asset', a: ['BNB'], im: 'mid', t: 'BNB 四半期オートバーン（日付は目安・中旬ごろ）', s: 'BNBバーン(目安)', src: 'BNB Chain公式の四半期方針（目安）', at: d.toISOString() });
+  }
+  return out;
+}
+
 // ---------- イベント(銘柄ニュース: 暗号資産メディアのRSS) ----------
+// 現在は無効(NEWS_ENABLED=false)。未来の予定だけを出す方針。再び使うときは true にする。
+const NEWS_ENABLED = false;
 // 鍵なし・回数制限なし。見出し・日時・リンクだけを使う(本文は取らない)。30分ごと(cron)に取得してKV(news:v1)へ保存。
 // 各フィードは [URL, 媒体名, 銘柄の決め打ち(タグ専用フィードのみ)]。取れないフィードがあっても、他は使う。
 const NEWS_FEEDS = [
@@ -448,7 +646,7 @@ async function events(request, env, ctx) {
     }
   }
   let news = [];
-  if (env.CAL) {
+  if (NEWS_ENABLED && env.CAL) {
     const ns = await readNews(env);
     if (ns) {
       news = ns.events; errors.push(...(ns.errors || []));
@@ -484,8 +682,28 @@ async function events(request, env, ctx) {
       }
     }
   }
+  let coindar = [];
+  if (env.COINDAR_TOKEN && env.CAL) {
+    let st = await readCoindar(env);
+    if (!st) {
+      let er = null; try { er = await env.CAL.get(COINDAR_ERR, 'json'); } catch (_) {}
+      if (er && er.reason && Date.now() - Date.parse(er.at) <= 10 * 60 * 1000) errors.push('銘柄イベント(Coindar)を取得できませんでした: ' + er.reason);
+      else {
+        const rr = await refreshCoindar(env);
+        st = rr.ok ? await readCoindar(env) : null;
+        if (!st) errors.push('銘柄イベント(Coindar)を取得できませんでした: ' + (rr.reason || '不明'));
+      }
+    }
+    if (st) {
+      coindar = st.events;
+      if (st.missing && st.missing.length) errors.push('Coindarで銘柄を特定できませんでした: ' + st.missing.join('/'));
+      if (Date.now() - Date.parse(st.generated_at) > ASSET_STALE_MS) errors.push('銘柄イベント(Coindar)の取得が24時間以上止まっています');
+    }
+  }
+  const chain = await chainEvents();
+  errors.push(...chain.errors);
   const manual = await manualEvents(request, env);
-  const all = macro.concat(asset, news, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const all = macro.concat(asset, coindar, chain.out, expiryEvents(Date.now()), bnbBurnEvents(Date.now()), news, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const res = json({ generated_at: gen, version: VERSION, events: all, errors });
   if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
   return res;
@@ -499,16 +717,19 @@ export default {
       return cached(ctx, request, cfg ? cfg.ttl : 60, () => candles(url));
     }
     if (url.pathname === '/api/events') return cached(ctx, request, 300, () => events(request, env, ctx));
+    if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return env.ASSETS.fetch(request);
   },
   // 定時実行(wrangler.jsonc の triggers.crons)。結果はログ(Cloudflareの「ログ」)で確認できる。
   async scheduled(event, env, ctx) {
     ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))));
-    ctx.waitUntil(refreshNews(env).then((r) => console.log('news refresh', JSON.stringify(r))));
+    ctx.waitUntil(refreshEthQ(env).then((r) => console.log('ethq refresh', JSON.stringify(r))));
+    if (NEWS_ENABLED) ctx.waitUntil(refreshNews(env).then((r) => console.log('news refresh', JSON.stringify(r))));
     const t = new Date(event.scheduledTime || Date.now());
     if (t.getUTCHours() % ASSET_EVERY_H === 0 && t.getUTCMinutes() < 30) {       // 6時間ごとの最初の回だけ
       ctx.waitUntil(refreshAssets(env).then((r) => console.log('asset refresh', JSON.stringify(r))));
+      ctx.waitUntil(refreshCoindar(env).then((r) => console.log('coindar refresh', JSON.stringify(r))));
     }
   },
 };

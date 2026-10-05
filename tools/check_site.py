@@ -55,7 +55,17 @@ def main():
         by = {}
         for e in evs:
             by[e.get("c") or "-"] = by.get(e.get("c") or "-", 0) + 1
+        layers = {}
+        for e in evs:
+            layers[e.get("l")] = layers.get(e.get("l"), 0) + 1
+        srcs = {}
+        for e in evs:
+            if e.get("l") == "asset":
+                srcs[e.get("src")] = srcs.get(e.get("src"), 0) + 1
         print(f"版: {j.get('version') or '(古い版)'}")
+        print(f"層別: {layers} / 銘柄層の取得元別: {srcs}")
+        if not srcs.get("CoinMarketCal"):
+            print("注意: CoinMarketCalのイベントが0件です(無料枠は7日先まで。0件でも異常とは限りません)")
         print(f"{'OK ' if evs else 'NG '} events: {len(evs)}件 / 国別: {by} / 警告: {errs or 'なし'}")
         if not evs or errs:
             bad.append("events")

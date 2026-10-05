@@ -100,6 +100,7 @@ svg .lb{font-size:12px;fill:var(--tx);font-family:"Noto Sans JP",sans-serif;font
 <div class="hd"><b id="ttl"></b><span class="mu" id="tzl"></span></div>
 <div id="bar"></div>
 <div id="chart"></div>
+<div id="eq"></div>
 </div>
 <div class="panel" id="listWrap"><span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span><div id="list"></div></div>
 <div class="note">価格はPacificaの公開データ、日米欧の経済指標の日程はTradingViewの公開カレンダーから自動で取得しています（取得できない時は予備としてForex Factoryの今週・来週分を表示）。日程は変更されることがあるため、重要な発表は公式の情報でも確認してください。市場・銘柄のニュース層は準備中です。足の区切りはUTC基準で、週足・月足は日足から集計しています。本ツールは公開情報の整理を目的とし、価格予測・売買の推奨は行いません。縦線が価格と重なって見えても、因果関係を示すものではありません。<div id="st"></div></div>
@@ -146,7 +147,7 @@ const W=Math.max(320,$('chart').clientWidth),H=340,L=62,R=16,Tp=54,B=30;
 const key=asset+'|'+TF[tf][0],c=build(asset,tf);
 const base='時刻：'+TZ.find(q=>q[0]===tz)[1]+'（'+ofs()+'）・価格：Pacifica';
 if(!c){$('tzl').textContent=base;$('chart').innerHTML='<div class="msg">'+(CS[key]==='error'?'価格を取得できませんでした。少し待ってから、足を切り替えるか再読み込みしてください。':'価格を読み込み中…')+'</div>';return}
-const d0=c.d0,d1=c.d1;
+const d0=c.d0,d1=c.d1;CX={d0,d1,L,R,W};
 let mn=Math.min(...c.k.map(q=>q.l)),mx=Math.max(...c.k.map(q=>q.h));const pd=(mx-mn)*.12||Math.abs(mx)*.01||1;mn-=pd;mx+=pd;
 const x=t=>L+(t-d0)/(d1-d0)*(W-L-R),y=v=>Tp+(mx-v)/(mx-mn)*(H-Tp-B);
 let s=`<svg width="${W}" height="${H}" role="img">`;
@@ -162,8 +163,26 @@ s+=`<g class="ev ${esc(e.im)}" data-id="${esc(e.id)}"><rect x="${px-10}" y="0" w
 if(lab)s+=`<text class="lb" x="${px+(end?-8:8)}" y="${16+row*15}" text-anchor="${end?'end':'start'}">${esc(e.s||e.t)}</text>`;
 s+='</g>'});
 $('chart').innerHTML=s+'</svg>';
-document.querySelectorAll('#chart .ev').forEach(g=>{const id=g.dataset.id;g.addEventListener('pointerenter',()=>hl(id));g.addEventListener('pointerleave',()=>hl(sel));g.addEventListener('click',()=>pick(id))})
+eqChart();document.querySelectorAll('#chart .ev').forEach(g=>{const id=g.dataset.id;g.addEventListener('pointerenter',()=>hl(id));g.addEventListener('pointerleave',()=>hl(sel));g.addEventListener('click',()=>pick(id))})
 }
+
+/* ETH出口待ち: 価格の下に同じ時間軸で出す別枠(ETHタブのみ)。記録は自前で貯めているので、導入日から線が伸びる */
+let EQ=null,EQ_AT=0,CX=null;
+async function loadEQ(){if(Date.now()-EQ_AT<3e5)return;EQ_AT=Date.now();try{const r=await fetch('/api/ethqueue');if(!r.ok)throw new Error(r.status);EQ=await r.json()}catch(e){EQ={error:String(e.message||e),samples:[]}}eqChart()}
+function eqChart(){
+const el=$('eq');if(!el)return;
+if(asset!=='ETH'||!CX){el.innerHTML='';return}
+if(!EQ){el.innerHTML='<div class="msg" style="padding:14px">ETH出口待ちを読み込み中…</div>';return}
+const{d0,d1,L,R,W}=CX,H=96,Tp=22,B=6,S=(EQ.samples||[]).map(q=>({t:q[0]*1e3,n:q[1],d:q[2]}));
+if(!S.length){el.innerHTML='<div class="msg" style="padding:14px">ETH出口待ち: '+(EQ.error?'取得できませんでした（'+esc(EQ.error)+'）':'記録がまだありません')+'</div>';return}
+const cur=S[S.length-1],inR=S.filter(q=>q.t>=d0&&q.t<=d1),mx=Math.max(1,...S.map(q=>q.d))*1.15;
+const x=t=>L+(t-d0)/(d1-d0)*(W-L-R),y=v=>Tp+(1-v/mx)*(H-Tp-B);
+let s=`<svg width="${W}" height="${H}" role="img"><text x="${L}" y="13" style="fill:var(--champ)">ETH 出口待ち ${cur.d}日（${cur.n.toLocaleString('en-US')}件）</text><text x="${W-R}" y="13" text-anchor="end">記録: ${new Date(S[0].t).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric',timeZone:tz})} から・ビーコンチェーン直読み</text>`;
+s+=`<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(212,175,122,.14)"/><text x="${L-8}" y="${y(mx/1.15)+3}" text-anchor="end">${(mx/1.15).toFixed(0)}日</text>`;
+if(inR.length>1){const pts=inR.map(q=>x(q.t).toFixed(1)+','+y(q.d).toFixed(1));s+=`<polygon points="${x(inR[0].t).toFixed(1)},${y(0)} ${pts.join(' ')} ${x(inR[inR.length-1].t).toFixed(1)},${y(0)}" fill="rgba(169,192,214,.18)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#a9c0d6" stroke-width="1.4"/>`}
+else if(inR.length===1)s+=`<circle cx="${x(inR[0].t)}" cy="${y(inR[0].d)}" r="3" fill="#a9c0d6"/>`;
+if(NOW>=d0&&NOW<=d1)s+=`<line x1="${x(NOW)}" x2="${x(NOW)}" y1="${Tp}" y2="${H-B}" stroke="var(--mu)" stroke-dasharray="5 4"/>`;
+el.innerHTML=s+'</svg>'}
 function list(){
 const ev=vis(),up=ev.filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),past=ev.filter(e=>e.ts<=NOW).sort((a,b)=>b.ts-a.ts);
 const card=e=>`<div class="cd ${esc(e.im)}" data-id="${esc(e.id)}"><div class="t">${fmt(e.ts)}</div><div><span class="badge ${esc(e.im)}">${IM[e.im]||''} · ${LN[e.l]||''}</span><div><b>${esc(e.t)}</b></div><div class="src">${esc(e.src||'')}</div></div><div class="t" style="text-align:right">${esc(e.s||'')}</div></div>`;
@@ -178,7 +197,7 @@ $('fl').innerHTML=FL.map(f=>`<button class="f ${f[0]===flt?'on':''}" data-f="${f
 $('ttl').textContent=asset+' / '+TF[tf][1]+' / TIMELINE';
 $('tfs').innerHTML=TF.map((f,i)=>`<button class="f ${i===tf?'on':''}" data-t="${i}">${f[1]}</button>`).join('');
 $('st').textContent=evErr.join(' / ');
-loadC(asset,tf);chart();list();hl(sel)
+loadC(asset,tf);chart();list();hl(sel);if(asset==='ETH')loadEQ();else eqChart()
 }
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.a){asset=b.dataset.a;render()}if(b.dataset.f){flt=b.dataset.f;render()}if(b.dataset.t){tf=+b.dataset.t;render()}});
 addEventListener('resize',()=>{chart();hl(sel)});
