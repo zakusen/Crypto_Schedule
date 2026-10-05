@@ -1,0 +1,20 @@
+[
+  {
+    "id": "fomc-2026-10",
+    "l": "macro",
+    "t": "FOMC 金融政策決定（10月）",
+    "s": "FOMC",
+    "src": "Federal Reserve",
+    "at": "2026-10-28T18:00:00Z",
+    "im": "high"
+  },
+  {
+    "id": "fomc-2026-12",
+    "l": "macro",
+    "t": "FOMC 金融政策決定（12月）",
+    "s": "FOMC",
+    "src": "Federal Reserve",
+    "at": "2026-12-09T19:00:00Z",
+    "im": "high"
+  }
+]
