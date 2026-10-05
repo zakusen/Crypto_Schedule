@@ -222,11 +222,11 @@ n.addEventListener('pointerleave',()=>{hideT=setTimeout(()=>hl(sel),180)});
 n.addEventListener('click',ev=>{ev.stopPropagation();pick(idOf(n))})})}
 function build(a,i){const d=CD[a+'|'+TF[i][0]];if(!d)return null;const m=TF[i][2];
 const k=d.rows.map(r=>({t:r[0]*1e3,o:r[1],h:r[2],l:r[3],c:r[4]}));k.forEach(q=>q.n=nx(q.t,m));
-let e=k[k.length-1].n;for(let j=0;j<TF[i][3];j++)e=nx(e,m);return{k,d0:k[0].t,d1:e,at:d.at,st:d.st||0}}
+let e=k[k.length-1].n;for(let j=0;j<TF[i][3];j++)e=nx(e,m);return{k,d0:k[0].t,d1:e,at:d.at,st:d.st||0,src:d.src||'Pacifica'}}
 const agoTxt=t=>{const m=Math.max(1,Math.round((Date.now()-t)/6e4));return m<90?m+'分前':m<2880?Math.round(m/60)+'時間前':Math.round(m/1440)+'日前'};
 let NC=0;const gf=u=>NC?fetch(u+(u.includes('?')?'&':'?')+'_='+NC,{cache:'no-store'}):fetch(u);
-async function loadC(a,i,force){const key=a+'|'+TF[i][0],c=CD[key];if(!force&&c&&Date.now()-c.at<60000)return;if(CS[key]==='loading')return;CS[key]='loading';
-try{const r=await gf('/api/candles?sym='+a+'&tf='+TF[i][0]);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.bars||!j.bars.length)throw new Error('empty');CD[key]={rows:j.bars,at:Date.now(),st:j.stale&&j.at?j.at:0};CS[key]='ok'}
+async function loadC(a,i,force){const key=a+'|'+TF[i][0],c=CD[key];if(!force&&c&&Date.now()-c.at<3e5)return;if(CS[key]==='loading')return;CS[key]='loading';
+try{const r=await gf('/api/candles?sym='+a+'&tf='+TF[i][0]);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.bars||!j.bars.length)throw new Error('empty');CD[key]={rows:j.bars,at:Date.now(),st:j.stale&&j.at?j.at:0,src:j.source||'Pacifica'};CS[key]='ok'}
 catch(e){CS[key]=CD[key]?'ok':'error'}
 if(a===asset&&i===tf){chart();hl(sel)}}
 let EV_FAIL='',EV_RT=0;
@@ -254,7 +254,7 @@ const H0=Math.round(Math.min(560,Math.max(280,innerHeight*(mob?.4:.5)))),Pb=Tp+H
 const lanes=[['macro','MACRO'],['asset',asset],['market','MARKET']];
 const H=Pb+AX+lanes.length*LH+8;
 const key=asset+'|'+TF[tf][0],c=build(asset,tf);
-const base='時刻：'+TZ.find(q=>q[0]===tz)[1]+'（'+ofs()+'）・価格：Pacifica';
+const base='時刻：'+TZ.find(q=>q[0]===tz)[1]+'（'+ofs()+'）・価格：'+(c&&c.src&&c.src!=='Pacifica'?c.src+'（予備）':'Pacifica');
 if(!c){CX=null;$('tzl').textContent=base;$('ov').innerHTML='';$('chart').innerHTML='<div class="msg">'+(CS[key]==='error'?'価格を取得できませんでした。少し待ってから、足を切り替えるか再読み込みしてください。':'価格を読み込み中…')+'</div>';tip(null);eqChart();sqChart();side();return}
 const d0=c.d0,d1=c.d1,x=t=>L+(t-d0)/(d1-d0)*(W-L-R);
 CX={d0,d1,L,R,W,Tp,H0,x,mob};
@@ -380,7 +380,7 @@ $('tip').addEventListener('pointerenter',()=>clearTimeout(hideT));$('tip').addEv
 $('tip').addEventListener('click',ev=>{if(ev.target.closest('.x')){sel=null;hl(null)}});
 if(SHOW_ACCESS)$('key').innerHTML='<span class="kk">1 YEAR ACCESS</span><span class="kv">1 USDC<i>·</i>0.01 SOL<i>·</i>1 RAY</span><span class="kn">NO SUBSCRIPTION</span>';else $('key').style.display='none';
 tick();setInterval(tick,60000);
-setInterval(()=>{if(!document.hidden)loadC(asset,tf,true)},60000);
+setInterval(()=>{if(!document.hidden)loadC(asset,tf,true)},3e5);   // 値段の保存は5分ごとなので、取り直しも5分ごと
 setInterval(()=>{if(!document.hidden)loadE()},6e5);
 setInterval(()=>{if(document.hidden)return;if(asset==='ETH')loadEQ(true);else if(asset==='SOL'||asset==='BNB')loadSQ(asset,true)},3e5);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)return;loadC(asset,tf,true);loadE();if(asset==='ETH')loadEQ(true);else if(asset==='SOL'||asset==='BNB')loadSQ(asset,true)});

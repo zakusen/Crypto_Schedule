@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v22-px5m';
+const VERSION = '2026-10-06-clean-v23-pxbackup';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -44,31 +44,73 @@ async function cached(ctx, request, ttl, fn) {
 }
 
 // ---------- 価格 ----------
-async function kline(sym, iv, stepSec, n) {
-  const now = Date.now();
-  const u = PACIFICA + '/kline?symbol=' + encodeURIComponent(sym) + '&interval=' + iv +
-    '&start_time=' + (now - (n + 2) * stepSec * 1000) + '&end_time=' + now;
-  if (Date.now() < PX_COOL) { const e = new Error('pacifica 429（取得回数の上限・' + Math.ceil((PX_COOL - Date.now()) / 1000) + '秒待機中）'); e.noRetry = true; throw e; }
+// 取得元は Pacifica が主。断られたら Hyperliquid、さらにダメなら dYdX(どちらも鍵なしの無期限先物DEX)を予備に使う(2026-10-06 v23、ユーザー決定)。
+// どの取得元の値段かは保存・画面に必ず出す(予備の時は「価格：Hyperliquid（予備）」)。
+const HYPERLIQUID = 'https://api.hyperliquid.xyz/info';
+const DYDX = 'https://indexer.dydx.trade/v4';
+const SOURCES = ['Pacifica', 'Hyperliquid', 'dYdX'];
+const COOL = {}, COOL_MS = 60 * 1000;         // 429で断られた取得元は、この間は聞きに行かない
+let BUDGET = Infinity;                        // 1回の定時実行で外部に聞いてよい残り回数(無料プランは1回50まで)
+const DYDX_RES = { '5m': '5MINS', '15m': '15MINS', '1h': '1HOUR', '4h': '4HOURS', '1d': '1DAY' };
+
+function srcErr(msg, noRetry) { const e = new Error(msg); e.noRetry = noRetry; return e; }
+
+async function getJson(src, url, opt) {
+  if (Date.now() < (COOL[src] || 0)) throw srcErr(src + ' 429（' + Math.ceil((COOL[src] - Date.now()) / 1000) + '秒待機中）', true);
   let lastErr;
-  // 通信エラー・タイムアウト・5xxは1回だけやり直す。429(取得回数の上限)はやり直しても同じ分内は通らないので、すぐ諦める。
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 2; i++) {            // 通信エラー・タイムアウト・5xxは1回だけやり直す。429・4xxはすぐ諦める
+    if (BUDGET <= 0) throw srcErr('この回の問い合わせ上限に到達', true);
+    BUDGET--;
     const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 8000);
     try {
-      const r = await fetch(u, { headers: { 'User-Agent': 'signal-archive/1.0', 'Accept': 'application/json' }, signal: ac.signal });
-      if (!r.ok) { if (r.status === 429) PX_COOL = Date.now() + PX_COOL_MS; const e = new Error('pacifica ' + r.status + (r.status === 429 ? '（取得回数の上限）' : '')); e.noRetry = r.status < 500; throw e; }
-      const j = await r.json();
-      const rows = Array.isArray(j) ? j : (j && j.data) || [];
-      return rows
-        .map((x) => ({ t: +x.t, o: +x.o, h: +x.h, l: +x.l, c: +x.c, v: +x.v || 0 }))
-        .filter((x) => isFinite(x.t) && isFinite(x.o) && isFinite(x.c))
-        .sort((a, b) => a.t - b.t);
+      const r = await fetch(url, { ...opt, headers: { 'User-Agent': 'signal-archive/1.0', Accept: 'application/json', ...((opt && opt.headers) || {}) }, signal: ac.signal });
+      if (!r.ok) {
+        if (r.status === 429) COOL[src] = Date.now() + COOL_MS;
+        throw srcErr(src + ' ' + r.status + (r.status === 429 ? '（取得回数の上限）' : ''), r.status < 500);
+      }
+      return await r.json();
     } catch (e) {
-      lastErr = e && e.name === 'AbortError' ? new Error('pacifica timeout') : e;
+      lastErr = e && e.name === 'AbortError' ? srcErr(src + ' timeout', false) : e;
       if (lastErr.noRetry) break;
       await new Promise((res) => setTimeout(res, 400));
     } finally { clearTimeout(tm); }
   }
   throw lastErr;
+}
+
+const clean = (rows) => rows.filter((x) => isFinite(x.t) && isFinite(x.o) && isFinite(x.h) && isFinite(x.l) && isFinite(x.c)).sort((a, b) => a.t - b.t);
+
+async function rowsFrom(src, sym, iv, stepSec, n) {
+  const now = Date.now(), start = now - (n + 2) * stepSec * 1000;
+  if (src === 'Pacifica') {
+    const j = await getJson(src, PACIFICA + '/kline?symbol=' + encodeURIComponent(sym) + '&interval=' + iv + '&start_time=' + start + '&end_time=' + now);
+    const rows = Array.isArray(j) ? j : (j && j.data) || [];
+    return clean(rows.map((x) => ({ t: +x.t, o: +x.o, h: +x.h, l: +x.l, c: +x.c, v: +x.v || 0 })));
+  }
+  if (src === 'Hyperliquid') {
+    const j = await getJson(src, HYPERLIQUID, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'candleSnapshot', req: { coin: sym, interval: iv, startTime: start, endTime: now } }) });
+    return clean((Array.isArray(j) ? j : []).map((x) => ({ t: +x.t, o: +x.o, h: +x.h, l: +x.l, c: +x.c, v: +x.v || 0 })));
+  }
+  if (src === 'dYdX') {
+    if (!DYDX_RES[iv]) throw srcErr('dYdX: ' + iv + ' 非対応', true);
+    const j = await getJson(src, DYDX + '/candles/perpetualMarkets/' + sym + '-USD?resolution=' + DYDX_RES[iv] + '&limit=' + Math.min(n, 100));
+    return clean(((j && j.candles) || []).map((x) => ({ t: Date.parse(x.startedAt), o: +x.open, h: +x.high, l: +x.low, c: +x.close, v: +x.baseTokenVolume || 0 })));
+  }
+  throw srcErr('unknown source', true);
+}
+
+// 取得元を順に試す。最後の足が古すぎる(上場廃止・止まっている等)ものは失敗とみなす。返り値 { rows, src, errs }
+async function rowsAny(sym, iv, stepSec, n) {
+  const errs = [];
+  for (const src of SOURCES) {
+    try {
+      const rows = await rowsFrom(src, sym, iv, stepSec, n);
+      if (!rows.length) throw srcErr(src + ': 0本', true);
+      if (Date.now() - rows[rows.length - 1].t > 3 * stepSec * 1000 + 600000) throw srcErr(src + ': 最新の足が古い', true);
+      return { rows, src, errs };
+    } catch (e) { errs.push(String((e && e.message) || e).slice(0, 60)); }
+  }
+  const e = new Error(errs.join(' / ')); e.errs = errs; throw e;
 }
 
 // 区切りはUTC。週はUTCの月曜始まり、月はUTCの1日始まり。
@@ -100,19 +142,16 @@ const LIVE_TFS = ['5m', '15m', '1h', '4h'];       // 1本ずつ取る足(日足�
 const STALE_AFTER = 12 * 60 * 1000;               // これより古い保存は stale(定時取得が2回続けて失敗)として印を付ける
 const MEM = new Map();                            // 同じWorker内での短い使い回し(KVの読み込みを減らす)
 const MEM_TTL = 60 * 1000;
-let PX_COOL = 0;
-const PX_COOL_MS = 60 * 1000;
 
 async function buildBars(sym, tf) {
   const cfg = TFS[tf];
-  let rows = await kline(sym, cfg.iv, cfg.step, cfg.raw);
-  rows = rows.slice(-cfg.bars);
-  if (!rows.length) throw new Error('no data');
-  return { at: Date.now(), bars: rows.map((r) => [Math.floor(r.t / 1000), r.o, r.h, r.l, r.c, r.v]) };
+  const got = await rowsAny(sym, cfg.iv, cfg.step, cfg.raw);
+  const rows = got.rows.slice(-cfg.bars);
+  return { at: Date.now(), src: got.src, bars: rows.map((r) => [Math.floor(r.t / 1000), r.o, r.h, r.l, r.c, r.v]), errs: got.errs };
 }
 
 const DAILY_TFS = ['1d', '1w', '1M'];
-function barsFromDaily(rows, tf, at) {
+function barsFromDaily(rows, tf, at, src) {
   const cfg = TFS[tf];
   let r = rows;
   if (cfg.agg) {
@@ -124,7 +163,7 @@ function barsFromDaily(rows, tf, at) {
   }
   r = r.slice(-cfg.bars);
   if (!r.length) throw new Error('no data');
-  return { at, bars: r.map((x) => [Math.floor(x.t / 1000), x.o, x.h, x.l, x.c, x.v]) };
+  return { at, src, bars: r.map((x) => [Math.floor(x.t / 1000), x.o, x.h, x.l, x.c, x.v]) };
 }
 
 async function readPx(env) {
@@ -136,38 +175,42 @@ async function readPx(env) {
   return v;
 }
 
-// 定時実行(5分ごと)。1銘柄 5回(5m/15m/1h/4h/日足) × 4銘柄 = 最大20回。429が出たらその回は打ち切り、取れた分だけ更新する。
+// 定時実行(5分ごと)。1銘柄 5本(5m/15m/1h/4h/日足) × 4銘柄 = 20本。各本は Pacifica → Hyperliquid → dYdX の順に試す。
+//   断られた取得元は60秒休ませるので、Pacifica が429なら残りは最初から Hyperliquid に聞く。1回の外部問い合わせは45回まで。
 async function refreshPrices(env) {
   if (!env.CAL) return { skipped: 'KVが未接続' };
   let store = null;
   try { store = await env.CAL.get(PX2_KEY, 'json'); } catch (_) {}
   if (!store || !store.tfs) store = { tfs: {} };
   const oldest = (sym) => Math.min(...Object.keys(TFS).map((tf) => (store.tfs[sym] && store.tfs[sym][tf] && store.tfs[sym][tf].at) || 0));
-  const order = SYMS.slice().sort((a, b) => oldest(a) - oldest(b));   // 保存が古い銘柄から(断られて途中で止まっても偏らない)
-  let ok = 0, stopped = null;
-  const ng = [];
-  outer: for (const sym of order) {
-    store.tfs[sym] = store.tfs[sym] || {};
-    const jobs = LIVE_TFS.map((tf) => [tf, async () => ({ [tf]: await buildBars(sym, tf) })]);
-    jobs.push(['1d/1w/1M', async () => {
-      const raw = Math.max(...DAILY_TFS.map((tf) => TFS[tf].raw));
-      const rows = await kline(sym, '1d', 86400, raw), at = Date.now(), o = {};
-      for (const tf of DAILY_TFS) o[tf] = barsFromDaily(rows, tf, at);
-      return o;
-    }]);
-    for (const [name, run] of jobs) {
-      try { const got = await run(); for (const [tf, o] of Object.entries(got)) { store.tfs[sym][tf] = o; ok++; } }
-      catch (e) {
-        const msg = String((e && e.message) || e);
-        ng.push(sym + ' ' + name + ': ' + msg.slice(0, 50));
-        if (msg.includes('429')) { stopped = sym + ' ' + name; break outer; }   // 断られたら今回はここまで(5分後にまた来る)
+  const order = SYMS.slice().sort((a, b) => oldest(a) - oldest(b));   // 保存が古い銘柄から
+  const bySrc = {}, ng = [];
+  let ok = 0;
+  BUDGET = 45;
+  try {
+    for (const sym of order) {
+      store.tfs[sym] = store.tfs[sym] || {};
+      const jobs = LIVE_TFS.map((tf) => [tf, async () => { const o = await buildBars(sym, tf); return { src: o.src, out: { [tf]: { at: o.at, src: o.src, bars: o.bars } } }; }]);
+      jobs.push(['1d/1w/1M', async () => {
+        const raw = Math.max(...DAILY_TFS.map((tf) => TFS[tf].raw));
+        const got = await rowsAny(sym, '1d', 86400, raw), at = Date.now(), out = {};
+        // dYdX は1回100本までなので、週足・月足は作らない(前回の保存を残す)
+        for (const tf of (got.src === 'dYdX' ? ['1d'] : DAILY_TFS)) out[tf] = barsFromDaily(got.rows, tf, at, got.src);
+        return { src: got.src, out };
+      }]);
+      for (const [name, run] of jobs) {
+        try {
+          const g = await run();
+          for (const [tf, o] of Object.entries(g.out)) { store.tfs[sym][tf] = o; ok++; }
+          bySrc[g.src] = (bySrc[g.src] || 0) + 1;
+        } catch (e) { ng.push(sym + ' ' + name + ': ' + String((e && e.message) || e).slice(0, 120)); }
       }
     }
-  }
-  store.last = { at: Date.now(), ok, ng: ng.slice(0, 4), stopped };
+  } finally { BUDGET = Infinity; }
+  store.last = { at: Date.now(), ok, by_src: bySrc, ng: ng.slice(0, 4) };
   await env.CAL.put(PX2_KEY, JSON.stringify(store));
   MEM.set(PX2_KEY, { t: Date.now(), v: store });
-  return { order: order.join('>'), ok, ng, stopped };
+  return { order: order.join('>'), ok, by_src: bySrc, ng };
 }
 
 async function candles(url, env) {
@@ -179,7 +222,7 @@ async function candles(url, env) {
   if (!e && env.CAL) { try { const o = await env.CAL.get('px:v1:' + sym, 'json'); e = o && o.tfs && o.tfs[tf]; } catch (_) {} }   // v21以前の控え(切り替え直後だけ)
   if (!e) return json({ error: 'まだ保存がありません(5分ごとの定時取得を待っています)' }, 503);
   const age = Date.now() - e.at;
-  const out = { sym, tf, source: 'Pacifica', at: e.at, age_s: Math.round(age / 1000), bars: e.bars };
+  const out = { sym, tf, source: e.src || 'Pacifica', at: e.at, age_s: Math.round(age / 1000), bars: e.bars };
   if (age > STALE_AFTER) { out.stale = true; out.reason = (store && store.last && store.last.ng && store.last.ng[0]) || '定時取得に失敗'; }
   return json(out);
 }
@@ -830,9 +873,9 @@ async function health(env) {
   try { store = await env.CAL.get(PX2_KEY, 'json'); } catch (_) {}
   for (const sym of SYMS) {
     const t = (store && store.tfs && store.tfs[sym]) || {};
-    px[sym] = { age_min: Object.fromEntries(Object.keys(TFS).map((tf) => [tf, t[tf] ? min(t[tf].at) : null])) };
+    px[sym] = { age_min: Object.fromEntries(Object.keys(TFS).map((tf) => [tf, t[tf] ? min(t[tf].at) : null])), src: Object.fromEntries(Object.keys(TFS).map((tf) => [tf, t[tf] ? (t[tf].src || 'Pacifica') : null])) };
   }
-  const lastCron = store && store.last ? { min_ago: min(store.last.at), ok: store.last.ok, ng: store.last.ng, stopped: store.last.stopped } : null;
+  const lastCron = store && store.last ? { min_ago: min(store.last.at), ok: store.last.ok, by_src: store.last.by_src || null, ng: store.last.ng } : null;
   const st = await readStore(env);
   const eq = await readEthQ(env);
   let sk = null;
@@ -840,7 +883,6 @@ async function health(env) {
   const lastT = (a) => (a && a.length ? a[a.length - 1][0] * 1000 : 0);
   return json({
     version: VERSION, now: new Date(now).toISOString(),
-    pacifica_cooldown_s: Math.max(0, Math.ceil((PX_COOL - now) / 1000)),
     prices: px,
     price_cron: lastCron,
     macro: st ? { min_ago: min(Date.parse(st.generated_at)), count: st.events.length } : null,

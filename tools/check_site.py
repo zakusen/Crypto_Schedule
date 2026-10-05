@@ -36,10 +36,10 @@ def health(base, bad):
         print(f"--  /api/health: {e}(古い版では未対応)")
         return
     pc = h.get("price_cron") or {}
-    print(f"-- 価格の定時取得(5分ごと): {pc.get('min_ago')}分前 / 成功{pc.get('ok')}本 / 打ち切り: {pc.get('stopped') or 'なし'} / {pc.get('ng') or ''}")
+    print(f"-- 価格の定時取得(5分ごと): {pc.get('min_ago')}分前 / 成功{pc.get('ok')}本 / 取得元: {pc.get('by_src')} / 失敗: {pc.get('ng') or 'なし'}")
     for sym, p in (h.get("prices") or {}).items():
         ages = p.get("age_min") or {}
-        print(f"   {sym} 保存の古さ(分): {ages}")
+        print(f"   {sym} 保存の古さ(分): {ages} / 取得元: {p.get('src')}")
         a5 = ages.get("5m")
         if a5 is None or a5 > 60:   # 5分足の保存が1時間より古い = 定時取得が12回以上続けて断られている
             print(f"NG  {sym}: 5分足の保存が {a5}分前 です(Pacifica に断られ続けている可能性)")
