@@ -1,1 +1,21 @@
+name: Check live site (公開中のAPIが動いているか確認)
 
+# 公開したURLの /api/candles と /api/events を叩いて、形が正しいかを確認する(手動実行)。
+# 価格の元(Pacifica)やFREDの仕様が変わって壊れていないかを見るためのもの。
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "公開URL(例: https://crypto-schedule.xxxx.workers.dev)"
+        required: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check
+        env:
+          SITE_URL: ${{ github.event.inputs.url }}
+        run: python3 tools/check_site.py

@@ -1,1 +1,47 @@
+name: Deploy to Cloudflare (更新を公開に反映)
 
+# main に push された時、更新zipの反映が終わった時、手動で実行した時に、Cloudflare Workers へ公開する。
+# 必要なシークレット(GitHub: Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID
+# 未設定ならこのワークフローは何もしない(手元の `npx wrangler deploy` で公開してもよい)。
+# FRED_API_KEY は Cloudflare 側のシークレットに入れる(ここには要らない)。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "public/**"
+      - "worker.js"
+      - "wrangler.jsonc"
+  workflow_run:
+    workflows: ["Apply update zip (zipを上げると自動で展開)"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: crypto-schedule-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Deploy
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      - name: Skipped
+        if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == ''
+        run: echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID が未設定のため、公開はスキップしました"
