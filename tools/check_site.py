@@ -64,8 +64,8 @@ def main():
                 srcs[e.get("src")] = srcs.get(e.get("src"), 0) + 1
         print(f"版: {j.get('version') or '(古い版)'}")
         print(f"層別: {layers} / 銘柄層の取得元別: {srcs}")
-        if not srcs.get("CoinMarketCal"):
-            print("注意: CoinMarketCalのイベントが0件です(無料枠は7日先まで。0件でも異常とは限りません)")
+        if not any(k and k.startswith("チェーン") for k in srcs):
+            print("注意: チェーン直読み(BTC半減期など)のイベントが0件です。読み取りに失敗している可能性があります")
         print(f"{'OK ' if evs else 'NG '} events: {len(evs)}件 / 国別: {by} / 警告: {errs or 'なし'}")
         if not evs or errs:
             bad.append("events")
@@ -76,6 +76,15 @@ def main():
     except Exception as e:  # noqa: BLE001
         print(f"NG  events: {e}")
         bad.append("events")
+    try:
+        q = get(f"{base}/api/ethqueue")
+        smp = q.get("samples") or []
+        print(f"{'OK ' if smp else 'NG '} ETH出口待ち: 記録{len(smp)}件 / 最新 {smp[-1] if smp else '-'}")
+        if not smp:
+            bad.append("ethqueue")
+    except Exception as e:  # noqa: BLE001
+        print(f"NG  ETH出口待ち: {e}")
+        bad.append("ethqueue")
     if bad:
         print("::error::確認で問題が出ました: " + ", ".join(bad))
         return 1

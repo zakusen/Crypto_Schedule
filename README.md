@@ -7,7 +7,7 @@
 |---|---|
 | `public/index.html` | 画面（LUXE）。`/api/*` を呼ぶだけ |
 | `public/events_manual.json` | 任意の追加イベント用（今は空。マクロは全て自動取得） |
-| `worker.js` | `/api/candles`（Pacifica）と `/api/events`（日米欧のマクロ指標カレンダー）を返す。30分ごとの定時実行でマクロ指標をKVに保存する |
+| `worker.js` | `/api/candles`（Pacifica）、`/api/events`（日米欧のマクロ指標・チェーン直読みの予定など）、`/api/ethqueue`（ETH出口待ち）を返す。30分ごとの定時実行でマクロ指標をKVに保存する |
 | `wrangler.jsonc` | Cloudflare Workersの設定（Worker名、KV `cal` の接続、30分ごとの定時実行） |
 | `tools/apply_update.py` | 更新zipを展開して反映する（zip自動展開の本体） |
 | `tools/check_site.py` | 公開中のAPIが正しい形で返るかを確認する |
@@ -39,10 +39,8 @@
 - マクロ（日米欧）: TradingViewの公開カレンダー（`economic-calendar.tradingview.com/events`、鍵なし・**非公式**）から、過去60日〜先90日分を自動取得。米・日・ユーロ圏（US/JP/EU）の重要度「高」「中」のみ。祝日と低重要度は除外。指標名は主要なものを日本語に置き換え（対応表は `worker.js` の `JA`）、それ以外は英語のまま。FOMC・日銀会合・ECB政策金利も同じ取得に含まれるため、手動登録は不要。
 - マクロの予備: TradingViewが取得できない時だけ、Forex Factoryの週次JSON（今週・来週分のみ、非公式）に切り替える。切り替わると画面下に警告が出る。
 - 非公式な取得元に依存するため、止まる・仕様が変わる可能性がある。`Check live site` で国別の件数（US/JP/EU）を定期的に確認すること。
-- 銘柄イベント: CoinMarketCal API v2（`https://api.coinmarketcal.com/v2`。旧 `developers.coinmarketcal.com/v1` は廃止）から、BTC / ETH / SOL / SUI / BNB のイベントを取得。キーは Cloudflare のシークレット `CMAL_API_KEY`（ダッシュボードの「変数とシークレット」でタイプ「シークレット」。`wrangler.jsonc` やリポジトリには書かない）。無料プランは「今日から7日先まで」だけが返る（過去・説明・カテゴリ・影響度は無し）ので、範囲はプラン任せにして `from`/`to` は付けない。日付が目安の予定（`isEstimated`）は、見出しに表示用の日付（`displayedDate`）を添える。コインは `/v2/coins` で記号からslugを引き、KVに覚える。取得は6時間ごと（cronの該当回のみ）で、結果はKVの `asset:v2` に積み上げる（過去分は残し、今日以降は取得結果で置き換える）。キーが無い・認証に失敗した時は、銘柄イベントだけが出ない（マクロ・ニュースは影響なし）。
 - 銘柄イベント(チェーン直読み): BTCの半減期(mempool.spaceのブロック高から10分/ブロックで逆算・推定)と、ETHのコンセンサス層 fork_schedule に載った未来のフォークを、毎回公開APIから読む。鍵・申請は不要。出典欄に「チェーン確定」「チェーン由来・推定」と確度を書く。ETHは未来のフォークが載るまで何も出ない。
 - ETH出口待ち(時系列の別枠): ビーコンチェーンの公開API(鍵なし)から出口待ちのバリデータ(active_exiting)を30分ごとに読み、件数と待ち日数(最後のexit_epoch−現在のエポック、1エポック=6.4分)をKV(`ethq:v1`)に120日分貯める。画面はETHタブの価格の下に同じ時間軸で表示(`/api/ethqueue`)。履歴を返すAPIは使わないので、記録は導入日から貯まる。
-- 銘柄イベント(Coindar): 無料のアクセストークン(https://coindar.org/en/api/tokens で登録)を Cloudflare のシークレット `COINDAR_TOKEN` に入れる。先180日までのBTC/ETH/SOL/SUI/BNBのイベントを6時間ごとに取得してKV(`coindar:v1`)に保存。無料枠の回数制限は公式に記載なし。日付はUTCとして扱う(記載なし)。トークンが無い時は、この層だけ出ない。
 - 銘柄イベント(BNBバーンの目安): 四半期(1・4・7・10月)の15日を「目安」として生成(第36回が2026-07-15、次回は10月中旬見込み。正確な日付は告知まで不明)。
 - 銘柄イベント(満期の自動計算): Deribitの公式規則(全て08:00 UTC、月次=月末最終金曜、四半期=3・6・9・12月の最終金曜)から、BTC/ETH/SOLのオプション・先物の満期を先6か月ぶん生成する。取得元は無く、鍵も不要。
 - 銘柄ニュース(現在は無効。`worker.js` の `NEWS_ENABLED` を true にすると再開): 暗号資産メディア（Cointelegraph、CoinDesk、Decrypt）のRSSから、見出し・日時・リンクだけを30分ごとに取得し、KVの `news:v1` に積み上げる（90日分）。鍵は不要。銘柄はタイトルの言葉（Bitcoin、Solana、BNB、Suiなど）で判定。一部のメディアが取れなくても、他のメディアの分は出る（取れなかった所は画面に警告）。縦線を選ぶと「記事を開く」のリンクが出る。

@@ -1,12 +1,13 @@
 // CRYPTO SIGNAL ARCHIVE の小さなサーバー部分(Cloudflare Worker)。
 //   /api/candles?sym=BTC&tf=1h  … Pacificaのローソク足(公開API・鍵なし)
 //   /api/events                 … 日米欧のマクロ指標カレンダー(TradingViewの公開カレンダー。予備: Forex Factory) + 任意の追加イベント(public/events_manual.json)
-//   銘柄イベントは CoinMarketCal(シークレット CMAL_API_KEY)から6時間ごとに取得し、KV(asset:v2)へ保存する。
+//   銘柄の予定は、チェーン直読み(BTC半減期・ETHフォーク)・満期の自動計算・BNBバーンの目安・手動登録だけ。出どころ不明の投稿型カレンダーは使わない。
+//   /api/ethqueue               … ETHの出口待ち(30分ごとに自前で記録)
 // 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-05-ethq-v7';
+const VERSION = '2026-10-05-clean-v8';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'SUI', 'BNB'];
 
@@ -202,180 +203,6 @@ async function manualEvents(request, env) {
     const j = await r.json();
     return Array.isArray(j) ? j.filter((e) => e && e.id && e.at && e.t && ['macro', 'market', 'asset'].includes(e.l)) : [];
   } catch (_) { return []; }
-}
-
-// ---------- イベント(銘柄: CoinMarketCal API v2) ----------
-// 鍵は Cloudflare のシークレット CMAL_API_KEY(ヘッダー x-api-key)。接続先は https://api.coinmarketcal.com/v2 (旧 developers.coinmarketcal.com/v1 は廃止)。
-// 無料プランは「今日から7日先まで」しか返らない(過去・説明・カテゴリ・影響度は無し)。範囲はプラン任せにし、from/to は付けない。
-// 回数制限に配慮し、取得は6時間ごと(cronの該当回のみ)。取れた分はKVに積み上げ、過去の分は消さない。
-const CMAL = 'https://api.coinmarketcal.com/v2';
-const ASSET_KEY = 'asset:v2';
-const ASSET_EVERY_H = 6;                    // 何時間ごとに取り直すか
-const ASSET_STALE_MS = 24 * 3600 * 1000;    // 保存がこれより古ければ画面に警告を出す
-const MAX_PAGES = 4, PAGE_MAX = 100;
-
-async function cmalGet(path, env) {
-  const r = await fetch(CMAL + path, { headers: { 'x-api-key': env.CMAL_API_KEY, Accept: 'application/json', 'User-Agent': UA }, signal: AbortSignal.timeout(10000) });
-  if (r.status === 401 || r.status === 403) {
-    let b = ''; try { b = (await r.text()).slice(0, 160); } catch (_) {}
-    throw new Error('CoinMarketCal: 認証/権限エラー ' + r.status + '(キーを確認。プランで使えない条件の可能性もあります)' + (b ? ' 応答: ' + b : ''));
-  }
-  if (r.status === 429) throw new Error('CoinMarketCal: 回数制限に達しました');
-  if (!r.ok) {
-    let body = '';
-    try { body = (await r.text()).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160); } catch (_) {}
-    throw new Error('CoinMarketCal ' + r.status + (body ? ' 応答: ' + body : ''));      // 向こうの返事の冒頭も出す(原因の手がかり)
-  }
-  return r.json();
-}
-const dataOf = (j) => (Array.isArray(j) ? j : (j && j.data) || []);
-
-// 銘柄記号(BTCなど) → CoinMarketCal上のコインslug。記号は重複するので、一覧から記号が一致するものの中で順位が最上位のものを使う。
-async function cmalCoinSlugs(env) {
-  const out = {};
-  for (const sym of SYMS) {
-    const list = dataOf(await cmalGet('/coins?q=' + encodeURIComponent(sym) + '&limit=50', env));
-    const hits = list.filter((c) => c && c.slug && String(c.symbol || '').toUpperCase() === sym);
-    hits.sort((a, b) => (+a.rank || 1e9) - (+b.rank || 1e9));
-    if (hits[0]) out[sym] = String(hits[0].slug);
-  }
-  return out;
-}
-
-function cmalEvent(e, slugToSym) {
-  const ts = Date.parse(e && e.date);
-  if (!e || e.id == null || !isFinite(ts)) return null;
-  const title = String(e.title || '').trim();
-  if (!title) return null;
-  const syms = (Array.isArray(e.coins) ? e.coins : []).map((c) => slugToSym[String(c.slug)] || String(c.symbol || '').toUpperCase()).filter((x) => SYMS.includes(x));
-  if (!syms.length) return null;
-  const hi = e.impact === 'High' || e.impact === 'Critical' || (typeof e.impact === 'number' && e.impact >= 7.5);
-  // 日付が「期限」や「期間」の予定(isEstimated)は、縦線の位置が目安なので、表示用の日付を見出しに添える
-  const est = e.isEstimated === true && e.displayedDate ? '（' + e.displayedDate + '）' : '';
-  const ev = { id: 'cmal-' + e.id, l: 'asset', t: syms.join('/') + ' ' + title + est, s: syms[0] + ' ' + (title.length > 10 ? title.slice(0, 10) : title), src: 'CoinMarketCal', at: new Date(ts).toISOString(), im: hi ? 'high' : 'mid', a: [...new Set(syms)] };
-  if (/^https?:\/\//.test(e.sourceUrl || '')) ev.u = e.sourceUrl;
-  return ev;
-}
-
-async function cmalEvents(env, coinMap) {
-  const slugs = Object.values(coinMap);
-  const slugToSym = Object.fromEntries(Object.entries(coinMap).map(([k, v]) => [v, k]));
-  const out = new Map();
-  let cursor = '';
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const q = '/events?coins=' + encodeURIComponent(slugs.join(',')) + '&limit=' + PAGE_MAX + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
-    const j = await cmalGet(q, env);
-    for (const e of dataOf(j)) { const v = cmalEvent(e, slugToSym); if (v) out.set(v.id, v); }
-    cursor = j && j.meta && j.meta.cursor ? String(j.meta.cursor) : '';
-    if (!cursor) break;
-  }
-  return [...out.values()];
-}
-
-async function readAssets(env) {
-  if (!env.CAL) return null;
-  try { const j = await env.CAL.get(ASSET_KEY, 'json'); return j && Array.isArray(j.events) && j.generated_at ? j : null; } catch (_) { return null; }
-}
-
-// 取得に失敗した理由を保存しておき、/api/events の errors に出す(原因が画面で分かるように)。
-async function failAssets(env, reason) {
-  try { await env.CAL.put('asset:err', JSON.stringify({ at: new Date().toISOString(), reason })); } catch (_) {}
-  return { ok: false, reason };
-}
-
-async function refreshAssets(env) {
-  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
-  if (!env.CMAL_API_KEY) return { ok: false, reason: 'CMAL_API_KEY未設定' };
-  const prev = await readAssets(env);
-  try {
-    const coins = prev && prev.coins && Object.keys(prev.coins).length === SYMS.length ? prev.coins : await cmalCoinSlugs(env);
-    if (!Object.keys(coins).length) return await failAssets(env, 'コイン一覧から対象銘柄が見つかりません');
-    const fresh = await cmalEvents(env, coins);
-    const now = Date.now(), today = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), new Date(now).getUTCDate());
-    const byId = new Map();
-    for (const e of (prev ? prev.events : [])) { const ts = Date.parse(e.at); if (isFinite(ts) && ts < today && ts > now - KEEP_MS) byId.set(e.id, e); }   // 過去分は残す。今日以降は取得結果で置き換える(日程変更・取消の反映)
-    for (const e of fresh) byId.set(e.id, e);
-    const merged = [...byId.values()].sort((x, y) => Date.parse(x.at) - Date.parse(y.at));
-    await env.CAL.put(ASSET_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), coins, events: merged }));
-    try { await env.CAL.delete('asset:err'); } catch (_) {}
-    return { ok: true, count: merged.length, fetched: fresh.length };
-  } catch (e) { return await failAssets(env, String(e.message || e)); }
-}
-
-// ---------- イベント(銘柄: Coindar API v2) ----------
-// 無料のアクセストークン(https://coindar.org/en/api/tokens で登録)を Cloudflare のシークレット COINDAR_TOKEN に入れる。
-// 未来の日付範囲を指定でき、銘柄で絞れる。無料枠の回数制限は公式に記載が無いので、6時間ごとに最大数回だけ取る。
-// 応答の形(公式例): [{caption, source, source_reliable, important, date_public, date_start, date_end, coin_id, tags}]。日付は "2026-10-9 17:23" のようにゼロ埋めなし。時刻帯の記載が無いのでUTCとして扱う。
-const COINDAR = 'https://coindar.org/api/v2';
-const COINDAR_KEY = 'coindar:v1', COINDAR_ERR = 'coindar:err';
-const COINDAR_AHEAD = 180 * DAY;
-const COINDAR_NAMES = { BTC: ['bitcoin'], ETH: ['ethereum'], SOL: ['solana'], SUI: ['sui'], BNB: ['bnb', 'binance coin', 'bnb chain', 'binancecoin'] };
-
-async function coindarGet(path, env) {
-  const sep = path.includes('?') ? '&' : '?';
-  const r = await fetch(COINDAR + path + sep + 'access_token=' + encodeURIComponent(env.COINDAR_TOKEN), { headers: { Accept: 'application/json', 'User-Agent': UA }, signal: AbortSignal.timeout(15000) });
-  if (!r.ok) {
-    let body = ''; try { body = (await r.text()).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160); } catch (_) {}
-    throw new Error('Coindar ' + r.status + (body ? ' 応答: ' + body : ''));
-  }
-  return r.json();
-}
-function coindarDate(str) {
-  const m = String(str || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/);
-  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : NaN;
-}
-async function coindarCoinIds(env) {
-  const list = await coindarGet('/coins', env);
-  const out = {};
-  if (!Array.isArray(list)) return out;
-  for (const sym of SYMS) {
-    const hits = list.filter((c) => c && String(c.symbol || '').toUpperCase() === sym);
-    const named = hits.find((c) => COINDAR_NAMES[sym].includes(String(c.name || '').toLowerCase()));
-    const pick = named || (hits.length === 1 ? hits[0] : null);      // 名前が合わず記号が複数ある時は、取り違え防止のため使わない
-    if (pick) out[sym] = String(pick.id);
-  }
-  return out;
-}
-async function coindarFetch(env, ids) {
-  const idToSym = Object.fromEntries(Object.entries(ids).map(([k, v]) => [v, k]));
-  const from = new Date(Date.now() - 1 * DAY).toISOString().slice(0, 10), to = new Date(Date.now() + COINDAR_AHEAD).toISOString().slice(0, 10);
-  const out = new Map();
-  for (let page = 1; page <= 3; page++) {
-    const q = '/events?filter_coins=' + Object.values(ids).join(',') + '&filter_date_start=' + from + '&filter_date_end=' + to + '&page=' + page + '&page_size=100&sort_by=date_start';
-    const rows = await coindarGet(q, env);
-    if (!Array.isArray(rows)) throw new Error('Coindar 形式が想定と違います');
-    for (const e of rows) {
-      const ts = coindarDate(e && e.date_start), sym = idToSym[String(e && e.coin_id)], title = String((e && e.caption) || '').trim();
-      if (!isFinite(ts) || !sym || !title) continue;
-      const id = 'cdr-' + hash(sym + '|' + String(e.date_start) + '|' + title);
-      const ev = { id, l: 'asset', t: sym + ' ' + title, s: sym + ' ' + (title.length > 10 ? title.slice(0, 10) : title), src: 'Coindar', at: new Date(ts).toISOString(), im: String(e.important) === 'true' ? 'high' : 'mid', a: [sym] };
-      if (/^https?:\/\//.test(e.source || '')) ev.u = e.source;
-      out.set(id, ev);
-    }
-    if (rows.length < 100) break;
-  }
-  return [...out.values()];
-}
-async function readCoindar(env) {
-  if (!env.CAL) return null;
-  try { const j = await env.CAL.get(COINDAR_KEY, 'json'); return j && Array.isArray(j.events) && j.generated_at ? j : null; } catch (_) { return null; }
-}
-async function refreshCoindar(env) {
-  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
-  if (!env.COINDAR_TOKEN) return { ok: false, reason: 'COINDAR_TOKEN未設定' };
-  try {
-    const prev = await readCoindar(env);
-    const ids = prev && prev.ids && Object.keys(prev.ids).length === SYMS.length ? prev.ids : await coindarCoinIds(env);
-    if (!Object.keys(ids).length) throw new Error('コイン一覧から対象銘柄が見つかりません');
-    const fresh = await coindarFetch(env, ids), now = Date.now();
-    await env.CAL.put(COINDAR_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), ids, events: fresh, missing: SYMS.filter((x) => !ids[x]) }));
-    try { await env.CAL.delete(COINDAR_ERR); } catch (_) {}
-    return { ok: true, count: fresh.length };
-  } catch (e) {
-    const reason = String(e.message || e);
-    try { await env.CAL.put(COINDAR_ERR, JSON.stringify({ at: new Date().toISOString(), reason })); } catch (_) {}
-    return { ok: false, reason };
-  }
 }
 
 // ---------- イベント(銘柄: チェーンから直接読む予定) ----------
@@ -663,47 +490,10 @@ async function events(request, env, ctx) {
       }
     }
   }
-  let asset = [];
-  if (env.CMAL_API_KEY) {
-    const st = await readAssets(env);
-    if (st) {
-      asset = st.events;
-      if (Date.now() - Date.parse(st.generated_at) > ASSET_STALE_MS) errors.push('銘柄イベント(CoinMarketCal)の取得が24時間以上止まっています');
-    } else if (env.CAL && ctx) {
-      let er = null;
-      try { er = await env.CAL.get('asset:err', 'json'); } catch (_) {}
-      if (er && er.reason && Date.now() - Date.parse(er.at) <= 10 * 60 * 1000) {
-        errors.push('銘柄イベント(CoinMarketCal)を取得できませんでした: ' + er.reason);          // 直近の失敗は、10分間は再試行しない
-      } else {
-        const rr = await refreshAssets(env).catch((e) => ({ ok: false, reason: String(e.message || e) }));      // 保存が無い時は、取得を待ってから返す
-        const st2 = rr && rr.ok ? await readAssets(env) : null;
-        if (st2) asset = st2.events;
-        else errors.push('銘柄イベント(CoinMarketCal)を取得できませんでした: ' + ((rr && rr.reason) || '不明'));
-      }
-    }
-  }
-  let coindar = [];
-  if (env.COINDAR_TOKEN && env.CAL) {
-    let st = await readCoindar(env);
-    if (!st) {
-      let er = null; try { er = await env.CAL.get(COINDAR_ERR, 'json'); } catch (_) {}
-      if (er && er.reason && Date.now() - Date.parse(er.at) <= 10 * 60 * 1000) errors.push('銘柄イベント(Coindar)を取得できませんでした: ' + er.reason);
-      else {
-        const rr = await refreshCoindar(env);
-        st = rr.ok ? await readCoindar(env) : null;
-        if (!st) errors.push('銘柄イベント(Coindar)を取得できませんでした: ' + (rr.reason || '不明'));
-      }
-    }
-    if (st) {
-      coindar = st.events;
-      if (st.missing && st.missing.length) errors.push('Coindarで銘柄を特定できませんでした: ' + st.missing.join('/'));
-      if (Date.now() - Date.parse(st.generated_at) > ASSET_STALE_MS) errors.push('銘柄イベント(Coindar)の取得が24時間以上止まっています');
-    }
-  }
   const chain = await chainEvents();
   errors.push(...chain.errors);
   const manual = await manualEvents(request, env);
-  const all = macro.concat(asset, coindar, chain.out, expiryEvents(Date.now()), bnbBurnEvents(Date.now()), news, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const all = macro.concat(chain.out, expiryEvents(Date.now()), bnbBurnEvents(Date.now()), news, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const res = json({ generated_at: gen, version: VERSION, events: all, errors });
   if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
   return res;
@@ -726,10 +516,5 @@ export default {
     ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))));
     ctx.waitUntil(refreshEthQ(env).then((r) => console.log('ethq refresh', JSON.stringify(r))));
     if (NEWS_ENABLED) ctx.waitUntil(refreshNews(env).then((r) => console.log('news refresh', JSON.stringify(r))));
-    const t = new Date(event.scheduledTime || Date.now());
-    if (t.getUTCHours() % ASSET_EVERY_H === 0 && t.getUTCMinutes() < 30) {       // 6時間ごとの最初の回だけ
-      ctx.waitUntil(refreshAssets(env).then((r) => console.log('asset refresh', JSON.stringify(r))));
-      ctx.waitUntil(refreshCoindar(env).then((r) => console.log('coindar refresh', JSON.stringify(r))));
-    }
   },
 };
