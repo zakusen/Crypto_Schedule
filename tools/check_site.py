@@ -42,11 +42,18 @@ def main():
             bad.append(f"{sym} 1h")
     try:
         j = get(f"{base}/api/events")
-        n = len(j.get("events") or [])
+        evs = j.get("events") or []
         errs = j.get("errors") or []
-        print(f"{'OK ' if n else 'NG '} events: {n}件 / 警告: {errs or 'なし'}")
-        if not n or errs:
+        by = {}
+        for e in evs:
+            by[e.get("c") or "-"] = by.get(e.get("c") or "-", 0) + 1
+        print(f"{'OK ' if evs else 'NG '} events: {len(evs)}件 / 国別: {by} / 警告: {errs or 'なし'}")
+        if not evs or errs:
             bad.append("events")
+        missing = [c for c in ("US", "JP", "EU") if not by.get(c)]
+        if evs and missing:
+            print(f"NG  日米欧のうち取得できていない地域: {missing}(予備のForex Factoryに切り替わっている可能性)")
+            bad.append("events:" + ",".join(missing))
     except Exception as e:  # noqa: BLE001
         print(f"NG  events: {e}")
         bad.append("events")

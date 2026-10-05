@@ -6,8 +6,8 @@
 | ファイル | 役割 |
 |---|---|
 | `public/index.html` | 画面（LUXE）。`/api/*` を呼ぶだけ |
-| `public/events_manual.json` | 手動で登録するイベント（今はFOMC 2回分） |
-| `worker.js` | `/api/candles`（Pacifica）と `/api/events`（FRED＋手動）を返す |
+| `public/events_manual.json` | 任意の追加イベント用（今は空。マクロは全て自動取得） |
+| `worker.js` | `/api/candles`（Pacifica）と `/api/events`（日米欧のマクロ指標カレンダー）を返す |
 | `wrangler.jsonc` | Cloudflare Workersの設定 |
 | `tools/apply_update.py` | 更新zipを展開して反映する（zip自動展開の本体） |
 | `tools/check_site.py` | 公開中のAPIが正しい形で返るかを確認する |
@@ -17,14 +17,8 @@
 
 ## 公開手順
 1. 新しいGitHubリポジトリを作り、この中身をそのままpush（botのリポジトリには入れない）
-2. FRED APIキーを無料で取得: https://fred.stlouisfed.org/docs/api/api_key.html
-3. ターミナルで:
-   ```
-   npx wrangler deploy
-   npx wrangler secret put FRED_API_KEY
-   ```
-   （キーはコードやリポジトリに書かず、必ずこのシークレットで渡す）
-4. 手元で試すなら `npx wrangler dev`
+2. ターミナルで `npx wrangler deploy`（**APIキーは不要**）
+3. 手元で試すなら `npx wrangler dev`
 
 ## zipで更新する（自動展開）
 - リポジトリの直下か `updates/` に `*.zip` をアップロードすると、Actionsが中身を展開して反映し、zipは消します。
@@ -35,7 +29,6 @@
 
 ## 自動公開（任意）
 - GitHubのSecretsに `CLOUDFLARE_API_TOKEN` と `CLOUDFLARE_ACCOUNT_ID` を入れると、`main` へのpushと、zip反映の完了後に、自動で公開されます。未設定なら何もしません（手元の `npx wrangler deploy` でも公開できます）。
-- `FRED_API_KEY` はCloudflare側のシークレット（`npx wrangler secret put FRED_API_KEY`）に入れます。GitHubには入れません。
 
 ## 動作確認
 公開後、Actions → 「Check live site」→ 公開URLを入れて実行すると、全時間軸の価格とイベントが返るかを確認できます。Pacificaの仕様変更などで壊れたときの早期発見に使えます。
@@ -43,11 +36,12 @@
 ## 仕様メモ
 - 足: 1分・5分・15分・1時間・4時間・日足はPacificaの足をそのまま使用。週足・月足は日足から集計（UTC基準、週は月曜始まり）。
 - 銘柄: BTC / ETH / SOL / SUI / BNB（`worker.js` の `SYMS` と `public/index.html` の `A` を揃えて変更）。
-- マクロ: FREDのrelease_datesから、過去60日〜先90日分のCPI・雇用統計・PCE・PPI・GDP・小売売上高・新築住宅販売・ADP（月次は水曜のみ）を自動取得。米東部時間→UTCは夏時間込みで変換。
-- FOMCは `events_manual.json` に手動登録。**公式の日程と照合してから使うこと。**
+- マクロ（日米欧）: TradingViewの公開カレンダー（`economic-calendar.tradingview.com/events`、鍵なし・**非公式**）から、過去60日〜先90日分を自動取得。米・日・ユーロ圏（US/JP/EU）の重要度「高」「中」のみ。祝日と低重要度は除外。指標名は主要なものを日本語に置き換え（対応表は `worker.js` の `JA`）、それ以外は英語のまま。FOMC・日銀会合・ECB政策金利も同じ取得に含まれるため、手動登録は不要。
+- マクロの予備: TradingViewが取得できない時だけ、Forex Factoryの週次JSON（今週・来週分のみ、非公式）に切り替える。切り替わると画面下に警告が出る。
+- 非公式な取得元に依存するため、止まる・仕様が変わる可能性がある。`Check live site` で国別の件数（US/JP/EU）を定期的に確認すること。
 - 市場・銘柄ニュースの層は準備中（`events_manual.json` に `l: "market"` / `"asset"` で追加すれば表示される）。
 - キャッシュ: 価格は足ごとに30秒〜10分、イベントは30分。
 - Pacificaの応答形式は、botのWorkerと同じ前提で書いています。初回デプロイ後に `/api/candles?sym=BTC&tf=1h` を直接開いて確認してください。
 
 ## 動作確認の状況
-モックの応答でWorkerとページの動作（足の集計、夏時間の変換、エラー表示、HTMLの無害化）と、zip展開の安全装置（フォルダ1段外し、秘密の保護、パス脱出の拒否、ワークフローの除外）を確認済み。GitHub ActionsとCloudflareへの実際のデプロイは未実行です。実際のPacifica・FREDへの接続は、この環境から通信できないため未確認です。
+モックの応答でWorkerとページの動作（足の集計、マクロ指標の取得・日本語化・予備への切替、エラー表示、HTMLの無害化）と、zip展開の安全装置（フォルダ1段外し、秘密の保護、パス脱出の拒否、ワークフローの除外）を確認済み。GitHub ActionsとCloudflareへの実際のデプロイは未実行です。実際のPacifica・TradingView・Forex Factoryへの接続は、この環境から通信できないため未確認です（TradingViewが要求するヘッダーも未確認）。

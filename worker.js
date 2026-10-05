@@ -1,7 +1,7 @@
 // CRYPTO SIGNAL ARCHIVE の小さなサーバー部分(Cloudflare Worker)。
 //   /api/candles?sym=BTC&tf=1h  … Pacificaのローソク足(公開API・鍵なし)
-//   /api/events                 … マクロの発表日(FRED) + 手動イベント(public/events_manual.json)
-// 必要な設定: シークレット FRED_API_KEY(無料。無い場合はマクロ層だけ空になる)
+//   /api/events                 … 日米欧のマクロ指標カレンダー(TradingViewの公開カレンダー。予備: Forex Factory) + 任意の追加イベント(public/events_manual.json)
+// 必要な設定: なし(鍵は不要)
 
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'SUI', 'BNB'];
@@ -30,7 +30,7 @@ async function cached(ctx, request, ttl, fn) {
   const hit = await cache.match(key);
   if (hit) return hit;
   const res = await fn();
-  if (res.status !== 200) return res;
+  if (res.status !== 200 || res.headers.get('x-nocache')) return res;
   const out = new Response(res.body, res);
   out.headers.set('cache-control', 'public, max-age=' + ttl);
   ctx.waitUntil(cache.put(key, out.clone()));
@@ -85,52 +85,103 @@ async function candles(url) {
   }
 }
 
-// ---------- イベント ----------
-const FRED = 'https://api.stlouisfed.org/fred/release/dates';
-// FREDのrelease_id。時刻は米東部時間(指定が無ければ8:30)
-const RELEASES = [
-  { id: 10,  t: '米消費者物価指数（CPI）',        s: 'CPI',        im: 'high' },
-  { id: 50,  t: '米雇用統計',                     s: '雇用統計',   im: 'high' },
-  { id: 54,  t: '米PCE（個人消費支出）',          s: 'PCE',        im: 'mid' },
-  { id: 46,  t: '米PPI（生産者物価指数）',        s: 'PPI',        im: 'mid' },
-  { id: 53,  t: '米GDP',                          s: 'GDP',        im: 'mid' },
-  { id: 9,   t: '米小売売上高',                   s: '小売売上',   im: 'mid' },
-  { id: 97,  t: '米新築住宅販売件数',             s: '新築住宅',   im: 'low', h: 10, m: 0 },
-  { id: 194, t: '米ADP雇用者数',                  s: 'ADP',        im: 'low', h: 8, m: 15, wed: true },  // 週次が同居するので水曜だけ
+// ---------- イベント(マクロ: 日米欧) ----------
+// 主: TradingViewの公開カレンダー(鍵なし・非公式)。予備: Forex Factoryの週次JSON(今週・来週のみ)。
+const TV_CAL = 'https://economic-calendar.tradingview.com/events';
+const FF_URLS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
+const REGION = { US: '米', JP: '日', EU: '欧' };
+const UA = 'Mozilla/5.0 (compatible; signal-archive/1.0)';
+
+// 英語の指標名 → [日本語名, 画面の縦線ラベル]。上から順に最初に合ったものを使う(Coreを先に置く)。
+const JA = [
+  [/minutes/i, 'FOMC議事録', '議事録'],
+  [/interest rate decision|rate decision|federal funds rate|policy rate|main refinancing/i, null, null],      // 国ごとに下で決める
+  [/non[- ]?farm payrolls?/i, '雇用統計（非農業部門雇用者数）', '雇用統計'],
+  [/adp/i, 'ADP雇用者数', 'ADP'],
+  [/jolts|job openings/i, 'JOLTS求人件数', 'JOLTS'],
+  [/jobless claims/i, '新規失業保険申請件数', '失業保険'],
+  [/unemployment rate/i, '失業率', '失業率'],
+  [/core (pce|price index)/i, 'コアPCE', 'コアPCE'],
+  [/\bpce\b/i, 'PCE物価指数', 'PCE'],
+  [/core (inflation|cpi|consumer)/i, 'コアCPI', 'コアCPI'],
+  [/inflation rate|consumer price|\bcpi\b|\bhicp\b/i, 'CPI 消費者物価指数', 'CPI'],
+  [/producer price|\bppi\b/i, 'PPI 生産者物価指数', 'PPI'],
+  [/\bgdp\b/i, 'GDP', 'GDP'],
+  [/retail sales/i, '小売売上高', '小売売上'],
+  [/ism (services|non[- ]?manufacturing)/i, 'ISM非製造業景況指数', 'ISM非製造'],
+  [/ism manufacturing/i, 'ISM製造業景況指数', 'ISM製造'],
+  [/pmi/i, 'PMI 購買担当者景気指数', 'PMI'],
+  [/tankan/i, '日銀短観', '短観'],
+  [/industrial production/i, '鉱工業生産', '鉱工業'],
+  [/trade balance/i, '貿易収支', '貿易収支'],
+  [/consumer (confidence|sentiment)/i, '消費者信頼感', '消費者信頼感'],
+  [/press conference/i, '記者会見', '会見'],
 ];
+const POLICY = { US: ['FOMC 政策金利発表', 'FOMC'], JP: ['日銀 金融政策決定会合', '日銀'], EU: ['ECB 政策金利発表', 'ECB'] };
 
-function nthSunday(year, month, n) {
-  const first = 1 + ((7 - new Date(Date.UTC(year, month - 1, 1)).getUTCDay()) % 7);
-  return first + (n - 1) * 7;
+function jaLabel(country, title) {
+  let t = null, s = null, policy = false;
+  for (const [re, jt, js] of JA) {
+    if (!re.test(title)) continue;
+    if (jt === null) { const p = POLICY[country]; if (p) { t = p[0]; s = p[1]; policy = true; } }
+    else { t = jt; s = js; }
+    break;
+  }
+  const region = REGION[country] || country;
+  if (!t) return { t: region + ' ' + title, s: title.length > 14 ? title.slice(0, 14) : title };
+  // 政策金利・議事録・会見は主体名(FOMC/日銀/ECB)が地域を表すので、地域の接頭辞を付けない
+  const noRegion = policy || /議事録|会見/.test(t);
+  const q = /\b(YoY|y\/y)\b/i.test(title) ? '前年比' : /\b(MoM|m\/m)\b/i.test(title) ? '前月比' : /\b(QoQ|q\/q)\b/i.test(title) ? '前期比' : '';
+  const pre = /\b(prel|flash|advance)\b/i.test(title) ? '速報' : '';
+  const note = noRegion ? '' : [q, pre].filter(Boolean).join('・');
+  return { t: (noRegion ? '' : region + ' ') + t + (note ? '（' + note + '）' : ''), s: (noRegion ? '' : region) + s };
 }
-// 米国の夏時間(3月第2日曜〜11月第1日曜)なら -4、そうでなければ -5
-function etOffset(y, mo, d) {
-  const v = Date.UTC(y, mo - 1, d);
-  return v >= Date.UTC(y, 2, nthSunday(y, 3, 2)) && v < Date.UTC(y, 10, nthSunday(y, 11, 1)) ? -4 : -5;
-}
-const ymd = (ms) => new Date(ms).toISOString().slice(0, 10);
 
-async function fredEvents(key) {
+async function tvChunk(from, to) {
+  const u = TV_CAL + '?from=' + encodeURIComponent(new Date(from).toISOString()) +
+    '&to=' + encodeURIComponent(new Date(to).toISOString()) + '&countries=US,JP,EU';
+  const r = await fetch(u, { headers: { Origin: 'https://www.tradingview.com', Referer: 'https://www.tradingview.com/', 'User-Agent': UA, Accept: 'application/json' } });
+  if (!r.ok) throw new Error('TradingView ' + r.status);
+  const j = await r.json();
+  if (!j || j.status !== 'ok' || !Array.isArray(j.result)) throw new Error('TradingView 形式が想定と違います');
+  return j.result;
+}
+
+async function tvEvents() {
   const now = Date.now();
-  const from = ymd(now - 60 * DAY), to = ymd(now + 90 * DAY);
-  const out = [], errors = [];
-  await Promise.all(RELEASES.map(async (rel) => {
-    const u = FRED + '?release_id=' + rel.id + '&api_key=' + encodeURIComponent(key) + '&file_type=json' +
-      '&realtime_start=' + from + '&realtime_end=' + to + '&include_release_dates_with_no_data=true';
+  const from = now - 60 * DAY, to = now + 90 * DAY, step = 50 * DAY;   // 範囲の上限が不明なので50日ずつに分けて取る
+  const spans = [];
+  for (let a = from; a < to; a += step) spans.push([a, Math.min(a + step, to)]);
+  const errors = [], seen = new Map();
+  await Promise.all(spans.map(async ([a, b]) => {
     try {
-      const r = await fetch(u, { headers: { 'User-Agent': 'signal-archive/1.0' } });
-      if (!r.ok) throw new Error('FRED ' + r.status);
-      const j = await r.json();
-      const dates = [...new Set((j.release_dates || []).map((x) => x.date).filter(Boolean))];
-      for (const ds of dates) {
-        const [y, mo, d] = ds.split('-').map(Number);
-        if (rel.wed && new Date(Date.UTC(y, mo - 1, d)).getUTCDay() !== 3) continue;
-        const at = Date.UTC(y, mo - 1, d, (rel.h ?? 8) - etOffset(y, mo, d), rel.m ?? 30);
-        out.push({ id: 'fred-' + rel.id + '-' + ds, l: 'macro', t: rel.t, s: rel.s, src: 'FRED（セントルイス連銀）', at: new Date(at).toISOString(), im: rel.im });
+      for (const e of await tvChunk(a, b)) {
+        if (!e || !e.id || !e.date || !REGION[e.country] || e.importance < 0) continue;     // 低重要度と祝日は除く
+        if (/holiday/i.test(e.indicator || '')) continue;
+        const L = jaLabel(e.country, String(e.title || e.indicator || ''));
+        seen.set(e.id, { id: 'tv-' + e.id, l: 'macro', t: L.t, s: L.s, src: e.source || 'TradingView', at: new Date(e.date).toISOString(), im: e.importance >= 1 ? 'high' : 'mid', c: e.country });
       }
-    } catch (e) { errors.push(rel.s + ': ' + (e.message || e)); }
+    } catch (err) { errors.push('マクロ(TradingView): ' + (err.message || err)); }
   }));
-  return { out, errors };
+  return { out: [...seen.values()], errors: [...new Set(errors)] };
+}
+
+async function ffEvents() {
+  const out = [], errors = [], CC = { USD: 'US', JPY: 'JP', EUR: 'EU' };
+  await Promise.all(FF_URLS.map(async (u) => {
+    try {
+      const r = await fetch(u, { headers: { 'User-Agent': UA, Accept: 'application/json' } });
+      if (!r.ok) throw new Error('ForexFactory ' + r.status);
+      const j = await r.json();
+      for (const e of Array.isArray(j) ? j : []) {
+        const c = CC[e.country], ts = Date.parse(e.date);
+        if (!c || !isFinite(ts) || !['High', 'Medium'].includes(e.impact)) continue;
+        const L = jaLabel(c, String(e.title || ''));
+        out.push({ id: 'ff-' + c + '-' + ts + '-' + String(e.title).replace(/[^A-Za-z0-9]/g, '').slice(0, 24), l: 'macro', t: L.t, s: L.s, src: 'Forex Factory（予備）', at: new Date(ts).toISOString(), im: e.impact === 'High' ? 'high' : 'mid', c });
+      }
+    } catch (err) { errors.push('予備(Forex Factory): ' + (err.message || err)); }
+  }));
+  return { out, errors: [...new Set(errors)] };
 }
 
 async function manualEvents(request, env) {
@@ -144,14 +195,20 @@ async function manualEvents(request, env) {
 
 async function events(request, env) {
   const errors = [];
-  let macro = [];
-  if (env.FRED_API_KEY) {
-    const r = await fredEvents(env.FRED_API_KEY);
-    macro = r.out; errors.push(...r.errors);
-  } else errors.push('FRED_API_KEYが未設定のため、マクロの自動取得は動いていません');
+  const tv = await tvEvents();
+  let macro = tv.out;
+  errors.push(...tv.errors);
+  if (!macro.length) {
+    const ff = await ffEvents();
+    macro = ff.out;
+    errors.push(...ff.errors);
+    if (macro.length) errors.push('TradingViewから取得できないため、予備(Forex Factory)の今週・来週分のみ表示しています');
+  }
   const manual = await manualEvents(request, env);
   const all = macro.concat(manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  return json({ generated_at: new Date().toISOString(), events: all, errors });
+  const res = json({ generated_at: new Date().toISOString(), events: all, errors });
+  if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果を30分キャッシュしない
+  return res;
 }
 
 export default {
