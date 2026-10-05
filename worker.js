@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v20-evstore';
+const VERSION = '2026-10-06-clean-v21-calpath';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -937,7 +937,9 @@ export default {
       const cfg = TFS[url.searchParams.get('tf') || ''];
       return cached(ctx, request, cfg ? cfg.ttl : 60, () => candles(url, env, ctx));
     }
-    if (url.pathname === '/api/events') return cached(ctx, request, 300, () => events(request, env, ctx));
+    // 2026-10-06: 広告ブロッカーが「/api/events」をアクセス解析の送信先とみなして止めることがある(画面だけ0件になっていた)。
+    //   画面は /api/cal を使う。/api/events は確認用に残す。
+    if (url.pathname === '/api/events' || url.pathname === '/api/cal') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
