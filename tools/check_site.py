@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 
 SYMS = ["BTC", "ETH", "SOL", "SUI", "BNB"]
@@ -10,8 +11,15 @@ TFS = ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]
 
 def get(url):
     req = urllib.request.Request(url, headers={"User-Agent": "crypto-schedule-check/1.0"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:  # 失敗の理由(サイトが返す1行)も出す
+        try:
+            msg = e.read().decode("utf-8")[:200]
+        except Exception:  # noqa: BLE001
+            msg = ""
+        raise RuntimeError(f"HTTP {e.code} {msg}") from None
 
 
 def main():
@@ -47,6 +55,7 @@ def main():
         by = {}
         for e in evs:
             by[e.get("c") or "-"] = by.get(e.get("c") or "-", 0) + 1
+        print(f"版: {j.get('version') or '(古い版)'}")
         print(f"{'OK ' if evs else 'NG '} events: {len(evs)}件 / 国別: {by} / 警告: {errs or 'なし'}")
         if not evs or errs:
             bad.append("events")

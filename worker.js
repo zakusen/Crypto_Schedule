@@ -5,6 +5,8 @@
 // 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
+// どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
+const VERSION = '2026-10-05-cmal-v2';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'SUI', 'BNB'];
 
@@ -472,16 +474,19 @@ async function events(request, env, ctx) {
     } else if (env.CAL && ctx) {
       let er = null;
       try { er = await env.CAL.get('asset:err', 'json'); } catch (_) {}
-      if (er && er.reason) errors.push('銘柄イベント(CoinMarketCal)を取得できませんでした: ' + er.reason);
-      if (!er || Date.now() - Date.parse(er.at) > 10 * 60 * 1000) {       // 失敗が続く時は10分に1回だけ再試行
-        ctx.waitUntil(refreshAssets(env).catch(() => {}));
-        if (!er) errors.push('銘柄イベント(CoinMarketCal)を初回取得中です。少し待ってから再読み込みしてください');
+      if (er && er.reason && Date.now() - Date.parse(er.at) <= 10 * 60 * 1000) {
+        errors.push('銘柄イベント(CoinMarketCal)を取得できませんでした: ' + er.reason);          // 直近の失敗は、10分間は再試行しない
+      } else {
+        const rr = await refreshAssets(env).catch((e) => ({ ok: false, reason: String(e.message || e) }));      // 保存が無い時は、取得を待ってから返す
+        const st2 = rr && rr.ok ? await readAssets(env) : null;
+        if (st2) asset = st2.events;
+        else errors.push('銘柄イベント(CoinMarketCal)を取得できませんでした: ' + ((rr && rr.reason) || '不明'));
       }
     }
   }
   const manual = await manualEvents(request, env);
   const all = macro.concat(asset, news, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  const res = json({ generated_at: gen, events: all, errors });
+  const res = json({ generated_at: gen, version: VERSION, events: all, errors });
   if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
   return res;
 }
