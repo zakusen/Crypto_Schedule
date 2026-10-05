@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v24-pxlight';
+const VERSION = '2026-10-06-clean-v25-pxawait';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -61,7 +61,7 @@ async function getJson(src, url, opt) {
   for (let i = 0; i < 2; i++) {            // 通信エラー・タイムアウト・5xxは1回だけやり直す。429・4xxはすぐ諦める
     if (BUDGET <= 0) throw srcErr('この回の問い合わせ上限に到達', true);
     BUDGET--;
-    const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 8000);
+    const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 5000);
     try {
       const r = await fetch(url, { ...opt, headers: { 'User-Agent': 'signal-archive/1.0', Accept: 'application/json', ...((opt && opt.headers) || {}) }, signal: ac.signal });
       if (!r.ok) {
@@ -70,7 +70,7 @@ async function getJson(src, url, opt) {
       }
       return await r.json();
     } catch (e) {
-      lastErr = e && e.name === 'AbortError' ? srcErr(src + ' timeout', false) : e;
+      if (e && e.name === 'AbortError') { COOL[src] = Date.now() + COOL_MS; lastErr = srcErr(src + ' 5秒で応答なし', true); } else lastErr = e;   // 遅い相手は休ませて次の取得元へ
       if (lastErr.noRetry) break;
       await new Promise((res) => setTimeout(res, 400));
     } finally { clearTimeout(tm); }
@@ -204,13 +204,12 @@ async function refreshPrices(env) {
         for (const tf of (heavy && got.src !== 'dYdX' ? DAILY_TFS : ['1d'])) out[tf] = barsFromDaily(got.rows, tf, at, got.src);
         return { src: got.src, out };
       }]);
-      for (const [name, run] of jobs) {
-        try {
-          const g = await run();
-          for (const [tf, o] of Object.entries(g.out)) { store.tfs[sym][tf] = o; ok++; }
-          bySrc[g.src] = (bySrc[g.src] || 0) + 1;
-        } catch (e) { ng.push(sym + ' ' + name + ': ' + String((e && e.message) || e).slice(0, 120)); }
-      }
+      // 1銘柄の足は同時に取る(順番に待つと遅い相手で時間を使い切る)
+      const res = await Promise.allSettled(jobs.map(([, run]) => run()));
+      res.forEach((r, i) => {
+        if (r.status === 'fulfilled') { for (const [tf, o] of Object.entries(r.value.out)) { store.tfs[sym][tf] = o; ok++; } bySrc[r.value.src] = (bySrc[r.value.src] || 0) + 1; }
+        else ng.push(sym + ' ' + jobs[i][0] + ': ' + String((r.reason && r.reason.message) || r.reason).slice(0, 120));
+      });
     }
   } finally { BUDGET = Infinity; }
   store.last = { at: Date.now(), ok, by_src: bySrc, ng: ng.slice(0, 4), heavy: heavySym, ms: Date.now() - t0 };
@@ -220,11 +219,31 @@ async function refreshPrices(env) {
   return { order: order.join('>'), ok, by_src: bySrc, heavy: heavySym, ng };
 }
 
-async function candles(url, env) {
+// 同じWorker内で取得が重ならないようにする
+let PX_RUNNING = null;
+function runPrices(env) {
+  if (!PX_RUNNING) PX_RUNNING = refreshPrices(env).finally(() => { PX_RUNNING = null; });
+  return PX_RUNNING;
+}
+const PX_MIN_GAP = 4 * 60 * 1000, PX_HEAL_AFTER = 15 * 60 * 1000;
+
+// 確認用: /api/px-run を開くとその場で1回取得して結果を返す。直前の取得から4分以内なら実行せず前回の結果を返す(連打しても取得元に迷惑をかけない)
+async function pxRun(env) {
+  let store = null;
+  try { store = env.CAL ? await env.CAL.get(PX2_KEY, 'json') : null; } catch (_) {}
+  const last = store && store.last;
+  if (last && Date.now() - last.at < PX_MIN_GAP) return json({ ran: false, reason: '直前の取得から4分以内', last });
+  try { const r = await runPrices(env); return json({ ran: true, result: r }); }
+  catch (e) { return json({ ran: true, error: String((e && e.stack) || e) }, 500); }
+}
+
+async function candles(url, env, ctx) {
   const sym = (url.searchParams.get('sym') || '').toUpperCase();
   const tf = url.searchParams.get('tf') || '';
   if (!SYMS.includes(sym) || !TFS[tf]) return json({ error: 'bad params' }, 400);
   const store = await readPx(env);
+  // 保険: 定時取得が止まっていても、保存が15分以上古ければ裏で1回取りに行く
+  if (ctx && env.CAL && (!store || !store.last || Date.now() - store.last.at > PX_HEAL_AFTER)) ctx.waitUntil(runPrices(env).catch(() => {}));
   let e = store && store.tfs && store.tfs[sym] && store.tfs[sym][tf];
   if (!e && env.CAL) { try { const o = await env.CAL.get('px:v1:' + sym, 'json'); e = o && o.tfs && o.tfs[tf]; } catch (_) {} }   // v21以前の控え(切り替え直後だけ)
   if (!e) return json({ error: 'まだ保存がありません(5分ごとの定時取得を待っています)' }, 503);
@@ -904,23 +923,33 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (url.pathname === '/api/candles') {
-      return cached(ctx, request, 60, () => candles(url, env));
+      return cached(ctx, request, 60, () => candles(url, env, ctx));
     }
     // 2026-10-06: 広告ブロッカーが「/api/events」をアクセス解析の送信先とみなして止めることがある(画面だけ0件になっていた)。
     //   画面は /api/cal を使う。/api/events は確認用に残す。
     if (url.pathname === '/api/events' || url.pathname === '/api/cal') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
+    if (url.pathname === '/api/px-run') { const r = await pxRun(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return env.ASSETS.fetch(request);
   },
   // 定時実行(wrangler.jsonc の triggers.crons)。結果はログ(Cloudflareの「ログ」)で確認できる。
   async scheduled(event, env, ctx) {
-    if (event.cron === PX_CRON) { ctx.waitUntil(refreshPrices(env).then((r) => console.log('price refresh', JSON.stringify(r))).catch((e) => console.log('price refresh FAILED', String((e && e.stack) || e)))); return; }
-    ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))).catch(() => {}).then(() => storeEvents(env)).then((r) => console.log('events store', JSON.stringify(r))));
-    ctx.waitUntil(refreshEthQ(env).then((r) => console.log('ethq refresh', JSON.stringify(r))));
-    ctx.waitUntil(refreshStake(env).then((r) => console.log('stake refresh', JSON.stringify(r))));
-    if (NEWS_ENABLED) ctx.waitUntil(refreshNews(env).then((r) => console.log('news refresh', JSON.stringify(r))));
+    // 2026-10-06: ctx.waitUntil だけだと、処理の終了後およそ30秒で打ち切られる(5分ごとの価格取得が保存前に止まっていた)。
+    //   定時実行は本体で await すれば最大15分まで動けるので、終わるまで待つ。
+    if (event.cron === PX_CRON) {
+      try { console.log('price refresh', JSON.stringify(await runPrices(env))); }
+      catch (e) { console.log('price refresh FAILED', String((e && e.stack) || e)); }
+      return;
+    }
+    const log = (name) => (r) => console.log(name, JSON.stringify(r));
+    await Promise.allSettled([
+      refreshStore(env).then(log('macro refresh')).catch(() => {}).then(() => storeEvents(env)).then(log('events store')),
+      refreshEthQ(env).then(log('ethq refresh')),
+      refreshStake(env).then(log('stake refresh')),
+      NEWS_ENABLED ? refreshNews(env).then(log('news refresh')) : null,
+    ]);
   },
 };
