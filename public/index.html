@@ -167,7 +167,7 @@ document.querySelectorAll('#chart .ev').forEach(g=>{const id=g.dataset.id;g.addE
 function list(){
 const ev=vis(),up=ev.filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),past=ev.filter(e=>e.ts<=NOW).sort((a,b)=>b.ts-a.ts);
 const card=e=>`<div class="cd ${esc(e.im)}" data-id="${esc(e.id)}"><div class="t">${fmt(e.ts)}</div><div><span class="badge ${esc(e.im)}">${IM[e.im]||''} · ${LN[e.l]||''}</span><div><b>${esc(e.t)}</b></div><div class="src">${esc(e.src||'')}</div></div><div class="t" style="text-align:right">${esc(e.s||'')}</div></div>`;
-const none='<div class="empty">該当するイベントはありません'+((flt==='market'||flt==='asset')?'（市場・銘柄のニュース層は準備中です）':'')+'</div>';
+const none='<div class="empty">該当するイベントはありません'+(flt==='market'?'（市場ニュース層は準備中です）':'')+'</div>';
 $('list').innerHTML=`<div class="list-head"><span>これから（${up.length}件） → 時系列順</span><span style="color:var(--mu)">UPCOMING</span></div>${up.length?up.map(card).join(''):none}<div class="list-head"><span>直近（${past.length}件） → 新しい順</span><span style="color:var(--mu)">ARCHIVE</span></div>${past.length?past.map(card).join(''):none}`;
 document.querySelectorAll('#list .cd').forEach(c=>{const id=c.dataset.id;c.addEventListener('pointerenter',()=>hl(id));c.addEventListener('pointerleave',()=>hl(sel));c.addEventListener('click',()=>pick(id))})
 }

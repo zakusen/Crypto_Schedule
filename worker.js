@@ -1,6 +1,7 @@
 // CRYPTO SIGNAL ARCHIVE の小さなサーバー部分(Cloudflare Worker)。
 //   /api/candles?sym=BTC&tf=1h  … Pacificaのローソク足(公開API・鍵なし)
 //   /api/events                 … 日米欧のマクロ指標カレンダー(TradingViewの公開カレンダー。予備: Forex Factory) + 任意の追加イベント(public/events_manual.json)
+//   銘柄イベントは CoinMarketCal(シークレット CMAL_API_KEY)から6時間ごとに取得し、KV(asset:v1)へ保存する。
 // 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
@@ -201,6 +202,82 @@ async function manualEvents(request, env) {
   } catch (_) { return []; }
 }
 
+// ---------- イベント(銘柄: CoinMarketCal) ----------
+// 鍵は Cloudflare のシークレット CMAL_API_KEY。回数制限が不明なので、取得は6時間ごと(cronの該当回のみ)に絞る。
+const CMAL = 'https://developers.coinmarketcal.com/v1';
+const ASSET_KEY = 'asset:v1';
+const ASSET_EVERY_H = 6;                    // 何時間ごとに取り直すか
+const ASSET_STALE_MS = 24 * 3600 * 1000;    // 保存がこれより古ければ画面に警告を出す
+const MAX_PAGES = 4, PAGE_MAX = 150;
+
+function mdy(ms) { const d = new Date(ms); return String(d.getUTCMonth() + 1).padStart(2, '0') + '/' + String(d.getUTCDate()).padStart(2, '0') + '/' + d.getUTCFullYear(); }
+
+async function cmalGet(path, env) {
+  const r = await fetch(CMAL + path, { headers: { 'x-api-key': env.CMAL_API_KEY, Accept: 'application/json', 'User-Agent': UA } });
+  if (r.status === 401 || r.status === 403) throw new Error('CoinMarketCal: 認証に失敗しました(キーを確認)');
+  if (r.status === 429) throw new Error('CoinMarketCal: 回数制限に達しました');
+  if (!r.ok) throw new Error('CoinMarketCal ' + r.status);
+  return r.json();
+}
+const bodyOf = (j) => (Array.isArray(j) ? j : (j && (j.body || j.data || j.result)) || []);
+
+// 銘柄記号(BTCなど) → CoinMarketCal上のコインID。コイン一覧から探す(複数あれば順位の高いもの)。
+async function cmalCoinIds(env) {
+  const list = bodyOf(await cmalGet('/coins', env));
+  const out = {};
+  for (const sym of SYMS) {
+    const hits = list.filter((c) => c && String(c.symbol || '').toUpperCase() === sym);
+    hits.sort((a, b) => (+a.rank || 1e9) - (+b.rank || 1e9));
+    if (hits[0] && hits[0].id != null) out[sym] = String(hits[0].id);
+  }
+  return out;
+}
+
+function cmalEvent(e, idToSym) {
+  const ts = Date.parse(e && e.date_event);
+  if (!e || e.id == null || !isFinite(ts)) return null;
+  const title = String((e.title && (e.title.en || e.title)) || '').trim();
+  if (!title) return null;
+  const syms = (Array.isArray(e.coins) ? e.coins : []).map((c) => idToSym[String(c.id)] || String(c.symbol || '').toUpperCase()).filter((x) => SYMS.includes(x));
+  if (!syms.length) return null;
+  const high = e.is_hot === true || (+e.percentage || 0) >= 85;
+  return { id: 'cmal-' + e.id, l: 'asset', t: syms.join('/') + ' ' + title, s: syms[0] + ' ' + (title.length > 10 ? title.slice(0, 10) : title), src: 'CoinMarketCal', at: new Date(ts).toISOString(), im: high ? 'high' : 'mid', a: [...new Set(syms)] };
+}
+
+async function cmalEvents(env, coinMap) {
+  const ids = Object.values(coinMap);
+  const idToSym = Object.fromEntries(Object.entries(coinMap).map(([k, v]) => [v, k]));
+  const now = Date.now(), out = new Map();
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const q = '/events?coins=' + encodeURIComponent(ids.join(',')) + '&dateRangeStart=' + encodeURIComponent(mdy(now - WIN_PAST)) +
+      '&dateRangeEnd=' + encodeURIComponent(mdy(now + 90 * DAY)) + '&max=' + PAGE_MAX + '&page=' + page + '&sortBy=created_desc';
+    const rows = bodyOf(await cmalGet(q, env));
+    for (const e of rows) { const v = cmalEvent(e, idToSym); if (v) out.set(v.id, v); }
+    if (rows.length < PAGE_MAX) break;
+  }
+  return [...out.values()];
+}
+
+async function readAssets(env) {
+  if (!env.CAL) return null;
+  try { const j = await env.CAL.get(ASSET_KEY, 'json'); return j && Array.isArray(j.events) && j.generated_at ? j : null; } catch (_) { return null; }
+}
+
+async function refreshAssets(env) {
+  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
+  if (!env.CMAL_API_KEY) return { ok: false, reason: 'CMAL_API_KEY未設定' };
+  const prev = await readAssets(env);
+  try {
+    let coins = prev && prev.coins && Object.keys(prev.coins).length ? prev.coins : await cmalCoinIds(env);
+    if (!Object.keys(coins).length) return { ok: false, reason: 'コイン一覧から対象銘柄が見つかりません' };
+    const fresh = await cmalEvents(env, coins);
+    const now = Date.now();
+    const merged = mergeStore(prev, fresh, false, now);
+    await env.CAL.put(ASSET_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), coins, events: merged }));
+    return { ok: true, count: merged.length, fetched: fresh.length };
+  } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+}
+
 // ---------- 保存(KV) ----------
 const KV_KEY = 'macro:v1';
 const FRESH_MS = 3 * 3600 * 1000;        // 保存から3時間以内なら新しいとみなす(定時実行は30分ごと)
@@ -264,8 +341,19 @@ async function events(request, env, ctx) {
       if (macro.length) errors.push('TradingViewから取得できないため、予備(Forex Factory)の今週・来週分のみ表示しています');
     }
   }
+  let asset = [];
+  if (env.CMAL_API_KEY) {
+    const st = await readAssets(env);
+    if (st) {
+      asset = st.events;
+      if (Date.now() - Date.parse(st.generated_at) > ASSET_STALE_MS) errors.push('銘柄イベント(CoinMarketCal)の取得が24時間以上止まっています');
+    } else if (env.CAL && ctx) {
+      ctx.waitUntil(refreshAssets(env).catch(() => {}));      // 初回だけ、ここで取得を始める
+      errors.push('銘柄イベント(CoinMarketCal)を初回取得中です。少し待ってから再読み込みしてください');
+    }
+  }
   const manual = await manualEvents(request, env);
-  const all = macro.concat(manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const all = macro.concat(asset, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const res = json({ generated_at: gen, events: all, errors });
   if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
   return res;
@@ -285,5 +373,9 @@ export default {
   // 定時実行(wrangler.jsonc の triggers.crons)。結果はログ(Cloudflareの「ログ」)で確認できる。
   async scheduled(event, env, ctx) {
     ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))));
+    const t = new Date(event.scheduledTime || Date.now());
+    if (t.getUTCHours() % ASSET_EVERY_H === 0 && t.getUTCMinutes() < 30) {       // 6時間ごとの最初の回だけ
+      ctx.waitUntil(refreshAssets(env).then((r) => console.log('asset refresh', JSON.stringify(r))));
+    }
   },
 };
