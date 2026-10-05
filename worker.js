@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-05-clean-v16-rpcfix';
+const VERSION = '2026-10-05-clean-v17-rpcfix2';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -294,7 +294,10 @@ const BTC_HEIGHT_URL = 'https://mempool.space/api/blocks/tip/height';
 const ETH_BEACON = 'https://ethereum-beacon-api.publicnode.com/eth/v1';
 const FAR_EPOCH = '18446744073709551615';
 // 2026-10-05: 公式の公開RPC(api.mainnet-beta)は Cloudflare の出口IPを403で断るため、publicnode を先に使い、だめなら次へ。
-const SOL_RPCS = ['https://solana-rpc.publicnode.com', 'https://api.mainnet-beta.solana.com'], SOL_SLOT_MS = 400;
+//   v17: 重い問い合わせ(getVoteAccounts・getSupply)は publicnode に断られたため、dRPC の公開窓口も候補に足す。
+//   確実にするなら Cloudflare のシークレット SOL_RPC_URL に鍵つきのRPC(Helius の無料枠など)を入れる(あれば最優先で使う)。
+const SOL_RPCS = ['https://solana-rpc.publicnode.com', 'https://solana.drpc.org', 'https://api.mainnet-beta.solana.com'], SOL_SLOT_MS = 400;
+const solRpcs = (env) => (env && env.SOL_RPC_URL ? [env.SOL_RPC_URL] : []).concat(SOL_RPCS);
 
 async function chainEvents() {
   const out = [], errors = [], now = Date.now();
@@ -342,7 +345,7 @@ async function chainEvents() {
 const ENTRY_CHURN_ETH = 256;   // 入金の処理上限(1エポックあたりのETH)。仕様上の上限値で、概算に使う
 const ETHQ_KEY = 'ethq:v1', ETHQ_KEEP = PAST_KEEP, ETHQ_STALE = 90 * 60 * 1000;
 
-async function ethQueueSample() {
+async function ethQueueSample(env) {
   const j = async (u, ms) => { const r = await fetch(u, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(ms) }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
   const head = await j(ETH_BEACON + '/beacon/headers/head', 8000);
   const slot = +head.data.header.message.slot;
@@ -375,15 +378,18 @@ async function ethQueueSample() {
       if (isFinite(n) && n > 0) act = n;
     }
   } catch (_) { /* 下の予備へ */ }
-  // 2026-10-05: publicnode は validator_count に答えない(記録が全部 null)ため、beaconcha.in の公開API(鍵なし・回数制限あり)を予備に使う
+  // 2026-10-05: publicnode は validator_count に答えない(記録が全部 null)ため、beaconcha.in の公開APIを予備に使う。
+  //   v17: 鍵なしでも断られたので、Cloudflare のシークレット BEACONCHAIN_API_KEY(beaconcha.in の無料の鍵)があれば付ける。
+  let actErr = null;
   if (act === null) {
     try {
-      const bc = await j('https://beaconcha.in/api/v1/epoch/latest', 10000);
+      const key = env && env.BEACONCHAIN_API_KEY ? '?apikey=' + encodeURIComponent(env.BEACONCHAIN_API_KEY) : '';
+      const bc = await j('https://beaconcha.in/api/v1/epoch/latest' + key, 10000);
       const n = +(bc && bc.data && (bc.data.validatorscount ?? bc.data.validatorsCount));
-      if (isFinite(n) && n > 0) act = n;
-    } catch (_) { /* ステーク量だけ欠測 */ }
+      if (isFinite(n) && n > 0) act = n; else actErr = 'beaconcha.in: 形式が想定と違います';
+    } catch (e) { actErr = 'publicnode: validator_count 非対応 / beaconcha.in: ' + (e.message || e); }
   }
-  return [Math.floor(Date.now() / 1000), list.data.length, days, entryN, entryDays, act];
+  return { sample: [Math.floor(Date.now() / 1000), list.data.length, days, entryN, entryDays, act], actErr };
 }
 
 async function readEthQ(env) {
@@ -394,11 +400,11 @@ async function readEthQ(env) {
 async function refreshEthQ(env) {
   if (!env.CAL) return { ok: false, reason: 'KV未接続' };
   try {
-    const sample = await ethQueueSample();
+    const { sample, actErr } = await ethQueueSample(env);
     const prev = await readEthQ(env), cutoff = Date.now() / 1000 - ETHQ_KEEP / 1000;
     const samples = (prev ? prev.samples : []).filter((x) => x[0] > cutoff && x[0] < sample[0]);
     samples.push(sample);
-    await env.CAL.put(ETHQ_KEY, JSON.stringify({ samples }));
+    await env.CAL.put(ETHQ_KEY, JSON.stringify(actErr ? { samples, act_error: actErr } : { samples }));
     return { ok: true, sample, count: samples.length };
   } catch (e) { return { ok: false, reason: String(e.message || e) }; }
 }
@@ -412,7 +418,7 @@ async function ethQueueApi(env, ctx) {
     st = await readEthQ(env);
     if (!st) return json({ error: rr.reason || '取得できません', samples: [] }, 502);
   }
-  return json({ samples: st.samples, source: 'ビーコンチェーン公開API(自前で記録)' });
+  return json({ samples: st.samples, source: 'ビーコンチェーン公開API(自前で記録)', ...(st.act_error ? { act_error: st.act_error } : {}) });
 }
 
 // ---------- SOL・BNBのステーク量(時系列を自前で貯める) ----------
@@ -434,30 +440,34 @@ async function rpcPost(url, body, ms) {
 
 // 2026-10-05: 公開RPCは Cloudflare の出口IPを断ることがあるので、候補を順に試す。全部だめなら最後の理由を返す。
 //   JSON-RPC のエラー(result が無く error がある)も「この窓口はだめ」として次へ。
+const hostOf = (u) => { try { return new URL(u).host.replace(/\.(helius-rpc|alchemy)\.com.*$/, '.$1.com'); } catch (_) { return '?'; } };   // 鍵入りURLでも鍵を出さない
 async function rpcAny(urls, body, ms) {
-  let last = '';
+  const errs = [];
   for (const u of urls) {
     try {
       const j = await rpcPost(u, body, ms);
       if (j && !Array.isArray(j) && j.error && j.result === undefined) throw new Error('RPC ' + (j.error.message || JSON.stringify(j.error)).slice(0, 80));
       return j;
-    } catch (e) { last = new URL(u).host + ': ' + (e.message || e); }
+    } catch (e) { errs.push(hostOf(u) + ': ' + (e.message || e)); }   // v17: どの窓口が何で断ったかを全部残す
   }
-  throw new Error(last);
+  throw new Error(errs.join(' / '));
 }
 
-async function solStakeSample() {
-  const [va, sp] = await Promise.all([
-    rpcAny(SOL_RPCS, { jsonrpc: '2.0', id: 1, method: 'getVoteAccounts', params: [{ commitment: 'finalized' }] }, 25000),
-    rpcAny(SOL_RPCS, { jsonrpc: '2.0', id: 2, method: 'getSupply', params: [{ excludeNonCirculatingAccountsList: true }] }, 15000),
+async function solStakeSample(env) {
+  const urls = solRpcs(env);
+  const [va, sp] = await Promise.allSettled([
+    rpcAny(urls, { jsonrpc: '2.0', id: 1, method: 'getVoteAccounts', params: [{ commitment: 'finalized' }] }, 25000),
+    rpcAny(urls, { jsonrpc: '2.0', id: 2, method: 'getSupply', params: [{ excludeNonCirculatingAccountsList: true }] }, 15000),
   ]);
-  const cur = va.result && va.result.current, del = (va.result && va.result.delinquent) || [];
-  if (!Array.isArray(cur) || !sp.result || !sp.result.value) throw new Error('形式が想定と違います');
+  if (va.status !== 'fulfilled') throw new Error('getVoteAccounts: ' + ((va.reason && va.reason.message) || va.reason));
+  const res = va.value.result, cur = res && res.current, del = (res && res.delinquent) || [];
+  if (!Array.isArray(cur)) throw new Error('形式が想定と違います');
   let sol = 0;
   for (const v of cur.concat(del)) { const a = +v.activatedStake; if (isFinite(a)) sol += a / 1e9; }
-  const total = +sp.result.value.total / 1e9;
-  if (!(sol > 0) || !(total > 0)) throw new Error('値が読めません');
-  return [Math.floor(Date.now() / 1000), Math.round(sol), Math.round(total)];
+  if (!(sol > 0)) throw new Error('値が読めません');
+  // v17: 総供給は無くても記録する(割合だけ出なくなる)。getSupply は公開RPCで断られやすい
+  const t = sp.status === 'fulfilled' && sp.value.result && sp.value.result.value ? +sp.value.result.value.total / 1e9 : NaN;
+  return [Math.floor(Date.now() / 1000), Math.round(sol), t > 0 ? Math.round(t) : null];
 }
 
 async function bnbStakeSample() {
@@ -513,7 +523,7 @@ async function readStake(env) {
 
 async function refreshStake(env) {
   if (!env.CAL) return { ok: false, reason: 'KV未接続' };
-  const [sol, bnb] = await Promise.allSettled([solStakeSample(), bnbStakeSample()]);
+  const [sol, bnb] = await Promise.allSettled([solStakeSample(env), bnbStakeSample()]);
   const prev = (await readStake(env)) || {}, cutoff = Date.now() / 1000 - ETHQ_KEEP / 1000, out = { ...prev }, report = {};
   for (const [k, r] of [['SOL', sol], ['BNB', bnb]]) {
     if (r.status === 'fulfilled') {

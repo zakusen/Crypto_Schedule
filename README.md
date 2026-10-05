@@ -60,6 +60,12 @@
 
 ## 動作確認の状況
 - 2026-10-05: 公開中のサイトで、価格・イベント・ETH出口待ち/入口待ちは正常。SOLのチェーン読み取り(403)・SOL/BNBのステーク量(0件)・ETHのステーク量(validator_count が null)を直した(v16-rpcfix)。修正はモックの応答で確認済み。実際のRPCで動くかは公開後に `/api/stake?sym=SOL|BNB` と `/api/ethqueue` で確認すること。
+- 2026-10-05(v16の公開後): BNBのステーク量は直った(約2,492万BNB)。SOLのエポック境界も読めた。SOLのステーク量は publicnode が getVoteAccounts を断り、公式RPCは403で、まだ読めない。ETHの稼働バリデータ数は beaconcha.in(鍵なし)でも読めず、null のまま。
+- v17-rpcfix2: SOLの候補に solana.drpc.org を追加。getSupply が失敗しても、ステーク量だけは記録する(総供給比は空欄)。失敗時は全候補の理由を ` / ` でつないで返す。ETHの稼働数が読めない時は `/api/ethqueue` の `act_error` に理由を出し、画面にも表示する。
+- 確実に読ませたい場合(任意): Cloudflare の Worker にシークレットを入れる。チャットやリポジトリには鍵を書かない。
+  - `SOL_RPC_URL`: Helius などの無料RPCのURL(鍵入り)。あれば最優先で使う。エラー表示ではホスト名を伏せる。
+  - `BEACONCHAIN_API_KEY`: beaconcha.in の無料APIキー。ETHの稼働バリデータ数に使う。
+  - 入れ方: `npx wrangler secret put SOL_RPC_URL`、または Cloudflare ダッシュボード → Workers → crypto-schedule → 設定 → 変数とシークレット。
 - 以下は初期の記録。
 モックの応答でWorkerとページの動作（足の集計、マクロ指標の取得・日本語化・予備への切替、エラー表示、HTMLの無害化）と、zip展開の安全装置（フォルダ1段外し、秘密の保護、パス脱出の拒否、ワークフローの除外）を確認済み。GitHub ActionsとCloudflareへの実際のデプロイは未実行です。実際のPacifica・TradingView・Forex Factoryへの接続は、この環境から通信できないため未確認です（TradingViewが要求するヘッダーも未確認）。
 

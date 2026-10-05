@@ -326,11 +326,11 @@ let S,head,sub,none;
 if(asset==='ETH'){
 if(!EQ){el.innerHTML='';return}
 S=(EQ.samples||[]).filter(q=>q[5]!=null).map(q=>({t:q[0]*1e3,e:q[5]*32}));
-head=c=>`ETH ステーク量 約${(c.e/1e6).toFixed(2)}百万ETH（供給の約${(c.e/ETH_SUPPLY*100).toFixed(1)}%・概算）`;sub='稼働バリデータ数×32';none='ETHステーク量: まだ記録がありません（取得できないノードの場合は空のままです）'}
+head=c=>`ETH ステーク量 約${(c.e/1e6).toFixed(2)}百万ETH（供給の約${(c.e/ETH_SUPPLY*100).toFixed(1)}%・概算）`;sub='稼働バリデータ数×32';none='ETHステーク量: まだ記録がありません'+(EQ.act_error?'（'+esc(EQ.act_error)+'）':'（取得できないノードの場合は空のままです）')}
 else if(asset==='SOL'||asset==='BNB'){
 const D=SQD[asset];if(!D){el.innerHTML='<div class="msg" style="padding:14px">'+asset+'ステーク量を読み込み中…</div>';return}
 S=(D.samples||[]).map(q=>({t:q[0]*1e3,e:q[1],s:q[2]}));
-if(asset==='SOL'){head=c=>`SOL ステーク量 約${(c.e/1e6).toFixed(1)}百万SOL（総供給の約${(c.e/c.s*100).toFixed(1)}%）`;sub='Solana公開RPC・委任量の合計'}
+if(asset==='SOL'){head=c=>`SOL ステーク量 約${(c.e/1e6).toFixed(1)}百万SOL`+(c.s?`（総供給の約${(c.e/c.s*100).toFixed(1)}%）`:'');sub='Solana公開RPC・委任量の合計'}
 else{head=c=>`BNB ステーク量 約${(c.e/1e6).toFixed(2)}百万BNB（全バリデータの合計・概算）`;sub='StakeHub契約・各バリデータの合計'}
 none=asset+'ステーク量: '+(D.error?'取得できませんでした（'+esc(D.error)+'）':'記録がまだありません')}
 else{el.innerHTML='';return}
