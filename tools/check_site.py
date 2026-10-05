@@ -88,6 +88,16 @@ def main():
     except Exception as e:  # noqa: BLE001
         print(f"NG  ETH出口待ち: {e}")
         bad.append("ethqueue")
+    for sym in ("SOL", "BNB"):
+        try:
+            q = get(f"{base}/api/stake?sym={sym}")
+            smp = q.get("samples") or []
+            print(f"{'OK ' if smp else 'NG '} {sym}ステーク量: 記録{len(smp)}件 / 最新 {smp[-1] if smp else '-'}")
+            if not smp:
+                bad.append(f"stake-{sym}")
+        except Exception as e:  # noqa: BLE001
+            print(f"NG  {sym}ステーク量: {e}")
+            bad.append(f"stake-{sym}")
     if bad:
         print("::error::確認で問題が出ました: " + ", ".join(bad))
         return 1

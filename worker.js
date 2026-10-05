@@ -2,12 +2,13 @@
 //   /api/candles?sym=BTC&tf=1h  … Pacificaのローソク足(公開API・鍵なし)
 //   /api/events                 … 日米欧のマクロ指標カレンダー(TradingViewの公開カレンダー。予備: Forex Factory) + 任意の追加イベント(public/events_manual.json)
 //   銘柄の予定は、チェーン直読み(BTC半減期・ETHフォーク)・満期の自動計算・BNBバーンの目安・手動登録だけ。出どころ不明の投稿型カレンダーは使わない。
-//   /api/ethqueue               … ETHの出口待ち・入口待ち(30分ごとに自前で記録)
+//   /api/ethqueue               … ETHの出口待ち・入口待ち・ステーク量(30分ごとに自前で記録)
+//   /api/stake?sym=SOL|BNB      … SOL・BNBのステーク量(30分ごとに自前で記録)
 // 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-05-clean-v8';
+const VERSION = '2026-10-05-clean-v15';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -24,6 +25,7 @@ const TFS = {
 };
 
 const DAY = 86400000, WEEK = 7 * DAY;
+const PAST_KEEP = 14 * DAY;   // 過去の情報は2週間前まで。イベントの取得・保存・表示と、出口待ち・ステーク量の記録の保存期間に使う(変えるならここだけ)
 
 function json(o, status = 200) {
   return new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json; charset=utf-8' } });
@@ -161,7 +163,7 @@ async function tvChunk(from, to) {
 
 async function tvEvents() {
   const now = Date.now();
-  const from = now - 60 * DAY, to = now + 90 * DAY, step = 50 * DAY;   // 範囲の上限が不明なので50日ずつに分けて取る
+  const from = now - PAST_KEEP, to = now + 90 * DAY, step = 50 * DAY;   // 範囲の上限が不明なので50日ずつに分けて取る
   const spans = [];
   for (let a = from; a < to; a += step) spans.push([a, Math.min(a + step, to)]);
   const errors = [], seen = new Map();
@@ -261,7 +263,7 @@ async function chainEvents() {
 //   記録の形: [時刻, 出口件数, 出口日数, 入口件数, 入口日数(概算), 稼働バリデータ数]。古い記録(3・5要素)もそのまま読める。
 // 履歴を返す公開APIは使わないので、記録は導入した日から貯まる。保存は120日分。
 const ENTRY_CHURN_ETH = 256;   // 入金の処理上限(1エポックあたりのETH)。仕様上の上限値で、概算に使う
-const ETHQ_KEY = 'ethq:v1', ETHQ_KEEP = 120 * DAY, ETHQ_STALE = 90 * 60 * 1000;
+const ETHQ_KEY = 'ethq:v1', ETHQ_KEEP = PAST_KEEP, ETHQ_STALE = 90 * 60 * 1000;
 
 async function ethQueueSample() {
   const j = async (u, ms) => { const r = await fetch(u, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(ms) }); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); };
@@ -328,6 +330,92 @@ async function ethQueueApi(env, ctx) {
   return json({ samples: st.samples, source: 'ビーコンチェーン公開API(自前で記録)' });
 }
 
+// ---------- SOL・BNBのステーク量(時系列を自前で貯める) ----------
+//  ・SOL: Solana公開RPCの getVoteAccounts(各バリデータの委任量)の合計と、getSupply の総供給。契約は使わない。
+//  ・BNB: BNB Chain のステーキングはシステム契約(StakeHub)が持つ。契約以外に総量を返す窓口が見つからなかったため、
+//         eth_call で getValidators → 各バリデータのクレジット契約の totalPooledBNB() を合計する(登録済み全バリデータ・概算)。
+// 記録の形: SOL = [時刻, ステークSOL, 総供給SOL]、BNB = [時刻, ステークBNB]。30分ごとにKVへ、120日分。
+const STAKE_KEY = 'stake:v1', STAKE_STALE = 90 * 60 * 1000;
+const BSC_RPC = 'https://bsc-dataseed.binance.org', STAKEHUB = '0x0000000000000000000000000000000000002002';
+
+async function rpcPost(url, body, ms) {
+  const r = await fetch(url, { method: 'POST', headers: { 'User-Agent': UA, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function solStakeSample() {
+  const [va, sp] = await Promise.all([
+    rpcPost(SOL_RPC, { jsonrpc: '2.0', id: 1, method: 'getVoteAccounts', params: [{ commitment: 'finalized' }] }, 25000),
+    rpcPost(SOL_RPC, { jsonrpc: '2.0', id: 2, method: 'getSupply', params: [{ excludeNonCirculatingAccountsList: true }] }, 15000),
+  ]);
+  const cur = va.result && va.result.current, del = (va.result && va.result.delinquent) || [];
+  if (!Array.isArray(cur) || !sp.result || !sp.result.value) throw new Error('形式が想定と違います');
+  let sol = 0;
+  for (const v of cur.concat(del)) { const a = +v.activatedStake; if (isFinite(a)) sol += a / 1e9; }
+  const total = +sp.result.value.total / 1e9;
+  if (!(sol > 0) || !(total > 0)) throw new Error('値が読めません');
+  return [Math.floor(Date.now() / 1000), Math.round(sol), Math.round(total)];
+}
+
+async function bnbStakeSample() {
+  const word = (n) => BigInt(n).toString(16).padStart(64, '0');
+  const credits = [];
+  let total = 0;
+  for (let off = 0, guard = 0; guard < 6; guard++) {                // 1回100件。通常は50件前後で1回で終わる
+    const r = await rpcPost(BSC_RPC, { jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: STAKEHUB, data: '0xbff02e20' + word(off) + word(100) }, 'latest'] }, 15000);
+    if (!r.result || r.result.length < 2 + 64 * 3) throw new Error('getValidators が読めません');
+    const h = r.result.slice(2), w = (i) => h.slice(i * 64, i * 64 + 64);
+    total = parseInt(w(2), 16);
+    const base = parseInt(w(1), 16) * 2, n = parseInt(h.slice(base, base + 64), 16);
+    for (let i = 0; i < n; i++) credits.push('0x' + h.slice(base + 64 + i * 64 + 24, base + 64 + i * 64 + 64));
+    off += 100;
+    if (credits.length >= total || n === 0) break;
+  }
+  if (!credits.length) throw new Error('バリデータが0件です');
+  const batch = credits.map((a, i) => ({ jsonrpc: '2.0', id: i + 1, method: 'eth_call', params: [{ to: a, data: '0x15d1f898' }, 'latest'] }));
+  const res = await rpcPost(BSC_RPC, batch, 20000);
+  if (!Array.isArray(res)) throw new Error('形式が想定と違います');
+  let wei = 0n, ok = 0;
+  for (const x of res) { if (x && typeof x.result === 'string' && x.result.length > 2) { wei += BigInt(x.result); ok++; } }
+  if (ok < credits.length * 0.8) throw new Error('クレジット契約の読み取りが足りません(' + ok + '/' + credits.length + ')');
+  return [Math.floor(Date.now() / 1000), Math.round(Number(wei / 10n ** 15n) / 1000)];
+}
+
+async function readStake(env) {
+  if (!env.CAL) return null;
+  try { const j = await env.CAL.get(STAKE_KEY, 'json'); return j && typeof j === 'object' ? j : null; } catch (_) { return null; }
+}
+
+async function refreshStake(env) {
+  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
+  const [sol, bnb] = await Promise.allSettled([solStakeSample(), bnbStakeSample()]);
+  const prev = (await readStake(env)) || {}, cutoff = Date.now() / 1000 - ETHQ_KEEP / 1000, out = { ...prev }, report = {};
+  for (const [k, r] of [['SOL', sol], ['BNB', bnb]]) {
+    if (r.status === 'fulfilled') {
+      const old = (prev[k] && prev[k].samples) || [];
+      out[k] = { samples: old.filter((x) => x[0] > cutoff && x[0] < r.value[0]).concat([r.value]) };
+      report[k] = 'ok';
+    } else report[k] = String((r.reason && r.reason.message) || r.reason);
+  }
+  try { await env.CAL.put(STAKE_KEY, JSON.stringify(out)); } catch (e) { return { ok: false, reason: String(e.message || e), report }; }
+  return { ok: true, report };
+}
+
+async function stakeApi(env, sym) {
+  if (sym !== 'SOL' && sym !== 'BNB') return json({ error: 'bad params' }, 400);
+  if (!env.CAL) return json({ error: 'KV未接続', samples: [] }, 503);
+  let st = await readStake(env);
+  const smp = st && st[sym] && st[sym].samples || [];
+  const last = smp.length ? smp[smp.length - 1][0] * 1000 : 0;
+  if (Date.now() - last > STAKE_STALE) {                            // 記録が無い・古い時は、その場で1回取る
+    const rr = await refreshStake(env);
+    st = await readStake(env);
+    if (!(st && st[sym] && st[sym].samples.length)) return json({ error: (rr.report && rr.report[sym]) || rr.reason || '取得できません', samples: [] }, 502);
+  }
+  return json({ samples: st[sym].samples, source: sym === 'SOL' ? 'Solana公開RPC(自前で記録)' : 'BNB Chain StakeHub契約(自前で記録)' });
+}
+
 // ---------- イベント(銘柄: 満期日の自動計算) ----------
 // Deribitの規則(公式): 全て08:00 UTC。月次=月末の最終金曜、四半期=各四半期(3・6・9・12月)の最終金曜。
 // BTC/ETH/SOL にオプション・先物がある。取得元が無く、規則だけで未来の日付が確実に出せる。
@@ -375,7 +463,7 @@ const NEWS_FEEDS = [
   ['https://www.coindesk.com/arc/outboundfeeds/rss', 'CoinDesk', null],
   ['https://decrypt.co/feed', 'Decrypt', null],
 ];
-const NEWS_KEY = 'news:v1', NEWS_KEEP = 90 * DAY;
+const NEWS_KEY = 'news:v1', NEWS_KEEP = PAST_KEEP;
 // タイトルから銘柄を判定する言葉(大文字小文字は区別しない)
 const KEYWORDS = {
   BTC: /\b(bitcoin|btc)\b/i,
@@ -449,8 +537,8 @@ async function refreshNews(env) {
 // ---------- 保存(KV) ----------
 const KV_KEY = 'macro:v1';
 const FRESH_MS = 3 * 3600 * 1000;        // 保存から3時間以内なら新しいとみなす(定時実行は30分ごと)
-const KEEP_MS = 365 * DAY;               // 取得範囲より古い過去のイベントは1年分まで残す
-const WIN_PAST = 60 * DAY;               // tvEvents() が取りに行く過去側の範囲と合わせる
+const KEEP_MS = PAST_KEEP;               // 過去のイベントは2週間分だけ残す
+const WIN_PAST = PAST_KEEP;              // tvEvents() が取りに行く過去側の範囲と合わせる
 
 async function readStore(env) {
   if (!env.CAL) return null;
@@ -461,8 +549,8 @@ async function readStore(env) {
 }
 
 // 取得結果を、保存済みの内容とまとめる。
-//  ・取得範囲(過去60日〜先)は、取得できた内容で置き換える(日程の変更・取消が反映される)
-//  ・取得範囲より古い過去分は、保存済みのものを1年分まで残す(履歴が積み上がる)
+//  ・取得範囲(過去2週間〜先)は、取得できた内容で置き換える(日程の変更・取消が反映される)
+//  ・2週間より古い過去分は捨てる
 //  ・一部の取得に失敗した時は、消えないよう保存済みの分も残す
 function mergeStore(prev, fresh, hadErrors, now) {
   const winStart = now - WIN_PAST;
@@ -530,7 +618,7 @@ async function events(request, env, ctx) {
   const chain = await chainEvents();
   errors.push(...chain.errors);
   const manual = await manualEvents(request, env);
-  const all = macro.concat(chain.out, expiryEvents(Date.now()), bnbBurnEvents(Date.now()), news, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const all = macro.concat(chain.out, expiryEvents(Date.now()), bnbBurnEvents(Date.now()), news, manual).filter((e) => Date.parse(e.at) >= Date.now() - PAST_KEEP).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const res = json({ generated_at: gen, version: VERSION, events: all, errors });
   if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
   return res;
@@ -544,6 +632,7 @@ export default {
       return cached(ctx, request, cfg ? cfg.ttl : 60, () => candles(url));
     }
     if (url.pathname === '/api/events') return cached(ctx, request, 300, () => events(request, env, ctx));
+    if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return env.ASSETS.fetch(request);
@@ -552,6 +641,7 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))));
     ctx.waitUntil(refreshEthQ(env).then((r) => console.log('ethq refresh', JSON.stringify(r))));
+    ctx.waitUntil(refreshStake(env).then((r) => console.log('stake refresh', JSON.stringify(r))));
     if (NEWS_ENABLED) ctx.waitUntil(refreshNews(env).then((r) => console.log('news refresh', JSON.stringify(r))));
   },
 };
