@@ -185,7 +185,7 @@ const TZ=[['Asia/Tokyo','東京'],['Asia/Seoul','ソウル'],['Asia/Shanghai','�
 let tz='Asia/Tokyo';try{const sv=localStorage.getItem('tz');if(TZ.some(c=>c[0]===sv))tz=sv}catch(_){}
 function off(t){const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric',second:'numeric'}).formatToParts(t).reduce((o,x)=>(o[x.type]=x.value,o),{});return Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-Math.floor(t/1000)*1000}
 function ofs(t){const m=off(t||Date.now())/6e4,a=Math.abs(m);return 'UTC'+(m<0?'-':'+')+Math.floor(a/60)+(a%60?':'+String(a%60).padStart(2,'0'):'')}
-let asset='BTC',flt='all',sel=null,tf=3,E=[],evErr=[],NOW=Date.now(),EIX=new Map(),CLU={},hideT=0;
+let asset='BTC',flt='all',sel=null,tf=2,E=[],evErr=[],NOW=Date.now(),EIX=new Map(),CLU={},hideT=0;
 const CD={},CS={};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -195,7 +195,7 @@ const dstr=ts=>new Date(ts).toLocaleDateString('ja-JP',{month:'numeric',day:'num
 const fp=v=>v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:0}):v>=100?v.toFixed(1):v>=1?v.toFixed(3):v.toFixed(5);
 function cdn(ts){const d=ts-NOW;if(d<=0)return'';const m=Math.floor(d/6e4),h=Math.floor(m/60),dd=Math.floor(h/24);return 'T−'+(dd>=1?dd+'d '+(h%24)+'h':h>=1?h+'h'+String(m%60).padStart(2,'0')+'m':m+'m')}
 // [API名, 表示名, 1本の長さ(月足は0), 右側に空ける本数]
-const TF=[['1m','1分足',6e4,30],['5m','5分足',3e5,48],['15m','15分足',9e5,96],['1h','1時間足',36e5,120],['4h','4時間足',144e5,60],['1d','日足',864e5,30],['1w','週足',6048e5,8],['1M','月足',0,3]];
+const TF=[['5m','5分足',3e5,48],['15m','15分足',9e5,96],['1h','1時間足',36e5,120],['4h','4時間足',144e5,60],['1d','日足',864e5,30],['1w','週足',6048e5,8],['1M','月足',0,3]];
 function nx(t,m){if(m===0){const d=new Date(t);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)}return t+m}
 function vis(){return E.filter(e=>(!e.a||e.a.includes(asset))&&(flt==='all'||(flt==='high'?e.im==='high':e.l===flt)))}
 /* 選択・強調: 縦線(まとまりの場合は含まれる全イベント)、一覧、NEXT 24Hが同時に光る */

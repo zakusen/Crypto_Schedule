@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 
 SYMS = ["BTC", "ETH", "SOL", "BNB"]
-TFS = ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]
+TFS = ["5m", "15m", "1h", "4h", "1d", "1w", "1M"]
 
 
 def get(url):
@@ -35,16 +35,15 @@ def health(base, bad):
     except Exception as e:  # noqa: BLE001
         print(f"--  /api/health: {e}(古い版では未対応)")
         return
-    print(f"-- 状態: Pacifica待機 {h.get('pacifica_cooldown_s')}秒")
+    pc = h.get("price_cron") or {}
+    print(f"-- 価格の定時取得(5分ごと): {pc.get('min_ago')}分前 / 成功{pc.get('ok')}本 / 打ち切り: {pc.get('stopped') or 'なし'} / {pc.get('ng') or ''}")
     for sym, p in (h.get("prices") or {}).items():
         ages = p.get("age_min") or {}
-        lc = p.get("last_cron") or {}
-        warm = {k: ages.get(k) for k in ("15m", "1h", "4h", "1d", "1w", "1M")}
-        print(f"   {sym} 控えの古さ(分): {warm} / 最後の定時取得: {lc.get('min_ago')}分前 成功{lc.get('ok')}本 {lc.get('ng') or ''}")
-        a1h = ages.get("1h")
-        if a1h is None or a1h > 6 * 60:   # 1時間足の控えが6時間より古い=定時取得が長く失敗している
-            print(f"NG  {sym}: 1時間足の控えが {a1h}分前 です(定時取得が続けて失敗している可能性)")
-            bad.append(f"{sym} 控え")
+        print(f"   {sym} 保存の古さ(分): {ages}")
+        a5 = ages.get("5m")
+        if a5 is None or a5 > 60:   # 5分足の保存が1時間より古い = 定時取得が12回以上続けて断られている
+            print(f"NG  {sym}: 5分足の保存が {a5}分前 です(Pacifica に断られ続けている可能性)")
+            bad.append(f"{sym} 保存")
     print(f"   指標: {h.get('macro')} / チェーン控え: {h.get('chain')}")
     print(f"   ETH記録: {h.get('ethqueue')} / ステーク記録: {h.get('stake')}")
 
