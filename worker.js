@@ -77,7 +77,14 @@ async function candles(url) {
   if (!SYMS.includes(sym) || !cfg) return json({ error: 'bad params' }, 400);
   try {
     let rows = await kline(sym, cfg.iv, cfg.step, cfg.raw);
-    if (cfg.agg) rows = aggregate(rows, cfg.agg);
+    if (cfg.agg) {
+      // 取得窓の途中から始まる最初の1本は、始値・高安が不完全になるので捨てる。
+      // ただし窓より前のデータが無い(上場直後など)場合は、その足が本当の最初なので残す。
+      const winStart = Date.now() - (cfg.raw + 2) * cfg.step * 1000;
+      const cutByWindow = rows.length > 0 && rows[0].t <= winStart + cfg.step * 1000;
+      rows = aggregate(rows, cfg.agg);
+      if (cutByWindow && rows.length > 1) rows.shift();
+    }
     rows = rows.slice(-cfg.bars);
     if (!rows.length) return json({ error: 'no data' }, 502);
     return json({ sym, tf, source: 'Pacifica', bars: rows.map((r) => [Math.floor(r.t / 1000), r.o, r.h, r.l, r.c, r.v]) });
