@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v23-pxbackup';
+const VERSION = '2026-10-06-clean-v24-pxlight';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -184,18 +184,24 @@ async function refreshPrices(env) {
   if (!store || !store.tfs) store = { tfs: {} };
   const oldest = (sym) => Math.min(...Object.keys(TFS).map((tf) => (store.tfs[sym] && store.tfs[sym][tf] && store.tfs[sym][tf].at) || 0));
   const order = SYMS.slice().sort((a, b) => oldest(a) - oldest(b));   // 保存が古い銘柄から
-  const bySrc = {}, ng = [];
+  const bySrc = {}, ng = [], t0 = Date.now();
   let ok = 0;
+  const wAge = (sym) => (store.tfs[sym] && store.tfs[sym]['1w'] && store.tfs[sym]['1w'].at) || 0;
+  const cand = SYMS.slice().sort((a, b) => wAge(a) - wAge(b))[0];
+  const heavySym = Date.now() - wAge(cand) > 60 * 60 * 1000 ? cand : null;   // 週足・月足を作り直す銘柄(無ければ null)
   BUDGET = 45;
   try {
     for (const sym of order) {
       store.tfs[sym] = store.tfs[sym] || {};
       const jobs = LIVE_TFS.map((tf) => [tf, async () => { const o = await buildBars(sym, tf); return { src: o.src, out: { [tf]: { at: o.at, src: o.src, bars: o.bars } } }; }]);
-      jobs.push(['1d/1w/1M', async () => {
-        const raw = Math.max(...DAILY_TFS.map((tf) => TFS[tf].raw));
+      // 日足は毎回(直近60本だけ)。週足・月足は日足775本が要って重いので、1回の実行につき1銘柄・60分に1回だけ作り直す
+      //   (2026-10-06: 毎回4銘柄分を作ると無料プランの計算時間10msを超えて、保存の前に打ち切られていた疑い)
+      const heavy = sym === heavySym;
+      jobs.push([heavy ? '1d/1w/1M' : '1d', async () => {
+        const raw = heavy ? Math.max(...DAILY_TFS.map((tf) => TFS[tf].raw)) : TFS['1d'].raw;
         const got = await rowsAny(sym, '1d', 86400, raw), at = Date.now(), out = {};
         // dYdX は1回100本までなので、週足・月足は作らない(前回の保存を残す)
-        for (const tf of (got.src === 'dYdX' ? ['1d'] : DAILY_TFS)) out[tf] = barsFromDaily(got.rows, tf, at, got.src);
+        for (const tf of (heavy && got.src !== 'dYdX' ? DAILY_TFS : ['1d'])) out[tf] = barsFromDaily(got.rows, tf, at, got.src);
         return { src: got.src, out };
       }]);
       for (const [name, run] of jobs) {
@@ -207,10 +213,11 @@ async function refreshPrices(env) {
       }
     }
   } finally { BUDGET = Infinity; }
-  store.last = { at: Date.now(), ok, by_src: bySrc, ng: ng.slice(0, 4) };
+  store.last = { at: Date.now(), ok, by_src: bySrc, ng: ng.slice(0, 4), heavy: heavySym, ms: Date.now() - t0 };
+  console.log('price fetched', JSON.stringify(store.last));      // 保存の前にログを出す(途中で止まった時にどこまで来たか分かるように)
   await env.CAL.put(PX2_KEY, JSON.stringify(store));
   MEM.set(PX2_KEY, { t: Date.now(), v: store });
-  return { order: order.join('>'), ok, by_src: bySrc, ng };
+  return { order: order.join('>'), ok, by_src: bySrc, heavy: heavySym, ng };
 }
 
 async function candles(url, env) {
@@ -875,7 +882,7 @@ async function health(env) {
     const t = (store && store.tfs && store.tfs[sym]) || {};
     px[sym] = { age_min: Object.fromEntries(Object.keys(TFS).map((tf) => [tf, t[tf] ? min(t[tf].at) : null])), src: Object.fromEntries(Object.keys(TFS).map((tf) => [tf, t[tf] ? (t[tf].src || 'Pacifica') : null])) };
   }
-  const lastCron = store && store.last ? { min_ago: min(store.last.at), ok: store.last.ok, by_src: store.last.by_src || null, ng: store.last.ng } : null;
+  const lastCron = store && store.last ? { min_ago: min(store.last.at), ok: store.last.ok, by_src: store.last.by_src || null, heavy: store.last.heavy || null, ms: store.last.ms, ng: store.last.ng } : null;
   const st = await readStore(env);
   const eq = await readEthQ(env);
   let sk = null;
@@ -910,7 +917,7 @@ export default {
   },
   // 定時実行(wrangler.jsonc の triggers.crons)。結果はログ(Cloudflareの「ログ」)で確認できる。
   async scheduled(event, env, ctx) {
-    if (event.cron === PX_CRON) { ctx.waitUntil(refreshPrices(env).then((r) => console.log('price refresh', JSON.stringify(r)))); return; }
+    if (event.cron === PX_CRON) { ctx.waitUntil(refreshPrices(env).then((r) => console.log('price refresh', JSON.stringify(r))).catch((e) => console.log('price refresh FAILED', String((e && e.stack) || e)))); return; }
     ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))).catch(() => {}).then(() => storeEvents(env)).then((r) => console.log('events store', JSON.stringify(r))));
     ctx.waitUntil(refreshEthQ(env).then((r) => console.log('ethq refresh', JSON.stringify(r))));
     ctx.waitUntil(refreshStake(env).then((r) => console.log('stake refresh', JSON.stringify(r))));
