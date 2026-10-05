@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-05-clean-v17-rpcfix2';
+const VERSION = '2026-10-06-clean-v18-pxwarm';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -153,26 +153,86 @@ async function candles(url, env) {
 }
 
 // 定時実行(PX_CRON): 主な足の最新値をKVに保存しておく。取得に失敗した足は、前回の保存を残す。
+// 2026-10-06 改: Pacifica の429は、Cloudflareの出口IPを他のWorkerと共有しているため、こちらの回数が少なくても起きる。
+//   そこで「断られても控えが切れない」作りにする。
+//   ① 控えが一番古い銘柄から取る(固定順だと後ろの銘柄が取り残され、3時間で控えが切れて502になっていた)
+//   ② 429はその銘柄だけ打ち切り、他の銘柄は続ける
+//   ③ 1本も取れなかった銘柄は、20秒おいて1回だけ取り直す
+//   ④ 日足・週足・月足は同じ日足データから作るので、1回の取得でまとめて作る(1銘柄 6回 → 4回)
+const DAILY_TFS = ['1d', '1w', '1M'];
+const PX_RETRY_WAIT = 20000;
+
+function barsFromDaily(sym, rows, tf, at) {
+  const cfg = TFS[tf];
+  let r = rows;
+  if (cfg.agg) {
+    const winStart = at - (cfg.raw + 2) * cfg.step * 1000;
+    r = r.filter((x) => x.t >= winStart);
+    const cutByWindow = r.length > 0 && r[0].t <= winStart + cfg.step * 1000;
+    r = aggregate(r, cfg.agg);
+    if (cutByWindow && r.length > 1) r.shift();
+  }
+  r = r.slice(-cfg.bars);
+  if (!r.length) throw new Error('no data');
+  return { sym, tf, source: 'Pacifica', at, bars: r.map((x) => [Math.floor(x.t / 1000), x.o, x.h, x.l, x.c, x.v]) };
+}
+
+async function warmDaily(sym) {
+  const raw = Math.max(...DAILY_TFS.map((tf) => TFS[tf].raw));
+  const rows = await kline(sym, '1d', 86400, raw);
+  const at = Date.now(), out = {};
+  for (const tf of DAILY_TFS) { out[tf] = barsFromDaily(sym, rows, tf, at); MEM.set(sym + '|' + tf, { at, obj: out[tf] }); }
+  return out;
+}
+
+// 1銘柄分。返り値 { ok, ng, hit429 }。blob は書き換える。
+async function warmSymbol(sym, blob) {
+  let ok = 0, hit429 = false;
+  const ng = [];
+  const jobs = WARM.filter((tf) => !DAILY_TFS.includes(tf)).map((tf) => [tf, () => liveBars(sym, tf).then((o) => ({ [tf]: o }))]);
+  jobs.push(['1d/1w/1M', () => warmDaily(sym)]);
+  for (const [name, run] of jobs) {
+    try { const got = await run(); for (const [tf, o] of Object.entries(got)) { blob.tfs[tf] = { at: o.at, bars: o.bars }; ok++; } }
+    catch (e) {
+      const msg = String((e && e.message) || e);
+      ng.push(name + ':' + msg.slice(0, 40));
+      if (msg.includes('429')) { hit429 = true; break; }   // この銘柄はここまで。他の銘柄は続ける
+    }
+  }
+  return { ok, ng, hit429 };
+}
+
+function oldestAt(blob) {
+  const ts = WARM.map((tf) => (blob.tfs[tf] && blob.tfs[tf].at) || 0);
+  return Math.min(...ts);
+}
+
 async function refreshPrices(env) {
   if (!env.CAL) return { skipped: 'KVが未接続' };
-  const out = {};
+  const blobs = {};
   for (const sym of SYMS) {
     let blob = null;
     try { blob = await env.CAL.get(PX_KEY(sym), 'json'); } catch (_) {}
-    if (!blob || !blob.tfs) blob = { tfs: {} };
-    let ok = 0, stop = false;
-    const ng = [];
-    for (const tf of WARM) {
-      try { const o = await liveBars(sym, tf); blob.tfs[tf] = { at: o.at, bars: o.bars }; ok++; }
-      catch (e) {
-        const msg = String((e && e.message) || e);
-        ng.push(tf + ':' + msg.slice(0, 40));
-        if (msg.includes('429')) { stop = true; break; }
-      }
+    blobs[sym] = blob && blob.tfs ? blob : { tfs: {} };
+  }
+  const order = SYMS.slice().sort((a, b) => oldestAt(blobs[a]) - oldestAt(blobs[b]));   // 控えが古い順
+  const out = { order: order.join('>') }, retry = [];
+  const save = async (sym, r) => {
+    if (r.ok) { try { await env.CAL.put(PX_KEY(sym), JSON.stringify(blobs[sym])); } catch (e) { r.ng.push('kv:' + String((e && e.message) || e).slice(0, 40)); } }
+  };
+  for (const sym of order) {
+    const r = await warmSymbol(sym, blobs[sym]);
+    await save(sym, r);
+    out[sym] = { ok: r.ok, ng: r.ng };
+    if (r.ok === 0 && r.hit429) retry.push(sym);
+  }
+  if (retry.length) {
+    await new Promise((res) => setTimeout(res, PX_RETRY_WAIT));
+    for (const sym of retry) {
+      const r = await warmSymbol(sym, blobs[sym]);
+      await save(sym, r);
+      out[sym] = { ok: r.ok, ng: out[sym].ng.concat(r.ng.map((x) => '再:' + x)), retried: true };
     }
-    if (ok) { try { await env.CAL.put(PX_KEY(sym), JSON.stringify(blob)); } catch (e) { ng.push('kv:' + String((e && e.message) || e).slice(0, 40)); } }
-    out[sym] = { ok, ng };
-    if (stop) { out.stopped = '429のため中断'; break; }
   }
   return out;
 }
@@ -383,8 +443,13 @@ async function ethQueueSample(env) {
   let actErr = null;
   if (act === null) {
     try {
-      const key = env && env.BEACONCHAIN_API_KEY ? '?apikey=' + encodeURIComponent(env.BEACONCHAIN_API_KEY) : '';
-      const bc = await j('https://beaconcha.in/api/v1/epoch/latest' + key, 10000);
+      const k = env && env.BEACONCHAIN_API_KEY ? String(env.BEACONCHAIN_API_KEY).trim() : '';
+      // 鍵はURL(apikey=)とヘッダー(apikey / Authorization: Bearer)の両方で渡す(beaconcha.in の新旧どちらの鍵でも通るように)
+      const h = { 'User-Agent': UA, Accept: 'application/json' };
+      if (k) { h.apikey = k; h.Authorization = 'Bearer ' + k; }
+      const br = await fetch('https://beaconcha.in/api/v1/epoch/latest' + (k ? '?apikey=' + encodeURIComponent(k) : ''), { headers: h, signal: AbortSignal.timeout(10000) });
+      if (!br.ok) throw new Error('HTTP ' + br.status + (k ? '' : '（鍵が未設定）'));
+      const bc = await br.json();
       const n = +(bc && bc.data && (bc.data.validatorscount ?? bc.data.validatorsCount));
       if (isFinite(n) && n > 0) act = n; else actErr = 'beaconcha.in: 形式が想定と違います';
     } catch (e) { actErr = 'publicnode: validator_count 非対応 / beaconcha.in: ' + (e.message || e); }
