@@ -34,6 +34,7 @@ option{background:#0c0f13;color:#d8dde5}
 .tab:hover{color:var(--tx)}
 .tab.on{color:var(--hot);border-bottom-color:var(--hot);text-shadow:0 0 14px rgba(255,255,255,.45)}
 .meta{display:flex;gap:10px;align-items:center;font:400 11px var(--mono);letter-spacing:.08em;color:var(--mu)}
+.rf{font:400 11px var(--mono);letter-spacing:.06em;background:rgba(255,255,255,.03);color:var(--tx);border:1px solid var(--ln);border-radius:2px;padding:4px 9px;cursor:pointer;white-space:nowrap}.rf:hover{border-color:#e8a948;color:#e8a948}.rf[disabled]{opacity:.55;cursor:wait}.rf .ic{display:inline-block}.rf.on .ic{animation:rfs .8s linear infinite}@keyframes rfs{to{transform:rotate(360deg)}}
 /* 本体 */
 .app{max-width:1680px;margin:0 auto;padding:18px 22px calc(48px + env(safe-area-inset-bottom,0px))}
 .hero{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:0;border:1px solid var(--ln);background:linear-gradient(180deg,var(--s2),var(--s1));box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
@@ -158,7 +159,7 @@ svg .mk{font-size:9px;letter-spacing:.22em}
 <header class="top"><div class="top-in">
 <div class="brand"><svg class="glyph" viewBox="0 0 28 28" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><rect x="13.4" y="3" width="1.2" height="17" fill="url(#gg)"/><line x1="2" y1="21" x2="26" y2="21" stroke="#a3acb8" stroke-width="1"/><line x1="2" y1="24" x2="26" y2="24" stroke="#7b8490" stroke-width=".6" opacity=".6"/><circle cx="14" cy="21" r="2" fill="#fff"/><circle cx="7" cy="21" r="1.2" fill="#5fd0e0"/><circle cx="21" cy="21" r="1.2" fill="#e8a948"/></svg><div><h1>CRYPTO SIGNAL ARCHIVE</h1><div class="tag">ALL SIGNALS. ONE TIMELINE.</div></div></div>
 <nav id="tabs"></nav>
-<div class="meta"><select id="tz" aria-label="表示する都市の時刻"></select><span id="clk"></span></div>
+<div class="meta"><button id="rf" class="rf" type="button" title="価格・イベント・ステーク量をキャッシュを通さず取り直します" aria-label="最新の情報に更新"><span class="ic">↻</span> 更新</button><select id="tz" aria-label="表示する都市の時刻"></select><span id="clk"></span></div>
 </div></header>
 <main class="app">
 <div class="hero">
@@ -222,11 +223,12 @@ n.addEventListener('click',ev=>{ev.stopPropagation();pick(idOf(n))})})}
 function build(a,i){const d=CD[a+'|'+TF[i][0]];if(!d)return null;const m=TF[i][2];
 const k=d.rows.map(r=>({t:r[0]*1e3,o:r[1],h:r[2],l:r[3],c:r[4]}));k.forEach(q=>q.n=nx(q.t,m));
 let e=k[k.length-1].n;for(let j=0;j<TF[i][3];j++)e=nx(e,m);return{k,d0:k[0].t,d1:e,at:d.at}}
+let NC=0;const gf=u=>NC?fetch(u+(u.includes('?')?'&':'?')+'_='+NC,{cache:'no-store'}):fetch(u);
 async function loadC(a,i,force){const key=a+'|'+TF[i][0],c=CD[key];if(!force&&c&&Date.now()-c.at<60000)return;if(CS[key]==='loading')return;CS[key]='loading';
-try{const r=await fetch('/api/candles?sym='+a+'&tf='+TF[i][0]);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.bars||!j.bars.length)throw new Error('empty');CD[key]={rows:j.bars,at:Date.now()};CS[key]='ok'}
+try{const r=await gf('/api/candles?sym='+a+'&tf='+TF[i][0]);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.bars||!j.bars.length)throw new Error('empty');CD[key]={rows:j.bars,at:Date.now()};CS[key]='ok'}
 catch(e){CS[key]=CD[key]?'ok':'error'}
 if(a===asset&&i===tf){chart();hl(sel)}}
-async function loadE(){try{const r=await fetch('/api/events');if(!r.ok)throw new Error(r.status);const j=await r.json();E=(j.events||[]).map(e=>({...e,ts:Date.parse(e.at)})).filter(e=>isFinite(e.ts));EIX=new Map(E.map((e,i)=>[e.id,i]));evErr=j.errors||[]}
+async function loadE(){try{const r=await gf('/api/events');if(!r.ok)throw new Error(r.status);const j=await r.json();E=(j.events||[]).map(e=>({...e,ts:Date.parse(e.at)})).filter(e=>isFinite(e.ts));EIX=new Map(E.map((e,i)=>[e.id,i]));evErr=j.errors||[]}
 catch(e){evErr=['イベントを取得できませんでした']}
 render()}
 const ST=[3e5,9e5,18e5,36e5,108e5,216e5,432e5,864e5,1728e5,6048e5,2592e6,7776e6,15552e6,31536e6];
@@ -300,7 +302,7 @@ const sv=$('chart').querySelector('svg');sv.addEventListener('click',ev=>{if(!ev
 }
 /* ETH出口待ち: 価格の下に同じ時間軸で出す別枠(ETHタブのみ)。記録は自前で貯めているので、導入日から線が伸びる */
 let EQ=null,EQ_AT=0,CX=null;
-async function loadEQ(force){if(!force&&Date.now()-EQ_AT<3e5)return;EQ_AT=Date.now();try{const r=await fetch('/api/ethqueue');if(!r.ok)throw new Error(r.status);EQ=await r.json()}catch(e){if(!EQ||!(EQ.samples||[]).length)EQ={error:String(e.message||e),samples:[]}}eqChart();sqChart()}
+async function loadEQ(force){if(!force&&Date.now()-EQ_AT<3e5)return;EQ_AT=Date.now();try{const r=await gf('/api/ethqueue');if(!r.ok)throw new Error(r.status);EQ=await r.json()}catch(e){if(!EQ||!(EQ.samples||[]).length)EQ={error:String(e.message||e),samples:[]}}eqChart();sqChart()}
 function eqChart(){
 const el=$('eq');if(!el)return;
 if(asset!=='ETH'||!CX){el.innerHTML='';return}
@@ -318,7 +320,7 @@ if(NOW>=d0&&NOW<=d1)s+=`<line x1="${x(NOW)}" x2="${x(NOW)}" y1="${Tp}" y2="${H-B
 el.innerHTML=s+'</svg>'}
 /* ステーク量(ETH/SOL/BNB): 価格の下に同じ時間軸で出す別枠。ETHは稼働バリデータ数×32の概算、SOLは委任量の合計、BNBはStakeHub契約の合計 */
 const ETH_SUPPLY=121e6;let SQD={},SQ_AT={};
-async function loadSQ(sym,force){if(!force&&Date.now()-(SQ_AT[sym]||0)<3e5)return;SQ_AT[sym]=Date.now();try{const r=await fetch('/api/stake?sym='+sym);if(!r.ok)throw new Error(r.status);SQD[sym]=await r.json()}catch(e){if(!SQD[sym]||!(SQD[sym].samples||[]).length)SQD[sym]={error:String(e.message||e),samples:[]}}sqChart()}
+async function loadSQ(sym,force){if(!force&&Date.now()-(SQ_AT[sym]||0)<3e5)return;SQ_AT[sym]=Date.now();try{const r=await gf('/api/stake?sym='+sym);if(!r.ok)throw new Error(r.status);SQD[sym]=await r.json()}catch(e){if(!SQD[sym]||!(SQD[sym].samples||[]).length)SQD[sym]={error:String(e.message||e),samples:[]}}sqChart()}
 function sqChart(){
 const el=$('sq');if(!el)return;
 if(!CX){el.innerHTML='';return}
@@ -377,5 +379,9 @@ setInterval(()=>{if(!document.hidden)loadC(asset,tf,true)},60000);
 setInterval(()=>{if(!document.hidden)loadE()},6e5);
 setInterval(()=>{if(document.hidden)return;if(asset==='ETH')loadEQ(true);else if(asset==='SOL'||asset==='BNB')loadSQ(asset,true)},3e5);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)return;loadC(asset,tf,true);loadE();if(asset==='ETH')loadEQ(true);else if(asset==='SOL'||asset==='BNB')loadSQ(asset,true)});
+async function refreshAll(){const b=$('rf');if(b.disabled)return;b.disabled=true;b.classList.add('on');NC=Date.now();
+const k=asset+'|'+TF[tf][0];if(CS[k]==='loading')CS[k]='ok';
+try{await Promise.all([loadC(asset,tf,true),loadE(),asset==='ETH'?loadEQ(true):(asset==='SOL'||asset==='BNB')?loadSQ(asset,true):null])}finally{NC=0;b.disabled=false;b.classList.remove('on');b.title='更新しました '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}}
+$('rf').addEventListener('click',refreshAll);
 render();loadE();
 </script></main></body></html>

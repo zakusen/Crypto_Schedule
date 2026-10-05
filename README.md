@@ -66,6 +66,7 @@
   - `SOL_RPC_URL`: Helius などの無料RPCのURL(鍵入り)。あれば最優先で使う。エラー表示ではホスト名を伏せる。
   - `BEACONCHAIN_API_KEY`: beaconcha.in の無料APIキー。ETHの稼働バリデータ数に使う。
   - 入れ方: `npx wrangler secret put SOL_RPC_URL`、または Cloudflare ダッシュボード → Workers → crypto-schedule → 設定 → 変数とシークレット。
+- 2026-10-05: 画面右上に「↻ 更新」ボタンを追加。押すと、表示中の価格・イベント・(ETH/SOL/BNBなら)ステーク量を、ブラウザとCloudflareのキャッシュを通さずに取り直して描き直す。
 - 以下は初期の記録。
 モックの応答でWorkerとページの動作（足の集計、マクロ指標の取得・日本語化・予備への切替、エラー表示、HTMLの無害化）と、zip展開の安全装置（フォルダ1段外し、秘密の保護、パス脱出の拒否、ワークフローの除外）を確認済み。GitHub ActionsとCloudflareへの実際のデプロイは未実行です。実際のPacifica・TradingView・Forex Factoryへの接続は、この環境から通信できないため未確認です（TradingViewが要求するヘッダーも未確認）。
 
