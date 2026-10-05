@@ -22,6 +22,33 @@ def get(url):
         raise RuntimeError(f"HTTP {e.code} {msg}") from None
 
 
+def stale_note(j):
+    # 取得元に断られて控えを返した時は、何分前の控えかを添える(表示できているのでOK扱い)
+    if not j.get("stale"):
+        return ""
+    return f"(控え {round((j.get('age_s') or 0) / 60)}分前 / {j.get('reason') or ''})"
+
+
+def health(base, bad):
+    try:
+        h = get(f"{base}/api/health")
+    except Exception as e:  # noqa: BLE001
+        print(f"--  /api/health: {e}(古い版では未対応)")
+        return
+    print(f"-- 状態: Pacifica待機 {h.get('pacifica_cooldown_s')}秒")
+    for sym, p in (h.get("prices") or {}).items():
+        ages = p.get("age_min") or {}
+        lc = p.get("last_cron") or {}
+        warm = {k: ages.get(k) for k in ("15m", "1h", "4h", "1d", "1w", "1M")}
+        print(f"   {sym} 控えの古さ(分): {warm} / 最後の定時取得: {lc.get('min_ago')}分前 成功{lc.get('ok')}本 {lc.get('ng') or ''}")
+        a1h = ages.get("1h")
+        if a1h is None or a1h > 6 * 60:   # 1時間足の控えが6時間より古い=定時取得が長く失敗している
+            print(f"NG  {sym}: 1時間足の控えが {a1h}分前 です(定時取得が続けて失敗している可能性)")
+            bad.append(f"{sym} 控え")
+    print(f"   指標: {h.get('macro')} / チェーン控え: {h.get('chain')}")
+    print(f"   ETH記録: {h.get('ethqueue')} / ステーク記録: {h.get('stake')}")
+
+
 def main():
     base = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("SITE_URL", "")).rstrip("/")
     if not base.startswith("http"):
@@ -33,7 +60,7 @@ def main():
             j = get(f"{base}/api/candles?sym=BTC&tf={tf}")
             bars = j.get("bars") or []
             ok = bool(bars) and all(len(b) == 6 and b[2] >= b[3] for b in bars)
-            print(f"{'OK ' if ok else 'NG '} BTC {tf}: {len(bars)}本")
+            print(f"{'OK ' if ok else 'NG '} BTC {tf}: {len(bars)}本{stale_note(j)}")
             if not ok:
                 bad.append(f"BTC {tf}")
         except Exception as e:  # noqa: BLE001
@@ -41,8 +68,9 @@ def main():
             bad.append(f"BTC {tf}")
     for sym in SYMS[1:]:
         try:
-            n = len(get(f"{base}/api/candles?sym={sym}&tf=1h").get("bars") or [])
-            print(f"{'OK ' if n else 'NG '} {sym} 1h: {n}本")
+            j = get(f"{base}/api/candles?sym={sym}&tf=1h")
+            n = len(j.get("bars") or [])
+            print(f"{'OK ' if n else 'NG '} {sym} 1h: {n}本{stale_note(j)}")
             if not n:
                 bad.append(f"{sym} 1h")
         except Exception as e:  # noqa: BLE001
@@ -67,6 +95,8 @@ def main():
         if not any(k and k.startswith("チェーン") for k in srcs):
             print("注意: チェーン直読み(BTC半減期など)のイベントが0件です。読み取りに失敗している可能性があります")
         print(f"{'OK ' if evs else 'NG '} events: {len(evs)}件 / 国別: {by} / 警告: {errs or 'なし'}")
+        for n in j.get("notes") or []:
+            print(f"--  注記: {n}")
         if not evs or errs:
             bad.append("events")
         missing = [c for c in ("US", "JP", "EU") if not by.get(c)]
@@ -98,6 +128,7 @@ def main():
         except Exception as e:  # noqa: BLE001
             print(f"NG  {sym}ステーク量: {e}")
             bad.append(f"stake-{sym}")
+    health(base, bad)
     if bad:
         print("::error::確認で問題が出ました: " + ", ".join(bad))
         return 1

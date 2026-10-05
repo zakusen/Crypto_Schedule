@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v18-pxwarm';
+const VERSION = '2026-10-06-clean-v19-resilient';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -49,13 +49,14 @@ async function kline(sym, iv, stepSec, n) {
   const now = Date.now();
   const u = PACIFICA + '/kline?symbol=' + encodeURIComponent(sym) + '&interval=' + iv +
     '&start_time=' + (now - (n + 2) * stepSec * 1000) + '&end_time=' + now;
+  if (Date.now() < PX_COOL) { const e = new Error('pacifica 429（取得回数の上限・' + Math.ceil((PX_COOL - Date.now()) / 1000) + '秒待機中）'); e.noRetry = true; throw e; }
   let lastErr;
   // 通信エラー・タイムアウト・5xxは1回だけやり直す。429(取得回数の上限)はやり直しても同じ分内は通らないので、すぐ諦める。
   for (let i = 0; i < 2; i++) {
     const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 8000);
     try {
       const r = await fetch(u, { headers: { 'User-Agent': 'signal-archive/1.0', 'Accept': 'application/json' }, signal: ac.signal });
-      if (!r.ok) { const e = new Error('pacifica ' + r.status + (r.status === 429 ? '（取得回数の上限）' : '')); e.noRetry = r.status < 500; throw e; }
+      if (!r.ok) { if (r.status === 429) PX_COOL = Date.now() + PX_COOL_MS; const e = new Error('pacifica ' + r.status + (r.status === 429 ? '（取得回数の上限）' : '')); e.noRetry = r.status < 500; throw e; }
       const j = await r.json();
       const rows = Array.isArray(j) ? j : (j && j.data) || [];
       return rows
@@ -91,7 +92,10 @@ function aggregate(rows, kind) {
 // 価格の取得は Pacifica のIP単位の回数制限(1分100回)に当たりやすい(Cloudflareの出口IPは他のWorkerと共有される)。
 // そのため、①同じ足は一定時間メモリから返す ②同時の同じ要求は1回にまとめる ③取れない時は古い値を「古い」と明示して返す、の3段で守る。
 const MEM = new Map(), FLIGHT = new Map();
-const STALE_MAX = 3 * 3600 * 1000;           // 古い値を代わりに返してよい上限(3時間)
+const STALE_MAX = 14 * DAY;                  // 古い値を代わりに返してよい上限(2週間。返す時は stale と何秒前かを付ける)
+const PX_COOL_MS = 60 * 1000;                // Pacifica に429で断られたら、この間は聞きに行かない(断られ続けるのを避ける)
+const PX_WT_MS = 30 * 60 * 1000;             // 画面からの取得結果を控えに書き足す間隔(1銘柄あたり。KVの書き込みは1日1000回まで)
+let PX_COOL = 0;
 const PX_KEY = (sym) => 'px:v1:' + sym;      // KV: 銘柄ごとに、足ごとの最後の成功値を保存
 const WARM = ['15m', '1h', '4h', '1d', '1w', '1M'];   // 定時実行で保存しておく足(1分・5分は古いと役に立たないので除く)
 const PX_CRON = '7,37 * * * *';
@@ -131,7 +135,7 @@ async function kvStale(env, sym, tf) {
   } catch (_) { return null; }
 }
 
-async function candles(url, env) {
+async function candles(url, env, ctx) {
   const sym = (url.searchParams.get('sym') || '').toUpperCase();
   const tf = url.searchParams.get('tf') || '';
   const cfg = TFS[tf];
@@ -139,7 +143,9 @@ async function candles(url, env) {
   const key = sym + '|' + tf, m = MEM.get(key);
   if (m && Date.now() - m.at < cfg.ttl * 1000) return json(m.obj);
   try {
-    return json(await liveBars(sym, tf));
+    const o = await liveBars(sym, tf);
+    if (ctx && env.CAL) ctx.waitUntil(writeThrough(env, sym).catch(() => {}));
+    return json(o);
   } catch (e) {
     const msg = String((e && e.message) || e);
     const st = (m && Date.now() - m.at < STALE_MAX ? m.obj : null) || await kvStale(env, sym, tf);
@@ -152,6 +158,23 @@ async function candles(url, env) {
   }
 }
 
+// 画面からの取得で取れた値段も控えに書き足す(定時実行が断られ続けても控えが途切れにくくなる)。
+//   1銘柄の控えは30分に1回まで書く(定時実行の書き込みも同じ間隔に数える)。メモリにある、控えより新しい足をまとめて書く。
+async function writeThrough(env, sym) {
+  let blob = null;
+  try { blob = await env.CAL.get(PX_KEY(sym), 'json'); } catch (_) { return; }
+  if (!blob || !blob.tfs) blob = { tfs: {} };
+  if (Date.now() - (blob.wt || 0) < PX_WT_MS) return;
+  let n = 0;
+  for (const tf of Object.keys(TFS)) {
+    const m = MEM.get(sym + '|' + tf);
+    if (m && (!blob.tfs[tf] || m.at > blob.tfs[tf].at)) { blob.tfs[tf] = { at: m.at, bars: m.obj.bars }; n++; }
+  }
+  if (!n) return;
+  blob.wt = Date.now();
+  await env.CAL.put(PX_KEY(sym), JSON.stringify(blob));
+}
+
 // 定時実行(PX_CRON): 主な足の最新値をKVに保存しておく。取得に失敗した足は、前回の保存を残す。
 // 2026-10-06 改: Pacifica の429は、Cloudflareの出口IPを他のWorkerと共有しているため、こちらの回数が少なくても起きる。
 //   そこで「断られても控えが切れない」作りにする。
@@ -160,7 +183,7 @@ async function candles(url, env) {
 //   ③ 1本も取れなかった銘柄は、20秒おいて1回だけ取り直す
 //   ④ 日足・週足・月足は同じ日足データから作るので、1回の取得でまとめて作る(1銘柄 6回 → 4回)
 const DAILY_TFS = ['1d', '1w', '1M'];
-const PX_RETRY_WAIT = 20000;
+const PX_RETRY_WAIT = PX_COOL_MS + 2000;   // 断られた後の待機が明けてから取り直す
 
 function barsFromDaily(sym, rows, tf, at) {
   const cfg = TFS[tf];
@@ -186,12 +209,14 @@ async function warmDaily(sym) {
 }
 
 // 1銘柄分。返り値 { ok, ng, hit429 }。blob は書き換える。
-async function warmSymbol(sym, blob) {
+async function warmSymbol(sym, blob, since = 0) {
   let ok = 0, hit429 = false;
   const ng = [];
   const jobs = WARM.filter((tf) => !DAILY_TFS.includes(tf)).map((tf) => [tf, () => liveBars(sym, tf).then((o) => ({ [tf]: o }))]);
   jobs.push(['1d/1w/1M', () => warmDaily(sym)]);
+  const done = (name) => (name === '1d/1w/1M' ? DAILY_TFS : [name]).every((tf) => blob.tfs[tf] && blob.tfs[tf].at >= since);
   for (const [name, run] of jobs) {
+    if (since && done(name)) continue;   // 取り直しでは、この回に取れた足は飛ばす
     try { const got = await run(); for (const [tf, o] of Object.entries(got)) { blob.tfs[tf] = { at: o.at, bars: o.bars }; ok++; } }
     catch (e) {
       const msg = String((e && e.message) || e);
@@ -216,22 +241,24 @@ async function refreshPrices(env) {
     blobs[sym] = blob && blob.tfs ? blob : { tfs: {} };
   }
   const order = SYMS.slice().sort((a, b) => oldestAt(blobs[a]) - oldestAt(blobs[b]));   // 控えが古い順
-  const out = { order: order.join('>') }, retry = [];
+  const out = { order: order.join('>') }, retry = [], runStart = Date.now();
   const save = async (sym, r) => {
-    if (r.ok) { try { await env.CAL.put(PX_KEY(sym), JSON.stringify(blobs[sym])); } catch (e) { r.ng.push('kv:' + String((e && e.message) || e).slice(0, 40)); } }
+    blobs[sym].last = { at: Date.now(), ok: r.ok, ng: r.ng.slice(0, 4) };
+    if (r.ok) blobs[sym].wt = Date.now();
+    { try { await env.CAL.put(PX_KEY(sym), JSON.stringify(blobs[sym])); } catch (e) { r.ng.push('kv:' + String((e && e.message) || e).slice(0, 40)); } }
   };
   for (const sym of order) {
     const r = await warmSymbol(sym, blobs[sym]);
     await save(sym, r);
     out[sym] = { ok: r.ok, ng: r.ng };
-    if (r.ok === 0 && r.hit429) retry.push(sym);
+    if (r.hit429) retry.push(sym);
   }
   if (retry.length) {
     await new Promise((res) => setTimeout(res, PX_RETRY_WAIT));
     for (const sym of retry) {
-      const r = await warmSymbol(sym, blobs[sym]);
+      const r = await warmSymbol(sym, blobs[sym], runStart);
       await save(sym, r);
-      out[sym] = { ok: r.ok, ng: out[sym].ng.concat(r.ng.map((x) => '再:' + x)), retried: true };
+      out[sym] = { ok: out[sym].ok + r.ok, ng: out[sym].ng.concat(r.ng.map((x) => '再:' + x)), retried: true };
     }
   }
   return out;
@@ -765,13 +792,40 @@ function mergeStore(prev, fresh, hadErrors, now) {
 
 async function refreshStore(env) {
   if (!env.CAL) return { ok: false, reason: 'KV未接続' };
-  const tv = await tvEvents();
-  if (!tv.out.length) return { ok: false, reason: tv.errors.join(' / ') || '取得0件' };   // 空では上書きしない
+  const [tv, ch] = await Promise.all([tvEvents(), chainEvents()]);
   const prev = await readStore(env);
+  const chain = mergeChain(prev && prev.chain, ch);
+  if (!tv.out.length) {                       // 指標が空では上書きしない(チェーンの控えだけは更新する)
+    if (prev && ch.out.length) await env.CAL.put(KV_KEY, JSON.stringify({ ...prev, chain }));
+    return { ok: false, reason: tv.errors.join(' / ') || '取得0件', chain_failed: failedChains(ch.errors) };
+  }
   const now = Date.now();
   const merged = mergeStore(prev, tv.out, tv.errors.length > 0, now);
-  await env.CAL.put(KV_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), events: merged, errors: tv.errors }));
-  return { ok: true, count: merged.length };
+  await env.CAL.put(KV_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), events: merged, errors: tv.errors, chain }));
+  return { ok: true, count: merged.length, chain_failed: failedChains(ch.errors) };
+}
+
+// チェーン読み取りの控え(2026-10-06): 公開ノードも共用IPで429になるため、最後に成功した結果を指標と同じKVに入れておく。
+//   読めなかったチェーンは控えを使い、警告(errors)ではなく注記(notes)に出す。控えも無い時だけ警告にする。
+const CHAIN_KEEP = 2 * DAY;
+const failedChains = (errs) => (errs || []).map((x) => (String(x).match(/チェーン読み取り\((\w+)\)/) || [])[1]).filter(Boolean);
+const chainOf = (e) => (Array.isArray(e.a) && e.a[0]) || '';
+function mergeChain(prev, ch) {
+  const failed = failedChains(ch.errors), now = Date.now(), by = {};
+  for (const [sym, v] of Object.entries((prev && prev.by) || {})) if (failed.includes(sym)) by[sym] = v;
+  for (const e of ch.out) { const k = chainOf(e); if (!failed.includes(k)) (by[k] = by[k] && by[k].at === now ? by[k] : { at: now, out: [] }).out.push(e); }
+  return { by };
+}
+function chainWithFallback(ch, stored) {
+  const out = ch.out.slice(), errors = [], notes = [], by = (stored && stored.by) || {};
+  for (const err of ch.errors) {
+    const sym = failedChains([err])[0], keep = sym && by[sym];
+    if (keep && Date.now() - keep.at < CHAIN_KEEP) {
+      out.push(...keep.out);
+      notes.push(err + ' → ' + Math.max(1, Math.round((Date.now() - keep.at) / 60000)) + '分前の控えを表示');
+    } else errors.push(err);
+  }
+  return { out, errors, notes };
 }
 
 async function events(request, env, ctx) {
@@ -814,13 +868,41 @@ async function events(request, env, ctx) {
       }
     }
   }
-  const chain = await chainEvents();
+  const chain = chainWithFallback(await chainEvents(), stored && stored.chain);
   errors.push(...chain.errors);
   const manual = await manualEvents(request, env);
   const all = macro.concat(chain.out, expiryEvents(Date.now()), bnbBurnEvents(Date.now()), news, manual).filter((e) => Date.parse(e.at) >= Date.now() - PAST_KEEP).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  const res = json({ generated_at: gen, version: VERSION, events: all, errors });
+  const res = json({ generated_at: gen, version: VERSION, events: all, errors, notes: chain.notes });
   if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
   return res;
+}
+
+// 状態の確認(2026-10-06): 控えが何分前か・直近の取得結果。check_site.py が読む。キャッシュしない。
+async function health(env) {
+  if (!env.CAL) return json({ error: 'KV未接続' }, 503);
+  const now = Date.now(), min = (t) => (t ? Math.round((now - t) / 60000) : null);
+  const px = {};
+  for (const sym of SYMS) {
+    let b = null;
+    try { b = await env.CAL.get(PX_KEY(sym), 'json'); } catch (_) {}
+    const tfs = {};
+    for (const tf of Object.keys(TFS)) tfs[tf] = b && b.tfs && b.tfs[tf] ? min(b.tfs[tf].at) : null;
+    px[sym] = { age_min: tfs, last_cron: b && b.last ? { min_ago: min(b.last.at), ok: b.last.ok, ng: b.last.ng } : null, last_write_min: b ? min(b.wt) : null };
+  }
+  const st = await readStore(env);
+  const eq = await readEthQ(env);
+  let sk = null;
+  try { sk = await env.CAL.get(STAKE_KEY, 'json'); } catch (_) {}
+  const lastT = (a) => (a && a.length ? a[a.length - 1][0] * 1000 : 0);
+  return json({
+    version: VERSION, now: new Date(now).toISOString(),
+    pacifica_cooldown_s: Math.max(0, Math.ceil((PX_COOL - now) / 1000)),
+    prices: px,
+    macro: st ? { min_ago: min(Date.parse(st.generated_at)), count: st.events.length } : null,
+    chain: st && st.chain ? Object.fromEntries(Object.entries(st.chain.by || {}).map(([k, v]) => [k, { min_ago: min(v.at), count: v.out.length }])) : null,
+    ethqueue: eq ? { min_ago: min(lastT(eq.samples)), act_error: eq.act_error || null } : null,
+    stake: sk ? Object.fromEntries(['SOL', 'BNB'].map((k) => [k, { min_ago: min(lastT(sk[k] && sk[k].samples ? sk[k].samples : sk[k])) }])) : null,
+  });
 }
 
 export default {
@@ -828,11 +910,12 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/api/candles') {
       const cfg = TFS[url.searchParams.get('tf') || ''];
-      return cached(ctx, request, cfg ? cfg.ttl : 60, () => candles(url, env));
+      return cached(ctx, request, cfg ? cfg.ttl : 60, () => candles(url, env, ctx));
     }
     if (url.pathname === '/api/events') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
+    if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return env.ASSETS.fetch(request);
   },

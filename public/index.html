@@ -222,10 +222,11 @@ n.addEventListener('pointerleave',()=>{hideT=setTimeout(()=>hl(sel),180)});
 n.addEventListener('click',ev=>{ev.stopPropagation();pick(idOf(n))})})}
 function build(a,i){const d=CD[a+'|'+TF[i][0]];if(!d)return null;const m=TF[i][2];
 const k=d.rows.map(r=>({t:r[0]*1e3,o:r[1],h:r[2],l:r[3],c:r[4]}));k.forEach(q=>q.n=nx(q.t,m));
-let e=k[k.length-1].n;for(let j=0;j<TF[i][3];j++)e=nx(e,m);return{k,d0:k[0].t,d1:e,at:d.at}}
+let e=k[k.length-1].n;for(let j=0;j<TF[i][3];j++)e=nx(e,m);return{k,d0:k[0].t,d1:e,at:d.at,st:d.st||0}}
+const agoTxt=t=>{const m=Math.max(1,Math.round((Date.now()-t)/6e4));return m<90?m+'分前':m<2880?Math.round(m/60)+'時間前':Math.round(m/1440)+'日前'};
 let NC=0;const gf=u=>NC?fetch(u+(u.includes('?')?'&':'?')+'_='+NC,{cache:'no-store'}):fetch(u);
 async function loadC(a,i,force){const key=a+'|'+TF[i][0],c=CD[key];if(!force&&c&&Date.now()-c.at<60000)return;if(CS[key]==='loading')return;CS[key]='loading';
-try{const r=await gf('/api/candles?sym='+a+'&tf='+TF[i][0]);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.bars||!j.bars.length)throw new Error('empty');CD[key]={rows:j.bars,at:Date.now()};CS[key]='ok'}
+try{const r=await gf('/api/candles?sym='+a+'&tf='+TF[i][0]);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.bars||!j.bars.length)throw new Error('empty');CD[key]={rows:j.bars,at:Date.now(),st:j.stale&&j.at?j.at:0};CS[key]='ok'}
 catch(e){CS[key]=CD[key]?'ok':'error'}
 if(a===asset&&i===tf){chart();hl(sel)}}
 async function loadE(){try{const r=await gf('/api/events');if(!r.ok)throw new Error(r.status);const j=await r.json();E=(j.events||[]).map(e=>({...e,ts:Date.parse(e.at)})).filter(e=>isFinite(e.ts));EIX=new Map(E.map((e,i)=>[e.id,i]));evErr=j.errors||[]}
@@ -295,7 +296,7 @@ const isSel=cl=>selIx>=0&&cl.m.some(m=>EIX.get(m.id)===selIx);let lbl=CL.filter(
 lbl.sort((a,b)=>a.px-b.px).forEach(cl=>{const e=cl.rep,end=cl.px>W*.7,cn=e.ts>NOW?cdn(e.ts):'',yy=Tp+16+(row++%4)*13;
 s+=`<text class="lb" x="${cl.px+(end?-8:8)}" y="${yy}" text-anchor="${end?'end':'start'}">${esc(e.s||e.t)}${cl.m.length>1?' +'+(cl.m.length-1):''}${cn?`<tspan class="cdn" dx="6">${cn}</tspan>`:''}</text>`});
 $('chart').innerHTML=s+'</svg>';
-$('tzl').textContent=base+(all.length>inR.length?'・範囲外'+(all.length-inR.length)+'件':'');
+$('tzl').textContent=base+(c.st?'・価格は約'+agoTxt(c.st)+'の控え（取得元が混雑中）':'')+(all.length>inR.length?'・範囲外'+(all.length-inR.length)+'件':'');
 ovw(c);eqChart();sqChart();side();
 bindHL('#chart .evg',g=>g.dataset.rep);
 const sv=$('chart').querySelector('svg');sv.addEventListener('click',ev=>{if(!ev.target.closest('.evg')){sel=null;hl(null)}})
