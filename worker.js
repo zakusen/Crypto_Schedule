@@ -263,19 +263,26 @@ async function readAssets(env) {
   try { const j = await env.CAL.get(ASSET_KEY, 'json'); return j && Array.isArray(j.events) && j.generated_at ? j : null; } catch (_) { return null; }
 }
 
+// 取得に失敗した理由を保存しておき、/api/events の errors に出す(原因が画面で分かるように)。
+async function failAssets(env, reason) {
+  try { await env.CAL.put('asset:err', JSON.stringify({ at: new Date().toISOString(), reason })); } catch (_) {}
+  return { ok: false, reason };
+}
+
 async function refreshAssets(env) {
   if (!env.CAL) return { ok: false, reason: 'KV未接続' };
   if (!env.CMAL_API_KEY) return { ok: false, reason: 'CMAL_API_KEY未設定' };
   const prev = await readAssets(env);
   try {
     let coins = prev && prev.coins && Object.keys(prev.coins).length ? prev.coins : await cmalCoinIds(env);
-    if (!Object.keys(coins).length) return { ok: false, reason: 'コイン一覧から対象銘柄が見つかりません' };
+    if (!Object.keys(coins).length) return await failAssets(env, 'コイン一覧から対象銘柄が見つかりません');
     const fresh = await cmalEvents(env, coins);
     const now = Date.now();
     const merged = mergeStore(prev, fresh, false, now);
     await env.CAL.put(ASSET_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), coins, events: merged }));
+    try { await env.CAL.delete('asset:err'); } catch (_) {}
     return { ok: true, count: merged.length, fetched: fresh.length };
-  } catch (e) { return { ok: false, reason: String(e.message || e) }; }
+  } catch (e) { return await failAssets(env, String(e.message || e)); }
 }
 
 // ---------- 保存(KV) ----------
@@ -348,8 +355,13 @@ async function events(request, env, ctx) {
       asset = st.events;
       if (Date.now() - Date.parse(st.generated_at) > ASSET_STALE_MS) errors.push('銘柄イベント(CoinMarketCal)の取得が24時間以上止まっています');
     } else if (env.CAL && ctx) {
-      ctx.waitUntil(refreshAssets(env).catch(() => {}));      // 初回だけ、ここで取得を始める
-      errors.push('銘柄イベント(CoinMarketCal)を初回取得中です。少し待ってから再読み込みしてください');
+      let er = null;
+      try { er = await env.CAL.get('asset:err', 'json'); } catch (_) {}
+      if (er && er.reason) errors.push('銘柄イベント(CoinMarketCal)を取得できませんでした: ' + er.reason);
+      if (!er || Date.now() - Date.parse(er.at) > 10 * 60 * 1000) {       // 失敗が続く時は10分に1回だけ再試行
+        ctx.waitUntil(refreshAssets(env).catch(() => {}));
+        if (!er) errors.push('銘柄イベント(CoinMarketCal)を初回取得中です。少し待ってから再読み込みしてください');
+      }
     }
   }
   const manual = await manualEvents(request, env);
