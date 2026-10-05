@@ -7,8 +7,8 @@
 |---|---|
 | `public/index.html` | 画面（LUXE）。`/api/*` を呼ぶだけ |
 | `public/events_manual.json` | 任意の追加イベント用（今は空。マクロは全て自動取得） |
-| `worker.js` | `/api/candles`（Pacifica）と `/api/events`（日米欧のマクロ指標カレンダー）を返す |
-| `wrangler.jsonc` | Cloudflare Workersの設定 |
+| `worker.js` | `/api/candles`（Pacifica）と `/api/events`（日米欧のマクロ指標カレンダー）を返す。30分ごとの定時実行でマクロ指標をKVに保存する |
+| `wrangler.jsonc` | Cloudflare Workersの設定（Worker名、KV `cal` の接続、30分ごとの定時実行） |
 | `tools/apply_update.py` | 更新zipを展開して反映する（zip自動展開の本体） |
 | `tools/check_site.py` | 公開中のAPIが正しい形で返るかを確認する |
 | `.github/workflows/apply_update.yml` | zipをpushすると自動で展開・反映 |
@@ -40,7 +40,13 @@
 - マクロの予備: TradingViewが取得できない時だけ、Forex Factoryの週次JSON（今週・来週分のみ、非公式）に切り替える。切り替わると画面下に警告が出る。
 - 非公式な取得元に依存するため、止まる・仕様が変わる可能性がある。`Check live site` で国別の件数（US/JP/EU）を定期的に確認すること。
 - 市場・銘柄ニュースの層は準備中（`events_manual.json` に `l: "market"` / `"asset"` で追加すれば表示される）。
-- キャッシュ: 価格は足ごとに30秒〜10分、イベントは30分。
+- マクロ指標の保存: 定時実行（Cron Trigger、30分ごと）が指標を取得し、KV（名前空間 `cal`、バインディング名 `CAL`）に保存する。`/api/events` は保存済みの内容を返すので、見る人が増えても取得元への問い合わせは増えない。
+  - 取得範囲（過去60日〜先90日）は取得結果で置き換え、それより古い過去分は1年分まで残す。
+  - 取得に失敗した時は上書きしない（0件では保存しない。一部失敗では既存分を残す）。
+  - 保存が3時間より古い・無い時だけ、その場で取得する。それも失敗し、古い保存があれば、警告つきでそれを返す。
+  - KVが接続されていなくても動く（毎回その場で取得）。定時実行の結果は Cloudflare のログで確認できる。
+- キャッシュ: `workers.dev` のURLでは Workers のCache APIは機能しない（独自ドメインのみ）ため、サーバー側のキャッシュには頼っていない。価格は、足ごとに30秒〜10分、ブラウザが同じ内容を使い回す。画面は開いている間、価格を60秒ごと、指標を30分ごとに取り直す。
+- Worker名は Cloudflare 上の名前（`crypto-schedule`）と `wrangler.jsonc` の `name` を一致させること。
 - Pacificaの応答形式は、botのWorkerと同じ前提で書いています。初回デプロイ後に `/api/candles?sym=BTC&tf=1h` を直接開いて確認してください。
 
 ## 動作確認の状況

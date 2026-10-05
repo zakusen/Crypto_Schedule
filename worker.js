@@ -1,7 +1,8 @@
 // CRYPTO SIGNAL ARCHIVE の小さなサーバー部分(Cloudflare Worker)。
 //   /api/candles?sym=BTC&tf=1h  … Pacificaのローソク足(公開API・鍵なし)
 //   /api/events                 … 日米欧のマクロ指標カレンダー(TradingViewの公開カレンダー。予備: Forex Factory) + 任意の追加イベント(public/events_manual.json)
-// 必要な設定: なし(鍵は不要)
+// 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
+// KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'SUI', 'BNB'];
@@ -193,21 +194,73 @@ async function manualEvents(request, env) {
   } catch (_) { return []; }
 }
 
-async function events(request, env) {
-  const errors = [];
+// ---------- 保存(KV) ----------
+const KV_KEY = 'macro:v1';
+const FRESH_MS = 3 * 3600 * 1000;        // 保存から3時間以内なら新しいとみなす(定時実行は30分ごと)
+const KEEP_MS = 365 * DAY;               // 取得範囲より古い過去のイベントは1年分まで残す
+const WIN_PAST = 60 * DAY;               // tvEvents() が取りに行く過去側の範囲と合わせる
+
+async function readStore(env) {
+  if (!env.CAL) return null;
+  try {
+    const j = await env.CAL.get(KV_KEY, 'json');
+    return j && Array.isArray(j.events) && j.generated_at ? j : null;
+  } catch (_) { return null; }
+}
+
+// 取得結果を、保存済みの内容とまとめる。
+//  ・取得範囲(過去60日〜先)は、取得できた内容で置き換える(日程の変更・取消が反映される)
+//  ・取得範囲より古い過去分は、保存済みのものを1年分まで残す(履歴が積み上がる)
+//  ・一部の取得に失敗した時は、消えないよう保存済みの分も残す
+function mergeStore(prev, fresh, hadErrors, now) {
+  const winStart = now - WIN_PAST;
+  const byId = new Map();
+  for (const e of (prev ? prev.events : [])) {
+    const ts = Date.parse(e.at);
+    if (!isFinite(ts) || ts < now - KEEP_MS) continue;
+    if (ts < winStart || hadErrors) byId.set(e.id, e);
+  }
+  for (const e of fresh) byId.set(e.id, e);
+  return [...byId.values()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+}
+
+async function refreshStore(env) {
+  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
   const tv = await tvEvents();
-  let macro = tv.out;
-  errors.push(...tv.errors);
-  if (!macro.length) {
-    const ff = await ffEvents();
-    macro = ff.out;
-    errors.push(...ff.errors);
-    if (macro.length) errors.push('TradingViewから取得できないため、予備(Forex Factory)の今週・来週分のみ表示しています');
+  if (!tv.out.length) return { ok: false, reason: tv.errors.join(' / ') || '取得0件' };   // 空では上書きしない
+  const prev = await readStore(env);
+  const now = Date.now();
+  const merged = mergeStore(prev, tv.out, tv.errors.length > 0, now);
+  await env.CAL.put(KV_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), events: merged, errors: tv.errors }));
+  return { ok: true, count: merged.length };
+}
+
+async function events(request, env, ctx) {
+  const errors = [];
+  let macro = [], gen = new Date().toISOString();
+  const stored = await readStore(env);
+  const age = stored ? Date.now() - Date.parse(stored.generated_at) : Infinity;
+  if (stored && age < FRESH_MS) {
+    macro = stored.events; gen = stored.generated_at;
+  } else {
+    const tv = await tvEvents();                       // 保存が無い/古い時だけ、その場で取得
+    if (tv.out.length) {
+      macro = tv.out; errors.push(...tv.errors);
+      if (env.CAL && ctx) ctx.waitUntil(refreshStore(env).catch(() => {}));      // 初回はここで保存を始める
+    } else if (stored) {
+      macro = stored.events; gen = stored.generated_at;
+      errors.push('最新の取得に失敗したため、' + Math.round(age / 3600000) + '時間前に保存した内容を表示しています');
+    } else {
+      errors.push(...tv.errors);
+      const ff = await ffEvents();
+      macro = ff.out; errors.push(...ff.errors);
+      if (macro.length) errors.push('TradingViewから取得できないため、予備(Forex Factory)の今週・来週分のみ表示しています');
+    }
   }
   const manual = await manualEvents(request, env);
   const all = macro.concat(manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  const res = json({ generated_at: new Date().toISOString(), events: all, errors });
-  if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果を30分キャッシュしない
+  const res = json({ generated_at: gen, events: all, errors });
+  if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
   return res;
 }
 
@@ -218,8 +271,12 @@ export default {
       const cfg = TFS[url.searchParams.get('tf') || ''];
       return cached(ctx, request, cfg ? cfg.ttl : 60, () => candles(url));
     }
-    if (url.pathname === '/api/events') return cached(ctx, request, 1800, () => events(request, env));
+    if (url.pathname === '/api/events') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return env.ASSETS.fetch(request);
+  },
+  // 定時実行(wrangler.jsonc の triggers.crons)。結果はログ(Cloudflareの「ログ」)で確認できる。
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))));
   },
 };

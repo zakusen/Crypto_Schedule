@@ -1,12 +1,19 @@
 {
   // CRYPTO SIGNAL ARCHIVE（Cloudflare Worker）
   // public/ を公開し、/api/* だけ worker.js が答える。売買botのリポジトリとは完全に別物。
-  "name": "signal-archive",
+  // name は Cloudflare 上の Worker 名と同じにすること(違うとGit連携のビルドが失敗する)。
+  "name": "crypto-schedule",
   "main": "worker.js",
   "compatibility_date": "2026-09-01",
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
-  }
+  },
+  // マクロ指標の保存場所(KV)。IDは住所のようなもので、秘密ではない。
+  "kv_namespaces": [
+    { "binding": "CAL", "id": "4f7661f7d22b4e0181c8b37c2ca7d464" }
+  ],
+  // 定時実行: 30分ごと(UTC)。指標を取得してKVに保存する。
+  "triggers": { "crons": ["*/30 * * * *"] }
 }
