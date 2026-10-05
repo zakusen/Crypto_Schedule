@@ -5,7 +5,7 @@ import sys
 import urllib.error
 import urllib.request
 
-SYMS = ["BTC", "ETH", "SOL", "SUI", "BNB"]
+SYMS = ["BTC", "ETH", "SOL", "BNB"]
 TFS = ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]
 
 
@@ -80,6 +80,9 @@ def main():
         q = get(f"{base}/api/ethqueue")
         smp = q.get("samples") or []
         print(f"{'OK ' if smp else 'NG '} ETH出口待ち: 記録{len(smp)}件 / 最新 {smp[-1] if smp else '-'}")
+        if smp:
+            print(f"{'OK ' if len(smp[-1]) > 4 and smp[-1][4] is not None else '-- '}ETH入口待ち: 最新 {smp[-1][3:5] if len(smp[-1]) > 4 else '(未記録)'}")
+            print(f"{'OK ' if len(smp[-1]) > 5 and smp[-1][5] is not None else '-- '}ETHステーク量(稼働バリデータ数): {smp[-1][5] if len(smp[-1]) > 5 else '(未記録)'}")
         if not smp:
             bad.append("ethqueue")
     except Exception as e:  # noqa: BLE001

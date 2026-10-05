@@ -2,14 +2,14 @@
 //   /api/candles?sym=BTC&tf=1h  … Pacificaのローソク足(公開API・鍵なし)
 //   /api/events                 … 日米欧のマクロ指標カレンダー(TradingViewの公開カレンダー。予備: Forex Factory) + 任意の追加イベント(public/events_manual.json)
 //   銘柄の予定は、チェーン直読み(BTC半減期・ETHフォーク)・満期の自動計算・BNBバーンの目安・手動登録だけ。出どころ不明の投稿型カレンダーは使わない。
-//   /api/ethqueue               … ETHの出口待ち(30分ごとに自前で記録)
+//   /api/ethqueue               … ETHの出口待ち・入口待ち(30分ごとに自前で記録)
 // 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
 const VERSION = '2026-10-05-clean-v8';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
-const SYMS = ['BTC', 'ETH', 'SOL', 'SUI', 'BNB'];
+const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
 // tf: 画面の足 / iv: Pacificaに頼む足 / agg: 日足から自前で束ねる種類 / bars: 返す本数 / raw: 取りに行く元の本数 / ttl: キャッシュ秒
 const TFS = {
@@ -208,10 +208,12 @@ async function manualEvents(request, env) {
 // ---------- イベント(銘柄: チェーンから直接読む予定) ----------
 // 出どころが「チェーンそのもの」なので、見出しの出典に確度を明記する。鍵・申請は不要(公開API)。
 //  ・BTC: 半減期。次のブロック高(210,000の倍数)と現在のブロック高から、10分/ブロックで逆算(推定)。
+//  ・SOL: 次のエポック境界(getEpochInfo。残りスロット×約0.4秒で換算・推定)。機能の有効化は境界で起きる。ただし「どの機能が」は公開RPCから一覧できないので出さない。
 //  ・ETH: コンセンサス層の fork_schedule に載った未来のフォーク(エポック→時刻はジェネシス時刻から計算)。載っていなければ何も出さない。
 const BTC_HEIGHT_URL = 'https://mempool.space/api/blocks/tip/height';
 const ETH_BEACON = 'https://ethereum-beacon-api.publicnode.com/eth/v1';
 const FAR_EPOCH = '18446744073709551615';
+const SOL_RPC = 'https://api.mainnet-beta.solana.com', SOL_SLOT_MS = 400;
 
 async function chainEvents() {
   const out = [], errors = [], now = Date.now();
@@ -238,6 +240,17 @@ async function chainEvents() {
         }
       } catch (e) { errors.push('チェーン読み取り(ETH): ' + (e.message || e)); }
     })(),
+    (async () => {
+      try {
+        const r = await fetch(SOL_RPC, { method: 'POST', headers: { 'User-Agent': UA, 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getEpochInfo' }), signal: AbortSignal.timeout(6000) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const e = (await r.json()).result;
+        const left = e && +e.slotsInEpoch - +e.slotIndex;
+        if (!e || !isFinite(left) || left <= 0) throw new Error('形式が想定と違います');
+        const next = +e.epoch + 1, ts = now + left * SOL_SLOT_MS;
+        out.push({ id: 'sol-epoch-' + next, l: 'asset', a: ['SOL'], im: 'low', t: 'SOL エポック ' + next + ' 開始（機能の有効化・ステーク変更の反映はこの境界）', s: 'SOLエポック境界(推定)', src: 'チェーン由来・推定（getEpochInfo の残りスロット ' + left.toLocaleString('en-US') + ' を約0.4秒/スロットで換算。誤差は数十分）', at: new Date(ts).toISOString() });
+      } catch (e) { errors.push('チェーン読み取り(SOL): ' + (e.message || e)); }
+    })(),
   ]);
   return { out, errors };
 }
@@ -245,7 +258,9 @@ async function chainEvents() {
 // ---------- ETHの出口待ち(時系列を自前で貯める) ----------
 // ビーコンチェーンの公開API(鍵なし)から、出口待ちのバリデータ(active_exiting)を読み、
 //   件数 と 待ち日数(最後の exit_epoch − 現在のエポック、1エポック=6.4分) を30分ごとにKVへ記録する。
+//   記録の形: [時刻, 出口件数, 出口日数, 入口件数, 入口日数(概算), 稼働バリデータ数]。古い記録(3・5要素)もそのまま読める。
 // 履歴を返す公開APIは使わないので、記録は導入した日から貯まる。保存は120日分。
+const ENTRY_CHURN_ETH = 256;   // 入金の処理上限(1エポックあたりのETH)。仕様上の上限値で、概算に使う
 const ETHQ_KEY = 'ethq:v1', ETHQ_KEEP = 120 * DAY, ETHQ_STALE = 90 * 60 * 1000;
 
 async function ethQueueSample() {
@@ -258,7 +273,30 @@ async function ethQueueSample() {
   let maxExit = epoch;
   for (const v of list.data) { const x = +(v.validator && v.validator.exit_epoch); if (isFinite(x) && x < 1e15 && x > maxExit) maxExit = x; }
   const days = Math.round(((maxExit - epoch) * 384 / 86400) * 10) / 10;
-  return [Math.floor(Date.now() / 1000), list.data.length, days];
+  // 入口待ち: Electra以降の pending_deposits(入金の順番待ち)を合計し、1エポックの処理上限(256 ETH)で割った概算日数。
+  //   読めない場合(未対応のノード等)は null を入れ、出口待ちの記録は止めない。
+  let entryN = null, entryDays = null;
+  try {
+    const pd = await j(ETH_BEACON + '/beacon/states/head/pending_deposits', 25000);
+    if (Array.isArray(pd.data)) {
+      let gwei = 0;
+      for (const d of pd.data) { const a = +d.amount; if (isFinite(a)) gwei += a; }
+      entryN = pd.data.length;
+      entryDays = Math.round((gwei / 1e9 / ENTRY_CHURN_ETH * 384 / 86400) * 10) / 10;
+    }
+  } catch (_) { /* 入口待ちだけ欠測 */ }
+  // ステーク量: validator_count(ステータス別の件数)から稼働中のバリデータ数を読む。全件を取らないので軽い。
+  //   画面側で ×32 ETH の概算にする(0x02の大口は32超なので、実際はやや多い)。読めなければ null。
+  let act = null;
+  try {
+    const vc = await j(ETH_BEACON + '/beacon/states/head/validator_count', 10000);
+    const d = vc && vc.data;
+    if (d && typeof d === 'object') {
+      const n = (+d.active_ongoing || 0) + (+d.active_exiting || 0) + (+d.active_slashed || 0);
+      if (isFinite(n) && n > 0) act = n;
+    }
+  } catch (_) { /* ステーク量だけ欠測 */ }
+  return [Math.floor(Date.now() / 1000), list.data.length, days, entryN, entryDays, act];
 }
 
 async function readEthQ(env) {
@@ -343,7 +381,6 @@ const KEYWORDS = {
   BTC: /\b(bitcoin|btc)\b/i,
   ETH: /\b(ethereum|ether|eth)\b/i,
   SOL: /\b(solana|sol)\b/i,
-  SUI: /\bsui\b/i,
   BNB: /\b(bnb|binance coin|bnb chain)\b/i,
 };
 
