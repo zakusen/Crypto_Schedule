@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-05-clean-v15-pxfix1';
+const VERSION = '2026-10-05-clean-v16-rpcfix';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -293,7 +293,8 @@ async function manualEvents(request, env) {
 const BTC_HEIGHT_URL = 'https://mempool.space/api/blocks/tip/height';
 const ETH_BEACON = 'https://ethereum-beacon-api.publicnode.com/eth/v1';
 const FAR_EPOCH = '18446744073709551615';
-const SOL_RPC = 'https://api.mainnet-beta.solana.com', SOL_SLOT_MS = 400;
+// 2026-10-05: 公式の公開RPC(api.mainnet-beta)は Cloudflare の出口IPを403で断るため、publicnode を先に使い、だめなら次へ。
+const SOL_RPCS = ['https://solana-rpc.publicnode.com', 'https://api.mainnet-beta.solana.com'], SOL_SLOT_MS = 400;
 
 async function chainEvents() {
   const out = [], errors = [], now = Date.now();
@@ -322,9 +323,7 @@ async function chainEvents() {
     })(),
     (async () => {
       try {
-        const r = await fetch(SOL_RPC, { method: 'POST', headers: { 'User-Agent': UA, 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getEpochInfo' }), signal: AbortSignal.timeout(6000) });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const e = (await r.json()).result;
+        const e = (await rpcAny(SOL_RPCS, { jsonrpc: '2.0', id: 1, method: 'getEpochInfo' }, 6000)).result;
         const left = e && +e.slotsInEpoch - +e.slotIndex;
         if (!e || !isFinite(left) || left <= 0) throw new Error('形式が想定と違います');
         const next = +e.epoch + 1, ts = now + left * SOL_SLOT_MS;
@@ -375,7 +374,15 @@ async function ethQueueSample() {
       const n = (+d.active_ongoing || 0) + (+d.active_exiting || 0) + (+d.active_slashed || 0);
       if (isFinite(n) && n > 0) act = n;
     }
-  } catch (_) { /* ステーク量だけ欠測 */ }
+  } catch (_) { /* 下の予備へ */ }
+  // 2026-10-05: publicnode は validator_count に答えない(記録が全部 null)ため、beaconcha.in の公開API(鍵なし・回数制限あり)を予備に使う
+  if (act === null) {
+    try {
+      const bc = await j('https://beaconcha.in/api/v1/epoch/latest', 10000);
+      const n = +(bc && bc.data && (bc.data.validatorscount ?? bc.data.validatorsCount));
+      if (isFinite(n) && n > 0) act = n;
+    } catch (_) { /* ステーク量だけ欠測 */ }
+  }
   return [Math.floor(Date.now() / 1000), list.data.length, days, entryN, entryDays, act];
 }
 
@@ -414,7 +421,10 @@ async function ethQueueApi(env, ctx) {
 //         eth_call で getValidators → 各バリデータのクレジット契約の totalPooledBNB() を合計する(登録済み全バリデータ・概算)。
 // 記録の形: SOL = [時刻, ステークSOL, 総供給SOL]、BNB = [時刻, ステークBNB]。30分ごとにKVへ、120日分。
 const STAKE_KEY = 'stake:v1', STAKE_STALE = 90 * 60 * 1000;
-const BSC_RPC = 'https://bsc-dataseed.binance.org', STAKEHUB = '0x0000000000000000000000000000000000002002';
+const BSC_RPCS = ['https://bsc-dataseed.binance.org', 'https://bsc-rpc.publicnode.com'], STAKEHUB = '0x0000000000000000000000000000000000002002';
+// Multicall3(多くのチェーンで同じ番地に置かれている共用の契約)。各バリデータへの問い合わせを1回の eth_call にまとめる。
+//   2026-10-05: 公開RPCがバッチ要求に答えず(0/56)、1件ずつだと無料プランの外部問い合わせ上限(1回の実行で50回)を超えるため。
+const MULTICALL3 = '0xca11bde05977b3631167028862be2a173976ca11';
 
 async function rpcPost(url, body, ms) {
   const r = await fetch(url, { method: 'POST', headers: { 'User-Agent': UA, 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(ms) });
@@ -422,10 +432,24 @@ async function rpcPost(url, body, ms) {
   return r.json();
 }
 
+// 2026-10-05: 公開RPCは Cloudflare の出口IPを断ることがあるので、候補を順に試す。全部だめなら最後の理由を返す。
+//   JSON-RPC のエラー(result が無く error がある)も「この窓口はだめ」として次へ。
+async function rpcAny(urls, body, ms) {
+  let last = '';
+  for (const u of urls) {
+    try {
+      const j = await rpcPost(u, body, ms);
+      if (j && !Array.isArray(j) && j.error && j.result === undefined) throw new Error('RPC ' + (j.error.message || JSON.stringify(j.error)).slice(0, 80));
+      return j;
+    } catch (e) { last = new URL(u).host + ': ' + (e.message || e); }
+  }
+  throw new Error(last);
+}
+
 async function solStakeSample() {
   const [va, sp] = await Promise.all([
-    rpcPost(SOL_RPC, { jsonrpc: '2.0', id: 1, method: 'getVoteAccounts', params: [{ commitment: 'finalized' }] }, 25000),
-    rpcPost(SOL_RPC, { jsonrpc: '2.0', id: 2, method: 'getSupply', params: [{ excludeNonCirculatingAccountsList: true }] }, 15000),
+    rpcAny(SOL_RPCS, { jsonrpc: '2.0', id: 1, method: 'getVoteAccounts', params: [{ commitment: 'finalized' }] }, 25000),
+    rpcAny(SOL_RPCS, { jsonrpc: '2.0', id: 2, method: 'getSupply', params: [{ excludeNonCirculatingAccountsList: true }] }, 15000),
   ]);
   const cur = va.result && va.result.current, del = (va.result && va.result.delinquent) || [];
   if (!Array.isArray(cur) || !sp.result || !sp.result.value) throw new Error('形式が想定と違います');
@@ -441,7 +465,7 @@ async function bnbStakeSample() {
   const credits = [];
   let total = 0;
   for (let off = 0, guard = 0; guard < 6; guard++) {                // 1回100件。通常は50件前後で1回で終わる
-    const r = await rpcPost(BSC_RPC, { jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: STAKEHUB, data: '0xbff02e20' + word(off) + word(100) }, 'latest'] }, 15000);
+    const r = await rpcAny(BSC_RPCS, { jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: STAKEHUB, data: '0xbff02e20' + word(off) + word(100) }, 'latest'] }, 15000);
     if (!r.result || r.result.length < 2 + 64 * 3) throw new Error('getValidators が読めません');
     const h = r.result.slice(2), w = (i) => h.slice(i * 64, i * 64 + 64);
     total = parseInt(w(2), 16);
@@ -451,13 +475,35 @@ async function bnbStakeSample() {
     if (credits.length >= total || n === 0) break;
   }
   if (!credits.length) throw new Error('バリデータが0件です');
-  const batch = credits.map((a, i) => ({ jsonrpc: '2.0', id: i + 1, method: 'eth_call', params: [{ to: a, data: '0x15d1f898' }, 'latest'] }));
-  const res = await rpcPost(BSC_RPC, batch, 20000);
-  if (!Array.isArray(res)) throw new Error('形式が想定と違います');
+  const res = await rpcAny(BSC_RPCS, { jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: MULTICALL3, data: encodeAggregate3(credits, '0x15d1f898') }, 'latest'] }, 20000);
+  if (!res || typeof res.result !== 'string' || res.result.length < 2 + 64 * 2) throw new Error('Multicall3 の応答が読めません');
   let wei = 0n, ok = 0;
-  for (const x of res) { if (x && typeof x.result === 'string' && x.result.length > 2) { wei += BigInt(x.result); ok++; } }
+  for (const x of decodeAggregate3(res.result)) { if (x.success && x.data.length === 64) { wei += BigInt('0x' + x.data); ok++; } }
   if (ok < credits.length * 0.8) throw new Error('クレジット契約の読み取りが足りません(' + ok + '/' + credits.length + ')');
   return [Math.floor(Date.now() / 1000), Math.round(Number(wei / 10n ** 15n) / 1000)];
+}
+
+// aggregate3((address target, bool allowFailure, bytes callData)[]) の入力を作る(同じ callData を各番地へ)。
+function encodeAggregate3(targets, callData) {
+  const w = (n) => BigInt(n).toString(16).padStart(64, '0');
+  const cd = callData.replace(/^0x/, ''), cdLen = cd.length / 2, cdPad = cd.padEnd(Math.ceil(cdLen / 32) * 64, '0');
+  const tuple = (a) => a.replace(/^0x/, '').toLowerCase().padStart(64, '0') + w(1) + w(96) + w(cdLen) + cdPad;
+  const tuples = targets.map(tuple), n = targets.length;
+  let heads = '', off = n * 32;
+  for (const t of tuples) { heads += w(off); off += t.length / 2; }
+  return '0x82ad56cb' + w(32) + w(n) + heads + tuples.join('');
+}
+
+// aggregate3 の戻り値 (bool success, bytes returnData)[] を読む。data は 0x なしの16進。
+function decodeAggregate3(hex) {
+  const h = hex.replace(/^0x/, ''), word = (i) => h.slice(i * 2, i * 2 + 64), num = (i) => parseInt(word(i), 16);
+  const arr = num(0), n = num(arr), out = [];
+  for (let k = 0; k < n; k++) {
+    const t = arr + 32 + num(arr + 32 + k * 32);
+    const success = num(t) === 1, dOff = t + num(t + 32), len = num(dOff);
+    out.push({ success, data: h.slice((dOff + 32) * 2, (dOff + 32 + len) * 2) });
+  }
+  return out;
 }
 
 async function readStake(env) {
