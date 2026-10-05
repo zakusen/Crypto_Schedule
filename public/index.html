@@ -16,7 +16,8 @@
 html{scroll-padding-top:16px}
 body{margin:0;color:var(--tx);font:14px/1.7 "Noto Sans JP",system-ui,sans-serif;min-height:100vh;
  background:radial-gradient(1100px 520px at 72% -12%,rgba(232,169,72,.07),transparent 62%),radial-gradient(900px 520px at -8% 8%,rgba(95,208,224,.045),transparent 60%),linear-gradient(180deg,#07090c,#050608)}
-button{font:inherit;cursor:pointer;white-space:nowrap;transition:.16s;background:none;border:0;color:inherit}
+*{-webkit-tap-highlight-color:transparent}
+button{font:inherit;touch-action:manipulation;cursor:pointer;white-space:nowrap;transition:.16s;background:none;border:0;color:inherit}
 select{font:inherit;font-size:11px;font-family:var(--mono);background:rgba(255,255,255,.03);color:var(--tx);border:1px solid var(--ln);border-radius:2px;padding:4px 6px}
 option{background:#0c0f13;color:#d8dde5}
 .mu{color:var(--mu)}
@@ -56,7 +57,7 @@ svg .lb{font-size:11px;fill:var(--champ);font-family:"Noto Sans JP",sans-serif;f
 svg .cdn{fill:var(--amb);font-family:var(--mono);font-size:9.5px}
 svg .mk{font-size:9px;letter-spacing:.22em}
 .halo{opacity:0;transition:opacity .22s;pointer-events:none}.halo.hl{opacity:1}
-.evg{cursor:pointer;transition:opacity .2s}
+.evg{cursor:pointer;transition:opacity .2s;touch-action:manipulation}
 .evg .hit{fill:transparent}
 .evg .nd{fill:var(--c)}
 .evg .rg{fill:none;stroke:var(--c);opacity:.5}
@@ -127,7 +128,32 @@ svg .mk{font-size:9px;letter-spacing:.22em}
 .note{margin-top:16px;padding:12px 16px;border:1px solid var(--ln);color:var(--mu);font-size:10.5px;line-height:1.8;background:rgba(0,0,0,.2)}
 #st{margin-top:6px;color:var(--amb)}
 @media(max-width:1000px){.hero{grid-template-columns:1fr}.side{border-left:0;border-top:1px solid var(--ln)}#fl{margin-left:0}}
-@media(max-width:720px){.top-in{gap:10px;padding:8px 14px}.app{padding:12px 10px calc(40px + env(safe-area-inset-bottom,0px))}.cd{grid-template-columns:70px 1fr}.sh2{padding:12px 14px 4px}#ttl{font-size:18px}#tip{width:230px}}
+#tip .x{display:none}
+#tip.sheet{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;max-width:none;max-height:46vh;overflow:auto;z-index:40;padding:14px 16px 14px}
+#tip.sheet .x{display:block;position:absolute;top:2px;right:2px;width:40px;height:40px;font-size:22px;line-height:40px;text-align:center;color:var(--mu2)}
+#tip.sheet .tt{font-size:20px;padding-right:26px}
+@media(max-width:720px){
+ .top-in{gap:6px 12px;padding:8px 14px}
+ .brand{order:1;gap:9px}.glyph{width:24px;height:24px}.brand h1{font-size:12.5px;letter-spacing:.24em}.tag{font-size:8px;letter-spacing:.22em;margin-top:5px}
+ .meta{order:2;margin-left:auto}
+ #tabs{order:3;flex:1 1 100%;margin:0 -4px}
+ .tab{flex:1;text-align:center;padding:11px 8px;font-size:13px}
+ .app{padding:0 0 calc(40px + env(safe-area-inset-bottom,0px))}
+ .hero{border-left:0;border-right:0;box-shadow:none}
+ .sh2{padding:12px 14px 2px;flex-direction:column;align-items:stretch;gap:8px}
+ #ttl{font-size:20px}
+ #tfs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px}
+ #tfs::-webkit-scrollbar,#fl::-webkit-scrollbar{display:none}
+ .f{padding:10px 11px;font-size:11.5px}
+ svg text{font-size:10.5px}svg .ln{font-size:9.5px}svg .lb{font-size:11.5px}
+ .side{padding-top:12px}.nr{padding:11px 16px 11px 22px}.nr .nb{font-size:13px}
+ .foot{padding:14px 14px 4px;gap:14px}#ov{gap:16px 20px;width:100%}
+ #fl{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:100%;margin:0 -14px;padding:0 14px}
+ .key{width:calc(100% - 0px);justify-content:space-between;flex-wrap:wrap;gap:6px 10px}
+ .listwrap,.note{margin-left:10px;margin-right:10px}
+ .cd{grid-template-columns:70px 1fr;padding:12px 14px}.cd>.t:last-child{display:none}
+ .list-head{padding:10px 14px}
+}
 </style></head><body>
 <header class="top"><div class="top-in">
 <div class="brand"><svg class="glyph" viewBox="0 0 28 28" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><rect x="13.4" y="3" width="1.2" height="17" fill="url(#gg)"/><line x1="2" y1="21" x2="26" y2="21" stroke="#a3acb8" stroke-width="1"/><line x1="2" y1="24" x2="26" y2="24" stroke="#7b8490" stroke-width=".6" opacity=".6"/><circle cx="14" cy="21" r="2" fill="#fff"/><circle cx="7" cy="21" r="1.2" fill="#5fd0e0"/><circle cx="21" cy="21" r="1.2" fill="#e8a948"/></svg><div><h1>CRYPTO SIGNAL ARCHIVE</h1><div class="tag">ALL SIGNALS. ONE TIMELINE.</div></div></div>
@@ -181,11 +207,12 @@ function pick(id){sel=sel===id?null:id;hl(sel)}
 function tip(id){
 const T=$('tip'),N=$('tipln'),e=id==null?null:E.find(q=>q.id===id);
 if(!e||!CX||!CX.x||e.ts<CX.d0||e.ts>CX.d1){T.style.display='none';N.style.display='none';return}
-const px=CX.x(e.ts),W=CX.W,tw=Math.min(280,W-8),right=px+16+tw<=W-4,left=Math.max(4,right?px+16:px-16-tw),top=CX.Tp+Math.round(CX.H0*.3);
+const mob=CX.mob,px=CX.x(e.ts),W=CX.W,tw=Math.min(280,W-8),right=px+16+tw<=W-4,left=Math.max(4,right?px+16:px-16-tw),top=CX.Tp+Math.round(CX.H0*.3);
 const mem=(CLU[e.id]||[e]).filter(q=>q.id!==e.id);
 const c=cdn(e.ts);
-T.innerHTML=`<div class="tk"><span style="color:${LC[e.l]||'#aab'}">${LN[e.l]||''}${e.l==='asset'?' · '+esc(asset):''}</span><span class="ii ${esc(e.im)}">${IMX[e.im]||''}</span></div><div class="tt">${esc(e.t)}</div><div class="tm"><span>${hhmm(e.ts)} ${ofs(e.ts)}</span><span>${dstr(e.ts)}</span><span class="cdn">${c||'ARCHIVED'}</span></div>${e.src?`<div class="sr">${esc(e.src)}</div>`:''}${mem.length?`<div class="cm">この付近に他${mem.length}件: ${mem.slice(0,4).map(q=>esc(q.s||q.t)).join(' / ')}${mem.length>4?' ほか':''}</div>`:''}${/^https?:\/\//.test(e.u||'')?`<a href="${esc(e.u)}" target="_blank" rel="noopener noreferrer">記事を開く ↗</a>`:''}`;
-T.style.left=left+'px';T.style.top=top+'px';T.style.display='block';
+T.innerHTML=`<button class="x" aria-label="閉じる">×</button><div class="tk"><span style="color:${LC[e.l]||'#aab'}">${LN[e.l]||''}${e.l==='asset'?' · '+esc(asset):''}</span><span class="ii ${esc(e.im)}">${IMX[e.im]||''}</span></div><div class="tt">${esc(e.t)}</div><div class="tm"><span>${hhmm(e.ts)} ${ofs(e.ts)}</span><span>${dstr(e.ts)}</span><span class="cdn">${c||'ARCHIVED'}</span></div>${e.src?`<div class="sr">${esc(e.src)}</div>`:''}${mem.length?`<div class="cm">この付近に他${mem.length}件: ${mem.slice(0,4).map(q=>esc(q.s||q.t)).join(' / ')}${mem.length>4?' ほか':''}</div>`:''}${/^https?:\/\//.test(e.u||'')?`<a href="${esc(e.u)}" target="_blank" rel="noopener noreferrer">記事を開く ↗</a>`:''}`;
+if(mob){T.className='sheet';T.style.left='';T.style.top='';T.style.display='block';N.style.display='none';return}
+T.className='';T.style.left=left+'px';T.style.top=top+'px';T.style.display='block';
 const x1=Math.min(px,right?left:left+T.offsetWidth),x2=Math.max(px,right?left:left+T.offsetWidth);
 N.style.cssText=`display:block;left:${x1}px;width:${Math.max(2,x2-x1)}px;top:${top+16}px`;N.className=right?'r':'l'}
 function bindHL(sel2,idOf){document.querySelectorAll(sel2).forEach(n=>{
@@ -208,8 +235,8 @@ if(st>=2592e6){const k=st>=31536e6?12:st>=15552e6?6:st>=7776e6?3:1,d=new Date(a)
 const o=off(a);for(let t=Math.ceil((a+o)/st)*st-o;t<b;t+=st)r.push([t,st]);return r}
 function tl(t,st){const z={timeZone:tz},d=new Date(t);if(st>=2592e6)return d.toLocaleDateString('ja-JP',{timeZone:'UTC',year:'2-digit',month:'numeric'});if(st>=864e5)return d.toLocaleDateString('ja-JP',{...z,month:'numeric',day:'numeric'});const q=d.toLocaleTimeString('ja-JP',{...z,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});return q==='00:00'?d.toLocaleDateString('ja-JP',{...z,month:'numeric',day:'numeric'}):q}
 /* 近い縦線は1つの「まとまり」にする(9px以内)。代表は重要度が高いもの */
-function clusters(list,x){const out=[];let cur=null;
-list.forEach(e=>{const px=x(e.ts);if(cur&&px-cur.px<9)cur.m.push(e);else{cur={px,m:[e]};out.push(cur)}});
+function clusters(list,x,gap){gap=gap||9;const out=[];let cur=null;
+list.forEach(e=>{const px=x(e.ts);if(cur&&px-cur.px<gap)cur.m.push(e);else{cur={px,m:[e]};out.push(cur)}});
 out.forEach(c=>{c.rep=c.m.slice().sort((a,b)=>(IR[b.im]||0)-(IR[a.im]||0)||a.ts-b.ts)[0];c.px=x(c.rep.ts)});return out}
 function ovw(c){const k=c.k,last=k[k.length-1].c,first=k[0].o,hi=Math.max(...k.map(q=>q.h)),lo=Math.min(...k.map(q=>q.l)),ch=(last/first-1)*100,up=vis().filter(e=>e.ts>NOW),hu=up.filter(e=>e.im==='high');
 $('ov').innerHTML=`<div class="ot"><i>LAST</i><b>${fp(last)}</b></div><div class="ot" title="表示している範囲の最初の足の始値からの変化率"><i>RANGE</i><b class="${ch>=0?'up':'dn'}">${ch>=0?'+':''}${ch.toFixed(2)}%</b></div><div class="ot"><i>HIGH / LOW</i><b>${fp(hi)} / ${fp(lo)}</b></div><div class="ot"><i>UPCOMING</i><b>${up.length}</b></div><div class="ot"><i>HIGH IMPACT</i><b>${hu.length}</b></div>`}
@@ -223,12 +250,12 @@ const key=asset+'|'+TF[tf][0],c=build(asset,tf);
 const base='時刻：'+TZ.find(q=>q[0]===tz)[1]+'（'+ofs()+'）・価格：Pacifica';
 if(!c){CX=null;$('tzl').textContent=base;$('ov').innerHTML='';$('chart').innerHTML='<div class="msg">'+(CS[key]==='error'?'価格を取得できませんでした。少し待ってから、足を切り替えるか再読み込みしてください。':'価格を読み込み中…')+'</div>';tip(null);eqChart();sqChart();side();return}
 const d0=c.d0,d1=c.d1,x=t=>L+(t-d0)/(d1-d0)*(W-L-R);
-CX={d0,d1,L,R,W,Tp,H0,x};
+CX={d0,d1,L,R,W,Tp,H0,x,mob};
 let mn=Math.min(...c.k.map(q=>q.l)),mx=Math.max(...c.k.map(q=>q.h));const pd=(mx-mn)*.12||Math.abs(mx)*.01||1;mn-=pd;mx+=pd;
 const y=v=>Tp+12+(mx-v)/(mx-mn)*(H0-24);
 const all=vis().sort((a,b)=>a.ts-b.ts),inR=all.filter(e=>e.ts>=d0&&e.ts<=d1);
 CLU={};const CL=[];
-lanes.forEach((ln,i)=>{const ly=Pb+AX+LH*i+LH/2;clusters(inR.filter(e=>e.l===ln[0]),x).forEach(cl=>{cl.lane=ln[0];cl.ly=ly;cl.m.forEach(m=>CLU[m.id]=cl.m);CL.push(cl)})});
+lanes.forEach((ln,i)=>{const ly=Pb+AX+LH*i+LH/2;clusters(inR.filter(e=>e.l===ln[0]),x,mob?13:9).forEach(cl=>{cl.lane=ln[0];cl.ly=ly;cl.m.forEach(m=>CLU[m.id]=cl.m);CL.push(cl)})});
 const nx0=x(NOW),n24=x(Math.min(NOW+864e5,d1));
 let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(asset)}の価格とイベントの時間軸"><defs>`+
 Object.entries(LC).map(([k,v])=>`<linearGradient id="pl-${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${v}" stop-opacity=".04"/><stop offset=".55" stop-color="${v}" stop-opacity=".5"/><stop offset="1" stop-color="${v}" stop-opacity=".95"/></linearGradient><linearGradient id="gh-${k}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${v}" stop-opacity="0"/><stop offset=".5" stop-color="${v}" stop-opacity=".2"/><stop offset="1" stop-color="${v}" stop-opacity="0"/></linearGradient>`).join('')+
@@ -262,7 +289,8 @@ s+=`<g class="evg ${esc(im)}" data-ids="${cl.m.map(m=>EIX.get(m.id)).join(',')}"
 s+=`<rect x="${nx0-5}" y="${Tp-6}" width="10" height="${H-Tp}" fill="#fff" opacity=".16" filter="url(#bn)"/><line x1="${nx0}" x2="${nx0}" y1="${Tp-12}" y2="${H-6}" stroke="rgba(255,255,255,.38)" stroke-width="3"/><line x1="${nx0}" x2="${nx0}" y1="${Tp-12}" y2="${H-6}" stroke="#fff" stroke-width="1.2"/><text class="mk" x="${nx0-8}" y="${Tp-14}" text-anchor="end" style="fill:#fff;font-weight:500">NOW ${hhmm(NOW)}</text>`;
 // 見出し(重要度「高」・選択中・未来側の近いもの)
 const selIx=sel!=null?EIX.get(sel):-1;let row=0;
-CL.filter(cl=>cl.rep.im==='high'||cl.m.some(m=>EIX.get(m.id)===selIx&&selIx>=0)).sort((a,b)=>a.px-b.px).forEach(cl=>{const e=cl.rep,end=cl.px>W*.7,cn=e.ts>NOW?cdn(e.ts):'',yy=Tp+16+(row++%4)*13;
+const isSel=cl=>selIx>=0&&cl.m.some(m=>EIX.get(m.id)===selIx);let lbl=CL.filter(cl=>cl.rep.im==='high'||isSel(cl));if(mob)lbl=lbl.filter(cl=>isSel(cl)).concat(lbl.filter(cl=>!isSel(cl)).sort((a,b)=>Math.abs(a.rep.ts-NOW)-Math.abs(b.rep.ts-NOW)).slice(0,3));
+lbl.sort((a,b)=>a.px-b.px).forEach(cl=>{const e=cl.rep,end=cl.px>W*.7,cn=e.ts>NOW?cdn(e.ts):'',yy=Tp+16+(row++%4)*13;
 s+=`<text class="lb" x="${cl.px+(end?-8:8)}" y="${yy}" text-anchor="${end?'end':'start'}">${esc(e.s||e.t)}${cl.m.length>1?' +'+(cl.m.length-1):''}${cn?`<tspan class="cdn" dx="6">${cn}</tspan>`:''}</text>`});
 $('chart').innerHTML=s+'</svg>';
 $('tzl').textContent=base+(all.length>inR.length?'・範囲外'+(all.length-inR.length)+'件':'');
@@ -317,9 +345,9 @@ if(NOW>=d0&&NOW<=d1)s+=`<line x1="${x(NOW)}" x2="${x(NOW)}" y1="${Tp}" y2="${H-B
 el.innerHTML=s+'</svg>'}
 /* NEXT 24H: 今から24時間以内の予定。無ければ直近の3件を出す */
 function side(){NOW=Date.now();
-const up=vis().filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),w=up.filter(e=>e.ts<=NOW+864e5),rows=w.length?w:up.slice(0,3);
+const LIM=innerWidth<720?5:8,up=vis().filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),w=up.filter(e=>e.ts<=NOW+864e5),rows=w.length?w:up.slice(0,3);
 $('sw').textContent=w.length?w.length+'件':'24時間以内の予定なし'+(rows.length?'・直近を表示':'');
-$('nx').innerHTML=rows.slice(0,8).map(e=>`<div class="nr ${esc(e.im)}" data-id="${esc(e.id)}" style="--c:${LC[e.l]||'#aab'}"><span class="nd2"></span><div class="nt"><b>${hhmm(e.ts)}</b><i>${dstr(e.ts)}</i></div><div class="nb"><div>${esc(e.s||e.t)}</div><div class="nc">${cdn(e.ts)}</div></div></div>`).join('')+(w.length>8?`<div class="nm">ほか${w.length-8}件</div>`:'')||'<div class="nm">予定されたイベントはありません</div>';
+$('nx').innerHTML=rows.slice(0,LIM).map(e=>`<div class="nr ${esc(e.im)}" data-id="${esc(e.id)}" style="--c:${LC[e.l]||'#aab'}"><span class="nd2"></span><div class="nt"><b>${hhmm(e.ts)}</b><i>${dstr(e.ts)}</i></div><div class="nb"><div>${esc(e.s||e.t)}</div><div class="nc">${cdn(e.ts)}</div></div></div>`).join('')+(w.length>LIM?`<div class="nm">ほか${w.length-LIM}件</div>`:'')||'<div class="nm">予定されたイベントはありません</div>';
 bindHL('#nx .nr',n=>n.dataset.id);hl(sel)}
 function list(){
 const ev=vis(),up=ev.filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),past=ev.filter(e=>e.ts<=NOW).sort((a,b)=>b.ts-a.ts);
@@ -341,6 +369,8 @@ document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)r
 addEventListener('resize',()=>{chart();hl(sel)});
 function tick(){$('clk').textContent=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:tz})+' '+ofs()};
 (function(){const z=$('tz');z.innerHTML=TZ.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join('');z.value=tz;z.onchange=()=>{tz=z.value;try{localStorage.setItem('tz',tz)}catch(_){}render();tick()}})();
+$('tip').addEventListener('pointerenter',()=>clearTimeout(hideT));$('tip').addEventListener('pointerleave',()=>{hideT=setTimeout(()=>hl(sel),180)});
+$('tip').addEventListener('click',ev=>{if(ev.target.closest('.x')){sel=null;hl(null)}});
 if(SHOW_ACCESS)$('key').innerHTML='<span class="kk">1 YEAR ACCESS</span><span class="kv">1 USDC<i>·</i>0.01 SOL<i>·</i>1 RAY</span><span class="kn">NO SUBSCRIPTION</span>';else $('key').style.display='none';
 tick();setInterval(tick,60000);
 setInterval(()=>{if(!document.hidden)loadC(asset,tf,true)},60000);
