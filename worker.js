@@ -216,7 +216,11 @@ async function cmalGet(path, env) {
   const r = await fetch(CMAL + path, { headers: { 'x-api-key': env.CMAL_API_KEY, Accept: 'application/json', 'User-Agent': UA } });
   if (r.status === 401 || r.status === 403) throw new Error('CoinMarketCal: 認証に失敗しました(キーを確認)');
   if (r.status === 429) throw new Error('CoinMarketCal: 回数制限に達しました');
-  if (!r.ok) throw new Error('CoinMarketCal ' + r.status);
+  if (!r.ok) {
+    let body = '';
+    try { body = (await r.text()).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160); } catch (_) {}
+    throw new Error('CoinMarketCal ' + r.status + (body ? ' 応答: ' + body : ''));      // 向こうの返事の冒頭も出す(原因の手がかり)
+  }
   return r.json();
 }
 const bodyOf = (j) => (Array.isArray(j) ? j : (j && (j.body || j.data || j.result)) || []);
@@ -285,6 +289,88 @@ async function refreshAssets(env) {
   } catch (e) { return await failAssets(env, String(e.message || e)); }
 }
 
+// ---------- イベント(銘柄ニュース: 暗号資産メディアのRSS) ----------
+// 鍵なし・回数制限なし。見出し・日時・リンクだけを使う(本文は取らない)。30分ごと(cron)に取得してKV(news:v1)へ保存。
+// 各フィードは [URL, 媒体名, 銘柄の決め打ち(タグ専用フィードのみ)]。取れないフィードがあっても、他は使う。
+const NEWS_FEEDS = [
+  ['https://cointelegraph.com/rss/tag/bitcoin', 'Cointelegraph', 'BTC'],
+  ['https://cointelegraph.com/rss/tag/ethereum', 'Cointelegraph', 'ETH'],
+  ['https://cointelegraph.com/rss', 'Cointelegraph', null],
+  ['https://www.coindesk.com/arc/outboundfeeds/rss', 'CoinDesk', null],
+  ['https://decrypt.co/feed', 'Decrypt', null],
+];
+const NEWS_KEY = 'news:v1', NEWS_KEEP = 90 * DAY;
+// タイトルから銘柄を判定する言葉(大文字小文字は区別しない)
+const KEYWORDS = {
+  BTC: /\b(bitcoin|btc)\b/i,
+  ETH: /\b(ethereum|ether|eth)\b/i,
+  SOL: /\b(solana|sol)\b/i,
+  SUI: /\bsui\b/i,
+  BNB: /\b(bnb|binance coin|bnb chain)\b/i,
+};
+
+function xmlText(s) {
+  return String(s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '')
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').trim();
+}
+function xmlTag(block, name) {
+  const m = block.match(new RegExp('<' + name + '(?:\\s[^>]*)?>([\\s\\S]*?)</' + name + '>', 'i'));
+  return m ? xmlText(m[1]) : '';
+}
+function rssItems(xml) {
+  const out = [];
+  for (const b of String(xml).match(/<item[\s>][\s\S]*?<\/item>/gi) || []) {
+    const title = xmlTag(b, 'title'), link = xmlTag(b, 'link'), at = Date.parse(xmlTag(b, 'pubDate') || xmlTag(b, 'dc:date'));
+    if (title && link && isFinite(at)) out.push({ title, link, at });
+  }
+  return out;
+}
+function hash(str) { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); }
+
+async function newsEvents() {
+  const out = new Map(), errors = [];
+  await Promise.all(NEWS_FEEDS.map(async ([url, name, fixed]) => {
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'application/rss+xml, application/xml, text/xml, */*' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const items = rssItems(await r.text());
+      if (!items.length) throw new Error('記事が読み取れません');
+      for (const it of items) {
+        const syms = SYMS.filter((x) => (fixed === x) || KEYWORDS[x].test(it.title));
+        if (!syms.length || it.at > Date.now() + 3600000) continue;
+        const id = 'news-' + hash(it.link.replace(/[?#].*$/, ''));
+        const prev = out.get(id);
+        if (prev) { prev.a = [...new Set(prev.a.concat(syms))]; continue; }      // 同じ記事は1件にまとめる
+        out.set(id, { id, l: 'asset', t: it.title, s: syms[0] + ' ニュース', src: name, at: new Date(it.at).toISOString(), im: 'mid', a: syms, u: it.link });
+      }
+    } catch (e) { errors.push('ニュース(' + name + (fixed ? ' ' + fixed : '') + '): ' + (e.message || e)); }
+  }));
+  return { out: [...out.values()], errors };
+}
+
+async function readNews(env) {
+  if (!env.CAL) return null;
+  try { const j = await env.CAL.get(NEWS_KEY, 'json'); return j && Array.isArray(j.events) && j.generated_at ? j : null; } catch (_) { return null; }
+}
+
+async function refreshNews(env) {
+  if (!env.CAL) return { ok: false, reason: 'KV未接続' };
+  const fresh = await newsEvents();
+  const prev = await readNews(env), now = Date.now();
+  if (!fresh.out.length && !prev) {
+    try { await env.CAL.put('news:err', JSON.stringify({ at: new Date(now).toISOString(), reason: fresh.errors.join(' / ') || '該当記事0件' })); } catch (_) {}
+    return { ok: false, reason: fresh.errors.join(' / ') || '該当記事0件' };
+  }
+  const byId = new Map();
+  for (const e of (prev ? prev.events : [])) { const ts = Date.parse(e.at); if (isFinite(ts) && ts > now - NEWS_KEEP) byId.set(e.id, e); }   // 記事は過去分を消さずに積み上げる
+  for (const e of fresh.out) byId.set(e.id, e);
+  const merged = [...byId.values()].sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  await env.CAL.put(NEWS_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), events: merged, errors: fresh.errors }));
+  try { await env.CAL.delete('news:err'); } catch (_) {}
+  return { ok: true, count: merged.length, fetched: fresh.out.length, errors: fresh.errors };
+}
+
 // ---------- 保存(KV) ----------
 const KV_KEY = 'macro:v1';
 const FRESH_MS = 3 * 3600 * 1000;        // 保存から3時間以内なら新しいとみなす(定時実行は30分ごと)
@@ -348,6 +434,22 @@ async function events(request, env, ctx) {
       if (macro.length) errors.push('TradingViewから取得できないため、予備(Forex Factory)の今週・来週分のみ表示しています');
     }
   }
+  let news = [];
+  if (env.CAL) {
+    const ns = await readNews(env);
+    if (ns) {
+      news = ns.events; errors.push(...(ns.errors || []));
+      if (Date.now() - Date.parse(ns.generated_at) > FRESH_MS && ctx) ctx.waitUntil(refreshNews(env).catch(() => {}));
+    } else if (ctx) {
+      let er = null;
+      try { er = await env.CAL.get('news:err', 'json'); } catch (_) {}
+      if (er && er.reason) errors.push('銘柄ニュースを取得できませんでした: ' + er.reason);
+      if (!er || Date.now() - Date.parse(er.at) > 10 * 60 * 1000) {
+        ctx.waitUntil(refreshNews(env).catch(() => {}));
+        if (!er) errors.push('銘柄ニュースを初回取得中です。少し待ってから再読み込みしてください');
+      }
+    }
+  }
   let asset = [];
   if (env.CMAL_API_KEY) {
     const st = await readAssets(env);
@@ -365,7 +467,7 @@ async function events(request, env, ctx) {
     }
   }
   const manual = await manualEvents(request, env);
-  const all = macro.concat(asset, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+  const all = macro.concat(asset, news, manual).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const res = json({ generated_at: gen, events: all, errors });
   if (!all.length) res.headers.set('x-nocache', '1');      // 空の結果をキャッシュしない
   return res;
@@ -385,6 +487,7 @@ export default {
   // 定時実行(wrangler.jsonc の triggers.crons)。結果はログ(Cloudflareの「ログ」)で確認できる。
   async scheduled(event, env, ctx) {
     ctx.waitUntil(refreshStore(env).then((r) => console.log('macro refresh', JSON.stringify(r))));
+    ctx.waitUntil(refreshNews(env).then((r) => console.log('news refresh', JSON.stringify(r))));
     const t = new Date(event.scheduledTime || Date.now());
     if (t.getUTCHours() % ASSET_EVERY_H === 0 && t.getUTCMinutes() < 30) {       // 6時間ごとの最初の回だけ
       ctx.waitUntil(refreshAssets(env).then((r) => console.log('asset refresh', JSON.stringify(r))));
