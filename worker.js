@@ -986,7 +986,7 @@ async function authVerify(request, url, env) {
     } catch (_) {}
   }
   let until = 0;
-  if (ok && env.CAL) { try { const a = await env.CAL.get('acc:v1:' + address, 'json'); until = (a && a.until) || 0; } catch (_) {} }
+  if (ok && env.CAL) { try { const a = await env.CAL.get('acc:v1:' + address, 'json'); until = (a && a.until) || 0; } catch (_) { return json({ error: 'kv' }, 503); } }   // v57: 読めない時に未払い扱いで返さない
   return json(ok ? { ok: true, address, until, token: await rxToken(env, address) } : { ok: false, error: 'bad signature' }, ok ? 200 : 401);
 }
 
@@ -1026,7 +1026,8 @@ async function payStatus(url, env) {
   const addr = url.searchParams.get('addr') || '', pk = b58dec(addr);
   if (!pk || pk.length !== 32) return json({ error: 'bad request' }, 400);
   let until = 0;
-  if (env.CAL) { try { const a = await env.CAL.get('acc:v1:' + addr, 'json'); until = (a && a.until) || 0; } catch (_) {} }
+  // v57: KVが一時的に読めない時に until:0(=未払い)を返すと、支払い済みの人に支払い画面が出ていた。読めない時は503を返し、画面は支払いへ進まず再試行を促す
+  if (env.CAL) { try { const a = await env.CAL.get('acc:v1:' + addr, 'json'); until = (a && a.until) || 0; } catch (_) { return json({ error: 'kv' }, 503); } }
   return json({ until });
 }
 // v47: 送金の事前確認。Phantom の公式案内(取引の事前確認の警告への対処)どおり、署名を求める前に sigVerify:false で試運転し、
@@ -1106,14 +1107,18 @@ const RX_SYMS = { BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', BNB: 'BNBUSDT'
 const RX_HZ = [3e5, 9e5, 36e5, 144e5, 864e5];
 const RX_BASES = ['https://data-api.binance.vision', 'https://api.binance.com'];
 async function rxToken(env, address) {
-  const exp = Date.now() + DAY;
+  const exp = Date.now() + 30 * DAY;   // v57: 24時間→30日。署名は30日に1回でよい(アクセス期限は別に acc:v1 で毎回確認する)
   return address + '.' + exp + '.' + await authMac(env, ['tok', address, exp].join('|'));
 }
+// v57: 真偽ではなく理由を返す。'ok' / 'none'(トークン無し) / 'token'(期限切れ・不正) / 'unpaid'(アクセス期限切れ) / 'err'(KVの一時エラー)
+// 画面は 'token'・'unpaid' の時だけ手元のトークンを捨てて再署名へ進む。'err' では捨てない(一時的な不調で支払い済みの人を戻さない)
 async function rxAccess(env, request) {
-  const m = /^Bearer ([1-9A-HJ-NP-Za-km-z]+)\.(\d+)\.(\w+)$/.exec(request.headers.get('authorization') || '');
-  if (!m || !env.AUTH_SECRET || !env.CAL || Date.now() > Number(m[2])) return false;
-  if (!authEq(await authMac(env, ['tok', m[1], m[2]].join('|')), m[3])) return false;
-  try { const a = await env.CAL.get('acc:v1:' + m[1], 'json'); return !!(a && a.until > Date.now()); } catch (_) { return false; }
+  const h = request.headers.get('authorization') || '';
+  if (!h) return 'none';
+  const m = /^Bearer ([1-9A-HJ-NP-Za-km-z]+)\.(\d+)\.(\w+)$/.exec(h);
+  if (!m || !env.AUTH_SECRET || !env.CAL || Date.now() > Number(m[2])) return 'token';
+  if (!authEq(await authMac(env, ['tok', m[1], m[2]].join('|')), m[3])) return 'token';
+  try { const a = await env.CAL.get('acc:v1:' + m[1], 'json'); return a && a.until > Date.now() ? 'ok' : 'unpaid'; } catch (_) { return 'err'; }
 }
 async function rxLoad(env, ttl) {
   const d = await env.CAL.get(RX_KEY, ttl ? { type: 'json', cacheTtl: ttl } : 'json');
@@ -1238,12 +1243,12 @@ async function rxCron(env) {
   try { if (await env.CAL.get('rx:lock')) return { skipped: 'busy' }; } catch (_) {}
   return rxStep(env, { fetches: 15, chunks: 3 });
 }
-// 画面向け。無料: 各指標の直近2回だけ / 有効期限内のウォレットでログイン済み: 全期間。
+// 画面向け。無料: 件数(total)だけ / 有効期限内のウォレットでログイン済み: 全期間の中身(rows)。
 // 取り込み時の指標名(k)は、その後 jaLabel の対応表が変わるとずれる。読む時に英語名(se)から今の対応表で作り直して、画面の指標名と必ず合わせる
 function rxKey(e) { const c = String(e.k || '').split('|').pop(); return e.se && REGION[c] ? jaLabel(c, e.se).s + '|' + c : e.k; }
 async function rxApi(request, url, env) {
   if (!env.CAL) return json({ error: 'KV(CAL)が接続されていません' }, 503);
-  const doc = await rxLoad(env, 60);
+  let doc; try { doc = await rxLoad(env, 60); } catch (_) { return json({ error: 'kv' }, 503); }   // v57: KVの一時エラーで例外にせず、画面が再試行できる形で返す
   for (const e of doc.ev) e.k = rxKey(e);
   const has = e => doc.res[e.i] && Object.keys(doc.res[e.i]).some(s => doc.res[e.i][s]);
   const k = url.searchParams.get('k');
@@ -1254,12 +1259,12 @@ async function rxApi(request, url, env) {
   }
   const all = doc.ev.filter(e => e.k === k && has(e)).sort((a, b) => b.t - a.t);
   // v52: 無料は件数(total)だけ。変動率の中身(rows)は有料のみ返す
-  const full = await rxAccess(env, request);
+  const auth = await rxAccess(env, request), full = auth === 'ok';
   const rows = (full ? all : []).map(e => {
     const r = {}; for (const s of Object.keys(doc.res[e.i])) if (doc.res[e.i][s]) r[s] = doc.res[e.i][s];
     const o = { t: e.t, r }; if (e.fc) o.fc = e.fc; if (e.pv) o.pv = e.pv; if (e.ac) o.ac = e.ac; return o;
   });
-  return json({ k, total: all.length, locked: !full, rows });
+  return json({ k, total: all.length, locked: !full, auth, rows });
 }
 
 export default {

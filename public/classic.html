@@ -259,7 +259,7 @@ function rxGet(key){const tk=tok(),X=RXC[key];
   const N=RXC[key]={st:'loading',tk,rows:[],total:0,locked:true,at:Date.now()};
   fetch('/api/rx?k='+encodeURIComponent(key),{cache:'no-store',headers:tk?{authorization:'Bearer '+tk}:{}})
     .then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{if(!j||j.error)throw new Error('rx');
-      Object.assign(N,{st:'ok',rows:Array.isArray(j.rows)?j.rows:[],total:Number(j.total)||0,locked:!!j.locked})})
+      Object.assign(N,{st:'ok',rows:Array.isArray(j.rows)?j.rows:[],total:Number(j.total)||0,locked:!!j.locked});if(j.locked&&tk&&(j.auth==='token'||j.auth==='unpaid')&&window.CSA)setTimeout(()=>CSA.dropToken(j.auth),0)})
     .catch(()=>{N.st='fail';N.at=Date.now()}).then(()=>renderAll());
   return N}
 window.addEventListener('csa-auth',()=>renderAll());
@@ -386,9 +386,9 @@ function renderImpact(ref,auto,px){
     msg.innerHTML='<div><div style="font-size:20px;margin-bottom:4px">🔒</div><div><b>'+esc(nm0)+'</b>'+esc(TL(' の発表後の動きは有料機能です',' – post-release moves are a paid feature'))+'</div>'+
       (tot?'<div style="margin-top:2px">'+esc(TL('2017年からの記録 '+tot+'回分',tot+' releases on record since 2017'))+'</div>':'')+
       '<button type="button" id="impUnlock" style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer">'+
-      esc(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続 / 購入','Connect wallet / buy access'))+'</button>'+(act?'':'<div style="margin-top:6px;font-size:10px">'+esc(TL('支払い済みの方は、接続して署名するだけで開きます','Already paid? Connect and sign to unlock'))+'</div>')+'</div>';
+      esc(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続して開く / 購入','Connect wallet to unlock / buy'))+'</button>'+(act?'':'<div style="margin-top:6px;font-size:10px">'+esc(TL('支払い済みの方は、接続して署名するだけで開きます','Already paid? Connect and sign to unlock'))+'</div>')+'</div>';
     msg.style.display='flex';
-    const ub=$('impUnlock');if(ub)ub.onclick=()=>{if(!window.CSA)return;act?CSA.unlock():CSA.open()};
+    const ub=$('impUnlock');if(ub)ub.onclick=()=>{if(window.CSA)CSA.unlock()};
     ['maxUp','maxDown','avgVal','lastVal'].forEach(i=>$(i).textContent='🔒');
     ['maxUpDate','maxDownDate'].forEach(i=>$(i).textContent=TL('有料','Paid'));
     $('historyList').innerHTML='<div class="hmsg">🔒 '+esc(TL('過去の発表の一覧は有料です','The release history is a paid feature'))+'</div>';
@@ -604,13 +604,18 @@ const T=(e,j)=>lang()==='ja'?j:e;
 let PAYTO=null;
 const S={addr:null,p:null,until:0,busy:false,phase:'',err:''};
 const active=()=>S.until>Date.now();
-/* v52: 過去の反応(/api/rx)用トークン。署名ログインの時だけ発行される。タブを閉じると消える */
+/* v57: 過去の反応(/api/rx)用トークン。署名ログインで発行され、localStorage に30日残す。
+   (v56まではタブ限定の sessionStorage だったため、タブを閉じる・別タブで開くたびに、支払い済みでもロック+支払い画面に戻っていた) */
 const TKEY='csa-rxtok';
 const tokOk=t=>{const m=/^[1-9A-HJ-NP-Za-km-z]+\.(\d+)\.\w+$/.exec(t||'');return !!m&&Date.now()<Number(m[1])};
-const getTok=()=>{try{const t=sessionStorage.getItem(TKEY);if(tokOk(t))return t;sessionStorage.removeItem(TKEY)}catch(_){}return null};
-const setTok=t=>{try{t?sessionStorage.setItem(TKEY,t):sessionStorage.removeItem(TKEY)}catch(_){}window.dispatchEvent(new Event('csa-auth'))};
+const getTok=()=>{for(const g of [()=>localStorage,()=>sessionStorage]){try{const s=g(),t=s.getItem(TKEY);if(tokOk(t))return t;if(t)s.removeItem(TKEY)}catch(_){}}return null};
+const setTok=t=>{try{if(t)localStorage.setItem(TKEY,t);else{localStorage.removeItem(TKEY);sessionStorage.removeItem(TKEY)}}catch(_){try{t?sessionStorage.setItem(TKEY,t):sessionStorage.removeItem(TKEY)}catch(_2){}}window.dispatchEvent(new Event('csa-auth'))};
+const tokAddr=()=>{const t=getTok();return t?t.split('.')[0]:null};
 window.CSA={token:getTok,active:()=>active(),open:()=>btn.click(),
-  unlock:async()=>{try{S.busy=true;S.phase=T('SIGN IN…','署名待ち…');S.err='';render();await signIn()}catch(e){S.err=String((e&&e.message)||e)}finally{S.busy=false;S.phase='';render()}}};
+  dropToken:why=>{if(why==='unpaid')S.until=0;setTok(null);render()},   // サーバーが「期限切れ/不正/未払い」と答えた時だけ、手元のトークンを捨てる
+  unlock:async()=>{try{S.busy=true;S.phase=T('CHECKING…','確認中…');S.err='';render();await unlockFlow()}
+    catch(e){S.err=(e&&e.code===4001)?T('Cancelled in the wallet.','ウォレットで取り消されました。'):String((e&&e.message)||e);open(true)}
+    finally{S.busy=false;S.phase='';render()}}};
 const short=a=>a.slice(0,4)+'…'+a.slice(-4);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const sel=()=>pop.querySelector('.pay-choice.active');
@@ -687,10 +692,28 @@ async function quick(){   // v45: 最短ルート。接続 → 契約済みか�
   const r=await p.connect();
   const addr=String(r&&r.publicKey?r.publicKey:p.publicKey);
   S.addr=addr;S.p=p;S.phase=T('CHECKING…','確認中…');render();
-  try{const st=await(await fetch('/api/pay/status?addr='+encodeURIComponent(addr),{cache:'no-store'})).json();S.until=Number(st&&st.until)||0}catch(_){S.until=0}
+  await loadStatus(addr);   // v57: 確認に失敗した時は「未払い」扱いにせず、ここで止める(以前は失敗すると支払いに進んでいた)
   const pend=getPend();
   if(!active()&&pend&&pend.address===addr){try{await confirmPay(pend.invoice,pend.signature)}catch(_){}}   // 前回の支払いの確認待ちを引き継ぐ
   if(!active())await pay();
+}
+async function loadStatus(addr){
+  let st=null;try{const r=await fetch('/api/pay/status?addr='+encodeURIComponent(addr),{cache:'no-store'});st=await r.json()}catch(_){}
+  if(!st||typeof st.until!=='number')throw new Error(T('Could not check your access. Check the connection and try again.','アクセス状況を確認できませんでした。通信を確認して、もう一度押してください。'));
+  S.until=st.until;
+}
+async function unlockFlow(){   // v57: ロック画面のボタン。接続 → 契約済みなら署名だけで開く(支払い画面は出さない)。未契約の時だけ支払い画面を開く
+  const p=prov();
+  if(!p)throw new Error(T('No Solana wallet found. Install Phantom, Solflare or Backpack.','Solanaウォレットが見つかりません。Phantom・Solflare・Backpackなどを入れてください。'));
+  const r=await p.connect();
+  const addr=String(r&&r.publicKey?r.publicKey:p.publicKey);
+  S.addr=addr;S.p=p;render();
+  await loadStatus(addr);
+  const pend=getPend();
+  if(!active()&&pend&&pend.address===addr){S.phase=T('CONFIRMING ON-CHAIN…','チェーンで確認中…');render();try{await confirmPay(pend.invoice,pend.signature)}catch(_){}}
+  if(!active()){open(true);return}
+  S.phase=T('SIGN IN…','署名待ち…');render();
+  await signIn();
 }
 async function signIn(){
   const p=prov();
@@ -726,6 +749,10 @@ function buildTx(inv){
 }
 async function pay(){
   S.phase=T('PREPARING…','準備中…');render();
+  if(!S.p)S.p=prov();   // v57: 前回の署名から復元した時は、まだウォレットを掴んでいない
+  if(!S.p)throw new Error(T('No Solana wallet found. Install Phantom, Solflare or Backpack.','Solanaウォレットが見つかりません。Phantom・Solflare・Backpackなどを入れてください。'));
+  let pk=S.p.publicKey;if(!pk){const r=await S.p.connect();pk=r&&r.publicKey?r.publicKey:S.p.publicKey}
+  if(String(pk)!==S.addr)throw new Error(T('A different wallet account is connected. Switch to ','別のウォレットアカウントが接続されています。次のアカウントに切り替えてください: ')+short(S.addr));
   const coin=sel().dataset.coin;
   const inv=await(await fetch('/api/pay/invoice?addr='+encodeURIComponent(S.addr)+'&coin='+coin,{cache:'no-store'})).json();
   if(!inv.invoice)throw new Error(setup(inv.error));
@@ -763,6 +790,11 @@ go.addEventListener('click',async()=>{
 off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';setTok(null);render()});
 window.addEventListener('csa-lang',render);
 render();
+{const ta=tokAddr();if(ta){S.addr=ta;S.p=prov();render();   // v57: 前回の署名が残っていれば、接続し直さなくても支払い済みとして復元する
+  fetch('/api/pay/status?addr='+encodeURIComponent(ta),{cache:'no-store'}).then(r=>r.json()).then(st=>{
+    if(S.addr!==ta||!st||typeof st.until!=='number')return;
+    S.until=st.until;if(!active()){S.addr=null;S.p=null;S.until=0;setTok(null)}   // アクセス期限が切れていた時だけ、復元を取り消す
+    render()}).catch(()=>{})}}
 {const m=/[#&]pay=(\w+)/.exec(location.hash||'');const b=m&&pop.querySelector('.pay-choice[data-coin="'+m[1]+'"]');if(b){pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();open(true)}}   // ウォレットアプリで開き直した時は、選んだコインを選択済みで開く
 fetch('/api/pay/info',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(j.to||'')){PAYTO=j.to;render()}}).catch(()=>{});
 })();
