@@ -2152,6 +2152,8 @@ function pastEvs(key){const X=RXC[key];
   return E.filter(e=>e.l==='macro'&&e.ts<Date.now()&&rxK(e)===key)}
 /* rx の1行 = [発表時価格,5分,15分,1時間,4時間,24時間,1時間内の最大上,最大下]。最大上下は1時間だけ測れる */
 function rxExc(a,ms){const i=RXH.indexOf(ms);if(i<0)return null;const v=a[1+i];if(v==null)return null;
+  /* v69: 長さ18の記録は、各時間の窓の中の最大上・最大下を持つ([8+i]・[13+i])。旧形式(長さ8)は1時間だけ */
+  if(a.length>=18&&a[8+i]!=null&&a[13+i]!=null)return{up:a[8+i],dn:a[13+i],end:v,ref:a[0]};
   const one=i===2&&a[6]!=null&&a[7]!=null;return{up:one?a[6]:null,dn:one?a[7]:null,end:v,ref:a[0]}}
 function exc(ts,ms,ev){if(ev&&ev.rx)return rxExc(ev.rx,ms);if(ts+ms>Date.now())return null;
   for(const q of IMPTF){const st=TFD[q].ms;if(st>ms)break;const d=CD[sym+'|'+q];if(!d||!d.bars.length)continue;
@@ -2360,7 +2362,8 @@ const IMPKEY=e=>(e.s||e.t)+'|'+(e.c||''),IMP_ROWS=10,CORD={US:0,JP:1,EU:2};
 let IMPSEL=(()=>{try{return localStorage.getItem('csa-imp')||'auto'}catch(_){return'auto'}})(),IMPSIG='';
 const impSave=v=>{try{localStorage.setItem('csa-imp',v)}catch(_){}};
 const impSelKey=()=>IMPSEL!=='auto'?IMPSEL:null;
-const nextKey=()=>{const now=Date.now();return E.filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0]};
+/* v69: 自動は「記録のある(20回以上の)」次の重要イベント。記録の一覧が未取得・1つも一致しない時は、ただの次の重要イベント */
+const nextKey=()=>{const now=Date.now(),L=E.filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>now).sort((a,b)=>a.ts-b.ts);return(typeof RXI!=='undefined'&&RXI&&L.find(e=>RXI[(e.s||e.t)+'|'+(e.c||'')]>0))||L[0]};
 /* 足の状態(銘柄ごと。時間足には依存しない) */
 function impPx(){if(IMPTF.some(q=>CD[sym+'|'+q]))return'ok';return IMPTF.every(q=>ST[sym+'|'+q]==='error')?'fail':'loading'}
 /* 選択肢に出す指標: macro・重要度 低を除く・今の銘柄で表示対象のもの */
@@ -2412,7 +2415,7 @@ function impCard(){const c=$('impCard'),sel=$('impSel'),body=$('impBody');if(!c|
       '<table class="table"><tr style="color:var(--dim);font-size:9px"><td>'+TL('発表後','After')+'</td><td>'+TL('最大 上','Max up')+'</td><td>'+TL('最大 下','Max down')+'</td><td>'+TL('終値','End')+'</td></tr>'+HZ.map((r,i)=>{const v=S.rows[i],ok2=v&&v.k>0,cell=(x,col)=>'<td style="'+(ok2&&x!=null?'color:'+col:'color:var(--dim)')+'">'+(ok2&&x!=null?sgn(x):'—')+'</td>';return'<tr><td>'+TL(r[0],r[1])+(ok2?' <span style="color:var(--dim);font-size:9px">n='+v.k+'</span>':'')+'</td>'+cell(ok2&&v.up,'#6ccaa0')+cell(ok2&&v.dn,'#d87878')+cell(ok2&&v.end,ok2&&v.end>=0?'#6ccaa0':'#d87878')+'</tr>'}).join('')+'</table>'+(ok?impRows(ref):'')}}
   $('impT').textContent=TL('イベント影響','EVENT IMPACT');$('impSt').textContent=st;
   body.innerHTML=h+note;
-  if(MD==='rx'){const sm=body.querySelector('.small');if(sm)sm.textContent=TL('2017年以降の発表を、5分足から計算した記録です。「最大 上・下」は1時間以内だけ測っています(ほかの時間は終値の変化率)。','Records since 2017, computed from 5-minute candles. “Max up / down” covers the first hour only; other horizons use the closing change.')}
+  if(MD==='rx'){const sm=body.querySelector('.small');if(sm)sm.textContent=TL('2017年以降の発表を、5分足から計算した記録です。「最大 上・下」は、発表からその時間までの間に一番上・一番下まで動いた幅、「終値」はその時点の変化です。記録が20回未満の指標は出していません。','Records since 2017, computed from 5-minute candles. “Max up / down” is the furthest move within each window after the release; “End” is the change at that point. Indicators with fewer than 20 releases are not shown.')}
   const ub=body.querySelector('#impUnlock');if(ub)ub.onclick=()=>{if(window.CSA)CSA.unlock()};
   impChart(body,ref,px)}
 function lockHtml(ref){const X=RXC[rxK(ref)],tot=X&&X.st==='ok'?X.total:((RXI&&RXI[rxK(ref)])||0),act=!!(window.CSA&&CSA.active());

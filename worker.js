@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-07-v68';
+const VERSION = '2026-10-07-v69';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -263,7 +263,6 @@ const UA = 'Mozilla/5.0 (compatible; signal-archive/1.0)';
 
 // 英語の指標名 → [日本語名, 画面の縦線ラベル]。上から順に最初に合ったものを使う(Coreを先に置く)。
 const JA = [
-  [/minutes/i, 'FOMC議事録', '議事録'],
   [/interest rate decision|rate decision|federal funds rate|policy rate|main refinancing/i, null, null],      // 国ごとに下で決める
   [/non[- ]?farm payrolls?/i, '雇用統計（非農業部門雇用者数）', '雇用統計'],
   [/adp/i, 'ADP雇用者数', 'ADP'],
@@ -294,13 +293,28 @@ const JA = [
   [/pmi/i, 'PMI 購買担当者景気指数', 'PMI'],
   [/tankan/i, '日銀短観', '短観'],
   [/industrial production/i, '鉱工業生産', '鉱工業'],
-  [/trade balance/i, '貿易収支', '貿易収支'],
+  [/trade balance|balance of trade/i, '貿易収支', '貿易収支'],
   [/consumer (confidence|sentiment)/i, '消費者信頼感', '消費者信頼感'],
-  [/press conference/i, '記者会見', '会見'],
+  [/business confidence/i, '企業景況感', '企業景況感'],
 ];
 const POLICY = { US: ['FOMC 政策金利発表', 'FOMC'], JP: ['日銀 金融政策決定会合', '日銀'], EU: ['ECB 政策金利発表', 'ECB'] };
+// v69: 主体(FOMC・日銀・ECB・FRB議長など)が国で決まる予定。短い名前(s)は集計キーになる。
+//   ・「会見」「議事録」だけだと誰のものか分からなかったので、主体を付ける
+//   ・同じ時刻に出る同じ発表の別の数値(ECB の預金ファシリティ金利、FOMC の経済見通し)は、政策金利発表と同じキーにまとめる(1回の反応を二重に数えない)
+const JA_BY_COUNTRY = [
+  [/summary of opinions/i, { JP: ['日銀 主な意見', '日銀主な意見'] }],
+  [/minutes|meeting accounts/i, { US: ['FOMC議事録', 'FOMC議事録'], EU: ['ECB 理事会議事要旨', 'ECB議事要旨'], JP: ['日銀 議事要旨', '日銀議事要旨'] }],
+  [/press conference/i, { US: ['FOMC 記者会見', 'FOMC会見'], EU: ['ECB 記者会見', 'ECB会見'], JP: ['日銀総裁 記者会見', '日銀会見'] }],
+  [/deposit facility rate/i, { EU: ['ECB 預金ファシリティ金利', 'ECB'] }],
+  [/economic projections|interest rate projections?|dot plot/i, { US: ['FOMC 経済見通し', 'FOMC'] }],
+  [/fed chair\b.*testimony/i, { US: ['FRB議長 議会証言', 'FRB議長証言'] }],
+  [/fed chair\b.*(speech|speaks|remarks)/i, { US: ['FRB議長 発言', 'FRB議長発言'] }],
+  [/ecb president\b.*(speech|speaks|remarks)/i, { EU: ['ECB総裁 発言', 'ECB総裁発言'] }],
+  [/boj gov(ernor)?\b.*(speech|speaks|remarks)/i, { JP: ['日銀総裁 発言', '日銀総裁発言'] }],
+];
 
 function jaLabel(country, title) {
+  for (const [re, by] of JA_BY_COUNTRY) if (re.test(title) && by[country]) return { t: by[country][0], s: by[country][1] };
   let t = null, s = null, policy = false;
   for (const [re, jt, js] of JA) {
     if (!re.test(title)) continue;
@@ -1263,8 +1277,19 @@ function rxCalc(bars, ts) {
     cnt++; up = Math.max(up, +b[2]); dn = Math.min(dn, +b[3]);
   }
   out.push(cnt >= 6 ? pc(up) : null, cnt >= 6 ? pc(dn) : null);
+  // v69: 5分・15分・1時間・4時間・24時間それぞれの窓の中で、上へ最大・下へ最大で何%動いたか(足の半分以上がある時だけ)。
+  //   並び: [発表時価格, 終値×5, 1時間の最大上, 1時間の最大下, 最大上×5, 最大下×5](長さ18)。旧形式(長さ8)は画面がそのまま読める
+  const ups = [], dns = [];
+  for (const h of RX_HZ) {
+    const nb = h / 3e5; let u = -Infinity, d = Infinity, c = 0;
+    for (let i = 0; i < nb; i++) { const b = m.get(t0 + i * 3e5); if (!b) continue; c++; u = Math.max(u, +b[2]); d = Math.min(d, +b[3]); }
+    const ok = c >= Math.ceil(nb / 2) && isFinite(u) && isFinite(d);
+    ups.push(ok ? pc(u) : null); dns.push(ok ? pc(d) : null);
+  }
+  out.push(...ups, ...dns);
   return out;
 }
+const RX_LEN = 18;   // v69: 新しい計算の長さ。これより短い記録は、rx_runner が計算し直す
 function rxPending(doc, now) {
   const pairs = [];
   for (const e of [...doc.ev].sort((a, b) => b.t - a.t)) {        // 新しい発表から先に

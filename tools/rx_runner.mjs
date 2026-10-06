@@ -27,8 +27,9 @@ if (!KEY) { console.error('RX_ADMIN_KEY が未設定です(GitHub の Secrets �
 // worker.js の関数をそのまま借りる(末尾に export を足した写しを作って読み込む)
 const here = path.dirname(fileURLToPath(import.meta.url));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rx-')), 'worker.mjs');
-fs.writeFileSync(tmp, fs.readFileSync(path.join(here, '..', 'worker.js'), 'utf8') + '\nexport { jaLabel, rxCalc, rxBucket };\n');
-const { jaLabel, rxCalc, rxBucket } = await import(pathToFileURL(tmp).href);
+fs.writeFileSync(tmp, fs.readFileSync(path.join(here, '..', 'worker.js'), 'utf8') + '\nexport { jaLabel, rxCalc, rxBucket, RX_LEN };\n');
+const { jaLabel, rxCalc, rxBucket, RX_LEN } = await import(pathToFileURL(tmp).href);
+const RX_MIN = Number(process.env.RX_MIN || 20);                     // v69: 発表がこの回数未満の指標は一覧に出さない(少なすぎる平均は意味がない)
 
 async function site(p, opt = {}) {
   const r = await fetch(SITE + p, { ...opt, headers: { 'User-Agent': UA, 'x-admin-key': KEY, ...(opt.headers || {}) }, signal: AbortSignal.timeout(60000) });
@@ -64,7 +65,8 @@ for (const e of cal.events || []) {                                  // 直近�
 const pending = [];
 for (const e of [...ev.values()].sort((a, b) => b.t - a.t)) {         // 新しい発表から先に
   if (e.t + 25 * 36e5 > now) continue;                                // 24時間後までの足が揃うまで待つ
-  for (const s of Object.keys(RX_SYMS)) if (!(s in e.r) && e.t >= RX_FROM[s]) pending.push([e, s]);
+  // v69: 旧い計算(長さ8: 最大上下が1時間だけ)は、全部の時間の最大上下を出すために計算し直す。0(測れない)はそのまま
+  for (const s of Object.keys(RX_SYMS)) if ((!(s in e.r) || (Array.isArray(e.r[s]) && e.r[s].length < RX_LEN)) && e.t >= RX_FROM[s]) pending.push([e, s]);
 }
 const dead = new Set();                                               // 403/451(地域・IPで断られた入口)は、この実行では使わない
 async function bars(sym, start) {
@@ -122,9 +124,10 @@ async function save() {
   }
   const by = new Map();
   for (const e of ev.values()) if (hasR(e)) { const g = by.get(e.k) || { k: e.k, ts: new Set(), last: 0 }; g.ts.add(e.t); g.last = Math.max(g.last, e.t); by.set(e.k, g); }
-  const indicators = [...by.values()].map((g) => ({ k: g.k, n: g.ts.size, last: g.last })).sort((a, b) => b.last - a.last);
-  await put('idx', JSON.stringify({ indicators, evTo: now }));
-  return { wrote, indicators: indicators.length };
+  const all = [...by.values()].map((g) => ({ k: g.k, n: g.ts.size, last: g.last }));
+  const indicators = all.filter((g) => g.n >= RX_MIN).sort((a, b) => b.last - a.last);   // v69: 少なすぎる指標は出さない
+  await put('idx', JSON.stringify({ indicators, evTo: now, min: RX_MIN, hidden: all.length - indicators.length }));
+  return { wrote, indicators: indicators.length, hidden: all.length - indicators.length };
 }
 
 console.log(`予定 ${ev.size}件(直近の予定から追加 ${fromCal}件) / 計算待ち ${pending.length}件(指標×銘柄) / 入口 ${BASES.map((b) => new URL(b).host).join(', ')}${DRY ? ' / DRY(書き戻さない)' : ''}`);
@@ -134,7 +137,7 @@ await saving;
 const sv = await save();
 const recorded = [...ev.values()].reduce((n, e) => n + Object.values(e.r).filter(Boolean).length, 0);
 const errors = [...errs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([m, n]) => `${m} ×${n}`);
-const run = { at: new Date().toISOString(), events: ev.size, recorded, computed, failed, pending: left, indicators: sv.indicators, shards_written: sv.wrote, done: left === 0, errors, ms: Date.now() - t0 };
+const run = { at: new Date().toISOString(), events: ev.size, recorded, computed, failed, pending: left, indicators: sv.indicators, hidden: sv.hidden, min: RX_MIN, shards_written: sv.wrote, done: left === 0, errors, ms: Date.now() - t0 };
 await put('run', JSON.stringify(run));
 console.log(JSON.stringify(run));
 if (failed && !computed && pending.length) { console.error('1件も計算できませんでした。errors を確認してください'); process.exit(1); }
