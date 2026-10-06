@@ -268,7 +268,19 @@ const JA = [
   [/non[- ]?farm payrolls?/i, '雇用統計（非農業部門雇用者数）', '雇用統計'],
   [/adp/i, 'ADP雇用者数', 'ADP'],
   [/jolts|job openings/i, 'JOLTS求人件数', 'JOLTS'],
+  [/continuing (jobless )?claims/i, '継続失業保険申請件数', '継続失業保険'],
+  [/jobless claims.*(4|four)[- ]?week|(4|four)[- ]?week.*jobless/i, '新規失業保険申請件数（4週平均）', '失業保険4週平均'],
   [/jobless claims/i, '新規失業保険申請件数', '失業保険'],
+  [/building permits/i, '建設許可件数', '建設許可'],
+  [/housing starts/i, '住宅着工件数', '住宅着工'],
+  [/durable goods orders? ex|core durable/i, '耐久財受注（除輸送機器）', '耐久財除輸送'],
+  [/durable goods/i, '耐久財受注', '耐久財受注'],
+  [/existing home sales/i, '中古住宅販売件数', '中古住宅販売'],
+  [/new home sales/i, '新築住宅販売件数', '新築住宅販売'],
+  [/pending home sales/i, '中古住宅販売成約指数', '住宅成約指数'],
+  [/personal income/i, '個人所得', '個人所得'],
+  [/personal spending/i, '個人消費支出', '個人支出'],
+  [/factory orders/i, '製造業受注', '製造業受注'],
   [/unemployment rate/i, '失業率', '失業率'],
   [/core (pce|price index)/i, 'コアPCE', 'コアPCE'],
   [/\bpce\b/i, 'PCE物価指数', 'PCE'],
@@ -298,7 +310,14 @@ function jaLabel(country, title) {
   }
   const region = REGION[country] || country;
   // v64: 短い名前(s)は EVENT IMPACT の集計キーにもなる。同じ時刻に出る別の数値(CPIの前年比と前月比など)が同じキーにまとまると、1回の反応が何回分にも数えられるため、前年比/前月比と細目を s にも付けて区別する
-  if (!t) { const tok = (/\b(YoY|y\/y)\b/i.exec(title) || /\b(MoM|m\/m)\b/i.exec(title) || /\b(QoQ|q\/q)\b/i.exec(title) || [''])[0]; return { t: region + ' ' + title, s: (title.length > 14 ? title.slice(0, 14) : title) + (title.length > 14 && tok ? ' ' + tok : '') }; }
+  // v65: 対応表に無い指標は、14文字で途中切りせず(「Building Permi」のように切れて、別の指標が同じ名前になっていた)、
+  //   前年比/前月比/前期比の語を除いた本体を、30文字を超える時だけ単語の切れ目で短くし、語を後ろに付け直す。
+  if (!t) {
+    const tok = (/\b(YoY|y\/y)\b/i.exec(title) || /\b(MoM|m\/m)\b/i.exec(title) || /\b(QoQ|q\/q)\b/i.exec(title) || [''])[0];
+    let base = title.replace(/\s*\b(YoY|y\/y|MoM|m\/m|QoQ|q\/q)\b/ig, '').replace(/\s+/g, ' ').trim();
+    if (base.length > 30) { const cut = base.slice(0, 30), sp = cut.lastIndexOf(' '); base = (sp >= 12 ? cut.slice(0, sp) : cut).trim(); }
+    return { t: region + ' ' + title, s: base + (tok ? ' ' + tok : '') };
+  }
   // 政策金利・議事録・会見は主体名(FOMC/日銀/ECB)が地域を表すので、地域の接頭辞を付けない
   const noRegion = policy || /議事録|会見/.test(t);
   const q = /\b(YoY|y\/y)\b/i.test(title) ? '前年比' : /\b(MoM|m\/m)\b/i.test(title) ? '前月比' : /\b(QoQ|q\/q)\b/i.test(title) ? '前期比' : '';
@@ -309,6 +328,7 @@ function jaLabel(country, title) {
     if (s === 'PPI' && /\bcore\b/i.test(title)) sub = 'コア';
     else if (s === '小売売上') sub = /ex[\s.-]*auto/i.test(title) ? '除自動車' : /control group/i.test(title) ? 'コントロール' : '';
     else if (s === 'PMI') sub = /manufactur/i.test(title) ? '製造' : /service/i.test(title) ? 'サービス' : /composite/i.test(title) ? '総合' : '';
+    else if (s === '短観') sub = (/non[- ]?manufactur/i.test(title) ? '非製造業' : /manufactur/i.test(title) ? '製造業' : '') + (/outlook/i.test(title) ? '見通し' : '');
   }
   return { t: (noRegion ? '' : region + ' ') + t + (note ? '（' + note + '）' : ''), s: (noRegion ? '' : region) + s + sub + (noRegion ? '' : q) };
 }
