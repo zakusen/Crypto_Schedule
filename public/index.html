@@ -1995,7 +1995,7 @@ html.lang-switching [data-csa-i18n]{
 </div>
 
 <main class="layout">
-<aside><div class="card left"><input class="search" placeholder="Search assets / events" data-ph-en="Search assets / events" data-ph-ja="銘柄・イベントを検索"><nav class="nav"><a class="active" href="#">Home</a><a href="#">Market</a><a href="#">Archive</a><a href="#">Settings</a></nav><div class="label">WATCHLIST</div><div class="coin"><b>BTC</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>ETH</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>SOL</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>BNB</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="label">EVENTS</div><div class="coin"><span>Indicators</span><span class="muted">●</span></div><div class="coin"><span>Chain</span><span class="muted">●</span></div><div class="coin"><span>Expiry</span><span class="muted">●</span></div><div class="coin"><span>Burn</span><span class="muted">●</span></div></div></aside>
+<aside><div class="card left"><div class="label">WATCHLIST</div><div class="coin"><b>BTC</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>ETH</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>SOL</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>BNB</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="label">EVENTS</div><div class="coin"><span>Indicators</span><span class="muted">●</span></div><div class="coin"><span>Chain</span><span class="muted">●</span></div><div class="coin"><span>Expiry</span><span class="muted">●</span></div><div class="coin"><span>Burn</span><span class="muted">●</span></div></div></aside>
 <section>
 <div class="zones"><div class="zone active"><b>TOKYO</b><span id="z0">--:--</span></div><div class="zone"><b>NEW YORK</b><span id="z1">--:--</span></div><div class="zone"><b>LONDON</b><span id="z2">--:--</span></div><div class="zone"><b>SINGAPORE</b><span id="z3">--:--</span></div><div class="zone"><b>HONG KONG</b><span id="z4">--:--</span></div><div class="zone"><b>DUBAI</b><span id="z5">--:--</span></div><div class="zone"><b>FRANKFURT</b><span id="z6">--:--</span></div><div class="zone"><b>SYDNEY</b><span id="z7">--:--</span></div></div>
 <div class="hero"><div><div class="kicker">NEXT EVENT · HIGH IMPACT</div><h1 data-dyn>米 消費者物価指数 (CPI)<span class="pill">重要</span></h1><div class="when" id="eventTime" data-dyn>—</div><p class="desc" data-dyn>未来のイベントを価格チャート上に配置。発表までの時間をリアルタイムで追跡します。</p></div><div><div class="dial"><div class="dialin"><small>NEXT EVENT</small><div class="count" id="count" data-dyn>--:--:--</div><small>COUNTDOWN</small></div></div></div><div class="q"><div class="ptitle">EVENT DATA</div><div class="qrow"><span>Forecast</span><b data-dyn>—</b></div><div class="qrow"><span>Previous</span><b data-dyn>—</b></div><div class="qrow"><span>Category</span><b data-dyn>指標</b></div><div class="qrow"><span>Status</span><b data-dyn>UPCOMING</b></div></div></div>
@@ -2362,7 +2362,7 @@ function impRows(ref){const key=IMPKEY(ref),now=Date.now();
   const L=E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key).sort((a,b)=>b.ts-a.ts).map(e=>({e,r:oneReact(e)})).filter(x=>x.r);
   if(!L.length)return'';const show=L.slice(0,IMP_ROWS),anyNum=show.some(x=>has(x.e.fc)||has(x.e.pv));
   return'<div class="improws"><div class="ih">'+TL('発表ごとの内訳','BY RELEASE')+'</div>'+show.map(({e,r})=>
-    '<div class="improw"><div><span class="dt">'+esc(fdt(e.ts))+'</span>'+(anyNum&&numTxt(e)?'<span class="nm">'+esc(numTxt(e))+'</span>':'')+'</div>'+
+    '<div class="improw" data-ts="'+e.ts+'"><div><span class="dt">'+esc(fdt(e.ts))+'</span>'+(anyNum&&numTxt(e)?'<span class="nm">'+esc(numTxt(e))+'</span>':'')+'</div>'+
     '<div class="rr"><u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u><small>'+esc(TL(r.l[0],r.l[1]))+'</small></div></div>').join('')+
     (L.length>show.length?'<div class="more">'+TL('ほか '+(L.length-show.length)+' 件','+'+(L.length-show.length)+' more')+'</div>':'')+'</div>'}
 function impCard(){const c=$('impCard'),sel=$('impSel'),body=$('impBody');if(!c||!sel||!body)return;
@@ -2387,6 +2387,7 @@ function impCard(){const c=$('impCard'),sel=$('impSel'),body=$('impBody');if(!c|
   $('impT').textContent=TL('イベント影響','EVENT IMPACT');$('impSt').textContent=st;
   body.innerHTML=h+note;impChart(body,ref,px)}
 /* v49: 発表価格からの変動率のグラフ(スマホ版と同じ。発表時点=0%、薄線=各回、金線=平均) */
+var IMPHL=0;
 function impChart(body,ref,px){
   const old=body.querySelector('.impchart');if(old)old.remove();impChart._d=null;
   if(px!=='ok'||!ref||!E.length)return;
@@ -2394,7 +2395,8 @@ function impChart(body,ref,px){
   const key=IMPKEY(ref),now=Date.now();
   const PD=E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key).sort((a,b)=>b.ts-a.ts).map(e=>({e,pts:HZ.slice(0,4).map(h=>exc(e.ts,h[2]))})).filter(x=>x.pts.some(Boolean));
   const box=document.createElement('div');box.className='impchart';
-  box.innerHTML='<div class="ich"><b>'+TL('発表価格からの変動率','Move from release price')+'</b><span>'+TL('発表時点=0% · 過去の事実','At release = 0% · past facts')+'</span></div><canvas></canvas><div class="icl"><span style="color:#e4b96a">● '+(S.n===1?TL('1回分','1 release'):TL('平均','Average'))+'</span><span>'+TL('薄線: 各回の事実','Thin lines: each release')+'</span></div>';
+  const nmI=evS(ref);
+  box.innerHTML='<div class="ich"><b>'+TL('発表価格からの変動率','Move from release price')+'</b><span>'+TL('発表時点=0% · 過去の事実','At release = 0% · past facts')+'</span></div><div class="icn">'+esc(nmI)+'<small>'+esc(TL(sym+' はこう動いた（過去'+S.n+'回）',sym+' · last '+S.n+(S.n===1?' release':' releases')))+'</small></div><canvas></canvas><div class="icl"><span style="color:#e4b96a">● '+(S.n===1?TL('1回分','1 release'):TL('平均','Average'))+'</span><span>'+TL('薄線: 各回の事実','Thin lines: each release')+'</span></div>';
   const t=body.querySelector('table.table');t?t.parentNode.insertBefore(box,t):body.appendChild(box);
   const cvs=box.querySelector('canvas');
   const draw=()=>{
@@ -2416,16 +2418,22 @@ function impChart(body,ref,px){
     const path=vals=>{let s0=false;ctx.beginPath();vals.forEach((v,i)=>{if(v==null)return;const x=xPos[i],y=yF(v);s0?ctx.lineTo(x,y):ctx.moveTo(x,y);s0=true});ctx.stroke()};
     PD.forEach(x=>{const v=[0].concat(x.pts.map(p=>p?p.end:null));
       if(S.n===1){ctx.save();ctx.strokeStyle='#e4b96a';ctx.lineWidth=2.2;ctx.shadowColor='rgba(228,185,106,.45)';ctx.shadowBlur=10;path(v);ctx.restore()}
-      else{ctx.strokeStyle='rgba(127,138,153,.3)';ctx.lineWidth=1;path(v)}});
+      else if(x.e.ts!==IMPHL){ctx.strokeStyle=IMPHL?'rgba(127,138,153,.16)':'rgba(127,138,153,.3)';ctx.lineWidth=1;path(v)}});
+    const hx=IMPHL&&PD.find(x=>x.e.ts===IMPHL);
+    if(hx){ctx.save();ctx.strokeStyle='#69c7d6';ctx.lineWidth=2.6;ctx.shadowColor='rgba(105,199,214,.55)';ctx.shadowBlur=14;path([0].concat(hx.pts.map(p=>p?p.end:null)));ctx.restore()}
     if(S.n>1){ctx.save();ctx.strokeStyle='#e4b96a';ctx.lineWidth=2.4;ctx.shadowColor='rgba(228,185,106,.5)';ctx.shadowBlur=12;path(avg);ctx.restore()}
     PD.forEach(x=>{const p=x.pts[2];if(!p)return;ctx.fillStyle=p.end>=0?'rgba(108,202,160,.8)':'rgba(216,120,120,.8)';ctx.beginPath();ctx.arc(xPos[3],yF(p.end),2.6,0,7);ctx.fill()});
     if(S.n>1&&avg[3]!=null){ctx.fillStyle='#e4b96a';ctx.beginPath();ctx.arc(xPos[3],yF(avg[3]),4.2,0,7);ctx.fill()}
   };
-  draw();impChart._d=draw}
+  draw();impChart._d=draw;
+  if(!PD.some(x=>x.e.ts===IMPHL))IMPHL=0;
+  body.querySelectorAll('.improw').forEach(el=>{const t=Number(el.dataset.ts);el.style.cursor='pointer';if(t===IMPHL)el.classList.add('hl');
+    el.addEventListener('click',()=>{IMPHL=IMPHL===t?0:t;body.querySelectorAll('.improw').forEach(q=>q.classList.toggle('hl',Number(q.dataset.ts)===IMPHL));draw()})});
+  const hint=body.querySelector('.improws .ih');if(hint&&!hint.querySelector('em'))hint.insertAdjacentHTML('beforeend','<em style="font-style:normal;margin-left:8px;color:#69c7d6">'+TL('タップでグラフに強調','tap to highlight')+'</em>')}
 addEventListener('resize',()=>{clearTimeout(impChart._t);impChart._t=setTimeout(()=>{impChart._d&&impChart._d()},120)});
 function impName(){impCard()}
 function impWire(){const sel=$('impSel');if(!sel||sel._w)return;sel._w=1;
-  sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';impSave(IMPSEL);sel.blur();impCard();draw()});
+  sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';IMPHL=0;impSave(IMPSEL);sel.blur();impCard();draw()});
   sel.addEventListener('blur',()=>impCard())}
 
 /* チャートの下: チェーンの記録(ETH 出口待ち・入口待ち・ステーク量 / SOL・BNB のステーク量) */
@@ -2742,7 +2750,7 @@ window.addEventListener('csa-lang',draw);draw();
 </script>
 <style id="v48-picker">
 .csa-pkw{position:relative;display:block;width:100%}
-.csa-pkw select{pointer-events:none;width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box;font-size:14px!important;font-weight:700;letter-spacing:.02em;padding:13px 38px 13px 14px!important;border:1.5px solid rgba(228,185,106,.75)!important;border-radius:10px!important;background:linear-gradient(135deg,rgba(228,185,106,.2),rgba(105,199,214,.07) 60%,rgba(11,16,23,.96))!important;color:#fff!important;box-shadow:0 0 0 1px rgba(228,185,106,.12),0 0 18px rgba(228,185,106,.28),inset 0 1px 0 rgba(255,255,255,.08);animation:csaPkGlow 3.2s ease-in-out infinite}
+.csa-pkw select{-webkit-appearance:none;appearance:none;pointer-events:none;width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box;font-size:14px!important;font-weight:700;letter-spacing:.02em;padding:13px 38px 13px 14px!important;border:1.5px solid rgba(228,185,106,.75)!important;border-radius:10px!important;background:linear-gradient(135deg,rgba(228,185,106,.2),rgba(105,199,214,.07) 60%,rgba(11,16,23,.96))!important;color:#fff!important;box-shadow:0 0 0 1px rgba(228,185,106,.12),0 0 18px rgba(228,185,106,.28),inset 0 1px 0 rgba(255,255,255,.08);animation:csaPkGlow 3.2s ease-in-out infinite}
 .csa-pkw::after{content:"▾";position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#e4b96a;font-size:16px;pointer-events:none;text-shadow:0 0 8px rgba(228,185,106,.7)}
 .selectWrap .csa-pkw::after{display:block}.selectWrap::after{display:none}
 .csa-pk-hit{position:absolute;inset:0;z-index:2;cursor:pointer;border-radius:10px;-webkit-tap-highlight-color:rgba(228,185,106,.25)}
@@ -2809,5 +2817,17 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&root.classL
 .impchart .ich b{font-size:13px;color:#e4b96a;letter-spacing:.04em}.impchart .ich span{font-size:9px;color:var(--dim)}
 .impchart canvas{display:block;width:100%;height:230px}
 .impchart .icl{display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:4px}
+</style>
+<style id="v50-split">
+.impchart .icn{margin:2px 0 8px;font-size:16px;font-weight:700;color:#fff;line-height:1.35}
+.impchart .icn small{display:block;margin-top:2px;font-size:11px;font-weight:400;color:#69c7d6}
+.improw.hl{background:linear-gradient(90deg,rgba(105,199,214,.16),transparent);box-shadow:inset 2px 0 0 #69c7d6}
+.improw{padding-left:6px;padding-right:6px;border-radius:4px}
+@media(min-width:1200px){
+ .layout{grid-template-columns:190px minmax(0,1fr) 480px}
+ .right{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow-y:auto;padding-right:2px;scrollbar-width:thin;scrollbar-color:rgba(228,185,106,.4) transparent}
+ .right .impact{border-color:rgba(228,185,106,.45);box-shadow:0 0 0 1px rgba(228,185,106,.1),0 0 30px rgba(228,185,106,.1)}
+ .impchart canvas{height:270px}
+}
 </style>
 </body></html>
