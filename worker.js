@@ -368,6 +368,38 @@ async function ffEvents() {
   return { out, errors: [...new Set(errors)] };
 }
 
+// 照合(2026-10-06): TradingView(非公式)が黙って壊れても気づけるように、同じ時期の Forex Factory(今週・来週)と件数を突き合わせる。
+//  ・国(US/JP/EU)の件数が TradingView で0なのに FF にはある → FF の予定で補い、警告を出す
+//  ・TradingView の件数が FF の4割未満 → 警告だけ出す(補わない)
+//  ・前回の保存より件数が半分以下に減った → 警告を出す
+// 照合に使う FF が取れない時は、何もせず従来どおり(警告も出さない)。warns は errors と別にして、保存の判断(hadErrors)に混ぜない。
+const CROSS_DAYS = 14;
+const REGION_JA = { US: '米国', JP: '日本', EU: 'ユーロ圏' };
+async function tvChecked(prevCounts) {
+  const [tv, ff] = await Promise.all([tvEvents(), ffEvents().catch(() => ({ out: [], errors: [] }))]);
+  const res = { out: tv.out, errors: tv.errors, warns: [], counts: null };
+  if (!tv.out.length) return res;
+  const now = Date.now(), cs = ['US', 'JP', 'EU'];
+  const cnt = (list, to) => { const c = { US: 0, JP: 0, EU: 0 }; for (const e of list) { const t = Date.parse(e.at); if (t >= now && t <= to && c[e.c] !== undefined) c[e.c]++; } return c; };
+  const sum = (c) => c.US + c.JP + c.EU;
+  const to14 = now + CROSS_DAYS * DAY;
+  const counts = cnt(tv.out, to14);
+  res.counts = { ...counts, at: new Date(now).toISOString() };
+  if (ff.out.length) {
+    const to = Math.min(to14, Math.max(...ff.out.map((e) => Date.parse(e.at))));    // FF が届く範囲だけで比べる
+    const t = cnt(tv.out, to), f = cnt(ff.out, to);
+    for (const c of cs) {
+      if (t[c] === 0 && f[c] > 0) {
+        res.out = res.out.concat(ff.out.filter((e) => e.c === c && Date.parse(e.at) >= now && Date.parse(e.at) <= to));
+        res.warns.push('TradingViewの' + REGION_JA[c] + 'の予定が0件のため、Forex Factoryの' + f[c] + '件で補っています');
+      }
+    }
+    if (sum(f) >= 5 && sum(t) < sum(f) * 0.4) res.warns.push('TradingViewの予定(' + sum(t) + '件)が、Forex Factory(' + sum(f) + '件)より大幅に少ないです。取得元の仕様変更の可能性があります');
+  }
+  if (prevCounts && sum(prevCounts) >= 8 && sum(counts) < sum(prevCounts) * 0.5) res.warns.push('TradingViewの予定が、前回の' + sum(prevCounts) + '件から' + sum(counts) + '件に減っています');
+  return res;
+}
+
 async function manualEvents(request, env) {
   try {
     const r = await env.ASSETS.fetch(new Request(new URL('/events_manual.json', request.url)));
@@ -798,8 +830,9 @@ function mergeStore(prev, fresh, hadErrors, now) {
 
 async function refreshStore(env) {
   if (!env.CAL) return { ok: false, reason: 'KV未接続' };
-  const [tv, ch] = await Promise.all([tvEvents(), chainEvents()]);
-  const prev = await readStore(env);
+  const prev0 = await readStore(env);
+  const [tv, ch] = await Promise.all([tvChecked(prev0 && prev0.counts), chainEvents()]);
+  const prev = prev0;
   const chain = mergeChain(prev && prev.chain, ch);
   if (!tv.out.length) {                       // 指標が空では上書きしない(チェーンの控えだけは更新する)
     if (prev && ch.out.length) await env.CAL.put(KV_KEY, JSON.stringify({ ...prev, chain }));
@@ -807,7 +840,7 @@ async function refreshStore(env) {
   }
   const now = Date.now();
   const merged = mergeStore(prev, tv.out, tv.errors.length > 0, now);
-  await env.CAL.put(KV_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), events: merged, errors: tv.errors, chain }));
+  await env.CAL.put(KV_KEY, JSON.stringify({ generated_at: new Date(now).toISOString(), events: merged, errors: tv.errors, warns: tv.warns, counts: tv.counts || (prev && prev.counts) || null, chain }));
   return { ok: true, count: merged.length, chain_failed: failedChains(ch.errors) };
 }
 
@@ -841,10 +874,11 @@ async function buildEvents(request, env, ctx) {
   const age = stored ? Date.now() - Date.parse(stored.generated_at) : Infinity;
   if (stored && age < FRESH_MS) {
     macro = stored.events; gen = stored.generated_at;
+    errors.push(...(stored.warns || []));
   } else {
-    const tv = await tvEvents();                       // 保存が無い/古い時だけ、その場で取得
+    const tv = await tvChecked(stored && stored.counts);                       // 保存が無い/古い時だけ、その場で取得
     if (tv.out.length) {
-      macro = tv.out; errors.push(...tv.errors);
+      macro = tv.out; errors.push(...tv.errors, ...tv.warns);
       if (env.CAL && ctx) ctx.waitUntil(refreshStore(env).catch(() => {}));      // 初回はここで保存を始める
     } else if (stored) {
       macro = stored.events; gen = stored.generated_at;
@@ -928,7 +962,7 @@ async function health(env) {
     version: VERSION, now: new Date(now).toISOString(),
     prices: px,
     price_cron: lastCron,
-    macro: st ? { min_ago: min(Date.parse(st.generated_at)), count: st.events.length } : null,
+    macro: st ? { min_ago: min(Date.parse(st.generated_at)), count: st.events.length, counts: st.counts || null, warns: st.warns || [] } : null,
     events_built_min: await env.CAL.get(EV_KEY).then((t) => { const m = t && t.match(/"built_at":"([^"]+)"/); return m ? min(Date.parse(m[1])) : null; }).catch(() => null),
     chain: st && st.chain ? Object.fromEntries(Object.entries(st.chain.by || {}).map(([k, v]) => [k, { min_ago: min(v.at), count: v.out.length }])) : null,
     ethqueue: eq ? { min_ago: min(lastT(eq.samples)), act_error: eq.act_error || null } : null,
