@@ -2774,7 +2774,8 @@ render();
     if(S.addr!==ta||!st||typeof st.until!=='number')return;
     S.until=st.until;if(!active()){S.addr=null;S.p=null;S.until=0;setTok(null)}   // アクセス期限が切れていた時だけ、復元を取り消す
     }).catch(()=>{}).then(()=>{S.chk=false;render()})}}
-{const m=/[#&]pay=(\w+)/.exec(location.hash||'');const b=m&&pop.querySelector('.pay-choice[data-coin="'+m[1]+'"]');if(b){pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();open(true)}}   // ウォレットアプリで開き直した時は、選んだコインを選択済みで開く
+{const m=/[#&]pay=(\w+)/.exec(location.hash||'');const b=m&&pop.querySelector('.pay-choice[data-coin="'+m[1]+'"]');if(m){try{history.replaceState(null,'',location.pathname+location.search)}catch(_){}}   // v62: #pay= は1回使ったら消す(残っていると、開き直すたびに支払い画面が開いていた)
+if(b&&!tokAddr()){pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();open(true)}}   // ウォレットアプリで開き直した時は、選んだコインを選択済みで開く
 fetch('/api/pay/info',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(j.to||'')){PAYTO=j.to;render()}}).catch(()=>{});
 })();
 </script>
