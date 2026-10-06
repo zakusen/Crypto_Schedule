@@ -796,18 +796,6 @@ render();
     S.until=st.until;if(!active()){S.addr=null;S.p=null;S.until=0;setTok(null)}   // アクセス期限が切れていた時だけ、復元を取り消す
     render()}).catch(()=>{})}}
 {const m=/[#&]pay=(\w+)/.exec(location.hash||'');const b=m&&pop.querySelector('.pay-choice[data-coin="'+m[1]+'"]');if(b){pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();open(true)}}   // ウォレットアプリで開き直した時は、選んだコインを選択済みで開く
-(async()=>{   // v59: 開いた瞬間の確認。支払い済みなら何も出さずトップページ。未払い・未接続の時だけ支払い画面を開く(×で閉じれば無料分を見られる。1タブ1回)
-  try{
-    if(sessionStorage.getItem('csa-first')||/[#&]pay=/.test(location.hash||''))return;
-    let addr=tokAddr(),ok=false;
-    if(!addr){for(let i=0;i<8&&!prov();i++)await sleep(250);const p=prov();   // アプリ内ブラウザはウォレットの注入が遅れる
-      if(p){try{const r=await p.connect({onlyIfTrusted:true});addr=String(r&&r.publicKey?r.publicKey:p.publicKey);S.addr=addr;S.p=p}catch(_){}}}   // 承認済みなら確認画面なしで接続できる
-    if(addr){try{const st=await(await fetch('/api/pay/status?addr='+encodeURIComponent(addr),{cache:'no-store'})).json();
-      if(st&&typeof st.until==='number'){S.until=st.until;ok=st.until>Date.now()}else ok=true}catch(_){ok=true}}   // 確認できない時は、支払い画面を出さない
-    render();
-    if(!ok){try{sessionStorage.setItem('csa-first','1')}catch(_){}open(true)}
-  }catch(_){}
-})();
 fetch('/api/pay/info',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(j.to||'')){PAYTO=j.to;render()}}).catch(()=>{});
 })();
 </script>
