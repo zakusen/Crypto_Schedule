@@ -987,7 +987,7 @@ async function authVerify(request, url, env) {
   }
   let until = 0;
   if (ok && env.CAL) { try { const a = await env.CAL.get('acc:v1:' + address, 'json'); until = (a && a.until) || 0; } catch (_) {} }
-  return json(ok ? { ok: true, address, until } : { ok: false, error: 'bad signature' }, ok ? 200 : 401);
+  return json(ok ? { ok: true, address, until, token: await rxToken(env, address) } : { ok: false, error: 'bad signature' }, ok ? 200 : 401);
 }
 
 // === v29: 支払いの請求と確認(Solana) ===
@@ -1061,6 +1061,149 @@ async function payConfirm(request, url, env) {
   return json({ status: 'ok', until, coin: p[2] });
 }
 
+// === v38: 過去の反応(2021年〜)の取り込みと記録 ===
+// 指標の発表時刻(TradingViewの過去カレンダー)と、その前後の5分足(Binance現物)から、発表後 5分/15分/1時間/4時間/24時間 の変化を計算して KV に貯める。
+// 取り込みは /backfill.html のボタン(または30分ごとの定時実行)が少しずつ進める。1回あたりの外部取得数を絞ってあるので、途中で止まっても続きから再開できる。
+// 保存は1つのKV値(rx:v1)。results[イベントid][銘柄] = [発表時価格, 5分, 15分, 1時間, 4時間, 24時間, 1時間内の最大上, 1時間内の最大下](変化は%)。取れなかったものは 0。
+const RX_KEY = 'rx:v1', RX_START = Date.UTC(2021, 0, 1);
+const RX_SYMS = { BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', BNB: 'BNBUSDT' };
+const RX_HZ = [3e5, 9e5, 36e5, 144e5, 864e5];
+const RX_BASES = ['https://data-api.binance.vision', 'https://api.binance.com'];
+async function rxToken(env, address) {
+  const exp = Date.now() + DAY;
+  return address + '.' + exp + '.' + await authMac(env, ['tok', address, exp].join('|'));
+}
+async function rxAccess(env, request) {
+  const m = /^Bearer ([1-9A-HJ-NP-Za-km-z]+)\.(\d+)\.(\w+)$/.exec(request.headers.get('authorization') || '');
+  if (!m || !env.AUTH_SECRET || !env.CAL || Date.now() > Number(m[2])) return false;
+  if (!authEq(await authMac(env, ['tok', m[1], m[2]].join('|')), m[3])) return false;
+  try { const a = await env.CAL.get('acc:v1:' + m[1], 'json'); return !!(a && a.until > Date.now()); } catch (_) { return false; }
+}
+async function rxLoad(env, ttl) {
+  const d = await env.CAL.get(RX_KEY, ttl ? { type: 'json', cacheTtl: ttl } : 'json');
+  return d && d.v === 1 ? d : { v: 1, evTo: RX_START, ev: [], res: {} };
+}
+async function rxIngest(doc, now, maxChunks) {
+  const have = new Set(doc.ev.map(e => e.i)), errors = [];
+  let chunks = 0;
+  while (doc.evTo < now && chunks < maxChunks) {
+    const a = doc.evTo, b = Math.min(a + 50 * DAY, now);
+    try {
+      for (const e of await tvChunk(a, b)) {
+        const ts = Date.parse(e && e.date);
+        if (!e || !e.id || !isFinite(ts) || ts > now || !REGION[e.country] || !(e.importance >= 1)) continue;
+        if (/holiday/i.test(e.indicator || '')) continue;
+        const id = 'tv-' + e.id;
+        if (have.has(id)) continue;
+        const title = String(e.title || e.indicator || '');
+        const ev = { i: id, t: ts, k: jaLabel(e.country, title).s + '|' + e.country, se: title.slice(0, 80) };
+        const fc = tvNum(e.forecast, e), pv = tvNum(e.previous, e), ac = tvNum(e.actual, e);
+        if (fc) ev.fc = fc; if (pv) ev.pv = pv; if (ac) ev.ac = ac;
+        doc.ev.push(ev); have.add(id);
+      }
+      doc.evTo = b; chunks++;
+    } catch (err) { errors.push(String((err && err.message) || err)); break; }
+  }
+  return { chunks, errors };
+}
+async function rxBars(sym, start) {
+  let last = '';
+  for (const base of RX_BASES) {
+    try {
+      const r = await fetch(base + '/api/v3/klines?symbol=' + sym + '&interval=5m&startTime=' + start + '&limit=300', { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(8000) });
+      if (!r.ok) { last = base + ' ' + r.status; continue; }
+      const j = await r.json();
+      if (Array.isArray(j)) return j;
+      last = base + ' 形式が想定と違います';
+    } catch (err) { last = base + ' ' + String((err && err.message) || err); }
+  }
+  throw new Error(last);
+}
+function rxCalc(bars, ts) {
+  const t0 = Math.floor(ts / 3e5) * 3e5;
+  if (!bars.length || bars[0][0] !== t0) return 0;
+  const p0 = +bars[0][1];
+  if (!(p0 > 0)) return 0;
+  const pc = x => Math.round((x / p0 - 1) * 1e5) / 1e3;
+  const out = [p0];
+  for (const h of RX_HZ) { const b = bars[h / 3e5 - 1]; out.push(b && b[0] === t0 + h - 3e5 ? pc(+b[4]) : null); }
+  let up = -Infinity, dn = Infinity;
+  for (let i = 0; i < 12; i++) {
+    const b = bars[i];
+    if (!b || b[0] !== t0 + i * 3e5) { up = null; break; }
+    up = Math.max(up, +b[2]); dn = Math.min(dn, +b[3]);
+  }
+  out.push(up == null ? null : pc(up), up == null ? null : pc(dn));
+  return out;
+}
+function rxPending(doc, now) {
+  const pairs = [];
+  for (const e of [...doc.ev].sort((a, b) => b.t - a.t)) {        // 新しい発表から先に
+    if (e.t + 25 * 36e5 > now) continue;                            // 24時間後までの足が揃うまで待つ
+    const r = doc.res[e.i] || {};
+    for (const s of Object.keys(RX_SYMS)) if (!(s in r)) pairs.push([e, s]);
+  }
+  return pairs;
+}
+async function rxStep(env, o) {
+  if (!env.CAL) return { error: 'KV(CAL)が接続されていません' };
+  const fetches = (o && o.fetches) || 30, now = Date.now(), doc = await rxLoad(env);
+  const out = { errors: [] };
+  let dirty = false;
+  if (doc.evTo < RX_START) doc.evTo = RX_START;
+  if (now - doc.evTo >= 6 * 36e5) {                                 // カレンダーは6時間以上空いたら取り足す(初回は50日ずつ)
+    const g = await rxIngest(doc, now, (o && o.chunks) || 6);
+    out.chunks = g.chunks; out.errors.push(...g.errors); if (g.chunks) dirty = true;
+  }
+  const pairs = rxPending(doc, now), take = pairs.slice(0, fetches);
+  for (let i = 0; i < take.length; i += 10) {                       // 10件ずつ並行
+    await Promise.all(take.slice(i, i + 10).map(async ([e, s]) => {
+      try {
+        const bars = await rxBars(RX_SYMS[s], Math.floor(e.t / 3e5) * 3e5);
+        (doc.res[e.i] || (doc.res[e.i] = {}))[s] = rxCalc(bars, e.t); dirty = true;
+      } catch (err) { out.errors.push(s + ' ' + String((err && err.message) || err)); }
+    }));
+  }
+  if (dirty) await env.CAL.put(RX_KEY, JSON.stringify(doc));
+  const left = rxPending(doc, now).length;
+  out.events = doc.ev.length; out.recorded = Object.values(doc.res).reduce((n, r) => n + Object.keys(r).length, 0);
+  out.pending = left; out.evTo = new Date(doc.evTo).toISOString();
+  out.done = left === 0 && now - doc.evTo < 6 * 36e5;
+  out.errors = [...new Set(out.errors)].slice(0, 5);
+  return out;
+}
+async function rxAdmin(request, env) {
+  if (!env.AUTH_SECRET) return json({ error: 'AUTH_SECRET not set' }, 503);
+  const key = request.headers.get('x-admin-key') || '';
+  if (!authEq(key, env.AUTH_SECRET)) return json({ error: 'unauthorized' }, 401);
+  try { await env.CAL.put('rx:lock', '1', { expirationTtl: 60 }); } catch (_) {}   // 画面から進めている間は定時実行を譲らせる
+  try { return json(await rxStep(env, { fetches: 35, chunks: 8 })); }
+  catch (e) { return json({ error: String((e && e.message) || e) }, 500); }
+}
+async function rxCron(env) {
+  if (!env.CAL) return { skipped: 'no KV' };
+  try { if (await env.CAL.get('rx:lock')) return { skipped: 'busy' }; } catch (_) {}
+  return rxStep(env, { fetches: 15, chunks: 3 });
+}
+// 画面向け。無料: 各指標の直近2回だけ / 有効期限内のウォレットでログイン済み: 全期間。
+async function rxApi(request, url, env) {
+  if (!env.CAL) return json({ error: 'KV(CAL)が接続されていません' }, 503);
+  const doc = await rxLoad(env, 60), has = e => doc.res[e.i] && Object.keys(doc.res[e.i]).some(s => doc.res[e.i][s]);
+  const k = url.searchParams.get('k');
+  if (!k) {
+    const m = new Map();
+    for (const e of doc.ev) if (has(e)) { const g = m.get(e.k) || { k: e.k, n: 0, last: 0 }; g.n++; g.last = Math.max(g.last, e.t); m.set(e.k, g); }
+    return json({ indicators: [...m.values()].sort((a, b) => b.last - a.last), evTo: doc.evTo });
+  }
+  const all = doc.ev.filter(e => e.k === k && has(e)).sort((a, b) => b.t - a.t);
+  const full = await rxAccess(env, request), FREE = 2;
+  const rows = (full ? all : all.slice(0, FREE)).map(e => {
+    const r = {}; for (const s of Object.keys(doc.res[e.i])) if (doc.res[e.i][s]) r[s] = doc.res[e.i][s];
+    const o = { t: e.t, r }; if (e.fc) o.fc = e.fc; if (e.pv) o.pv = e.pv; if (e.ac) o.ac = e.ac; return o;
+  });
+  return json({ k, total: all.length, locked: !full && all.length > FREE, rows });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1074,6 +1217,8 @@ export default {
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname === '/api/px-run') { const r = await pxRun(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/admin/rx' && request.method === 'POST') { const r = await rxAdmin(request, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/rx') { const r = await rxApi(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/verify' && request.method === 'POST') { const r = await authVerify(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/info') { const r = json({ to: env.PAY_TO || null }); r.headers.set('cache-control', 'no-store'); return r; }
@@ -1097,6 +1242,7 @@ export default {
       refreshEthQ(env).then(log('ethq refresh')),
       refreshStake(env).then(log('stake refresh')),
       NEWS_ENABLED ? refreshNews(env).then(log('news refresh')) : null,
+      rxCron(env).then(log('rx step')).catch(e => console.log('rx step FAILED', String((e && e.message) || e))),
     ]);
   },
 };

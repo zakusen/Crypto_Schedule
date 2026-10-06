@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>過去の反応を取り込む</title>
+<style>
+body{margin:0;padding:24px 16px;background:#05090f;color:#dbe6f2;font:14px/1.7 system-ui,-apple-system,"Hiragino Sans",sans-serif}
+main{max-width:560px;margin:0 auto}
+h1{font-size:18px;margin:0 0 6px}
+p{color:#9fb2c6;margin:6px 0}
+input,button{font:inherit;border-radius:8px;border:1px solid #2a3b4e;background:#0b1522;color:#dbe6f2;padding:10px 12px}
+input{width:100%;box-sizing:border-box;margin:8px 0}
+button{cursor:pointer;background:#1c3a57;border-color:#3b6a96;font-weight:700}
+button:disabled{opacity:.5;cursor:default}
+.bar{height:10px;border-radius:5px;background:#0b1522;border:1px solid #2a3b4e;overflow:hidden;margin:14px 0 6px}
+.bar i{display:block;height:100%;width:0;background:#4aa3ff;transition:width .3s}
+pre{white-space:pre-wrap;background:#0b1522;border:1px solid #2a3b4e;border-radius:8px;padding:10px;color:#9fb2c6;font-size:12px}
+.err{color:#ff9a9a}.ok{color:#7ee0a0}
+</style></head><body><main>
+<h1>過去の反応を取り込む(2021年〜)</h1>
+<p>ボタンを押すと、経済指標の過去の発表時刻と、その前後の価格(BTC・ETH・SOL・BNB)から「発表後の動き」を計算して保存します。数分かかります。途中で閉じても、もう一度押せば続きから再開します。</p>
+<input id="key" type="password" placeholder="AUTH_SECRET(Workerに設定した文字列)" autocomplete="off">
+<button id="go" type="button">取り込みを開始</button>
+<div class="bar"><i id="bar"></i></div>
+<div id="stat" class="ok">待機中</div>
+<pre id="log"></pre>
+</main>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+const key=$('key'),go=$('go'),log=$('log'),stat=$('stat'),bar=$('bar');
+try{key.value=sessionStorage.getItem('rx-key')||''}catch(_){}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let total=0;
+go.addEventListener('click',async()=>{
+  if(!key.value){stat.className='err';stat.textContent='AUTH_SECRET を入れてください';return}
+  try{sessionStorage.setItem('rx-key',key.value)}catch(_){}
+  go.disabled=true;stat.className='ok';stat.textContent='取り込み中…';log.textContent='';
+  let fails=0;
+  for(let n=1;n<=2000;n++){
+    let r;
+    try{
+      const res=await fetch('/api/admin/rx',{method:'POST',headers:{'x-admin-key':key.value}});
+      if(res.status===401){stat.className='err';stat.textContent='AUTH_SECRET が違います';break}
+      r=await res.json();
+      if(r.error){throw new Error(r.error)}
+    }catch(e){
+      fails++;log.textContent+='失敗('+fails+'/5): '+(e.message||e)+'\n';
+      if(fails>=5){stat.className='err';stat.textContent='続けて失敗したので止めました。下のログを確認してください';break}
+      await sleep(4000);continue}
+    fails=0;
+    total=Math.max(total,r.recorded+r.pending);
+    bar.style.width=(total?Math.round(r.recorded/total*100):0)+'%';
+    stat.textContent='取り込み中… 記録 '+r.recorded+' 件 / 残り '+r.pending+' 件(指標 '+r.events+' 件、カレンダーは '+r.evTo.slice(0,10)+' まで)';
+    if(r.errors&&r.errors.length)log.textContent+=r.errors.join('\n')+'\n';
+    if(r.done){stat.className='ok';stat.textContent='完了: '+r.events+' 件の発表、'+r.recorded+' 件の反応を保存しました';bar.style.width='100%';break}
+    if(!r.chunks&&!r.recorded&&!r.events){stat.className='err';stat.textContent='データが1件も取れません。下のログを確認してください';break}
+    await sleep(1500);
+  }
+  go.disabled=false;
+});
+})();
+</script></body></html>
