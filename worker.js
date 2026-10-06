@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v27-en';
+const VERSION = '2026-10-07-v66';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -310,7 +310,7 @@ function jaLabel(country, title) {
   }
   const region = REGION[country] || country;
   // v64: 短い名前(s)は EVENT IMPACT の集計キーにもなる。同じ時刻に出る別の数値(CPIの前年比と前月比など)が同じキーにまとまると、1回の反応が何回分にも数えられるため、前年比/前月比と細目を s にも付けて区別する
-  // v65: 対応表に無い指標は、14文字で途中切りせず(「Building Permi」のように切れて、別の指標が同じ名前になっていた)、
+  // v66: 対応表に無い指標は、14文字で途中切りせず(「Building Permi」のように切れて、別の指標が同じ名前になっていた)、
   //   前年比/前月比/前期比の語を除いた本体を、30文字を超える時だけ単語の切れ目で短くし、語を後ろに付け直す。
   if (!t) {
     const tok = (/\b(YoY|y\/y)\b/i.exec(title) || /\b(MoM|m\/m)\b/i.exec(title) || /\b(QoQ|q\/q)\b/i.exec(title) || [''])[0];
@@ -989,6 +989,7 @@ async function health(env) {
     version: VERSION, now: new Date(now).toISOString(),
     prices: px,
     price_cron: lastCron,
+    rx: await env.CAL.get('rx:sum', 'json').then((r) => (r ? { ...r, min_ago: min(Date.parse(r.at)) } : { never_ran: true })).catch(() => null),
     macro: st ? { min_ago: min(Date.parse(st.generated_at)), count: st.events.length, counts: st.counts || null, warns: st.warns || [] } : null,
     events_built_min: await env.CAL.get(EV_KEY).then((t) => { const m = t && t.match(/"built_at":"([^"]+)"/); return m ? min(Date.parse(m[1])) : null; }).catch(() => null),
     chain: st && st.chain ? Object.fromEntries(Object.entries(st.chain.by || {}).map(([k, v]) => [k, { min_ago: min(v.at), count: v.out.length }])) : null,
@@ -1308,20 +1309,29 @@ async function rxStep(env, o) {
   out.pending = left; out.evTo = new Date(doc.evTo).toISOString(); out.evFrom = new Date(doc.evFrom).toISOString();
   out.done = left === 0 && now - doc.evTo < 6 * 36e5 && doc.evFrom <= RX_START;
   out.errors = [...new Set(out.errors)].slice(0, 5);
+  out.at = new Date(now).toISOString();
+  try { await env.CAL.put('rx:sum', JSON.stringify(out)); } catch (_) {}   // v66: 取り込みの状態を /api/health で見られるように(本体を読まずに済む小さな値)
   return out;
+}
+async function rxGuard(env, fn) {                                   // v66: 例外(サブリクエスト超過・計算時間超過の手前など)も要約に残す
+  try { return await fn(); }
+  catch (e) {
+    const r = { fatal: String((e && e.message) || e).slice(0, 200), at: new Date().toISOString() };
+    try { await env.CAL.put('rx:sum', JSON.stringify(r)); } catch (_) {}
+    return r;
+  }
 }
 async function rxAdmin(request, env) {
   if (!env.AUTH_SECRET) return json({ error: 'AUTH_SECRET not set' }, 503);
   const key = request.headers.get('x-admin-key') || '';
   if (!authEq(key, env.AUTH_SECRET)) return json({ error: 'unauthorized' }, 401);
   try { await env.CAL.put('rx:lock', '1', { expirationTtl: 60 }); } catch (_) {}   // 画面から進めている間は定時実行を譲らせる
-  try { return json(await rxStep(env, { fetches: 35, chunks: 8 })); }
-  catch (e) { return json({ error: String((e && e.message) || e) }, 500); }
+  return json(await rxGuard(env, () => rxStep(env, { fetches: 35, chunks: 8 })));
 }
 async function rxCron(env) {
   if (!env.CAL) return { skipped: 'no KV' };
   try { if (await env.CAL.get('rx:lock')) return { skipped: 'busy' }; } catch (_) {}
-  return rxStep(env, { fetches: 15, chunks: 3 });
+  return rxGuard(env, () => rxStep(env, { fetches: 15, chunks: 3 }));
 }
 // 画面向け。無料: 件数(total)だけ / 有効期限内のウォレットでログイン済み: 全期間の中身(rows)。
 // 取り込み時の指標名(k)は、その後 jaLabel の対応表が変わるとずれる。読む時に英語名(se)から今の対応表で作り直して、画面の指標名と必ず合わせる
