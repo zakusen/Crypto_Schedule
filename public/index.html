@@ -1821,6 +1821,27 @@ html.lang-switching [data-csa-i18n]{
 }
 </style>
 
+<style id="v70-indinfo">
+.hero .indinfo{grid-column:1/-1;border-top:1px solid rgba(180,205,230,.10);margin-top:16px;padding-top:16px;position:relative;z-index:2}
+.hero .indinfo:empty{display:none}
+.ii-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.45fr);gap:22px}
+.ii-h{font-size:8px;letter-spacing:.18em;color:var(--gold2);margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;text-transform:uppercase}
+.ii-h span{color:var(--muted);letter-spacing:.08em}
+.ii-name{font-size:14px;font-weight:600;margin-bottom:6px}
+.ii-about p{margin:0 0 9px;font-size:12.5px;line-height:1.75;color:var(--text)}
+.ii-about .ii-watch{color:#b9c2cd}.ii-about .ii-watch b{color:var(--gold2);font-weight:600;margin-right:6px}
+.ii-about dl{display:grid;grid-template-columns:auto 1fr;gap:5px 16px;margin:10px 0 0;font-size:11.5px}
+.ii-about dt{color:var(--muted)}.ii-about dd{margin:0;color:var(--text)}
+.ii-tbl{max-height:300px;overflow:auto;border:1px solid rgba(180,205,230,.08);border-radius:6px}
+.ii-tbl table{width:100%;border-collapse:collapse;font-size:11px}
+.ii-tbl th{position:sticky;top:0;background:#0f151e;color:var(--dim);font-weight:500;font-size:9px;letter-spacing:.06em;text-align:right;padding:6px 5px;white-space:nowrap}
+.ii-tbl td{padding:6px 5px;border-bottom:1px solid rgba(180,205,230,.06);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ii-tbl th:first-child,.ii-tbl td:first-child{text-align:left}
+.ii-tbl .up{color:var(--up)}.ii-tbl .dn{color:var(--down)}.ii-tbl .na{color:var(--dim)}
+.ii-msg{color:var(--muted);font-size:12px;line-height:1.7;padding:14px;border:1px dashed rgba(205,168,95,.35);border-radius:6px;text-align:center}
+.ii-msg button{margin-top:8px;padding:7px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer}
+@media(max-width:1050px){.ii-grid{grid-template-columns:1fr}}
+</style>
 <style id="v20-merge">
 .chainstat,.evlist{margin-top:12px;padding:14px 16px}
 .chainstat .ptitle,.evlist .ptitle{display:flex;justify-content:space-between;align-items:center;gap:16px}
@@ -1998,7 +2019,7 @@ html.lang-switching [data-csa-i18n]{
 <aside><div class="card left"><div class="label">WATCHLIST</div><div class="coin"><b>BTC</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>ETH</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>SOL</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="coin"><b>BNB</b><div class="cv" data-dyn>—<div class="up">—</div></div></div><div class="label">EVENTS</div><div class="coin"><span>Indicators</span><span class="muted">●</span></div><div class="coin"><span>Chain</span><span class="muted">●</span></div><div class="coin"><span>Expiry</span><span class="muted">●</span></div><div class="coin"><span>Burn</span><span class="muted">●</span></div></div></aside>
 <section>
 <div class="zones"><div class="zone active"><b>TOKYO</b><span id="z0">--:--</span></div><div class="zone"><b>NEW YORK</b><span id="z1">--:--</span></div><div class="zone"><b>LONDON</b><span id="z2">--:--</span></div><div class="zone"><b>SINGAPORE</b><span id="z3">--:--</span></div><div class="zone"><b>HONG KONG</b><span id="z4">--:--</span></div><div class="zone"><b>DUBAI</b><span id="z5">--:--</span></div><div class="zone"><b>FRANKFURT</b><span id="z6">--:--</span></div><div class="zone"><b>SYDNEY</b><span id="z7">--:--</span></div></div>
-<div class="hero"><div><div class="kicker">NEXT EVENT · HIGH IMPACT</div><h1 data-dyn>米 消費者物価指数 (CPI)<span class="pill">重要</span></h1><div class="when" id="eventTime" data-dyn>—</div><p class="desc" data-dyn>未来のイベントを価格チャート上に配置。発表までの時間をリアルタイムで追跡します。</p></div><div><div class="dial"><div class="dialin"><small>NEXT EVENT</small><div class="count" id="count" data-dyn>--:--:--</div><small>COUNTDOWN</small></div></div></div><div class="q"><div class="ptitle">EVENT DATA</div><div class="qrow"><span>Forecast</span><b data-dyn>—</b></div><div class="qrow"><span>Previous</span><b data-dyn>—</b></div><div class="qrow"><span>Category</span><b data-dyn>指標</b></div><div class="qrow"><span>Status</span><b data-dyn>UPCOMING</b></div></div></div>
+<div class="hero"><div><div class="kicker" id="heroKicker" data-dyn>NEXT EVENT · HIGH IMPACT</div><h1 data-dyn>米 消費者物価指数 (CPI)<span class="pill">重要</span></h1><div class="when" id="eventTime" data-dyn>—</div><p class="desc" data-dyn>未来のイベントを価格チャート上に配置。発表までの時間をリアルタイムで追跡します。</p></div><div><div class="dial"><div class="dialin"><small>NEXT EVENT</small><div class="count" id="count" data-dyn>--:--:--</div><small>COUNTDOWN</small></div></div></div><div class="q"><div class="ptitle">EVENT DATA</div><div class="qrow"><span>Forecast</span><b data-dyn>—</b></div><div class="qrow"><span>Previous</span><b data-dyn>—</b></div><div class="qrow"><span>Category</span><b data-dyn>指標</b></div><div class="qrow"><span>Status</span><b data-dyn>UPCOMING</b></div></div><div class="indinfo" id="indInfo" data-dyn></div></div>
 <div class="card chart"><div class="chead"><div class="asset" data-dyn><div class="badge">₿</div><b>BTC/USDT</b><span class="price"></span><span class="change"></span><span class="muted">—</span></div><div class="tf"><button>5M</button><button>15M</button><button>1H</button><button class="on">4H</button><button>1D</button><button>1W</button><button>1M</button></div></div><div class="canvaswrap"><canvas id="chart"></canvas><div class="nowtag">NOW</div></div><div class="eventsbar" data-dyn><span>● <b>CPI</b> 指標</span><span>● <b>FOMC</b> 指標</span><span>● <b>ETH Upgrade</b> チェーン</span><span>● <b>満期</b></span><span>● <b>Burn</b> バーン</span></div><div class="caption"><strong>MARKET TIMELINE</strong><span>EVENT · NOW · PRICE</span></div></div>
 <div class="card chainstat" id="chainCard"><div class="ptitle"><span id="chainTitle" data-dyn>CHAIN DATA</span><span id="chainSrc" data-dyn></span></div><div id="chainBody" data-dyn></div></div>
 <div class="card evlist" id="evCard"><div class="ptitle"><span>EVENT ARCHIVE</span><span class="evtabs"><button type="button" data-ev="up" class="on">Upcoming</button><button type="button" data-ev="past">Recent</button><label><input type="checkbox" id="evHigh"> <span>High impact only</span></label></span></div><div id="evBody" data-dyn><div class="cs-msg">Loading…</div></div></div>
@@ -2105,7 +2126,7 @@ const whenTxt=t=>(dayKey(t)===dayKey(Date.now())?'':mdTxt(t)+' ')+hhmm(t);
 const kindTxt=e=>e.l==='macro'?TL('発表','Release'):/^exp-/.test(e.id)?TL('満期','Expiry'):/bnbburn/.test(e.id)?TL('バーン','Burn'):TL('予定','Scheduled');
 /* 予想・前回: 元データにある時だけ。無ければ行ごと出さない */
 const has=v=>v!=null&&v!=='';
-const numTxt=e=>(has(e.fc)||has(e.pv))?TL('予想 ','Fcst ')+(has(e.fc)?e.fc:'—')+' · '+TL('前回 ','Prev ')+(has(e.pv)?e.pv:'—'):'';
+const numTxt=e=>(has(e.fc)||has(e.pv)||has(e.ac))?TL('予想 ','Fcst ')+(has(e.fc)?e.fc:'—')+' · '+TL('前回 ','Prev ')+(has(e.pv)?e.pv:'—')+(has(e.ac)?' · '+TL('結果 ','Actual ')+e.ac:''):'';
 /* 同じ時刻・同じ種類は1つにまとめる。代表は重要度が高いもの */
 function groupEv(list){const m=new Map();
   list.forEach(e=>{const k=e.ts+'|'+catOf(e);let g=m.get(k);if(!g){g={ts:e.ts,rep:e,items:[]};m.set(k,g)}g.items.push(e);if(e.im==='high'&&g.rep.im!=='high')g.rep=e});
@@ -2328,18 +2349,50 @@ function watch(){
     c.style.cursor='pointer';c.style.opacity=s===sym?1:.78;
     if(d&&d.bars.length){const n=d.bars.length,last=d.bars[n-1][4],prev=n>1?d.bars[n-2][4]:d.bars[n-1][1],ch=(last/prev-1)*100;
       cv2.innerHTML=fp(last)+'<div class="'+(ch>=0?'up':'dn')+'" style="'+(ch<0?'color:#d87878':'')+'">'+(ch>=0?'+':'')+ch.toFixed(2)+'%</div>'}
-    if(!c._w){c._w=1;c.addEventListener('click',()=>{if(s===sym)return;sym=s;draw();head();legend();upcoming();watch();evList();impCard();load(sym,tf);ensureImp();loadChain()})}})}
+    if(!c._w){c._w=1;c.addEventListener('click',()=>{if(s===sym)return;sym=s;draw();head();legend();upcoming();watch();evList();impCard();hero();load(sym,tf);ensureImp();loadChain()})}})}
 
 /* 次の重要イベント(ヒーロー)と今後の一覧 */
 function hero(){
   const h=document.querySelector('.hero h1');if(!h)return;
-  const now=Date.now(),nx=E.filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0];
+  /* v70: 右の指標プルダウンで選んだ指標に連動する(自動の時は記録のある次の重要イベント) */
+  const now=Date.now(),sk=(typeof IMPSEL!=='undefined'&&IMPSEL!=='auto')?IMPSEL:null;
+  const nx=sk?E.filter(e=>e.l==='macro'&&e.ts>now&&IMPKEY(e)===sk).sort((a,b)=>a.ts-b.ts)[0]:nextKey();
+  const ref=nx||(sk?E.filter(e=>e.l==='macro'&&IMPKEY(e)===sk).sort((a,b)=>b.ts-a.ts)[0]:null);
+  const kk=$('heroKicker');if(kk)kk.textContent=sk?TL('選択中の指標 · 次回の発表','SELECTED INDICATOR · NEXT RELEASE'):TL('次のイベント · 重要度 高','NEXT EVENT · HIGH IMPACT');
+  indInfo(ref,nx);
+  if(!nx&&ref){h.innerHTML=esc(evT(ref))+'<span class="pill">'+TL('次回未定','NEXT TBA')+'</span>';EVENT_AT=null;evData(null);impName();
+    const sr=document.querySelector('.hero .desc');if(sr)sr.textContent=TL('次回の発表日はまだ予定表に載っていません。','The next release is not on the calendar yet.');if(typeof tick==='function')tick();return}
   [h,...h.querySelectorAll('*')].forEach(n=>{if(n.dataset)delete n.dataset.csaI18n});
-  if(nx){h.innerHTML=esc(evT(nx))+'<span class="pill">'+TL('重要','HIGH IMPACT')+'</span>';EVENT_AT=nx.at}
+  if(nx){h.innerHTML=esc(evT(nx))+(nx.im==='high'?'<span class="pill">'+TL('重要','HIGH IMPACT')+'</span>':'');EVENT_AT=nx.at}
   else{h.innerHTML=(evState==='error'?TL('イベントを取得できませんでした','Events unavailable'):evState==='loading'?TL('読み込み中…','Loading…'):TL('今後の重要イベントはありません','No upcoming high-impact events'));EVENT_AT=null}
   evData(nx);impName();
   const src=document.querySelector('.hero .desc');if(src)src.textContent=nx?TL('出典: '+evSrc(nx)+'。発表までの時間をリアルタイムで追跡します。','Source: '+evSrc(nx)+'. Live countdown to the release.'):'';
   if(typeof tick==='function')tick()}
+/* v70: 指標の概要(無料・/ind.json)と過去の発表(有料・/api/rx の中身) */
+let IND=null;fetch('/ind.json').then(r=>r.json()).then(j=>{IND=j||{};try{hero()}catch(_){}}).catch(()=>{IND={}});
+function indInfo(ref,nx){const box=$('indInfo');if(!box)return;
+  if(!ref||!E.length){box.innerHTML='';return}
+  const key=IMPKEY(ref),I=IND&&IND[key],L=EN()?1:0,o=document.getElementById('city'),zt=o&&o.options[o.selectedIndex]?o.options[o.selectedIndex].dataset.t:'';
+  const n=typeof RXI!=='undefined'&&RXI?RXI[key]:null;
+  const dl=(a,b)=>'<dt>'+esc(a)+'</dt><dd>'+esc(b)+'</dd>';
+  const about='<div class="ii-about"><div class="ii-h">'+TL('指標の概要','About this indicator')+'</div><div class="ii-name">'+esc(evT(ref))+'</div>'+
+    (I?'<p>'+esc(I.what[L])+'</p><p class="ii-watch"><b>'+TL('注目点','Watch')+'</b>'+esc(I.watch[L])+'</p>':'<p style="color:var(--muted)">'+TL('この指標の説明は準備中です。','A description of this indicator is coming soon.')+'</p>')+
+    '<dl>'+dl(TL('発表元','Source'),I?I.src[L]:evSrc(ref))+(I?dl(TL('頻度','Frequency'),I.freq[L]):'')+
+    dl(TL('次回','Next release'),nx?fdt(nx.ts)+(zt?' '+zt:''):TL('未定','TBA'))+dl(TL('記録','On record'),n?TL(n+'回(2017年〜)',n+' releases since 2017'):'—')+'</dl></div>';
+  box.innerHTML='<div class="ii-grid">'+about+'<div class="ii-past"><div class="ii-h">'+TL('過去の発表','Past releases')+'<span>'+esc(sym)+TL(' · 発表後1時間',' · first hour after release')+'</span></div>'+pastHtml(key,n)+'</div></div>';
+  const ub=box.querySelector('#iiUnlock');if(ub)ub.onclick=()=>{if(window.CSA)CSA.unlock()}}
+function pastHtml(key,n){
+  if(typeof RXI!=='undefined'&&RXI&&!(RXI[key]>0))return'<div class="ii-msg">'+TL('この指標は、記録がまだないか、発表が20回未満のため集計していません。','No records yet, or fewer than 20 releases, so this indicator is not aggregated.')+'</div>';
+  const X=tok()?rxGet(key):null;
+  if(!X||(X.st==='ok'&&X.locked)){const act=!!(window.CSA&&CSA.active());
+    return'<div class="ii-msg">🔒 '+TL('過去の発表日時・予想/前回/結果・発表後の値動きは有料機能です','Past release times, forecast / previous / actual and post-release moves are a paid feature')+
+      (n?'<br>'+TL('2017年からの記録 '+n+'回分',n+' releases on record since 2017'):'')+'<br><button type="button" id="iiUnlock">'+(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続して開く / 購入','Connect wallet to unlock / buy'))+'</button></div>'}
+  if(X.st==='loading')return'<div class="ii-msg">'+TL('2017年からの記録を読み込み中…','Loading records since 2017…')+'</div>';
+  if(X.st!=='ok')return'<div class="ii-msg">'+TL('記録を取得できませんでした。少し待って ↻ 更新 を押してください。','Could not load records. Wait a moment and press Refresh.')+'</div>';
+  const rows=X.rows.slice().sort((a,b)=>b.t-a.t);if(!rows.length)return'<div class="ii-msg">'+TL('記録がありません','No records')+'</div>';
+  const f=v=>v==null?'<span class="na">—</span>':'<span class="'+(v>=0?'up':'dn')+'">'+(v>=0?'+':'')+v.toFixed(2)+'%</span>',x=v=>has(v)?esc(v):'<span class="na">—</span>';
+  return'<div class="ii-tbl"><table><tr><th>'+TL('発表日時','Released')+'</th><th>'+TL('予想','Fcst')+'</th><th>'+TL('前回','Prev')+'</th><th>'+TL('結果','Actual')+'</th><th>'+TL('最大 上','Max up')+'</th><th>'+TL('最大 下','Max down')+'</th><th>'+TL('1時間後','After 1h')+'</th></tr>'+
+    rows.map(w=>{const a=w.r&&w.r[sym],r=a?rxExc(a,36e5):null;return'<tr><td>'+esc(fdt(w.t))+'</td><td>'+x(w.fc)+'</td><td>'+x(w.pv)+'</td><td>'+x(w.ac)+'</td><td>'+f(r&&r.up)+'</td><td>'+f(r&&r.dn)+'</td><td>'+f(r&&r.end)+'</td></tr>'}).join('')+'</table></div>'}
 function upcoming(){
   const box=[...document.querySelectorAll('.right .card.r')].find(c=>/UPCOMING|今後/.test(c.textContent));if(!box)return;
   const now=Date.now(),list=visEv().filter(e=>e.ts>now).sort((a,b)=>a.ts-b.ts);
@@ -2469,7 +2522,7 @@ function impChart(body,ref,px){
 addEventListener('resize',()=>{clearTimeout(impChart._t);impChart._t=setTimeout(()=>{impChart._d&&impChart._d()},120)});
 function impName(){impCard()}
 function impWire(){const sel=$('impSel');if(!sel||sel._w)return;sel._w=1;
-  sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';IMPHL=0;impSave(IMPSEL);sel.blur();impCard();draw()});
+  sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';IMPHL=0;impSave(IMPSEL);sel.blur();impCard();draw();hero()});
   sel.addEventListener('blur',()=>impCard())}
 
 /* チャートの下: チェーンの記録(ETH 出口待ち・入口待ち・ステーク量 / SOL・BNB のステーク量) */

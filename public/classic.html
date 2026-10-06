@@ -108,7 +108,12 @@ canvas{width:100%;height:100%;display:block}
 .historyHead{height:40px;display:flex;justify-content:space-between;align-items:center;padding:0 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(42,56,72,.20),rgba(8,13,19,.10))}
 .historyHead b{font-size:10px;font-weight:600;letter-spacing:.02em}
 .historyHead span{font-size:7px;color:var(--muted)}
-.historyList{max-height:192px;overflow-y:auto}
+.historyList{max-height:360px;overflow-y:auto}
+/* v70: 指標の概要(無料) */
+.indinfo:empty{display:none}.indinfo{border-top:1px solid rgba(180,205,230,.10);padding-top:10px;margin-top:2px}
+.indinfo .nm{font-size:13px;font-weight:700;margin-bottom:6px}.indinfo p{margin:0 0 8px;font-size:12px;line-height:1.7}
+.indinfo .w{color:#b9c2cd}.indinfo .w b{color:var(--gold2);margin-right:5px}
+.indinfo dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:6px 0 0;font-size:11px}.indinfo dt{color:var(--muted)}.indinfo dd{margin:0}
 .hRow{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid rgba(32,42,54,.5);cursor:pointer;transition:.12s}
 .hRow:hover{background:rgba(126,184,255,.04)} .hRow.active{background:rgba(228,185,106,.08);border-left:2px solid var(--gold2)}
 .hRow .date{font-size:11px;font-weight:500;letter-spacing:.01em} .hRow .time{font-size:7px;color:var(--muted);margin-left:6px}
@@ -186,6 +191,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 <div class="u-card selector">
   <div class="row"><span class="label">指標を選択 / いつ発表？</span><div class="selectWrap"><select id="indicatorSelect" aria-label="指標を選択"><option value="auto">自動：次の重要イベント</option></select></div></div>
   <div class="meta"><span>過去 <b id="metaCount">—</b></span><span>期間 <b id="metaPeriod">—</b></span><span>現在 <b id="metaPrice">—</b></span></div>
+  <div class="indinfo" id="indInfo"></div>
 </div>
 
 <div class="u-card">
@@ -215,7 +221,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 </div>
 
 <div class="note" id="noteMain">統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。有料の集計は2017年以降の発表を5分足から計算した記録で、「上方向・下方向の最大」は1時間以内のみ、ほかの時間は終値の変化率です。</div>
-<div class="note" style="margin-top:2px"><a href="/?pc" style="color:var(--muted)">PC版を開く</a> · <a href="/classic-legacy" style="color:var(--muted)">従来のスマホ画面</a></div>
+<div class="note" style="margin-top:2px"><a href="/?pc" style="color:var(--muted)">PC版を開く</a></div>
 
 </div>
 
@@ -246,7 +252,7 @@ const mdhm=t=>fMD.format(t)+' '+fHM.format(t),ymd=t=>fYMD.format(t).replace(/-/g
 const fp=v=>v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:0}):v>=1?v.toFixed(2):v.toFixed(4);
 const sgn=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
 const has=v=>v!=null&&v!=='';
-const numTxt=e=>(has(e.fc)||has(e.pv))?TL('予想 ','Fcst ')+(has(e.fc)?e.fc:'—')+TL(' · 前回 ',' · Prev ')+(has(e.pv)?e.pv:'—'):'';
+const numTxt=e=>(has(e.fc)||has(e.pv)||has(e.ac))?TL('予想 ','Fcst ')+(has(e.fc)?e.fc:'—')+TL(' · 前回 ',' · Prev ')+(has(e.pv)?e.pv:'—')+(has(e.ac)?TL(' · 結果 ',' · Actual ')+e.ac:''):'';
 const IMPKEY=e=>(e.s||e.t)+'|'+(e.c||'');
 /* ===== v52: 過去の反応は有料。2017年からの集計を /api/rx から取る(無料は件数だけ) ===== */
 const tok=()=>window.CSA?CSA.token():null;
@@ -273,6 +279,7 @@ function rxExc(a,ms){const i=RXH.indexOf(ms);if(i<0)return null;const v=a[1+i];i
   if(a.length>=18&&a[8+i]!=null&&a[13+i]!=null)return{up:a[8+i],dn:a[13+i],end:v,ref:a[0]};
   const one=i===2&&a[6]!=null&&a[7]!=null;return{up:one?a[6]:null,dn:one?a[7]:null,end:v,ref:a[0]}}
 const evS=e=>EN()?(e.se||e.te||e.s||e.t):(e.s||e.t);
+const evT=e=>EN()?(e.te||e.t):e.t;   /* v70: 正式名(概要の見出し用) */
 const gf=u=>NC?fetch(u+(u.includes('?')?'&':'?')+'_='+NC,{cache:'no-store'}):fetch(u);
 
 /* ===== データ取得 ===== */
@@ -339,12 +346,20 @@ function impOpts(sel,list,nx,cur){
   if(sel.value!==cur)sel.value=cur}
 
 /* ===== 描画 ===== */
+/* v70: 指標の概要(無料・/ind.json)。選んだ指標(自動なら次の重要イベント)の説明と次回の日時 */
+let IND=null;fetch('/ind.json').then(r=>r.json()).then(j=>{IND=j||{};try{renderAll()}catch(_){}}).catch(()=>{IND={}});
+function indInfo(ref){const box=$('indInfo');if(!box)return;if(!ref){box.innerHTML='';return}
+  const key=IMPKEY(ref),I=IND&&IND[key],L=EN()?1:0,now=Date.now(),nx=E.filter(e=>e.l==='macro'&&e.ts>now&&IMPKEY(e)===key).sort((a,b)=>a.ts-b.ts)[0],n=RXI?RXI[key]:null;
+  const dl=(a,b)=>'<dt>'+esc(a)+'</dt><dd>'+esc(b)+'</dd>';
+  box.innerHTML='<div class="nm">'+esc(evT(ref))+'</div>'+(I?'<p>'+esc(I.what[L])+'</p><p class="w"><b>'+TL('注目点','Watch')+'</b>'+esc(I.watch[L])+'</p>':'<p style="color:var(--muted)">'+TL('この指標の説明は準備中です。','A description of this indicator is coming soon.')+'</p>')+
+    '<dl>'+dl(TL('発表元','Source'),I?I.src[L]:(ref.src||''))+(I?dl(TL('頻度','Frequency'),I.freq[L]):'')+dl(TL('次回','Next release'),nx?fdt(nx.ts):TL('未定','TBA'))+dl(TL('記録','On record'),n?TL(n+'回(2017年〜)',n+' releases since 2017'):'—')+'</dl>'}
 function renderAll(){
   const nx=nextKey(),list=impList(),px=impPx(),sel=$('indicatorSelect');
   rxIndex();const hit=!!RXI&&list.some(g=>RXI[g.k]>0);list.forEach(g=>{g.n=hit?RXI[g.k]:null});
   if(IMPSEL!=='auto'&&evState==='ok'&&E.length&&!list.some(g=>g.k===IMPSEL)){IMPSEL='auto';impSave('auto')}
   impOpts(sel,list,nx,IMPSEL);
   const auto=IMPSEL==='auto',ref=auto?nx:(list.find(g=>g.k===IMPSEL)||{}).rep;
+  try{indInfo(ref)}catch(_){}
   /* カウントダウンの対象: 自動=次の重要イベント / 選択=その指標の次の発表 */
   const now=Date.now();
   TGT=auto?nx:E.filter(e=>e.l==='macro'&&IMPKEY(e)===IMPSEL&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0]||null;
@@ -424,7 +439,7 @@ function renderImpact(ref,auto,px){
     const lt=h1[0];$('lastLabel').textContent=TL('前回 ','Previous ')+ymd(lt.e.ts);$('lastVal').textContent=sgn(lt.r.end)}
   else{['maxUp','maxDown','avgVal','lastVal'].forEach(i=>$(i).textContent='—');$('maxUpDate').textContent=TL('1時間後まで測れた発表なし','No release measurable up to 1h after');$('maxDownDate').textContent=TL('1時間後まで測れた発表なし','No release measurable up to 1h after');$('avgD').textContent=TL('発表価格から','From release price');$('lastLabel').textContent=TL('前回','Previous')}
   renderHistory();drawImpact(S)}
-function renderHistory(){const list=$('historyList'),MAXR=40;list.innerHTML='';
+function renderHistory(){const list=$('historyList'),MAXR=400;   /* v70: 過去の発表は全部出す(枠の中でスクロール) */list.innerHTML='';
   const anyNum=PD.slice(0,MAXR).some(x=>has(x.e.fc)||has(x.e.pv));
   PD.slice(0,MAXR).forEach((x,i)=>{const r=x.r,div=document.createElement('div');div.className='hRow'+(i===HL?' active':'');
     div.innerHTML='<div><span class="date">'+ymd(x.e.ts)+'</span><span class="time">'+fHM.format(x.e.ts)+'</span>'+
@@ -569,7 +584,7 @@ const PAIRS=[
 ["Past releases – when and how much it moved","過去の発表 - いつ・どれだけ動いたか"],
 ["Tap to highlight","タップで強調"],
 ["Open PC version","PC版を開く"],
-["Classic mobile view","従来のスマホ画面"]
+
 ];
 const NOTE={ja:"統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。有料の集計は2017年以降の発表を5分足から計算した記録で、「上方向・下方向の最大」は1時間以内のみ、ほかの時間は終値の変化率です。",en:"Statistics are observed values from past data and do not imply trading advice or causation. They are computed only from releases that fall within the loaded candles (5m ≈ 8 hours, 1h ≈ 2.5 days, 1d ≈ 60 days), and the position inside each candle is approximated as a straight line from open to close. “Max up / Max down” is how far price moved to its high / low within 1 hour of the release, measured from the price at release. Paid statistics use records since 2017 computed from 5-minute candles; “Max up / Max down” covers the first hour only, and other horizons use the closing change."};
 const e2j={},j2e={};PAIRS.forEach(([e,j])=>{e2j[e]=j;j2e[j]=e});
