@@ -297,13 +297,20 @@ function jaLabel(country, title) {
     break;
   }
   const region = REGION[country] || country;
-  if (!t) return { t: region + ' ' + title, s: title.length > 14 ? title.slice(0, 14) : title };
+  // v64: 短い名前(s)は EVENT IMPACT の集計キーにもなる。同じ時刻に出る別の数値(CPIの前年比と前月比など)が同じキーにまとまると、1回の反応が何回分にも数えられるため、前年比/前月比と細目を s にも付けて区別する
+  if (!t) { const tok = (/\b(YoY|y\/y)\b/i.exec(title) || /\b(MoM|m\/m)\b/i.exec(title) || /\b(QoQ|q\/q)\b/i.exec(title) || [''])[0]; return { t: region + ' ' + title, s: (title.length > 14 ? title.slice(0, 14) : title) + (title.length > 14 && tok ? ' ' + tok : '') }; }
   // 政策金利・議事録・会見は主体名(FOMC/日銀/ECB)が地域を表すので、地域の接頭辞を付けない
   const noRegion = policy || /議事録|会見/.test(t);
   const q = /\b(YoY|y\/y)\b/i.test(title) ? '前年比' : /\b(MoM|m\/m)\b/i.test(title) ? '前月比' : /\b(QoQ|q\/q)\b/i.test(title) ? '前期比' : '';
   const pre = /\b(prel|flash|advance)\b/i.test(title) ? '速報' : '';
   const note = noRegion ? '' : [q, pre].filter(Boolean).join('・');
-  return { t: (noRegion ? '' : region + ' ') + t + (note ? '（' + note + '）' : ''), s: (noRegion ? '' : region) + s };
+  let sub = '';
+  if (!noRegion) {
+    if (s === 'PPI' && /\bcore\b/i.test(title)) sub = 'コア';
+    else if (s === '小売売上') sub = /ex[\s.-]*auto/i.test(title) ? '除自動車' : /control group/i.test(title) ? 'コントロール' : '';
+    else if (s === 'PMI') sub = /manufactur/i.test(title) ? '製造' : /service/i.test(title) ? 'サービス' : /composite/i.test(title) ? '総合' : '';
+  }
+  return { t: (noRegion ? '' : region + ' ') + t + (note ? '（' + note + '）' : ''), s: (noRegion ? '' : region) + s + sub + (noRegion ? '' : q) };
 }
 
 async function tvChunk(from, to) {
@@ -1206,21 +1213,33 @@ async function rxBars(sym, start) {
   }
   throw new Error(last);
 }
+// v64: 足を「何番目か」ではなく「時刻」で探す(途中で1本欠けても、残りの時間後を出す)。
+//   出来高が無く足が作られなかった5分間は、直前の足の終値を使う(最大30分まで。それ以上空いた時は測れないとして null)。
+//   1時間内の最大上・最大下は、1時間の12本のうち6本以上が揃っている時だけ出す。発表時刻の足(最初の足)が無い時は 0(測れない)。
+const RX_STALE = 6 * 3e5;
 function rxCalc(bars, ts) {
   const t0 = Math.floor(ts / 3e5) * 3e5;
-  if (!bars.length || bars[0][0] !== t0) return 0;
-  const p0 = +bars[0][1];
+  const m = new Map();
+  for (const b of bars) if (Array.isArray(b)) m.set(+b[0], b);
+  const f = m.get(t0);
+  if (!f) return 0;
+  const p0 = +f[1];
   if (!(p0 > 0)) return 0;
   const pc = x => Math.round((x / p0 - 1) * 1e5) / 1e3;
   const out = [p0];
-  for (const h of RX_HZ) { const b = bars[h / 3e5 - 1]; out.push(b && b[0] === t0 + h - 3e5 ? pc(+b[4]) : null); }
-  let up = -Infinity, dn = Infinity;
-  for (let i = 0; i < 12; i++) {
-    const b = bars[i];
-    if (!b || b[0] !== t0 + i * 3e5) { up = null; break; }
-    up = Math.max(up, +b[2]); dn = Math.min(dn, +b[3]);
+  for (const h of RX_HZ) {
+    const want = t0 + h - 3e5;                                        // h後に閉じる足の開始時刻
+    let b = m.get(want), k = 0;
+    while (!b && k < RX_STALE / 3e5) { k++; b = m.get(want - k * 3e5); }   // 欠けた足は直前の終値で代用
+    out.push(b && b[0] >= t0 && isFinite(+b[4]) ? pc(+b[4]) : null);
   }
-  out.push(up == null ? null : pc(up), up == null ? null : pc(dn));
+  let up = -Infinity, dn = Infinity, cnt = 0;
+  for (let i = 0; i < 12; i++) {
+    const b = m.get(t0 + i * 3e5);
+    if (!b) continue;
+    cnt++; up = Math.max(up, +b[2]); dn = Math.min(dn, +b[3]);
+  }
+  out.push(cnt >= 6 ? pc(up) : null, cnt >= 6 ? pc(dn) : null);
   return out;
 }
 function rxPending(doc, now) {
@@ -1238,6 +1257,13 @@ async function rxStep(env, o) {
   const out = { errors: [] };
   let dirty = false;
   if (doc.evTo < RX_START) doc.evTo = RX_START;
+  if (doc.rv !== 2) {                                               // v64: 旧計算で欠けた時間後(null)がある記録は、新しい計算でもう一度取り直す(1回だけ)
+    for (const id of Object.keys(doc.res)) for (const s of Object.keys(doc.res[id])) {
+      const v = doc.res[id][s];
+      if (Array.isArray(v) && v.slice(1).some(x => x == null)) delete doc.res[id][s];
+    }
+    doc.rv = 2; dirty = true;
+  }
   if (doc.evFrom == null) { doc.evFrom = doc.ev.length ? Math.min(RX_OLD_START, doc.evTo) : RX_START; dirty = true; }   // v52までの記録は2021年から
   if (now - doc.evTo >= 6 * 36e5) {                                 // カレンダーは6時間以上空いたら取り足す(初回は50日ずつ)
     const g = await rxIngest(doc, now, (o && o.chunks) || 6);
@@ -1288,10 +1314,12 @@ async function rxApi(request, url, env) {
   const k = url.searchParams.get('k');
   if (!k) {
     const m = new Map();
-    for (const e of doc.ev) if (has(e)) { const g = m.get(e.k) || { k: e.k, n: 0, last: 0 }; g.n++; g.last = Math.max(g.last, e.t); m.set(e.k, g); }
+    const seen = new Set();
+    for (const e of doc.ev) if (has(e)) { const sk = e.k + '@' + e.t; if (seen.has(sk)) continue; seen.add(sk); const g = m.get(e.k) || { k: e.k, n: 0, last: 0 }; g.n++; g.last = Math.max(g.last, e.t); m.set(e.k, g); }
     return json({ indicators: [...m.values()].sort((a, b) => b.last - a.last), evTo: doc.evTo });
   }
-  const all = doc.ev.filter(e => e.k === k && has(e)).sort((a, b) => b.t - a.t);
+  const seenT = new Set();                                          // v64: 念のため、同じキーで同じ発表時刻の行は1回分にまとめる
+  const all = doc.ev.filter(e => e.k === k && has(e)).sort((a, b) => b.t - a.t).filter(e => !seenT.has(e.t) && seenT.add(e.t));
   // v52: 無料は件数(total)だけ。変動率の中身(rows)は有料のみ返す
   const auth = await rxAccess(env, request), full = auth === 'ok';
   const rows = (full ? all : []).map(e => {
