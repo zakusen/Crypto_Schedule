@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CRYPTO SIGNAL ARCHIVE — ALL SIGNALS. ONE TIMELINE.</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#06080b;--s1:#0c0f13;--s2:#10141a;
+  --ln:rgba(190,200,215,.12);--ln2:rgba(190,200,215,.26);
+  --tx:#d8dde5;--mu:#7b8490;--mu2:#a3acb8;--champ:#eef1f6;--hot:#fff;
+  --amb:#e8a948;--cy:#5fd0e0;--em:#4fcf9a;--cr:#e0505f;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --cond:"IBM Plex Sans Condensed","Noto Sans JP",sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:16px}
+body{margin:0;color:var(--tx);font:14px/1.7 "Noto Sans JP",system-ui,sans-serif;min-height:100vh;
+ background:radial-gradient(1100px 520px at 72% -12%,rgba(232,169,72,.07),transparent 62%),radial-gradient(900px 520px at -8% 8%,rgba(95,208,224,.045),transparent 60%),linear-gradient(180deg,#07090c,#050608)}
+*{-webkit-tap-highlight-color:transparent}
+button{font:inherit;touch-action:manipulation;cursor:pointer;white-space:nowrap;transition:.16s;background:none;border:0;color:inherit}
+select{font:inherit;font-size:11px;font-family:var(--mono);background:rgba(255,255,255,.03);color:var(--tx);border:1px solid var(--ln);border-radius:2px;padding:4px 6px}
+option{background:#0c0f13;color:#d8dde5}
+.mu{color:var(--mu)}
+/* 上部 */
+.top{position:sticky;top:0;z-index:30;padding-top:env(safe-area-inset-top,0px);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:linear-gradient(180deg,rgba(6,8,11,.94),rgba(6,8,11,.8));border-bottom:1px solid var(--ln)}
+.top-in{max-width:1680px;margin:0 auto;padding:10px 22px;display:flex;align-items:center;gap:26px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:12px}
+.glyph{width:28px;height:28px;flex:none}
+.brand h1{font:600 14px/1 var(--cond);letter-spacing:.34em;margin:0;color:var(--champ)}
+.tag{font:400 9px/1 var(--mono);letter-spacing:.3em;color:var(--mu);margin-top:6px}
+#tabs{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tab{font:500 12px/1 var(--mono);letter-spacing:.14em;padding:9px 14px;color:var(--mu);border-bottom:1px solid transparent}
+.tab:hover{color:var(--tx)}
+.tab.on{color:var(--hot);border-bottom-color:var(--hot);text-shadow:0 0 14px rgba(255,255,255,.45)}
+.meta{display:flex;gap:10px;align-items:center;font:400 11px var(--mono);letter-spacing:.08em;color:var(--mu)}
+.rf{font:400 11px var(--mono);letter-spacing:.06em;background:rgba(255,255,255,.03);color:var(--tx);border:1px solid var(--ln);border-radius:2px;padding:4px 9px;cursor:pointer;white-space:nowrap}.rf:hover{border-color:#e8a948;color:#e8a948}.rf[disabled]{opacity:.55;cursor:wait}.rf .ic{display:inline-block}.rf.on .ic{animation:rfs .8s linear infinite}@keyframes rfs{to{transform:rotate(360deg)}}
+/* 本体 */
+.app{max-width:1680px;margin:0 auto;padding:18px 22px calc(48px + env(safe-area-inset-bottom,0px))}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:0;border:1px solid var(--ln);background:linear-gradient(180deg,var(--s2),var(--s1));box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
+.stage{min-width:0;position:relative}
+.stage::before,.side::before{content:'';position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);opacity:.5}
+.sh2{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:14px 22px 6px}
+.ti{display:flex;flex-direction:column;gap:3px}
+.eyebrow{font:400 9px/1 var(--mono);letter-spacing:.34em;color:var(--amb)}
+#ttl{font:600 22px/1.1 var(--cond);letter-spacing:.12em;color:var(--champ)}
+#tzl{font:400 10px var(--mono);letter-spacing:.06em}
+#tfs{display:flex;gap:2px;flex-wrap:wrap}
+.f{font:400 10.5px/1 var(--mono);letter-spacing:.08em;padding:7px 9px;border:1px solid transparent;color:var(--mu);border-radius:2px}
+.f:hover{color:var(--tx)}
+.f.on{color:var(--hot);border-color:var(--ln2);background:rgba(255,255,255,.04)}
+.plot{position:relative}
+#chart{width:100%;overflow:hidden}
+svg{display:block}
+svg text{fill:var(--mu);font-size:10px;font-family:var(--mono)}
+svg .ln{font-size:9px;letter-spacing:.14em}
+svg .lb{font-size:11px;fill:var(--champ);font-family:"Noto Sans JP",sans-serif;font-weight:500;paint-order:stroke;stroke:#07090c;stroke-width:3.2px;stroke-linejoin:round}
+svg .cdn{fill:var(--amb);font-family:var(--mono);font-size:9.5px}
+svg .mk{font-size:9px;letter-spacing:.22em}
+.halo{opacity:0;transition:opacity .22s;pointer-events:none}.halo.hl{opacity:1}
+.evg{cursor:pointer;transition:opacity .2s;touch-action:manipulation}
+.evg .hit{fill:transparent}
+.evg .nd{fill:var(--c)}
+.evg .rg{fill:none;stroke:var(--c);opacity:.5}
+.evg.hl{opacity:1!important}
+.evg.hl .pl{filter:drop-shadow(0 0 5px var(--c))}
+.evg.hl .nd{filter:drop-shadow(0 0 6px var(--c))}
+.evg .ct{font-size:9px;fill:var(--champ)}
+/* 選択したイベントの情報板 */
+#tipln{position:absolute;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.18));display:none;pointer-events:none}
+#tipln::after{content:'';position:absolute;top:-2px;width:5px;height:5px;border-radius:50%;background:#fff;box-shadow:0 0 8px #fff}
+#tipln.r::after{left:-2px}#tipln.l::after{right:-2px}
+#tip{position:absolute;display:none;width:280px;max-width:calc(100% - 8px);padding:12px 14px 12px;z-index:5;
+ background:linear-gradient(180deg,rgba(26,31,40,.82),rgba(12,15,20,.9));backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);
+ border:1px solid var(--ln2);border-top-color:rgba(255,255,255,.5);box-shadow:0 18px 44px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08)}
+#tip .tk{display:flex;justify-content:space-between;align-items:center;gap:8px;font:500 9px/1 var(--mono);letter-spacing:.2em}
+#tip .ii{padding:3px 6px;border:1px solid currentColor}
+.ii.high{color:var(--cr)}.ii.mid{color:var(--amb)}.ii.low{color:var(--mu2)}
+#tip .tt{font:600 19px/1.25 var(--cond);letter-spacing:.04em;color:var(--hot);margin:9px 0 5px}
+#tip .tm{display:flex;gap:10px;flex-wrap:wrap;font:400 11px var(--mono);color:var(--mu2)}
+#tip .tm .cdn{color:var(--amb)}
+#tip .sr{margin-top:7px;font-size:10.5px;color:var(--mu);line-height:1.5}
+#tip .cm{margin-top:7px;padding-top:7px;border-top:1px solid var(--ln);font-size:10.5px;color:var(--mu2);line-height:1.5}
+#tip a{color:var(--champ);font-size:11px;display:inline-block;margin-top:6px}
+/* NEXT 24H */
+.side{position:relative;border-left:1px solid var(--ln);padding:14px 0 10px;background:linear-gradient(90deg,rgba(232,169,72,.05),transparent 40%);min-width:0}
+.sh{padding:0 20px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sh b{font:600 13px/1 var(--cond);letter-spacing:.3em;color:var(--amb)}
+.sh span{font:400 10px var(--mono);color:var(--mu)}
+#nx{position:relative;padding:4px 0 0}
+#nx::before{content:'';position:absolute;left:30px;top:0;bottom:6px;width:1px;background:linear-gradient(180deg,rgba(232,169,72,.7),rgba(232,169,72,.05))}
+.nr{position:relative;display:grid;grid-template-columns:44px 1fr;gap:12px;padding:9px 18px 9px 22px;cursor:pointer;transition:background .16s}
+.nr:hover,.nr.hl{background:rgba(255,255,255,.045)}
+.nr .nd2{position:absolute;left:26px;top:17px;width:9px;height:9px;border-radius:50%;background:#0b0e12;border:1px solid var(--c);box-shadow:0 0 8px var(--c)}
+.nr.high .nd2{background:var(--c)}
+.nr .nt{padding-left:18px;display:flex;flex-direction:column;font-family:var(--mono)}
+.nr .nt b{font-weight:500;font-size:12px;color:var(--champ)}
+.nr .nt i{font-style:normal;font-size:9px;color:var(--mu)}
+.nr .nb{font-size:12px;line-height:1.45;color:var(--tx);padding-left:6px;min-width:0}
+.nr .nc{font:400 10px var(--mono);color:var(--amb);margin-top:1px}
+.nm{padding:8px 20px 4px 52px;font-size:11px;color:var(--mu)}
+/* 補助の別枠(出口待ち・ステーク量) */
+#eq,#sq{border-top:1px solid var(--ln)}
+.msg{padding:90px 18px;text-align:center;color:var(--mu);font-size:12px;letter-spacing:.06em}
+/* 下部 */
+.foot{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:12px 4px 4px;margin-top:10px}
+#ov{display:flex;gap:22px;flex-wrap:wrap}
+.ot{display:flex;flex-direction:column;gap:2px}
+.ot i{font:400 8.5px/1 var(--mono);letter-spacing:.24em;color:var(--mu);font-style:normal}
+.ot b{font:500 13px/1.2 var(--mono);color:var(--champ)}
+.ot b.up{color:var(--em)}.ot b.dn{color:var(--cr)}
+#fl{display:flex;gap:2px;flex-wrap:wrap;margin-left:auto}
+.key{display:flex;align-items:center;gap:12px;padding:7px 12px;border:1px solid rgba(232,169,72,.3);background:linear-gradient(90deg,rgba(232,169,72,.08),rgba(232,169,72,.015));font-family:var(--mono)}
+.key .kk{font-size:9px;letter-spacing:.26em;color:var(--amb)}
+.key .kv{font-size:11px;color:var(--champ);letter-spacing:.04em}
+.key .kv i{color:var(--mu);font-style:normal;margin:0 4px}
+.key .kn{font-size:8.5px;letter-spacing:.2em;color:var(--mu)}
+/* 一覧 */
+.listwrap{margin-top:16px;border:1px solid var(--ln);background:linear-gradient(180deg,var(--s2),var(--s1))}
+.list-head{padding:10px 20px;font:400 10px var(--mono);letter-spacing:.22em;color:var(--amb);border-bottom:1px solid var(--ln);display:flex;justify-content:space-between}
+.cd{display:grid;grid-template-columns:96px 1fr auto;gap:14px;padding:12px 20px;border-bottom:1px solid rgba(190,200,215,.07);border-left:2px solid var(--c,var(--mu));cursor:pointer;transition:background .16s}
+.cd:hover,.cd.hl{background:rgba(255,255,255,.04)}
+.cd .t{font:400 11px var(--mono);color:var(--mu)}
+.cd b{font-weight:500;font-size:13px;color:var(--tx)}
+.cd .src{font-size:11px;color:var(--mu);margin-top:2px}
+.bg2{display:inline-block;font:500 9px/1 var(--mono);letter-spacing:.16em;padding:3px 6px;border:1px solid currentColor;margin-bottom:3px}
+.bg2.high{color:var(--cr)}.bg2.mid{color:var(--amb)}.bg2.low{color:var(--mu2)}
+.empty{padding:22px 20px;color:var(--mu);font-size:12px;border-bottom:1px solid rgba(190,200,215,.07)}
+.note{margin-top:16px;padding:12px 16px;border:1px solid var(--ln);color:var(--mu);font-size:10.5px;line-height:1.8;background:rgba(0,0,0,.2)}
+#st{margin-top:6px;color:var(--amb)}
+@media(max-width:1000px){.hero{grid-template-columns:1fr}.side{border-left:0;border-top:1px solid var(--ln)}#fl{margin-left:0}}
+#tip .x{display:none}
+#tip.sheet{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;max-width:none;max-height:46vh;overflow:auto;z-index:40;padding:14px 16px 14px}
+#tip.sheet .x{display:block;position:absolute;top:2px;right:2px;width:40px;height:40px;font-size:22px;line-height:40px;text-align:center;color:var(--mu2)}
+#tip.sheet .tt{font-size:20px;padding-right:26px}
+@media(max-width:720px){
+ .top-in{gap:6px 12px;padding:8px 14px}
+ .brand{order:1;gap:9px}.glyph{width:24px;height:24px}.brand h1{font-size:12.5px;letter-spacing:.24em}.tag{font-size:8px;letter-spacing:.22em;margin-top:5px}
+ .meta{order:2;margin-left:auto}
+ #tabs{order:3;flex:1 1 100%;margin:0 -4px}
+ .tab{flex:1;text-align:center;padding:11px 8px;font-size:13px}
+ .app{padding:0 0 calc(40px + env(safe-area-inset-bottom,0px))}
+ .hero{border-left:0;border-right:0;box-shadow:none}
+ .sh2{padding:12px 14px 2px;flex-direction:column;align-items:stretch;gap:8px}
+ #ttl{font-size:20px}
+ #tfs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px}
+ #tfs::-webkit-scrollbar,#fl::-webkit-scrollbar{display:none}
+ .f{padding:10px 11px;font-size:11.5px}
+ svg text{font-size:10.5px}svg .ln{font-size:9.5px}svg .lb{font-size:11.5px}
+ .side{padding-top:12px}.nr{padding:11px 16px 11px 22px}.nr .nb{font-size:13px}
+ .foot{padding:14px 14px 4px;gap:14px}#ov{gap:16px 20px;width:100%}
+ #fl{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:100%;margin:0 -14px;padding:0 14px}
+ .key{width:calc(100% - 0px);justify-content:space-between;flex-wrap:wrap;gap:6px 10px}
+ .listwrap,.note{margin-left:10px;margin-right:10px}
+ .cd{grid-template-columns:70px 1fr;padding:12px 14px}.cd>.t:last-child{display:none}
+ .list-head{padding:10px 14px}
+}
+</style></head><body>
+<header class="top"><div class="top-in">
+<div class="brand"><svg class="glyph" viewBox="0 0 28 28" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><rect x="13.4" y="3" width="1.2" height="17" fill="url(#gg)"/><line x1="2" y1="21" x2="26" y2="21" stroke="#a3acb8" stroke-width="1"/><line x1="2" y1="24" x2="26" y2="24" stroke="#7b8490" stroke-width=".6" opacity=".6"/><circle cx="14" cy="21" r="2" fill="#fff"/><circle cx="7" cy="21" r="1.2" fill="#5fd0e0"/><circle cx="21" cy="21" r="1.2" fill="#e8a948"/></svg><div><h1>CRYPTO SIGNAL ARCHIVE</h1><div class="tag">ALL SIGNALS. ONE TIMELINE.</div></div></div>
+<nav id="tabs"></nav>
+<div class="meta"><button id="rf" class="rf" type="button" title="価格・イベント・ステーク量をキャッシュを通さず取り直します" aria-label="最新の情報に更新"><span class="ic">↻</span> 更新</button><select id="tz" aria-label="表示する都市の時刻"></select><span id="clk"></span></div>
+</div></header>
+<main class="app">
+<div class="hero">
+<section class="stage">
+<div class="sh2"><div class="ti"><span class="eyebrow">PRICE × TIME × EVENTS</span><b id="ttl"></b><span class="mu" id="tzl"></span></div><div id="tfs"></div></div>
+<div class="plot"><div id="chart"></div><div id="tipln"></div><div id="tip"></div></div>
+<div id="eq"></div>
+<div id="sq"></div>
+</section>
+<aside class="side"><div class="sh"><b>NEXT 24H</b><span id="sw"></span></div><div id="nx"></div></aside>
+</div>
+<section class="foot"><div id="ov"></div><div id="fl"></div><div class="key" id="key"></div></section>
+<section class="listwrap" id="listWrap"><div id="list"></div></section>
+<div class="note">価格はPacificaの公開データ、日米欧の経済指標の日程はTradingViewの公開カレンダーから自動で取得しています（取得できない時は予備としてForex Factoryの今週・来週分を表示）。日程は変更されることがあるため、重要な発表は公式の情報でも確認してください。市場・銘柄のニュース層は準備中です。足の区切りはUTC基準で、週足・月足は日足から集計しています。本ツールは公開情報の整理を目的とし、価格予測・売買の推奨は行いません。縦線が価格と重なって見えても、因果関係を示すものではありません。<div id="st"></div></div>
+<script>
+const SHOW_ACCESS=true; // 画面右下の「1 YEAR ACCESS」表示（見た目だけ。決済機能は未実装）
+const A=['BTC','ETH','SOL','BNB'];
+const IM={high:'高',mid:'中',low:'低'},IMX={high:'HIGH IMPACT',mid:'MEDIUM',low:'LOW'},LN={macro:'マクロ',market:'市場',asset:'銘柄'};
+const LC={macro:'#e8a948',asset:'#5fd0e0',market:'#4fcf9a'};
+const IR={high:3,mid:2,low:1};
+const FL=[['all','すべて'],['high','重要度：高'],['macro','マクロ'],['market','市場'],['asset','銘柄']];
+const TZ=[['Asia/Tokyo','東京'],['Asia/Seoul','ソウル'],['Asia/Shanghai','上海'],['Asia/Hong_Kong','香港'],['Asia/Singapore','シンガポール'],['Asia/Dubai','ドバイ'],['Europe/London','ロンドン'],['Europe/Zurich','チューリッヒ'],['Europe/Paris','パリ'],['America/New_York','ニューヨーク'],['America/Chicago','シカゴ'],['America/Los_Angeles','ロサンゼルス'],['Australia/Sydney','シドニー'],['UTC','UTC']];
+let tz='Asia/Tokyo';try{const sv=localStorage.getItem('tz');if(TZ.some(c=>c[0]===sv))tz=sv}catch(_){}
+function off(t){const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric',second:'numeric'}).formatToParts(t).reduce((o,x)=>(o[x.type]=x.value,o),{});return Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-Math.floor(t/1000)*1000}
+function ofs(t){const m=off(t||Date.now())/6e4,a=Math.abs(m);return 'UTC'+(m<0?'-':'+')+Math.floor(a/60)+(a%60?':'+String(a%60).padStart(2,'0'):'')}
+let asset='BTC',flt='all',sel=null,tf=2,E=[],evErr=[],NOW=Date.now(),EIX=new Map(),CLU={},hideT=0;
+const CD={},CS={};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=ts=>new Date(ts).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:tz});
+const hhmm=ts=>new Date(ts).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:tz});
+const dstr=ts=>new Date(ts).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric',timeZone:tz});
+const fp=v=>v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:0}):v>=100?v.toFixed(1):v>=1?v.toFixed(3):v.toFixed(5);
+function cdn(ts){const d=ts-NOW;if(d<=0)return'';const m=Math.floor(d/6e4),h=Math.floor(m/60),dd=Math.floor(h/24);return 'T−'+(dd>=1?dd+'d '+(h%24)+'h':h>=1?h+'h'+String(m%60).padStart(2,'0')+'m':m+'m')}
+// [API名, 表示名, 1本の長さ(月足は0), 右側に空ける本数]
+const TF=[['5m','5分足',3e5,48],['15m','15分足',9e5,96],['1h','1時間足',36e5,120],['4h','4時間足',144e5,60],['1d','日足',864e5,30],['1w','週足',6048e5,8],['1M','月足',0,3]];
+function nx(t,m){if(m===0){const d=new Date(t);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)}return t+m}
+function vis(){return E.filter(e=>(!e.a||e.a.includes(asset))&&(flt==='all'||(flt==='high'?e.im==='high':e.l===flt)))}
+/* 選択・強調: 縦線(まとまりの場合は含まれる全イベント)、一覧、NEXT 24Hが同時に光る */
+function hl(id){
+const k=id==null?-1:EIX.get(id);
+document.querySelectorAll('[data-id]').forEach(n=>n.classList.toggle('hl',n.dataset.id===id));
+document.querySelectorAll('[data-ids]').forEach(n=>n.classList.toggle('hl',k>=0&&n.dataset.ids.split(',').includes(String(k))));
+tip(id)}
+function pick(id){sel=sel===id?null:id;hl(sel)}
+function tip(id){
+const T=$('tip'),N=$('tipln'),e=id==null?null:E.find(q=>q.id===id);
+if(!e||!CX||!CX.x||e.ts<CX.d0||e.ts>CX.d1){T.style.display='none';N.style.display='none';return}
+const mob=CX.mob,px=CX.x(e.ts),W=CX.W,tw=Math.min(280,W-8),right=px+16+tw<=W-4,left=Math.max(4,right?px+16:px-16-tw),top=CX.Tp+Math.round(CX.H0*.3);
+const mem=(CLU[e.id]||[e]).filter(q=>q.id!==e.id);
+const c=cdn(e.ts);
+T.innerHTML=`<button class="x" aria-label="閉じる">×</button><div class="tk"><span style="color:${LC[e.l]||'#aab'}">${LN[e.l]||''}${e.l==='asset'?' · '+esc(asset):''}</span><span class="ii ${esc(e.im)}">${IMX[e.im]||''}</span></div><div class="tt">${esc(e.t)}</div><div class="tm"><span>${hhmm(e.ts)} ${ofs(e.ts)}</span><span>${dstr(e.ts)}</span><span class="cdn">${c||'ARCHIVED'}</span></div>${e.src?`<div class="sr">${esc(e.src)}</div>`:''}${mem.length?`<div class="cm">この付近に他${mem.length}件: ${mem.slice(0,4).map(q=>esc(q.s||q.t)).join(' / ')}${mem.length>4?' ほか':''}</div>`:''}${/^https?:\/\//.test(e.u||'')?`<a href="${esc(e.u)}" target="_blank" rel="noopener noreferrer">記事を開く ↗</a>`:''}`;
+if(mob){T.className='sheet';T.style.left='';T.style.top='';T.style.display='block';N.style.display='none';return}
+T.className='';T.style.left=left+'px';T.style.top=top+'px';T.style.display='block';
+const x1=Math.min(px,right?left:left+T.offsetWidth),x2=Math.max(px,right?left:left+T.offsetWidth);
+N.style.cssText=`display:block;left:${x1}px;width:${Math.max(2,x2-x1)}px;top:${top+16}px`;N.className=right?'r':'l'}
+function bindHL(sel2,idOf){document.querySelectorAll(sel2).forEach(n=>{
+n.addEventListener('pointerenter',()=>{clearTimeout(hideT);hl(idOf(n))});
+n.addEventListener('pointerleave',()=>{hideT=setTimeout(()=>hl(sel),180)});
+n.addEventListener('click',ev=>{ev.stopPropagation();pick(idOf(n))})})}
+function build(a,i){const d=CD[a+'|'+TF[i][0]];if(!d)return null;const m=TF[i][2];
+const k=d.rows.map(r=>({t:r[0]*1e3,o:r[1],h:r[2],l:r[3],c:r[4]}));k.forEach(q=>q.n=nx(q.t,m));
+let e=k[k.length-1].n;for(let j=0;j<TF[i][3];j++)e=nx(e,m);return{k,d0:k[0].t,d1:e,at:d.at,st:d.st||0,src:d.src||'Pacifica'}}
+const agoTxt=t=>{const m=Math.max(1,Math.round((Date.now()-t)/6e4));return m<90?m+'分前':m<2880?Math.round(m/60)+'時間前':Math.round(m/1440)+'日前'};
+let NC=0;const gf=u=>NC?fetch(u+(u.includes('?')?'&':'?')+'_='+NC,{cache:'no-store'}):fetch(u);
+async function loadC(a,i,force){const key=a+'|'+TF[i][0],c=CD[key];if(!force&&c&&Date.now()-c.at<3e5)return;if(CS[key]==='loading')return;CS[key]='loading';
+try{const r=await gf('/api/candles?sym='+a+'&tf='+TF[i][0]);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.bars||!j.bars.length)throw new Error('empty');CD[key]={rows:j.bars,at:Date.now(),st:j.stale&&j.at?j.at:0,src:j.source||'Pacifica'};CS[key]='ok'}
+catch(e){CS[key]=CD[key]?'ok':'error'}
+if(a===asset&&i===tf){chart();hl(sel)}}
+let EV_FAIL='',EV_RT=0;
+async function loadE(){let last='';
+for(let i=0;i<3;i++){try{const r=await gf('/api/cal');if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(!Array.isArray(j.events))throw new Error('形式が違います');
+E=j.events.map(e=>({...e,ts:Date.parse(e.at)})).filter(e=>isFinite(e.ts));EIX=new Map(E.map((e,i)=>[e.id,i]));evErr=j.errors||[];EV_FAIL='';clearTimeout(EV_RT);last='';break}
+catch(e){last=String(e.message||e);await new Promise(r=>setTimeout(r,[1500,4000,0][i]))}}
+if(last){EV_FAIL='イベントを取得できませんでした（'+last+'）。1分後に自動で取り直します';evErr=[EV_FAIL];clearTimeout(EV_RT);EV_RT=setTimeout(loadE,6e4)}
+render()}
+const ST=[3e5,9e5,18e5,36e5,108e5,216e5,432e5,864e5,1728e5,6048e5,2592e6,7776e6,15552e6,31536e6];
+function ticks(a,b){const st=ST.find(q=>q>=(b-a)/6)||ST[ST.length-1],r=[];
+if(st>=2592e6){const k=st>=31536e6?12:st>=15552e6?6:st>=7776e6?3:1,d=new Date(a),y=d.getUTCFullYear();for(let m=Math.floor(d.getUTCMonth()/k)*k;;m+=k){const t=Date.UTC(y,m,1);if(t>=b)break;if(t>=a)r.push([t,st])}return r}
+const o=off(a);for(let t=Math.ceil((a+o)/st)*st-o;t<b;t+=st)r.push([t,st]);return r}
+function tl(t,st){const z={timeZone:tz},d=new Date(t);if(st>=2592e6)return d.toLocaleDateString('ja-JP',{timeZone:'UTC',year:'2-digit',month:'numeric'});if(st>=864e5)return d.toLocaleDateString('ja-JP',{...z,month:'numeric',day:'numeric'});const q=d.toLocaleTimeString('ja-JP',{...z,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});return q==='00:00'?d.toLocaleDateString('ja-JP',{...z,month:'numeric',day:'numeric'}):q}
+/* 近い縦線は1つの「まとまり」にする(9px以内)。代表は重要度が高いもの */
+function clusters(list,x,gap){gap=gap||9;const out=[];let cur=null;
+list.forEach(e=>{const px=x(e.ts);if(cur&&px-cur.px<gap)cur.m.push(e);else{cur={px,m:[e]};out.push(cur)}});
+out.forEach(c=>{c.rep=c.m.slice().sort((a,b)=>(IR[b.im]||0)-(IR[a.im]||0)||a.ts-b.ts)[0];c.px=x(c.rep.ts)});return out}
+function ovw(c){const k=c.k,last=k[k.length-1].c,first=k[0].o,hi=Math.max(...k.map(q=>q.h)),lo=Math.min(...k.map(q=>q.l)),ch=(last/first-1)*100,up=vis().filter(e=>e.ts>NOW),hu=up.filter(e=>e.im==='high');
+$('ov').innerHTML=`<div class="ot"><i>LAST</i><b>${fp(last)}</b></div><div class="ot" title="表示している範囲の最初の足の始値からの変化率"><i>RANGE</i><b class="${ch>=0?'up':'dn'}">${ch>=0?'+':''}${ch.toFixed(2)}%</b></div><div class="ot"><i>HIGH / LOW</i><b>${fp(hi)} / ${fp(lo)}</b></div><div class="ot"><i>UPCOMING</i><b>${up.length}</b></div><div class="ot"><i>HIGH IMPACT</i><b>${hu.length}</b></div>`}
+function chart(){
+NOW=Date.now();
+const W=Math.max(320,$('chart').clientWidth),mob=W<560,L=mob?46:62,R=mob?12:26,Tp=38;
+const H0=Math.round(Math.min(560,Math.max(280,innerHeight*(mob?.4:.5)))),Pb=Tp+H0,AX=30,LH=mob?28:32;
+const lanes=[['macro','MACRO'],['asset',asset],['market','MARKET']];
+const H=Pb+AX+lanes.length*LH+8;
+const key=asset+'|'+TF[tf][0],c=build(asset,tf);
+const base='時刻：'+TZ.find(q=>q[0]===tz)[1]+'（'+ofs()+'）・価格：'+(c&&c.src&&c.src!=='Pacifica'?c.src+'（予備）':'Pacifica');
+if(!c){CX=null;$('tzl').textContent=base;$('ov').innerHTML='';$('chart').innerHTML='<div class="msg">'+(CS[key]==='error'?'価格を取得できませんでした。少し待ってから、足を切り替えるか再読み込みしてください。':'価格を読み込み中…')+'</div>';tip(null);eqChart();sqChart();side();return}
+const d0=c.d0,d1=c.d1,x=t=>L+(t-d0)/(d1-d0)*(W-L-R);
+CX={d0,d1,L,R,W,Tp,H0,x,mob};
+let mn=Math.min(...c.k.map(q=>q.l)),mx=Math.max(...c.k.map(q=>q.h));const pd=(mx-mn)*.12||Math.abs(mx)*.01||1;mn-=pd;mx+=pd;
+const y=v=>Tp+12+(mx-v)/(mx-mn)*(H0-24);
+const all=vis().sort((a,b)=>a.ts-b.ts),inR=all.filter(e=>e.ts>=d0&&e.ts<=d1);
+CLU={};const CL=[];
+lanes.forEach((ln,i)=>{const ly=Pb+AX+LH*i+LH/2;clusters(inR.filter(e=>e.l===ln[0]),x,mob?13:9).forEach(cl=>{cl.lane=ln[0];cl.ly=ly;cl.m.forEach(m=>CLU[m.id]=cl.m);CL.push(cl)})});
+const nx0=x(NOW),n24=x(Math.min(NOW+864e5,d1));
+let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(asset)}の価格とイベントの時間軸"><defs>`+
+Object.entries(LC).map(([k,v])=>`<linearGradient id="pl-${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${v}" stop-opacity=".04"/><stop offset=".55" stop-color="${v}" stop-opacity=".5"/><stop offset="1" stop-color="${v}" stop-opacity=".95"/></linearGradient><linearGradient id="gh-${k}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${v}" stop-opacity="0"/><stop offset=".5" stop-color="${v}" stop-opacity=".2"/><stop offset="1" stop-color="${v}" stop-opacity="0"/></linearGradient>`).join('')+
+`<linearGradient id="plc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".6" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity=".95"/></linearGradient><linearGradient id="gf" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e8a948" stop-opacity="0"/><stop offset="1" stop-color="#e8a948" stop-opacity=".09"/></linearGradient><linearGradient id="gn" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e8a948" stop-opacity=".14"/><stop offset="1" stop-color="#e8a948" stop-opacity=".02"/></linearGradient><filter id="bl" x="-300%" y="-5%" width="700%" height="110%"><feGaussianBlur stdDeviation="3.2"/></filter><filter id="bn" x="-600%" y="-2%" width="1300%" height="104%"><feGaussianBlur stdDeviation="5"/></filter></defs>`;
+// 未来側の薄い光と、NEXT 24Hの帯(右の一覧と対応)
+s+=`<rect x="${nx0}" y="${Tp}" width="${Math.max(0,W-R-nx0)}" height="${H-Tp-6}" fill="url(#gf)"/><rect x="${nx0}" y="${Tp}" width="${Math.max(0,n24-nx0)}" height="${H-Tp-6}" fill="url(#gn)"/><rect x="${nx0}" y="${Tp-9}" width="${Math.max(0,n24-nx0)}" height="2" fill="#e8a948" opacity=".85"/><text class="mk" x="${nx0+8}" y="${Tp-14}" style="fill:#e8a948">NEXT 24H</text>`;
+// 選択時に価格の周辺を照らす光(まとまりごと)
+CL.forEach(cl=>{s+=`<rect class="halo" data-ids="${cl.m.map(m=>EIX.get(m.id)).join(',')}" x="${cl.px-80}" y="${Tp}" width="160" height="${H0}" fill="url(#gh-${cl.lane})"/>`});
+for(let i=0;i<4;i++){const v=mn+(mx-mn)*i/3;s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(190,200,215,.08)"/><text x="${L-8}" y="${y(v)+3}" text-anchor="end">${fp(v)}</text>`}
+const tk=ticks(d0,d1);
+tk.forEach(([t])=>{const px=x(t);s+=`<line x1="${px}" x2="${px}" y1="${Tp}" y2="${Pb}" stroke="rgba(190,200,215,.07)" stroke-dasharray="2 5"/>`});
+c.k.forEach(q=>{const x1=x(q.t),x2=x(q.n),w=Math.max(1,(x2-x1)*.7),cx=(x1+x2)/2,yo=y(q.o),yc=y(q.c),up=q.c>=q.o,col=up?'#7fd6b0':'#c8656f';
+s+=`<line x1="${cx}" x2="${cx}" y1="${y(q.h)}" y2="${y(q.l)}" stroke="${col}" opacity=".85"/><rect x="${cx-w/2}" y="${Math.min(yo,yc)}" width="${w}" height="${Math.max(1,Math.abs(yo-yc))}" fill="${up?'#0a0d11':col}" stroke="${col}" opacity=".9"/>`});
+const lc=c.k[c.k.length-1].c,yL=y(lc);
+s+=`<line x1="${L}" x2="${W-R}" y1="${yL}" y2="${yL}" stroke="rgba(255,255,255,.2)" stroke-dasharray="3 4"/><text x="${W-R-6}" y="${yL-5}" text-anchor="end" style="fill:#eef1f6">${fp(lc)}</text>`;
+// 時間軸のレール(目盛り付き)と、その下に付くイベントの列
+s+=`<line x1="${L}" x2="${W-R}" y1="${Pb}" y2="${Pb}" stroke="rgba(214,222,235,.45)"/><line x1="${L}" x2="${W-R}" y1="${Pb+3}" y2="${Pb+3}" stroke="rgba(214,222,235,.14)"/>`;
+tk.forEach(([t,st])=>{const px=x(t);s+=`<line x1="${px}" x2="${px}" y1="${Pb}" y2="${Pb+9}" stroke="rgba(214,222,235,.55)"/><text x="${px}" y="${Pb+AX-6}" text-anchor="middle">${tl(t,st)}</text>`;
+if(st<2592e6)for(let q=1;q<4;q++){const mt=t+st*q/4;if(mt<d1){const mp=x(mt);s+=`<line x1="${mp}" x2="${mp}" y1="${Pb}" y2="${Pb+4}" stroke="rgba(214,222,235,.3)"/>`}}});
+lanes.forEach((ln,i)=>{const ly=Pb+AX+LH*i+LH/2;s+=`<line x1="${L}" x2="${W-R}" y1="${ly}" y2="${ly}" stroke="rgba(214,222,235,.13)"/><text class="ln" x="${L-8}" y="${ly+3}" text-anchor="end" style="fill:${LC[ln[0]]}">${esc(ln[1])}</text>`});
+// イベントの柱: 重要度で高さ・太さ・光が変わる。過去は控えめ、未来は強く
+CL.forEach(cl=>{const e=cl.rep,px=cl.px,ly=cl.ly,im=e.im,fut=e.ts>NOW,col=LC[cl.lane];
+const top=im==='high'?Tp:im==='mid'?ly-(ly-Tp)*.6:ly-26,w=im==='high'?3:im==='mid'?1.8:1,r=im==='high'?4.2:im==='mid'?3:2.1,h=ly-top;
+s+=`<g class="evg ${esc(im)}" data-ids="${cl.m.map(m=>EIX.get(m.id)).join(',')}" data-rep="${esc(e.id)}" style="--c:${col};opacity:${fut?1:.4}"><rect class="hit" x="${px-9}" y="${Tp}" width="18" height="${ly-Tp+10}"/>`+
+(im==='high'?`<rect x="${px-5}" y="${top}" width="10" height="${h}" fill="url(#pl-${cl.lane})" filter="url(#bl)" opacity=".7"/>`:'')+
+`<rect class="pl" x="${px-w/2}" y="${top}" width="${w}" height="${h}" fill="url(#pl-${cl.lane})"/>`+
+(im==='high'?`<rect x="${px-.5}" y="${top}" width="1" height="${h}" fill="url(#plc)"/>`:'')+
+(im==='high'?`<circle class="rg" cx="${px}" cy="${ly}" r="${r+3.5}"/>`:'')+`<circle class="nd" cx="${px}" cy="${ly}" r="${r}"/>`+
+(cl.m.length>1?`<text class="ct" x="${px+r+4}" y="${ly+3}">×${cl.m.length}</text>`:'')+`</g>`});
+// 現在を貫く軸
+s+=`<rect x="${nx0-5}" y="${Tp-6}" width="10" height="${H-Tp}" fill="#fff" opacity=".16" filter="url(#bn)"/><line x1="${nx0}" x2="${nx0}" y1="${Tp-12}" y2="${H-6}" stroke="rgba(255,255,255,.38)" stroke-width="3"/><line x1="${nx0}" x2="${nx0}" y1="${Tp-12}" y2="${H-6}" stroke="#fff" stroke-width="1.2"/><text class="mk" x="${nx0-8}" y="${Tp-14}" text-anchor="end" style="fill:#fff;font-weight:500">NOW ${hhmm(NOW)}</text>`;
+// 見出し(重要度「高」・選択中・未来側の近いもの)
+const selIx=sel!=null?EIX.get(sel):-1;let row=0;
+const isSel=cl=>selIx>=0&&cl.m.some(m=>EIX.get(m.id)===selIx);let lbl=CL.filter(cl=>cl.rep.im==='high'||isSel(cl));if(mob)lbl=lbl.filter(cl=>isSel(cl)).concat(lbl.filter(cl=>!isSel(cl)).sort((a,b)=>Math.abs(a.rep.ts-NOW)-Math.abs(b.rep.ts-NOW)).slice(0,3));
+lbl.sort((a,b)=>a.px-b.px).forEach(cl=>{const e=cl.rep,end=cl.px>W*.7,cn=e.ts>NOW?cdn(e.ts):'',yy=Tp+16+(row++%4)*13;
+s+=`<text class="lb" x="${cl.px+(end?-8:8)}" y="${yy}" text-anchor="${end?'end':'start'}">${esc(e.s||e.t)}${cl.m.length>1?' +'+(cl.m.length-1):''}${cn?`<tspan class="cdn" dx="6">${cn}</tspan>`:''}</text>`});
+$('chart').innerHTML=s+'</svg>';
+$('tzl').textContent=base+(c.st?'・価格は約'+agoTxt(c.st)+'の控え（取得元が混雑中）':'')+(all.length>inR.length?'・範囲外'+(all.length-inR.length)+'件':'');
+ovw(c);eqChart();sqChart();side();
+bindHL('#chart .evg',g=>g.dataset.rep);
+const sv=$('chart').querySelector('svg');sv.addEventListener('click',ev=>{if(!ev.target.closest('.evg')){sel=null;hl(null)}})
+}
+/* ETH出口待ち: 価格の下に同じ時間軸で出す別枠(ETHタブのみ)。記録は自前で貯めているので、導入日から線が伸びる */
+let EQ=null,EQ_AT=0,CX=null;
+async function loadEQ(force){if(!force&&Date.now()-EQ_AT<3e5)return;EQ_AT=Date.now();try{const r=await gf('/api/ethqueue');if(!r.ok)throw new Error(r.status);EQ=await r.json()}catch(e){if(!EQ||!(EQ.samples||[]).length)EQ={error:String(e.message||e),samples:[]}}eqChart();sqChart()}
+function eqChart(){
+const el=$('eq');if(!el)return;
+if(asset!=='ETH'||!CX){el.innerHTML='';return}
+if(!EQ){el.innerHTML='<div class="msg" style="padding:14px">ETH出口待ちを読み込み中…</div>';return}
+const{d0,d1,L,R,W}=CX,H=96,Tp=22,B=6,S=(EQ.samples||[]).map(q=>({t:q[0]*1e3,n:q[1],d:q[2],en:q[3],ed:q[4]}));
+if(!S.length){el.innerHTML='<div class="msg" style="padding:14px">ETH出口待ち: '+(EQ.error?'取得できませんでした（'+esc(EQ.error)+'）':'記録がまだありません')+'</div>';return}
+const cur=S[S.length-1],inR=S.filter(q=>q.t>=d0&&q.t<=d1),mx=Math.max(1,...S.map(q=>q.d),...S.map(q=>q.ed||0))*1.15;
+const x=t=>L+(t-d0)/(d1-d0)*(W-L-R),y=v=>Tp+(1-v/mx)*(H-Tp-B);
+let s=`<svg width="${W}" height="${H}" role="img"><text x="${L}" y="13" style="fill:var(--champ)">ETH 出口待ち ${cur.d}日（${cur.n.toLocaleString('en-US')}件）</text>${cur.ed!=null?`<text x="${L+230}" y="13" style="fill:#d9a3a3">入口待ち 約${cur.ed}日（${cur.en.toLocaleString('en-US')}件）</text>`:''}<text x="${W-R}" y="13" text-anchor="end">記録: ${new Date(S[0].t).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric',timeZone:tz})} から・ビーコンチェーン直読み</text>`;
+s+=`<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(212,175,122,.14)"/><text x="${L-8}" y="${y(mx/1.15)+3}" text-anchor="end">${(mx/1.15).toFixed(0)}日</text>`;
+if(inR.length>1){const pts=inR.map(q=>x(q.t).toFixed(1)+','+y(q.d).toFixed(1));s+=`<polygon points="${x(inR[0].t).toFixed(1)},${y(0)} ${pts.join(' ')} ${x(inR[inR.length-1].t).toFixed(1)},${y(0)}" fill="rgba(169,192,214,.18)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#a9c0d6" stroke-width="1.4"/>`}
+else if(inR.length===1)s+=`<circle cx="${x(inR[0].t)}" cy="${y(inR[0].d)}" r="3" fill="#a9c0d6"/>`;
+const inE=inR.filter(q=>q.ed!=null);if(inE.length>1)s+=`<polyline points="${inE.map(q=>x(q.t).toFixed(1)+','+y(q.ed).toFixed(1)).join(' ')}" fill="none" stroke="#d9a3a3" stroke-width="1.4"/>`;
+if(NOW>=d0&&NOW<=d1)s+=`<line x1="${x(NOW)}" x2="${x(NOW)}" y1="${Tp}" y2="${H-B}" stroke="var(--mu)" stroke-dasharray="5 4"/>`;
+el.innerHTML=s+'</svg>'}
+/* ステーク量(ETH/SOL/BNB): 価格の下に同じ時間軸で出す別枠。ETHは稼働バリデータ数×32の概算、SOLは委任量の合計、BNBはStakeHub契約の合計 */
+const ETH_SUPPLY=121e6;let SQD={},SQ_AT={};
+async function loadSQ(sym,force){if(!force&&Date.now()-(SQ_AT[sym]||0)<3e5)return;SQ_AT[sym]=Date.now();try{const r=await gf('/api/stake?sym='+sym);if(!r.ok)throw new Error(r.status);SQD[sym]=await r.json()}catch(e){if(!SQD[sym]||!(SQD[sym].samples||[]).length)SQD[sym]={error:String(e.message||e),samples:[]}}sqChart()}
+function sqChart(){
+const el=$('sq');if(!el)return;
+if(!CX){el.innerHTML='';return}
+let S,head,sub,none;
+if(asset==='ETH'){
+if(!EQ){el.innerHTML='';return}
+S=(EQ.samples||[]).filter(q=>q[5]!=null).map(q=>({t:q[0]*1e3,e:q[5]*32}));
+head=c=>`ETH ステーク量 約${(c.e/1e6).toFixed(2)}百万ETH（供給の約${(c.e/ETH_SUPPLY*100).toFixed(1)}%・概算）`;sub='稼働バリデータ数×32';none='ETHステーク量: まだ記録がありません'+(EQ.act_error?'（'+esc(EQ.act_error)+'）':'（取得できないノードの場合は空のままです）')}
+else if(asset==='SOL'||asset==='BNB'){
+const D=SQD[asset];if(!D){el.innerHTML='<div class="msg" style="padding:14px">'+asset+'ステーク量を読み込み中…</div>';return}
+S=(D.samples||[]).map(q=>({t:q[0]*1e3,e:q[1],s:q[2]}));
+if(asset==='SOL'){head=c=>`SOL ステーク量 約${(c.e/1e6).toFixed(1)}百万SOL`+(c.s?`（総供給の約${(c.e/c.s*100).toFixed(1)}%）`:'');sub='Solana公開RPC・委任量の合計'}
+else{head=c=>`BNB ステーク量 約${(c.e/1e6).toFixed(2)}百万BNB（全バリデータの合計・概算）`;sub='StakeHub契約・各バリデータの合計'}
+none=asset+'ステーク量: '+(D.error?'取得できませんでした（'+esc(D.error)+'）':'記録がまだありません')}
+else{el.innerHTML='';return}
+const{d0,d1,L,R,W}=CX,H=84,Tp=22,B=6;
+if(!S.length){el.innerHTML='<div class="msg" style="padding:14px">'+none+'</div>';return}
+const cur=S[S.length-1],inR=S.filter(q=>q.t>=d0&&q.t<=d1),lo=Math.min(...S.map(q=>q.e)),hi=Math.max(...S.map(q=>q.e)),pad=Math.max((hi-lo)*.2,hi*.002);
+const x=t=>L+(t-d0)/(d1-d0)*(W-L-R),y=v=>Tp+(1-(v-(lo-pad))/((hi+pad)-(lo-pad)))*(H-Tp-B);
+let s=`<svg width="${W}" height="${H}" role="img"><text x="${L}" y="13" style="fill:var(--champ)">${head(cur)}</text><text x="${W-R}" y="13" text-anchor="end">${sub}</text>`;
+if(inR.length>1){const pts=inR.map(q=>x(q.t).toFixed(1)+','+y(q.e).toFixed(1));s+=`<polyline points="${pts.join(' ')}" fill="none" stroke="#9fd1b0" stroke-width="1.4"/>`}
+else if(inR.length===1)s+=`<circle cx="${x(inR[0].t)}" cy="${y(inR[0].e)}" r="3" fill="#9fd1b0"/>`;
+if(NOW>=d0&&NOW<=d1)s+=`<line x1="${x(NOW)}" x2="${x(NOW)}" y1="${Tp}" y2="${H-B}" stroke="var(--mu)" stroke-dasharray="5 4"/>`;
+el.innerHTML=s+'</svg>'}
+/* NEXT 24H: 今から24時間以内の予定。無ければ直近の3件を出す */
+function side(){NOW=Date.now();
+const LIM=innerWidth<720?5:8,up=vis().filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),w=up.filter(e=>e.ts<=NOW+864e5),rows=w.length?w:up.slice(0,3);
+$('sw').textContent=w.length?w.length+'件':'24時間以内の予定なし'+(rows.length?'・直近を表示':'');
+$('nx').innerHTML=rows.slice(0,LIM).map(e=>`<div class="nr ${esc(e.im)}" data-id="${esc(e.id)}" style="--c:${LC[e.l]||'#aab'}"><span class="nd2"></span><div class="nt"><b>${hhmm(e.ts)}</b><i>${dstr(e.ts)}</i></div><div class="nb"><div>${esc(e.s||e.t)}</div><div class="nc">${cdn(e.ts)}</div></div></div>`).join('')+(w.length>LIM?`<div class="nm">ほか${w.length-LIM}件</div>`:'')||'<div class="nm">'+(EV_FAIL?esc(EV_FAIL):'予定されたイベントはありません')+'</div>';
+bindHL('#nx .nr',n=>n.dataset.id);hl(sel)}
+function list(){
+const ev=vis(),up=ev.filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),past=ev.filter(e=>e.ts<=NOW).sort((a,b)=>b.ts-a.ts);
+const card=e=>`<div class="cd" data-id="${esc(e.id)}" style="--c:${LC[e.l]||'#7b8490'}"><div class="t">${fmt(e.ts)}</div><div><span class="bg2 ${esc(e.im)}">${IM[e.im]||''} · ${LN[e.l]||''}</span><div><b>${esc(e.t)}</b></div><div class="src">${esc(e.src||'')}</div></div><div class="t" style="text-align:right">${esc(e.s||'')}</div></div>`;
+const none='<div class="empty">該当するイベントはありません'+(flt==='market'?'（市場ニュース層は準備中です）':'')+'</div>';
+$('list').innerHTML=`<div class="list-head"><span>これから（${up.length}件） → 時系列順</span><span style="color:var(--mu)">UPCOMING</span></div>${up.length?up.map(card).join(''):none}<div class="list-head"><span>直近（${past.length}件） → 新しい順</span><span style="color:var(--mu)">ARCHIVE</span></div>${past.length?past.map(card).join(''):none}`;
+bindHL('#list .cd',n=>n.dataset.id)
+}
+function render(){
+if(sel&&!vis().some(e=>e.id===sel))sel=null;
+$('tabs').innerHTML=A.map(a=>`<button class="tab ${a===asset?'on':''}" data-a="${a}">${a}</button>`).join('');
+$('fl').innerHTML=FL.map(f=>`<button class="f ${f[0]===flt?'on':''}" data-f="${f[0]}">${f[1]}</button>`).join('');
+$('ttl').textContent=asset+' / '+TF[tf][1];
+$('tfs').innerHTML=TF.map((f,i)=>`<button class="f ${i===tf?'on':''}" data-t="${i}">${f[1]}</button>`).join('');
+$('st').textContent=evErr.join(' / ');
+loadC(asset,tf);chart();list();hl(sel);if(asset==='ETH')loadEQ();else{eqChart();if(asset==='SOL'||asset==='BNB')loadSQ(asset);else sqChart()}
+}
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.a){asset=b.dataset.a;render()}if(b.dataset.f){flt=b.dataset.f;render()}if(b.dataset.t){tf=+b.dataset.t;render()}});
+addEventListener('resize',()=>{chart();hl(sel)});
+function tick(){$('clk').textContent=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:tz})+' '+ofs()};
+(function(){const z=$('tz');z.innerHTML=TZ.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join('');z.value=tz;z.onchange=()=>{tz=z.value;try{localStorage.setItem('tz',tz)}catch(_){}render();tick()}})();
+$('tip').addEventListener('pointerenter',()=>clearTimeout(hideT));$('tip').addEventListener('pointerleave',()=>{hideT=setTimeout(()=>hl(sel),180)});
+$('tip').addEventListener('click',ev=>{if(ev.target.closest('.x')){sel=null;hl(null)}});
+if(SHOW_ACCESS)$('key').innerHTML='<span class="kk">1 YEAR ACCESS</span><span class="kv">1 USDC<i>·</i>0.01 SOL<i>·</i>1 RAY</span><span class="kn">NO SUBSCRIPTION</span>';else $('key').style.display='none';
+tick();setInterval(tick,60000);
+setInterval(()=>{if(!document.hidden)loadC(asset,tf,true)},3e5);   // 値段の保存は5分ごとなので、取り直しも5分ごと
+setInterval(()=>{if(!document.hidden)loadE()},6e5);
+setInterval(()=>{if(document.hidden)return;if(asset==='ETH')loadEQ(true);else if(asset==='SOL'||asset==='BNB')loadSQ(asset,true)},3e5);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)return;loadC(asset,tf,true);loadE();if(asset==='ETH')loadEQ(true);else if(asset==='SOL'||asset==='BNB')loadSQ(asset,true)});
+async function refreshAll(){const b=$('rf');if(b.disabled)return;b.disabled=true;b.classList.add('on');NC=Date.now();
+const k=asset+'|'+TF[tf][0];if(CS[k]==='loading')CS[k]='ok';
+try{await Promise.all([loadC(asset,tf,true),loadE(),asset==='ETH'?loadEQ(true):(asset==='SOL'||asset==='BNB')?loadSQ(asset,true):null])}finally{NC=0;b.disabled=false;b.classList.remove('on');b.title='更新しました '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}}
+$('rf').addEventListener('click',refreshAll);
+render();loadE();
+</script></main></body></html>

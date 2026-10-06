@@ -1,392 +1,655 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>CRYPTO SIGNAL ARCHIVE — ALL SIGNALS. ONE TIMELINE.</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>暗号資産シグナル・アーカイブ</title>
+<script>window.CSA_LANG=function(){try{return localStorage.getItem('csa-lang')==='ja'?'ja':'en'}catch(_){return'en'}}</script>
 <style>
+/* === v27 TOKENS - UNIFIED === */
 :root{
-  --bg:#06080b;--s1:#0c0f13;--s2:#10141a;
-  --ln:rgba(190,200,215,.12);--ln2:rgba(190,200,215,.26);
-  --tx:#d8dde5;--mu:#7b8490;--mu2:#a3acb8;--champ:#eef1f6;--hot:#fff;
-  --amb:#e8a948;--cy:#5fd0e0;--em:#4fcf9a;--cr:#e0505f;
-  --mono:"IBM Plex Mono",ui-monospace,monospace;
-  --cond:"IBM Plex Sans Condensed","Noto Sans JP",sans-serif;
+  --bg:#05070e;
+  --card-bg:linear-gradient(180deg,rgba(27,37,50,.78),rgba(9,14,21,.82)),radial-gradient(70% 45% at 50% 0%,rgba(125,185,235,.10),transparent 72%);
+  --line:rgba(177,204,226,.22);
+  --line-strong:rgba(177,204,226,.30);
+  --text:#e8ebf0;
+  --muted:#7f8a99;
+  --dim:#4e5968;
+  --gold:#d9ad68;
+  --gold2:#e4b96a;
+  --up:#6ccaa0;
+  --down:#d87878;
+  --blue:#739ee8;
+  --cyan:#69c7d6;
+  --radius:8px;
+  --shadow:0 20px 60px rgba(0,0,0,.42),0 0 34px rgba(74,140,190,.08),inset 0 1px 0 rgba(255,255,255,.10),inset 0 -1px 0 rgba(0,0,0,.35);
+  --shadow-soft:0 12px 40px rgba(0,0,0,.28);
 }
 *{box-sizing:border-box}
-html{scroll-padding-top:16px}
-body{margin:0;color:var(--tx);font:14px/1.7 "Noto Sans JP",system-ui,sans-serif;min-height:100vh;
- background:radial-gradient(1100px 520px at 72% -12%,rgba(232,169,72,.07),transparent 62%),radial-gradient(900px 520px at -8% 8%,rgba(95,208,224,.045),transparent 60%),linear-gradient(180deg,#07090c,#050608)}
-*{-webkit-tap-highlight-color:transparent}
-button{font:inherit;touch-action:manipulation;cursor:pointer;white-space:nowrap;transition:.16s;background:none;border:0;color:inherit}
-select{font:inherit;font-size:11px;font-family:var(--mono);background:rgba(255,255,255,.03);color:var(--tx);border:1px solid var(--ln);border-radius:2px;padding:4px 6px}
-option{background:#0c0f13;color:#d8dde5}
-.mu{color:var(--mu)}
-/* 上部 */
-.top{position:sticky;top:0;z-index:30;padding-top:env(safe-area-inset-top,0px);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:linear-gradient(180deg,rgba(6,8,11,.94),rgba(6,8,11,.8));border-bottom:1px solid var(--ln)}
-.top-in{max-width:1680px;margin:0 auto;padding:10px 22px;display:flex;align-items:center;gap:26px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:12px}
-.glyph{width:28px;height:28px;flex:none}
-.brand h1{font:600 14px/1 var(--cond);letter-spacing:.34em;margin:0;color:var(--champ)}
-.tag{font:400 9px/1 var(--mono);letter-spacing:.3em;color:var(--mu);margin-top:6px}
-#tabs{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
-#tabs::-webkit-scrollbar{display:none}
-.tab{font:500 12px/1 var(--mono);letter-spacing:.14em;padding:9px 14px;color:var(--mu);border-bottom:1px solid transparent}
-.tab:hover{color:var(--tx)}
-.tab.on{color:var(--hot);border-bottom-color:var(--hot);text-shadow:0 0 14px rgba(255,255,255,.45)}
-.meta{display:flex;gap:10px;align-items:center;font:400 11px var(--mono);letter-spacing:.08em;color:var(--mu)}
-.rf{font:400 11px var(--mono);letter-spacing:.06em;background:rgba(255,255,255,.03);color:var(--tx);border:1px solid var(--ln);border-radius:2px;padding:4px 9px;cursor:pointer;white-space:nowrap}.rf:hover{border-color:#e8a948;color:#e8a948}.rf[disabled]{opacity:.55;cursor:wait}.rf .ic{display:inline-block}.rf.on .ic{animation:rfs .8s linear infinite}@keyframes rfs{to{transform:rotate(360deg)}}
-/* 本体 */
-.app{max-width:1680px;margin:0 auto;padding:18px 22px calc(48px + env(safe-area-inset-bottom,0px))}
-.hero{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:0;border:1px solid var(--ln);background:linear-gradient(180deg,var(--s2),var(--s1));box-shadow:0 30px 80px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05)}
-.stage{min-width:0;position:relative}
-.stage::before,.side::before{content:'';position:absolute;left:0;right:0;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);opacity:.5}
-.sh2{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap;padding:14px 22px 6px}
-.ti{display:flex;flex-direction:column;gap:3px}
-.eyebrow{font:400 9px/1 var(--mono);letter-spacing:.34em;color:var(--amb)}
-#ttl{font:600 22px/1.1 var(--cond);letter-spacing:.12em;color:var(--champ)}
-#tzl{font:400 10px var(--mono);letter-spacing:.06em}
-#tfs{display:flex;gap:2px;flex-wrap:wrap}
-.f{font:400 10.5px/1 var(--mono);letter-spacing:.08em;padding:7px 9px;border:1px solid transparent;color:var(--mu);border-radius:2px}
-.f:hover{color:var(--tx)}
-.f.on{color:var(--hot);border-color:var(--ln2);background:rgba(255,255,255,.04)}
-.plot{position:relative}
-#chart{width:100%;overflow:hidden}
-svg{display:block}
-svg text{fill:var(--mu);font-size:10px;font-family:var(--mono)}
-svg .ln{font-size:9px;letter-spacing:.14em}
-svg .lb{font-size:11px;fill:var(--champ);font-family:"Noto Sans JP",sans-serif;font-weight:500;paint-order:stroke;stroke:#07090c;stroke-width:3.2px;stroke-linejoin:round}
-svg .cdn{fill:var(--amb);font-family:var(--mono);font-size:9.5px}
-svg .mk{font-size:9px;letter-spacing:.22em}
-.halo{opacity:0;transition:opacity .22s;pointer-events:none}.halo.hl{opacity:1}
-.evg{cursor:pointer;transition:opacity .2s;touch-action:manipulation}
-.evg .hit{fill:transparent}
-.evg .nd{fill:var(--c)}
-.evg .rg{fill:none;stroke:var(--c);opacity:.5}
-.evg.hl{opacity:1!important}
-.evg.hl .pl{filter:drop-shadow(0 0 5px var(--c))}
-.evg.hl .nd{filter:drop-shadow(0 0 6px var(--c))}
-.evg .ct{font-size:9px;fill:var(--champ)}
-/* 選択したイベントの情報板 */
-#tipln{position:absolute;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.7),rgba(255,255,255,.18));display:none;pointer-events:none}
-#tipln::after{content:'';position:absolute;top:-2px;width:5px;height:5px;border-radius:50%;background:#fff;box-shadow:0 0 8px #fff}
-#tipln.r::after{left:-2px}#tipln.l::after{right:-2px}
-#tip{position:absolute;display:none;width:280px;max-width:calc(100% - 8px);padding:12px 14px 12px;z-index:5;
- background:linear-gradient(180deg,rgba(26,31,40,.82),rgba(12,15,20,.9));backdrop-filter:blur(14px) saturate(1.2);-webkit-backdrop-filter:blur(14px) saturate(1.2);
- border:1px solid var(--ln2);border-top-color:rgba(255,255,255,.5);box-shadow:0 18px 44px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.08)}
-#tip .tk{display:flex;justify-content:space-between;align-items:center;gap:8px;font:500 9px/1 var(--mono);letter-spacing:.2em}
-#tip .ii{padding:3px 6px;border:1px solid currentColor}
-.ii.high{color:var(--cr)}.ii.mid{color:var(--amb)}.ii.low{color:var(--mu2)}
-#tip .tt{font:600 19px/1.25 var(--cond);letter-spacing:.04em;color:var(--hot);margin:9px 0 5px}
-#tip .tm{display:flex;gap:10px;flex-wrap:wrap;font:400 11px var(--mono);color:var(--mu2)}
-#tip .tm .cdn{color:var(--amb)}
-#tip .sr{margin-top:7px;font-size:10.5px;color:var(--mu);line-height:1.5}
-#tip .cm{margin-top:7px;padding-top:7px;border-top:1px solid var(--ln);font-size:10.5px;color:var(--mu2);line-height:1.5}
-#tip a{color:var(--champ);font-size:11px;display:inline-block;margin-top:6px}
-/* NEXT 24H */
-.side{position:relative;border-left:1px solid var(--ln);padding:14px 0 10px;background:linear-gradient(90deg,rgba(232,169,72,.05),transparent 40%);min-width:0}
-.sh{padding:0 20px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.sh b{font:600 13px/1 var(--cond);letter-spacing:.3em;color:var(--amb)}
-.sh span{font:400 10px var(--mono);color:var(--mu)}
-#nx{position:relative;padding:4px 0 0}
-#nx::before{content:'';position:absolute;left:30px;top:0;bottom:6px;width:1px;background:linear-gradient(180deg,rgba(232,169,72,.7),rgba(232,169,72,.05))}
-.nr{position:relative;display:grid;grid-template-columns:44px 1fr;gap:12px;padding:9px 18px 9px 22px;cursor:pointer;transition:background .16s}
-.nr:hover,.nr.hl{background:rgba(255,255,255,.045)}
-.nr .nd2{position:absolute;left:26px;top:17px;width:9px;height:9px;border-radius:50%;background:#0b0e12;border:1px solid var(--c);box-shadow:0 0 8px var(--c)}
-.nr.high .nd2{background:var(--c)}
-.nr .nt{padding-left:18px;display:flex;flex-direction:column;font-family:var(--mono)}
-.nr .nt b{font-weight:500;font-size:12px;color:var(--champ)}
-.nr .nt i{font-style:normal;font-size:9px;color:var(--mu)}
-.nr .nb{font-size:12px;line-height:1.45;color:var(--tx);padding-left:6px;min-width:0}
-.nr .nc{font:400 10px var(--mono);color:var(--amb);margin-top:1px}
-.nm{padding:8px 20px 4px 52px;font-size:11px;color:var(--mu)}
-/* 補助の別枠(出口待ち・ステーク量) */
-#eq,#sq{border-top:1px solid var(--ln)}
-.msg{padding:90px 18px;text-align:center;color:var(--mu);font-size:12px;letter-spacing:.06em}
-/* 下部 */
-.foot{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:12px 4px 4px;margin-top:10px}
-#ov{display:flex;gap:22px;flex-wrap:wrap}
-.ot{display:flex;flex-direction:column;gap:2px}
-.ot i{font:400 8.5px/1 var(--mono);letter-spacing:.24em;color:var(--mu);font-style:normal}
-.ot b{font:500 13px/1.2 var(--mono);color:var(--champ)}
-.ot b.up{color:var(--em)}.ot b.dn{color:var(--cr)}
-#fl{display:flex;gap:2px;flex-wrap:wrap;margin-left:auto}
-.key{display:flex;align-items:center;gap:12px;padding:7px 12px;border:1px solid rgba(232,169,72,.3);background:linear-gradient(90deg,rgba(232,169,72,.08),rgba(232,169,72,.015));font-family:var(--mono)}
-.key .kk{font-size:9px;letter-spacing:.26em;color:var(--amb)}
-.key .kv{font-size:11px;color:var(--champ);letter-spacing:.04em}
-.key .kv i{color:var(--mu);font-style:normal;margin:0 4px}
-.key .kn{font-size:8.5px;letter-spacing:.2em;color:var(--mu)}
-/* 一覧 */
-.listwrap{margin-top:16px;border:1px solid var(--ln);background:linear-gradient(180deg,var(--s2),var(--s1))}
-.list-head{padding:10px 20px;font:400 10px var(--mono);letter-spacing:.22em;color:var(--amb);border-bottom:1px solid var(--ln);display:flex;justify-content:space-between}
-.cd{display:grid;grid-template-columns:96px 1fr auto;gap:14px;padding:12px 20px;border-bottom:1px solid rgba(190,200,215,.07);border-left:2px solid var(--c,var(--mu));cursor:pointer;transition:background .16s}
-.cd:hover,.cd.hl{background:rgba(255,255,255,.04)}
-.cd .t{font:400 11px var(--mono);color:var(--mu)}
-.cd b{font-weight:500;font-size:13px;color:var(--tx)}
-.cd .src{font-size:11px;color:var(--mu);margin-top:2px}
-.bg2{display:inline-block;font:500 9px/1 var(--mono);letter-spacing:.16em;padding:3px 6px;border:1px solid currentColor;margin-bottom:3px}
-.bg2.high{color:var(--cr)}.bg2.mid{color:var(--amb)}.bg2.low{color:var(--mu2)}
-.empty{padding:22px 20px;color:var(--mu);font-size:12px;border-bottom:1px solid rgba(190,200,215,.07)}
-.note{margin-top:16px;padding:12px 16px;border:1px solid var(--ln);color:var(--mu);font-size:10.5px;line-height:1.8;background:rgba(0,0,0,.2)}
-#st{margin-top:6px;color:var(--amb)}
-@media(max-width:1000px){.hero{grid-template-columns:1fr}.side{border-left:0;border-top:1px solid var(--ln)}#fl{margin-left:0}}
-#tip .x{display:none}
-#tip.sheet{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;max-width:none;max-height:46vh;overflow:auto;z-index:40;padding:14px 16px 14px}
-#tip.sheet .x{display:block;position:absolute;top:2px;right:2px;width:40px;height:40px;font-size:22px;line-height:40px;text-align:center;color:var(--mu2)}
-#tip.sheet .tt{font-size:20px;padding-right:26px}
-@media(max-width:720px){
- .top-in{gap:6px 12px;padding:8px 14px}
- .brand{order:1;gap:9px}.glyph{width:24px;height:24px}.brand h1{font-size:12.5px;letter-spacing:.24em}.tag{font-size:8px;letter-spacing:.22em;margin-top:5px}
- .meta{order:2;margin-left:auto}
- #tabs{order:3;flex:1 1 100%;margin:0 -4px}
- .tab{flex:1;text-align:center;padding:11px 8px;font-size:13px}
- .app{padding:0 0 calc(40px + env(safe-area-inset-bottom,0px))}
- .hero{border-left:0;border-right:0;box-shadow:none}
- .sh2{padding:12px 14px 2px;flex-direction:column;align-items:stretch;gap:8px}
- #ttl{font-size:20px}
- #tfs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -14px;padding:0 14px}
- #tfs::-webkit-scrollbar,#fl::-webkit-scrollbar{display:none}
- .f{padding:10px 11px;font-size:11.5px}
- svg text{font-size:10.5px}svg .ln{font-size:9.5px}svg .lb{font-size:11.5px}
- .side{padding-top:12px}.nr{padding:11px 16px 11px 22px}.nr .nb{font-size:13px}
- .foot{padding:14px 14px 4px;gap:14px}#ov{gap:16px 20px;width:100%}
- #fl{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:100%;margin:0 -14px;padding:0 14px}
- .key{width:calc(100% - 0px);justify-content:space-between;flex-wrap:wrap;gap:6px 10px}
- .listwrap,.note{margin-left:10px;margin-right:10px}
- .cd{grid-template-columns:70px 1fr;padding:12px 14px}.cd>.t:last-child{display:none}
- .list-head{padding:10px 14px}
-}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);overflow-x:hidden}
+body{font:12px/1.6 "Noto Sans JP",system-ui,sans-serif;max-width:440px;margin:0 auto;-webkit-font-smoothing:antialiased;letter-spacing:.01em}
+
+/* top - V36 logo */
+.top{min-height:62px;padding-top:env(safe-area-inset-top,0px);background:radial-gradient(140% 100% at 0% 50%,rgba(126,184,255,.14),transparent 55%),#0c1018;border-bottom:1px solid #1d2538;display:flex;align-items:center;gap:12px;padding-left:14px;padding-right:14px;position:relative;overflow:hidden}
+.top::before{content:"";position:absolute;left:-20px;right:35%;top:50%;height:1px;background:linear-gradient(90deg,transparent,rgba(126,184,255,.28) 25%,rgba(126,184,255,.48) 55%,transparent)}
+.logo{width:42px;height:42px;display:grid;place-items:center;position:relative;flex:0 0 42px}.ring{position:absolute;width:42px;height:42px;border:1px solid rgba(126,184,255,.20);transform:rotate(45deg);animation:rot 18s linear infinite}.ring2{position:absolute;width:30px;height:30px;border:1px solid rgba(126,184,255,.12);transform:rotate(45deg);animation:rot 26s linear infinite reverse}
+.mark-o{width:22px;height:22px;border:1px solid rgba(126,184,255,.58);transform:rotate(45deg);box-shadow:0 0 20px rgba(126,184,255,.70),0 0 44px rgba(126,184,255,.32);animation:rot 30s linear infinite}.mark-m{width:13px;height:13px;border:1px solid rgba(200,220,255,.70);transform:rotate(45deg);animation:rotR 15s linear infinite;position:absolute;box-shadow:0 0 10px rgba(126,184,255,.55)}.mark-d{width:5px;height:5px;background:#e6f0ff;transform:rotate(45deg);box-shadow:0 0 8px #8ec0ff,0 0 16px #5a9eff;position:absolute}
+@keyframes rot{to{transform:rotate(405deg)}}@keyframes rotR{to{transform:rotate(-315deg)}}
+.brand{min-width:0}.brand b{font:12px/1.2 Georgia,"Noto Sans JP",serif;letter-spacing:.2em;color:#d7dde7;text-shadow:0 0 12px rgba(200,220,255,.4);display:block;white-space:nowrap}.brand small{font-size:6px;letter-spacing:.14em;color:#6b7a8d;display:block;margin-top:3px;white-space:nowrap}
+.rfbtn{margin-left:auto;background:#0b1017;border:1px solid var(--line);color:var(--muted);width:30px;height:30px;border-radius:6px;font-size:14px;cursor:pointer;flex:none}.rfbtn:disabled{opacity:.5}
+
+.wrap{padding:10px;display:flex;flex-direction:column;gap:10px;padding-bottom:88px}
+
+/* === unified card base - all cards share this === */
+.u-card{background:var(--card-bg);border:1px solid var(--line-strong);border-radius:var(--radius);box-shadow:var(--shadow);backdrop-filter:blur(24px) saturate(135%);-webkit-backdrop-filter:blur(24px) saturate(135%);position:relative;overflow:hidden}
+.u-card::after{content:"";position:absolute;left:8%;right:8%;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(220,238,250,.50),transparent);box-shadow:0 0 16px rgba(150,210,240,.28);pointer-events:none}
+.u-head{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(42,56,72,.24),rgba(8,13,19,.14))}
+.u-head b{font-size:11px;font-weight:600;letter-spacing:.04em}
+.u-head .sub{font-size:8px;color:var(--muted);letter-spacing:.08em;margin-top:1px}
+.u-body{padding:0}
+
+/* countcard - now u-card variant */
+.countcard{display:flex;justify-content:space-between;align-items:center;padding:12px 14px}
+.countcard .left{flex:1}
+.countcard .kicker{display:flex;align-items:center;gap:6px}
+.countcard .dot{width:5px;height:5px;border-radius:50%;background:var(--gold2);box-shadow:0 0 10px var(--gold2)}
+.countcard .lbl{font-size:7px;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.countcard .badge{font-size:6px;letter-spacing:.12em;color:var(--dim);border:1px solid rgba(177,204,226,.18);border-radius:3px;padding:2px 4px}
+.countcard .main{margin-top:6px;display:flex;align-items:baseline;gap:8px}
+.countcard .main .num{font-size:24px;font-weight:800;letter-spacing:.01em;line-height:1;color:var(--text);text-shadow:0 0 14px rgba(220,238,250,.16)}
+.countcard .main .unit{font-size:11px;color:var(--muted);font-weight:500}
+.countcard .date{font-size:8px;color:var(--muted);margin-top:5px;display:flex;align-items:center;gap:6px}
+.countcard .right{border-left:1px solid var(--line);padding-left:12px;margin-left:12px;text-align:center;min-width:56px}
+.countcard .right .big{font-size:20px;font-weight:800;color:var(--gold2);line-height:1;text-shadow:0 0 12px rgba(217,173,104,.28)}
+.countcard .right .small{font-size:7px;letter-spacing:.12em;color:var(--muted);margin-top:3px}
+
+/* selector - same as u-card */
+.selector{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+.selector .row{display:flex;justify-content:space-between;align-items:center}
+.selector .label{font-size:7px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.selectWrap{position:relative}
+.selectWrap select{appearance:none;background:#0b1017;border:1px solid var(--line);color:var(--text);padding:7px 26px 7px 10px;border-radius:6px;font-size:11px;min-width:148px}
+.selectWrap::after{content:"▾";position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:10px;pointer-events:none}
+.meta{display:flex;gap:10px;font-size:7px;color:var(--muted);letter-spacing:.04em}.meta b{color:var(--text);font-weight:600}
+
+/* timeline cards */
+.timeline{position:relative;background:radial-gradient(40% 48% at 70% 28%,rgba(82,165,225,.10),transparent 72%),radial-gradient(24% 36% at 24% 72%,rgba(217,173,104,.045),transparent 72%),linear-gradient(rgba(126,164,195,.038) 1px,transparent 1px),linear-gradient(90deg,rgba(126,164,195,.038) 1px,transparent 1px),rgba(4,9,15,.58);box-shadow:inset 0 0 70px rgba(60,120,165,.06)}
+.timeline.price{height:280px}.timeline.impact{height:260px}
+canvas{width:100%;height:100%;display:block}
+.yLabel{position:absolute;left:0;top:0;bottom:0;width:40px;display:flex;flex-direction:column;justify-content:space-between;padding:14px 0 20px 8px;font-size:7px;color:var(--muted);pointer-events:none}
+.xLabel{position:absolute;left:40px;right:10px;bottom:0;height:18px;display:flex;justify-content:space-between;font-size:7px;color:var(--muted);letter-spacing:.02em}
+.centerLine{position:absolute;left:40px;right:10px;top:50%;height:1px;background:rgba(255,255,255,.06);border-top:1px dashed rgba(255,255,255,.10)}
+.centerLine::after{content:attr(data-label);position:absolute;left:0;top:-11px;font-size:7px;color:var(--muted);background:var(--bg);padding:0 4px}
+.nowline{position:absolute;top:0;bottom:0;width:1px;background:linear-gradient(to bottom,transparent 0,rgba(240,244,248,.90) 9%,rgba(240,244,248,.55) 78%,transparent 100%);box-shadow:0 0 12px rgba(120,180,220,.14);pointer-events:none}
+.nowline::before{content:"";position:absolute;top:9px;left:50%;width:6px;height:6px;border-left:1px solid #fff;border-bottom:1px solid #fff;transform:translate(-50%,-50%) rotate(-45deg)}
+.nowtag{position:absolute;top:8px;transform:translateX(-50%);font-size:7px;letter-spacing:.12em;background:#0c1118;border:1px solid rgba(177,204,226,.24);padding:2px 5px;border-radius:3px;color:var(--text);pointer-events:none}
+.futureShade{position:absolute;top:0;bottom:0;background:rgba(105,151,205,.022);border-left:1px solid rgba(105,151,205,.05);pointer-events:none}
+
+/* event cards - unified 8px radius, same glass */
+.eventCard{position:absolute;min-width:84px;padding:6px 7px;background:linear-gradient(145deg,rgba(37,50,65,.76),rgba(8,13,20,.68)),radial-gradient(100% 80% at 0% 0%,rgba(255,255,255,.07),transparent 70%);border:1px solid rgba(182,208,228,.28);border-radius:6px;box-shadow:0 14px 32px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.10);backdrop-filter:blur(12px);z-index:8}
+.eventCard b{font-size:10px;font-weight:600;display:block;line-height:1.2}.eventCard span{font-size:8px;color:var(--muted);display:block;line-height:1.2;margin-top:1px}.eventCard .tag{font-size:6px;letter-spacing:.08em;border:1px solid currentColor;border-radius:3px;padding:1px 3px;display:inline-block;margin-bottom:2px;line-height:1}
+.eventCard.high{border-color:rgba(230,190,104,.55)} .eventCard.high .tag{color:var(--gold2)}
+.eventCard.next{border-color:rgba(105,199,214,.62)} .eventCard.next .tag{color:var(--cyan)}
+.eventLine{position:absolute;top:92px;bottom:0;width:1px;background:linear-gradient(to bottom,rgba(217,173,104,.38) 0%,rgba(217,173,104,.16) 40%,transparent 100%);pointer-events:none}
+.eventLine:after{content:"";position:absolute;left:50%;bottom:48px;width:7px;height:7px;border:1px solid var(--gold2);background:#0b1017;border-radius:50%;transform:translateX(-50%)}
+.eventLine.next{background:linear-gradient(to bottom,rgba(105,199,214,.44),rgba(105,199,214,.14) 40%,transparent)} .eventLine.next:after{border-color:var(--cyan)}
+
+.legend{display:flex;gap:10px;padding:7px 14px;border-top:1px solid var(--line);font-size:7px;color:var(--muted);letter-spacing:.04em}
+.legend b{color:var(--text);font-weight:600}
+
+/* fact grid - unified */
+.factGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.factCard{background:var(--card-bg);border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px;box-shadow:var(--shadow-soft);position:relative;overflow:hidden}
+.factCard::after{content:"";position:absolute;left:8%;right:8%;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(220,238,250,.35),transparent);pointer-events:none}
+.factCard .k{font-size:7px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase}
+.factCard .v{font-size:16px;font-weight:800;margin-top:3px;letter-spacing:.01em;line-height:1}
+.factCard .d{font-size:7px;color:var(--muted);margin-top:3px;line-height:1.4}
+.factCard.up{border-color:rgba(108,202,160,.22)} .factCard.up .v{color:var(--up)}
+.factCard.down{border-color:rgba(216,120,120,.22)} .factCard.down .v{color:var(--down)}
+
+/* history - unified */
+.history{border-radius:var(--radius);overflow:hidden}
+.historyHead{height:40px;display:flex;justify-content:space-between;align-items:center;padding:0 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(42,56,72,.20),rgba(8,13,19,.10))}
+.historyHead b{font-size:10px;font-weight:600;letter-spacing:.02em}
+.historyHead span{font-size:7px;color:var(--muted)}
+.historyList{max-height:192px;overflow-y:auto}
+.hRow{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid rgba(32,42,54,.5);cursor:pointer;transition:.12s}
+.hRow:hover{background:rgba(126,184,255,.04)} .hRow.active{background:rgba(228,185,106,.08);border-left:2px solid var(--gold2)}
+.hRow .date{font-size:11px;font-weight:500;letter-spacing:.01em} .hRow .time{font-size:7px;color:var(--muted);margin-left:6px}
+.hRow .move{font-size:11px;font-weight:700;letter-spacing:.01em} .hRow .move.up{color:var(--up)} .hRow .move.down{color:var(--down)}
+.hRow .sub{font-size:7px;color:var(--muted);text-align:right;margin-top:1px}
+
+.note{font-size:7px;color:var(--dim);line-height:1.6;padding:2px 4px;letter-spacing:.02em}
+
+body{padding-bottom:env(safe-area-inset-bottom,0px)}
+.yLabel{width:40px;padding:0}.yLabel span{position:absolute;left:6px;transform:translateY(-50%);font-size:7px;color:var(--muted)}
+.xLabel{left:0;right:0;height:26px}.xLabel span{position:absolute;bottom:0;transform:translateX(-50%);text-align:center;line-height:1.2;white-space:nowrap}.xLabel em{display:block;font-style:normal;color:var(--dim);font-size:6px}
+.centerLine{left:40px;right:22px}
+.tlmsg{position:absolute;left:0;right:0;top:0;bottom:0;display:none;align-items:center;justify-content:center;text-align:center;padding:0 28px;color:var(--muted);font-size:11px;line-height:1.7;z-index:9;background:rgba(4,9,15,.55)}
+#cardLayer{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none}
+.eventCard .rx{font-size:9px;font-weight:700;white-space:nowrap;margin-top:3px;padding-top:3px;border-top:1px solid rgba(182,208,228,.14)}.eventCard .rx u,.hud u{text-decoration:none}.eventCard .rx u.up,.hud u.up{color:var(--up)}.eventCard .rx u.dn,.hud u.dn{color:var(--down)}
+.eventCard i{font-style:normal;color:var(--dim);font-size:8px}
+.eventLine{bottom:0}.eventLine:after{display:none}
+.hud{font-size:8px;margin-top:1px;font-weight:600}
+.hmsg{padding:14px;text-align:center;font-size:9px;color:var(--muted)}
+.chips{display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid var(--line)}
+.chips button{background:none;border:1px solid transparent;color:var(--muted);font:600 9px/1 system-ui;letter-spacing:.06em;padding:5px 7px;border-radius:4px;cursor:pointer}
+.chips button.on{color:var(--text);background:#1b2430;border-color:var(--line)}
+.selectWrap select{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.selectWrap select option,.selectWrap select optgroup{background:#0b1017;color:var(--text)}.selectWrap select option.z{color:#6f7d8a}
+.selector .row{gap:10px}
+.note a{text-decoration:underline}
+/* === PC WALLET ACCESS / MOBILE === */
+.top{padding-right:8px}.wallet-access{position:relative;display:flex;align-items:center;gap:7px;margin-left:auto;flex:0 0 auto;padding:6px 7px;background:linear-gradient(145deg,rgba(19,27,35,.92),rgba(5,8,12,.97));border:1px solid rgba(205,168,95,.38);border-radius:6px;color:#e8d09a;box-shadow:0 0 18px rgba(205,168,95,.055),inset 0 1px 0 rgba(255,255,255,.035);cursor:pointer;min-width:106px}.wallet-access:hover,.wallet-access.open{border-color:rgba(225,203,157,.7);box-shadow:0 0 25px rgba(205,168,95,.13),inset 0 1px 0 rgba(255,255,255,.05)}.wallet-icon{font-size:15px;color:#d9c084;text-shadow:0 0 12px rgba(205,168,95,.35)}.wallet-label{display:flex;flex-direction:column;align-items:flex-start;line-height:1.05;min-width:0}.wallet-label b{font-size:8px;letter-spacing:.06em;color:#e7eef3;white-space:nowrap;max-width:75px;overflow:hidden;text-overflow:ellipsis}.wallet-label small{margin-top:3px;font-size:5px;letter-spacing:.12em;color:#7d8c98}.wallet-chevron{margin-left:auto;color:#9eacb7;font-size:12px;transition:transform .2s}.wallet-access.open .wallet-chevron{transform:rotate(180deg)}
+.wallet-popover{position:fixed;z-index:1000;left:10px;right:10px;top:66px;width:auto;padding:15px;background:radial-gradient(300px 150px at 0% 0%,rgba(88,174,239,.14),transparent 70%),radial-gradient(220px 130px at 100% 100%,rgba(205,168,95,.055),transparent 72%),linear-gradient(145deg,rgba(11,17,23,.985),rgba(3,6,9,.995));border:1px solid rgba(192,216,233,.16);border-radius:10px;box-shadow:0 28px 70px rgba(0,0,0,.68),0 0 45px rgba(61,139,195,.09),inset 0 1px 0 rgba(239,247,252,.035);opacity:0;transform:translateY(-8px) scale(.985);pointer-events:none;transition:opacity .2s ease,transform .2s ease}.wallet-popover.open{opacity:1;transform:none;pointer-events:auto}.wallet-popover:before{content:"";position:absolute;right:28px;top:-6px;width:12px;height:12px;background:#0b1117;border-left:1px solid rgba(192,216,233,.16);border-top:1px solid rgba(192,216,233,.16);transform:rotate(45deg)}.wallet-popover-glow{position:absolute;right:-90px;top:-110px;width:230px;height:230px;border:1px solid rgba(111,190,246,.07);border-radius:50%;box-shadow:0 0 45px rgba(70,151,208,.07);pointer-events:none}.wallet-popover-head{position:relative;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:13px}.wallet-eyebrow{font-size:7px;letter-spacing:.22em;color:#7bbfff}.wallet-popover h3{margin:3px 0;font-size:18px;letter-spacing:.08em;color:#eef4f8}.wallet-popover p{margin:0;font-size:7px;letter-spacing:.12em;color:#6e7f8c}.wallet-close{width:27px;height:27px;border:1px solid rgba(192,213,228,.09);border-radius:5px;background:rgba(255,255,255,.018);color:#91a0ac;font-size:18px;cursor:pointer}.wallet-choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.pay-choice{min-height:63px;padding:8px 7px;text-align:left;border:1px solid rgba(190,211,225,.075);border-radius:7px;background:linear-gradient(145deg,rgba(18,25,33,.8),rgba(5,8,12,.95));color:#dce7ee;cursor:pointer}.pay-choice.active{border-color:rgba(181,222,251,.4);background:radial-gradient(100px 65px at 10% 0%,rgba(102,189,250,.14),transparent 70%),linear-gradient(145deg,rgba(18,31,43,.95),rgba(5,9,13,.98));box-shadow:0 0 20px rgba(67,157,220,.08),inset 0 1px 0 rgba(255,255,255,.05)}.pay-choice span{display:block;color:#cceaff;font-size:13px;margin-bottom:5px}.pay-choice b{display:block;font-size:10px;color:#edf4f8}.pay-choice small{display:block;margin-top:3px;font-size:5px;letter-spacing:.12em;color:#6e818f}.pay-choice.more{border-style:dashed;opacity:.68}.wallet-popover-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:11px;border-top:1px solid rgba(197,218,233,.055)}.wallet-popover-foot div{display:flex;flex-direction:column;gap:3px}.wallet-popover-foot strong{font-size:8px;color:#c9d7e0}.wallet-popover-foot span{font-size:6px;color:#657682}.confirm-access{white-space:nowrap;border:1px solid rgba(205,168,95,.48);border-radius:6px;background:linear-gradient(135deg,rgba(205,168,95,.11),rgba(5,8,12,.92));color:#e6cd94;padding:9px 10px;font-size:7px;font-weight:700;letter-spacing:.07em;cursor:pointer}.confirm-access i{font-style:normal;margin-left:5px;font-size:12px}.wallet-popover #walletMsg{font-size:8px!important}.wallet-popover #walletSafe{font-size:9px!important;line-height:1.65!important;padding:10px 11px!important}@media(max-width:360px){.wallet-access{min-width:98px}.wallet-label b{max-width:64px}.brand small{display:none}.wallet-popover{left:7px;right:7px}.wallet-popover-foot{align-items:stretch;flex-direction:column}.confirm-access{width:100%}}
+
+.brand b{letter-spacing:.1em}.wallet-access{min-width:0}@media(max-width:380px){.brand b{font-size:11px;letter-spacing:.04em}.brand small{letter-spacing:.06em}.top{gap:9px}.logo{flex-basis:36px;width:36px;height:36px}.ring{width:36px;height:36px}}
+.rfbtn{margin-left:2px;width:26px;height:26px;font-size:13px}
+.wallet-popover{top:calc(66px + env(safe-area-inset-top,0px));max-height:calc(100vh - 80px);overflow-y:auto}
+.wallet-label b{max-width:92px}@media(max-width:380px){.wallet-label b{max-width:64px}}
+/* === v38 LANG SWITCH (PC版と同じ: 保存キー csa-lang) === */
+.langbar{display:flex;justify-content:flex-end;padding:8px 14px 0}
+.lang-switch{display:inline-flex;align-items:center;gap:2px;padding:3px;border:1px solid var(--line-strong);border-radius:8px;background:rgba(3,7,12,.9);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.lang-switch-label{padding:0 7px;color:#8193a5;font:600 8px/26px system-ui,sans-serif;letter-spacing:.14em}
+.lang-switch button{appearance:none;min-width:38px;height:26px;padding:0 9px;border:1px solid transparent;border-radius:5px;background:transparent;color:#8193a5;font:700 10px/26px system-ui,sans-serif;letter-spacing:.10em;cursor:pointer}
+.lang-switch button.active{color:#f7fbff;background:rgba(111,170,222,.18);border-color:rgba(141,199,255,.30)}
 </style></head><body>
-<header class="top"><div class="top-in">
-<div class="brand"><svg class="glyph" viewBox="0 0 28 28" aria-hidden="true"><defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff"/></linearGradient></defs><rect x="13.4" y="3" width="1.2" height="17" fill="url(#gg)"/><line x1="2" y1="21" x2="26" y2="21" stroke="#a3acb8" stroke-width="1"/><line x1="2" y1="24" x2="26" y2="24" stroke="#7b8490" stroke-width=".6" opacity=".6"/><circle cx="14" cy="21" r="2" fill="#fff"/><circle cx="7" cy="21" r="1.2" fill="#5fd0e0"/><circle cx="21" cy="21" r="1.2" fill="#e8a948"/></svg><div><h1>CRYPTO SIGNAL ARCHIVE</h1><div class="tag">ALL SIGNALS. ONE TIMELINE.</div></div></div>
-<nav id="tabs"></nav>
-<div class="meta"><button id="rf" class="rf" type="button" title="価格・イベント・ステーク量をキャッシュを通さず取り直します" aria-label="最新の情報に更新"><span class="ic">↻</span> 更新</button><select id="tz" aria-label="表示する都市の時刻"></select><span id="clk"></span></div>
-</div></header>
-<main class="app">
-<div class="hero">
-<section class="stage">
-<div class="sh2"><div class="ti"><span class="eyebrow">PRICE × TIME × EVENTS</span><b id="ttl"></b><span class="mu" id="tzl"></span></div><div id="tfs"></div></div>
-<div class="plot"><div id="chart"></div><div id="tipln"></div><div id="tip"></div></div>
-<div id="eq"></div>
-<div id="sq"></div>
-</section>
-<aside class="side"><div class="sh"><b>NEXT 24H</b><span id="sw"></span></div><div id="nx"></div></aside>
+<div class="top"><div class="logo"><div class="ring"></div><div class="ring2"></div><div class="mark-o"></div><div class="mark-m"></div><div class="mark-d"></div></div><div class="brand"><b>暗号資産シグナル・アーカイブ</b><small>すべてのシグナルを、ひとつのタイムラインに。</small></div><button class="wallet-access" id="walletAccess" type="button" aria-expanded="false"><span class="wallet-icon">◈</span><span class="wallet-label"><b id="walletBtn">ウォレット接続</b><small>ARCHIVE ACCESS</small></span><span class="wallet-chevron">⌄</span></button></div>
+<div class="langbar"><div class="lang-switch" role="group" aria-label="Language / 言語"><span class="lang-switch-label">LANG</span><button type="button" data-lang="ja" aria-pressed="false">JP</button><button type="button" data-lang="en" aria-pressed="true">EN</button></div></div>
+<div class="wallet-popover" id="walletPopover" aria-hidden="true"><div class="wallet-popover-glow"></div><div class="wallet-popover-head"><div><span class="wallet-eyebrow">ARCHIVE ACCESS</span><h3>Pick Your Coin</h3><div id="walletTerm" data-dyn style="margin:6px 0 5px;font-size:18px;font-weight:700;color:#e1cb9d"></div><p>ONE PAYMENT · 365 DAYS</p></div><button class="wallet-close" type="button" aria-label="Close">×</button></div><div class="wallet-choices"><button class="pay-choice active" type="button" data-coin="USDC"><span>◎</span><b>1 USDC</b><small>STABLE</small></button><button class="pay-choice" type="button" data-coin="USDT"><span>₮</span><b>1 USDT</b><small>STABLE</small></button><button class="pay-choice" type="button" data-coin="SOL"><span>S</span><b>0.01 SOL</b><small>SOLANA</small></button><button class="pay-choice" type="button" data-coin="RAY"><span>R</span><b>1 RAY</b><small>RAYDIUM</small></button><button class="pay-choice" type="button" data-coin="PUMP"><span>P</span><b>100 PUMP</b><small>PUMP</small></button><button class="pay-choice more" type="button"><span>+</span><b>MORE</b><small>SOON</small></button></div><div id="walletMsg" data-dyn></div><button id="walletOff" type="button" data-dyn style="display:none"></button><div id="walletSafe" data-dyn></div><div class="wallet-popover-foot"><div><strong>Use the coin already in your wallet.</strong><span>Rates are intentionally simple.</span></div><button class="confirm-access" id="walletGo" type="button" data-dyn>CONNECT &amp; ACCESS <i>→</i></button></div></div>
+<div class="wrap">
+
+<div class="u-card countcard" id="countCard">
+  <div class="left">
+    <div class="kicker"><span class="dot"></span><span class="lbl" id="nextLbl">次の重要イベントまで</span><span class="badge">LIVE</span></div>
+    <div class="main"><span class="num" id="countMain">—</span><span class="unit" id="countSub"></span></div>
+    <div class="date"><span id="nextDate">読み込み中…</span></div>
+  </div>
+  <div class="right" id="cdRight" style="display:none"><div class="big" id="cdHms">--:--:--</div><div class="small">残り時間</div></div>
 </div>
-<section class="foot"><div id="ov"></div><div id="fl"></div><div class="key" id="key"></div></section>
-<section class="listwrap" id="listWrap"><div id="list"></div></section>
-<div class="note">価格はPacificaの公開データ、日米欧の経済指標の日程はTradingViewの公開カレンダーから自動で取得しています（取得できない時は予備としてForex Factoryの今週・来週分を表示）。日程は変更されることがあるため、重要な発表は公式の情報でも確認してください。市場・銘柄のニュース層は準備中です。足の区切りはUTC基準で、週足・月足は日足から集計しています。本ツールは公開情報の整理を目的とし、価格予測・売買の推奨は行いません。縦線が価格と重なって見えても、因果関係を示すものではありません。<div id="st"></div></div>
+
+<div class="u-card selector">
+  <div class="row"><span class="label">指標を選択 / いつ発表？</span><div class="selectWrap"><select id="indicatorSelect" aria-label="指標を選択"><option value="auto">自動：次の重要イベント</option></select></div></div>
+  <div class="meta"><span>過去 <b id="metaCount">—</b></span><span>期間 <b id="metaPeriod">—</b></span><span>現在 <b id="metaPrice">—</b></span></div>
+</div>
+
+<div class="u-card">
+  <div class="u-head"><div><b>現在の価格チャート</b><div class="sub" id="priceSub">読み込み中…</div></div><div style="font-size:8px;color:var(--muted);text-align:right">24時間<br><b id="chg24" style="color:var(--muted)">—</b></div></div>
+  <div class="chips"><div id="symChips"></div><div id="tfChips" style="margin-left:auto"></div><button id="rf" class="rfbtn" type="button" title="更新">↻</button></div>
+  <div class="timeline price" id="boxPrice">
+    <canvas id="chartPrice"></canvas>
+    <div class="nowline" id="nowline"></div><div class="nowtag" id="nowtag">NOW</div>
+    <div class="futureShade" id="futureShade"></div>
+    <div id="cardLayer"></div>
+    <div class="tlmsg" id="priceMsg"></div>
+  </div>
+  <div class="legend"><span style="color:var(--gold2)">● 指標</span><span style="color:var(--cyan)">● NEXT</span><span style="margin-left:auto" id="legPrice">現在価格 —</span></div>
+</div>
+
+<div class="u-card">
+  <div class="u-head"><div><b>発表価格からの変動率</b><div class="sub" id="impactSub">発表時点=0% / 過去の事実（事実ベース）</div></div><div style="font-size:7px;color:var(--muted);text-align:right">事実ベース<br>予測ではない</div></div>
+  <div class="timeline impact" id="boxImpact">
+    <div class="yLabel" id="yLabel"></div>
+    <div class="centerLine" id="centerLine" data-label="発表時点 0%"></div>
+    <canvas id="chartImpact"></canvas>
+    <div class="xLabel" id="xLabel"></div>
+    <div class="tlmsg" id="impMsg"></div>
+  </div>
+  <div class="legend"><span>薄線:各回の事実</span><span id="legAvg" style="color:var(--gold2)">● 平均</span><span style="margin-left:auto">下の一覧をタップで強調</span></div>
+</div>
+
+<div class="factGrid">
+  <div class="factCard up"><div class="k">上方向の最大（1時間以内）</div><div class="v" id="maxUp">—</div><div class="d" id="maxUpDate">&nbsp;</div></div>
+  <div class="factCard down"><div class="k">下方向の最大（1時間以内）</div><div class="v" id="maxDown">—</div><div class="d" id="maxDownDate">&nbsp;</div></div>
+</div>
+<div class="factGrid">
+  <div class="factCard"><div class="k">平均の動き（1時間後・事実）</div><div class="v" id="avgVal">—</div><div class="d" id="avgD">発表価格から</div></div>
+  <div class="factCard"><div class="k" id="lastLabel">前回</div><div class="v" id="lastVal">—</div><div class="d">発表価格から</div></div>
+</div>
+
+<div class="u-card history">
+  <div class="historyHead"><b id="historyTitle">過去の発表 - いつ・どれだけ動いたか</b><span>タップで強調</span></div>
+  <div class="historyList" id="historyList"></div>
+</div>
+
+<div class="note" id="noteMain">統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。</div>
+<div class="note" style="margin-top:2px"><a href="/?pc" style="color:var(--muted)">PC版を開く</a> · <a href="/classic-legacy" style="color:var(--muted)">従来のスマホ画面</a></div>
+
+</div>
+
 <script>
-const SHOW_ACCESS=true; // 画面右下の「1 YEAR ACCESS」表示（見た目だけ。決済機能は未実装）
-const A=['BTC','ETH','SOL','BNB'];
-const IM={high:'高',mid:'中',low:'低'},IMX={high:'HIGH IMPACT',mid:'MEDIUM',low:'LOW'},LN={macro:'マクロ',market:'市場',asset:'銘柄'};
-const LC={macro:'#e8a948',asset:'#5fd0e0',market:'#4fcf9a'};
-const IR={high:3,mid:2,low:1};
-const FL=[['all','すべて'],['high','重要度：高'],['macro','マクロ'],['market','市場'],['asset','銘柄']];
-const TZ=[['Asia/Tokyo','東京'],['Asia/Seoul','ソウル'],['Asia/Shanghai','上海'],['Asia/Hong_Kong','香港'],['Asia/Singapore','シンガポール'],['Asia/Dubai','ドバイ'],['Europe/London','ロンドン'],['Europe/Zurich','チューリッヒ'],['Europe/Paris','パリ'],['America/New_York','ニューヨーク'],['America/Chicago','シカゴ'],['America/Los_Angeles','ロサンゼルス'],['Australia/Sydney','シドニー'],['UTC','UTC']];
-let tz='Asia/Tokyo';try{const sv=localStorage.getItem('tz');if(TZ.some(c=>c[0]===sv))tz=sv}catch(_){}
-function off(t){const p=new Intl.DateTimeFormat('en-US',{timeZone:tz,hourCycle:'h23',year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric',second:'numeric'}).formatToParts(t).reduce((o,x)=>(o[x.type]=x.value,o),{});return Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second)-Math.floor(t/1000)*1000}
-function ofs(t){const m=off(t||Date.now())/6e4,a=Math.abs(m);return 'UTC'+(m<0?'-':'+')+Math.floor(a/60)+(a%60?':'+String(a%60).padStart(2,'0'):'')}
-let asset='BTC',flt='all',sel=null,tf=2,E=[],evErr=[],NOW=Date.now(),EIX=new Map(),CLU={},hideT=0;
-const CD={},CS={};
+(()=>{
 const $=id=>document.getElementById(id);
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=ts=>new Date(ts).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',timeZone:tz});
-const hhmm=ts=>new Date(ts).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',hourCycle:'h23',timeZone:tz});
-const dstr=ts=>new Date(ts).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric',timeZone:tz});
-const fp=v=>v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:0}):v>=100?v.toFixed(1):v>=1?v.toFixed(3):v.toFixed(5);
-function cdn(ts){const d=ts-NOW;if(d<=0)return'';const m=Math.floor(d/6e4),h=Math.floor(m/60),dd=Math.floor(h/24);return 'T−'+(dd>=1?dd+'d '+(h%24)+'h':h>=1?h+'h'+String(m%60).padStart(2,'0')+'m':m+'m')}
-// [API名, 表示名, 1本の長さ(月足は0), 右側に空ける本数]
-const TF=[['5m','5分足',3e5,48],['15m','15分足',9e5,96],['1h','1時間足',36e5,120],['4h','4時間足',144e5,60],['1d','日足',864e5,30],['1w','週足',6048e5,8],['1M','月足',0,3]];
-function nx(t,m){if(m===0){const d=new Date(t);return Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)}return t+m}
-function vis(){return E.filter(e=>(!e.a||e.a.includes(asset))&&(flt==='all'||(flt==='high'?e.im==='high':e.l===flt)))}
-/* 選択・強調: 縦線(まとまりの場合は含まれる全イベント)、一覧、NEXT 24Hが同時に光る */
-function hl(id){
-const k=id==null?-1:EIX.get(id);
-document.querySelectorAll('[data-id]').forEach(n=>n.classList.toggle('hl',n.dataset.id===id));
-document.querySelectorAll('[data-ids]').forEach(n=>n.classList.toggle('hl',k>=0&&n.dataset.ids.split(',').includes(String(k))));
-tip(id)}
-function pick(id){sel=sel===id?null:id;hl(sel)}
-function tip(id){
-const T=$('tip'),N=$('tipln'),e=id==null?null:E.find(q=>q.id===id);
-if(!e||!CX||!CX.x||e.ts<CX.d0||e.ts>CX.d1){T.style.display='none';N.style.display='none';return}
-const mob=CX.mob,px=CX.x(e.ts),W=CX.W,tw=Math.min(280,W-8),right=px+16+tw<=W-4,left=Math.max(4,right?px+16:px-16-tw),top=CX.Tp+Math.round(CX.H0*.3);
-const mem=(CLU[e.id]||[e]).filter(q=>q.id!==e.id);
-const c=cdn(e.ts);
-T.innerHTML=`<button class="x" aria-label="閉じる">×</button><div class="tk"><span style="color:${LC[e.l]||'#aab'}">${LN[e.l]||''}${e.l==='asset'?' · '+esc(asset):''}</span><span class="ii ${esc(e.im)}">${IMX[e.im]||''}</span></div><div class="tt">${esc(e.t)}</div><div class="tm"><span>${hhmm(e.ts)} ${ofs(e.ts)}</span><span>${dstr(e.ts)}</span><span class="cdn">${c||'ARCHIVED'}</span></div>${e.src?`<div class="sr">${esc(e.src)}</div>`:''}${mem.length?`<div class="cm">この付近に他${mem.length}件: ${mem.slice(0,4).map(q=>esc(q.s||q.t)).join(' / ')}${mem.length>4?' ほか':''}</div>`:''}${/^https?:\/\//.test(e.u||'')?`<a href="${esc(e.u)}" target="_blank" rel="noopener noreferrer">記事を開く ↗</a>`:''}`;
-if(mob){T.className='sheet';T.style.left='';T.style.top='';T.style.display='block';N.style.display='none';return}
-T.className='';T.style.left=left+'px';T.style.top=top+'px';T.style.display='block';
-const x1=Math.min(px,right?left:left+T.offsetWidth),x2=Math.max(px,right?left:left+T.offsetWidth);
-N.style.cssText=`display:block;left:${x1}px;width:${Math.max(2,x2-x1)}px;top:${top+16}px`;N.className=right?'r':'l'}
-function bindHL(sel2,idOf){document.querySelectorAll(sel2).forEach(n=>{
-n.addEventListener('pointerenter',()=>{clearTimeout(hideT);hl(idOf(n))});
-n.addEventListener('pointerleave',()=>{hideT=setTimeout(()=>hl(sel),180)});
-n.addEventListener('click',ev=>{ev.stopPropagation();pick(idOf(n))})})}
-function build(a,i){const d=CD[a+'|'+TF[i][0]];if(!d)return null;const m=TF[i][2];
-const k=d.rows.map(r=>({t:r[0]*1e3,o:r[1],h:r[2],l:r[3],c:r[4]}));k.forEach(q=>q.n=nx(q.t,m));
-let e=k[k.length-1].n;for(let j=0;j<TF[i][3];j++)e=nx(e,m);return{k,d0:k[0].t,d1:e,at:d.at,st:d.st||0,src:d.src||'Pacifica'}}
-const agoTxt=t=>{const m=Math.max(1,Math.round((Date.now()-t)/6e4));return m<90?m+'分前':m<2880?Math.round(m/60)+'時間前':Math.round(m/1440)+'日前'};
-let NC=0;const gf=u=>NC?fetch(u+(u.includes('?')?'&':'?')+'_='+NC,{cache:'no-store'}):fetch(u);
-async function loadC(a,i,force){const key=a+'|'+TF[i][0],c=CD[key];if(!force&&c&&Date.now()-c.at<3e5)return;if(CS[key]==='loading')return;CS[key]='loading';
-try{const r=await gf('/api/candles?sym='+a+'&tf='+TF[i][0]);if(!r.ok)throw new Error(r.status);const j=await r.json();if(!j.bars||!j.bars.length)throw new Error('empty');CD[key]={rows:j.bars,at:Date.now(),st:j.stale&&j.at?j.at:0,src:j.source||'Pacifica'};CS[key]='ok'}
-catch(e){CS[key]=CD[key]?'ok':'error'}
-if(a===asset&&i===tf){chart();hl(sel)}}
-let EV_FAIL='',EV_RT=0;
-async function loadE(){let last='';
-for(let i=0;i<3;i++){try{const r=await gf('/api/cal');if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();if(!Array.isArray(j.events))throw new Error('形式が違います');
-E=j.events.map(e=>({...e,ts:Date.parse(e.at)})).filter(e=>isFinite(e.ts));EIX=new Map(E.map((e,i)=>[e.id,i]));evErr=j.errors||[];EV_FAIL='';clearTimeout(EV_RT);last='';break}
-catch(e){last=String(e.message||e);await new Promise(r=>setTimeout(r,[1500,4000,0][i]))}}
-if(last){EV_FAIL='イベントを取得できませんでした（'+last+'）。1分後に自動で取り直します';evErr=[EV_FAIL];clearTimeout(EV_RT);EV_RT=setTimeout(loadE,6e4)}
-render()}
-const ST=[3e5,9e5,18e5,36e5,108e5,216e5,432e5,864e5,1728e5,6048e5,2592e6,7776e6,15552e6,31536e6];
-function ticks(a,b){const st=ST.find(q=>q>=(b-a)/6)||ST[ST.length-1],r=[];
-if(st>=2592e6){const k=st>=31536e6?12:st>=15552e6?6:st>=7776e6?3:1,d=new Date(a),y=d.getUTCFullYear();for(let m=Math.floor(d.getUTCMonth()/k)*k;;m+=k){const t=Date.UTC(y,m,1);if(t>=b)break;if(t>=a)r.push([t,st])}return r}
-const o=off(a);for(let t=Math.ceil((a+o)/st)*st-o;t<b;t+=st)r.push([t,st]);return r}
-function tl(t,st){const z={timeZone:tz},d=new Date(t);if(st>=2592e6)return d.toLocaleDateString('ja-JP',{timeZone:'UTC',year:'2-digit',month:'numeric'});if(st>=864e5)return d.toLocaleDateString('ja-JP',{...z,month:'numeric',day:'numeric'});const q=d.toLocaleTimeString('ja-JP',{...z,hour:'2-digit',minute:'2-digit',hourCycle:'h23'});return q==='00:00'?d.toLocaleDateString('ja-JP',{...z,month:'numeric',day:'numeric'}):q}
-/* 近い縦線は1つの「まとまり」にする(9px以内)。代表は重要度が高いもの */
-function clusters(list,x,gap){gap=gap||9;const out=[];let cur=null;
-list.forEach(e=>{const px=x(e.ts);if(cur&&px-cur.px<gap)cur.m.push(e);else{cur={px,m:[e]};out.push(cur)}});
-out.forEach(c=>{c.rep=c.m.slice().sort((a,b)=>(IR[b.im]||0)-(IR[a.im]||0)||a.ts-b.ts)[0];c.px=x(c.rep.ts)});return out}
-function ovw(c){const k=c.k,last=k[k.length-1].c,first=k[0].o,hi=Math.max(...k.map(q=>q.h)),lo=Math.min(...k.map(q=>q.l)),ch=(last/first-1)*100,up=vis().filter(e=>e.ts>NOW),hu=up.filter(e=>e.im==='high');
-$('ov').innerHTML=`<div class="ot"><i>LAST</i><b>${fp(last)}</b></div><div class="ot" title="表示している範囲の最初の足の始値からの変化率"><i>RANGE</i><b class="${ch>=0?'up':'dn'}">${ch>=0?'+':''}${ch.toFixed(2)}%</b></div><div class="ot"><i>HIGH / LOW</i><b>${fp(hi)} / ${fp(lo)}</b></div><div class="ot"><i>UPCOMING</i><b>${up.length}</b></div><div class="ot"><i>HIGH IMPACT</i><b>${hu.length}</b></div>`}
-function chart(){
-NOW=Date.now();
-const W=Math.max(320,$('chart').clientWidth),mob=W<560,L=mob?46:62,R=mob?12:26,Tp=38;
-const H0=Math.round(Math.min(560,Math.max(280,innerHeight*(mob?.4:.5)))),Pb=Tp+H0,AX=30,LH=mob?28:32;
-const lanes=[['macro','MACRO'],['asset',asset],['market','MARKET']];
-const H=Pb+AX+lanes.length*LH+8;
-const key=asset+'|'+TF[tf][0],c=build(asset,tf);
-const base='時刻：'+TZ.find(q=>q[0]===tz)[1]+'（'+ofs()+'）・価格：'+(c&&c.src&&c.src!=='Pacifica'?c.src+'（予備）':'Pacifica');
-if(!c){CX=null;$('tzl').textContent=base;$('ov').innerHTML='';$('chart').innerHTML='<div class="msg">'+(CS[key]==='error'?'価格を取得できませんでした。少し待ってから、足を切り替えるか再読み込みしてください。':'価格を読み込み中…')+'</div>';tip(null);eqChart();sqChart();side();return}
-const d0=c.d0,d1=c.d1,x=t=>L+(t-d0)/(d1-d0)*(W-L-R);
-CX={d0,d1,L,R,W,Tp,H0,x,mob};
-let mn=Math.min(...c.k.map(q=>q.l)),mx=Math.max(...c.k.map(q=>q.h));const pd=(mx-mn)*.12||Math.abs(mx)*.01||1;mn-=pd;mx+=pd;
-const y=v=>Tp+12+(mx-v)/(mx-mn)*(H0-24);
-const all=vis().sort((a,b)=>a.ts-b.ts),inR=all.filter(e=>e.ts>=d0&&e.ts<=d1);
-CLU={};const CL=[];
-lanes.forEach((ln,i)=>{const ly=Pb+AX+LH*i+LH/2;clusters(inR.filter(e=>e.l===ln[0]),x,mob?13:9).forEach(cl=>{cl.lane=ln[0];cl.ly=ly;cl.m.forEach(m=>CLU[m.id]=cl.m);CL.push(cl)})});
-const nx0=x(NOW),n24=x(Math.min(NOW+864e5,d1));
-let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(asset)}の価格とイベントの時間軸"><defs>`+
-Object.entries(LC).map(([k,v])=>`<linearGradient id="pl-${k}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${v}" stop-opacity=".04"/><stop offset=".55" stop-color="${v}" stop-opacity=".5"/><stop offset="1" stop-color="${v}" stop-opacity=".95"/></linearGradient><linearGradient id="gh-${k}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${v}" stop-opacity="0"/><stop offset=".5" stop-color="${v}" stop-opacity=".2"/><stop offset="1" stop-color="${v}" stop-opacity="0"/></linearGradient>`).join('')+
-`<linearGradient id="plc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".6" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity=".95"/></linearGradient><linearGradient id="gf" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e8a948" stop-opacity="0"/><stop offset="1" stop-color="#e8a948" stop-opacity=".09"/></linearGradient><linearGradient id="gn" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e8a948" stop-opacity=".14"/><stop offset="1" stop-color="#e8a948" stop-opacity=".02"/></linearGradient><filter id="bl" x="-300%" y="-5%" width="700%" height="110%"><feGaussianBlur stdDeviation="3.2"/></filter><filter id="bn" x="-600%" y="-2%" width="1300%" height="104%"><feGaussianBlur stdDeviation="5"/></filter></defs>`;
-// 未来側の薄い光と、NEXT 24Hの帯(右の一覧と対応)
-s+=`<rect x="${nx0}" y="${Tp}" width="${Math.max(0,W-R-nx0)}" height="${H-Tp-6}" fill="url(#gf)"/><rect x="${nx0}" y="${Tp}" width="${Math.max(0,n24-nx0)}" height="${H-Tp-6}" fill="url(#gn)"/><rect x="${nx0}" y="${Tp-9}" width="${Math.max(0,n24-nx0)}" height="2" fill="#e8a948" opacity=".85"/><text class="mk" x="${nx0+8}" y="${Tp-14}" style="fill:#e8a948">NEXT 24H</text>`;
-// 選択時に価格の周辺を照らす光(まとまりごと)
-CL.forEach(cl=>{s+=`<rect class="halo" data-ids="${cl.m.map(m=>EIX.get(m.id)).join(',')}" x="${cl.px-80}" y="${Tp}" width="160" height="${H0}" fill="url(#gh-${cl.lane})"/>`});
-for(let i=0;i<4;i++){const v=mn+(mx-mn)*i/3;s+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(190,200,215,.08)"/><text x="${L-8}" y="${y(v)+3}" text-anchor="end">${fp(v)}</text>`}
-const tk=ticks(d0,d1);
-tk.forEach(([t])=>{const px=x(t);s+=`<line x1="${px}" x2="${px}" y1="${Tp}" y2="${Pb}" stroke="rgba(190,200,215,.07)" stroke-dasharray="2 5"/>`});
-c.k.forEach(q=>{const x1=x(q.t),x2=x(q.n),w=Math.max(1,(x2-x1)*.7),cx=(x1+x2)/2,yo=y(q.o),yc=y(q.c),up=q.c>=q.o,col=up?'#7fd6b0':'#c8656f';
-s+=`<line x1="${cx}" x2="${cx}" y1="${y(q.h)}" y2="${y(q.l)}" stroke="${col}" opacity=".85"/><rect x="${cx-w/2}" y="${Math.min(yo,yc)}" width="${w}" height="${Math.max(1,Math.abs(yo-yc))}" fill="${up?'#0a0d11':col}" stroke="${col}" opacity=".9"/>`});
-const lc=c.k[c.k.length-1].c,yL=y(lc);
-s+=`<line x1="${L}" x2="${W-R}" y1="${yL}" y2="${yL}" stroke="rgba(255,255,255,.2)" stroke-dasharray="3 4"/><text x="${W-R-6}" y="${yL-5}" text-anchor="end" style="fill:#eef1f6">${fp(lc)}</text>`;
-// 時間軸のレール(目盛り付き)と、その下に付くイベントの列
-s+=`<line x1="${L}" x2="${W-R}" y1="${Pb}" y2="${Pb}" stroke="rgba(214,222,235,.45)"/><line x1="${L}" x2="${W-R}" y1="${Pb+3}" y2="${Pb+3}" stroke="rgba(214,222,235,.14)"/>`;
-tk.forEach(([t,st])=>{const px=x(t);s+=`<line x1="${px}" x2="${px}" y1="${Pb}" y2="${Pb+9}" stroke="rgba(214,222,235,.55)"/><text x="${px}" y="${Pb+AX-6}" text-anchor="middle">${tl(t,st)}</text>`;
-if(st<2592e6)for(let q=1;q<4;q++){const mt=t+st*q/4;if(mt<d1){const mp=x(mt);s+=`<line x1="${mp}" x2="${mp}" y1="${Pb}" y2="${Pb+4}" stroke="rgba(214,222,235,.3)"/>`}}});
-lanes.forEach((ln,i)=>{const ly=Pb+AX+LH*i+LH/2;s+=`<line x1="${L}" x2="${W-R}" y1="${ly}" y2="${ly}" stroke="rgba(214,222,235,.13)"/><text class="ln" x="${L-8}" y="${ly+3}" text-anchor="end" style="fill:${LC[ln[0]]}">${esc(ln[1])}</text>`});
-// イベントの柱: 重要度で高さ・太さ・光が変わる。過去は控えめ、未来は強く
-CL.forEach(cl=>{const e=cl.rep,px=cl.px,ly=cl.ly,im=e.im,fut=e.ts>NOW,col=LC[cl.lane];
-const top=im==='high'?Tp:im==='mid'?ly-(ly-Tp)*.6:ly-26,w=im==='high'?3:im==='mid'?1.8:1,r=im==='high'?4.2:im==='mid'?3:2.1,h=ly-top;
-s+=`<g class="evg ${esc(im)}" data-ids="${cl.m.map(m=>EIX.get(m.id)).join(',')}" data-rep="${esc(e.id)}" style="--c:${col};opacity:${fut?1:.4}"><rect class="hit" x="${px-9}" y="${Tp}" width="18" height="${ly-Tp+10}"/>`+
-(im==='high'?`<rect x="${px-5}" y="${top}" width="10" height="${h}" fill="url(#pl-${cl.lane})" filter="url(#bl)" opacity=".7"/>`:'')+
-`<rect class="pl" x="${px-w/2}" y="${top}" width="${w}" height="${h}" fill="url(#pl-${cl.lane})"/>`+
-(im==='high'?`<rect x="${px-.5}" y="${top}" width="1" height="${h}" fill="url(#plc)"/>`:'')+
-(im==='high'?`<circle class="rg" cx="${px}" cy="${ly}" r="${r+3.5}"/>`:'')+`<circle class="nd" cx="${px}" cy="${ly}" r="${r}"/>`+
-(cl.m.length>1?`<text class="ct" x="${px+r+4}" y="${ly+3}">×${cl.m.length}</text>`:'')+`</g>`});
-// 現在を貫く軸
-s+=`<rect x="${nx0-5}" y="${Tp-6}" width="10" height="${H-Tp}" fill="#fff" opacity=".16" filter="url(#bn)"/><line x1="${nx0}" x2="${nx0}" y1="${Tp-12}" y2="${H-6}" stroke="rgba(255,255,255,.38)" stroke-width="3"/><line x1="${nx0}" x2="${nx0}" y1="${Tp-12}" y2="${H-6}" stroke="#fff" stroke-width="1.2"/><text class="mk" x="${nx0-8}" y="${Tp-14}" text-anchor="end" style="fill:#fff;font-weight:500">NOW ${hhmm(NOW)}</text>`;
-// 見出し(重要度「高」・選択中・未来側の近いもの)
-const selIx=sel!=null?EIX.get(sel):-1;let row=0;
-const isSel=cl=>selIx>=0&&cl.m.some(m=>EIX.get(m.id)===selIx);let lbl=CL.filter(cl=>cl.rep.im==='high'||isSel(cl));if(mob)lbl=lbl.filter(cl=>isSel(cl)).concat(lbl.filter(cl=>!isSel(cl)).sort((a,b)=>Math.abs(a.rep.ts-NOW)-Math.abs(b.rep.ts-NOW)).slice(0,3));
-lbl.sort((a,b)=>a.px-b.px).forEach(cl=>{const e=cl.rep,end=cl.px>W*.7,cn=e.ts>NOW?cdn(e.ts):'',yy=Tp+16+(row++%4)*13;
-s+=`<text class="lb" x="${cl.px+(end?-8:8)}" y="${yy}" text-anchor="${end?'end':'start'}">${esc(e.s||e.t)}${cl.m.length>1?' +'+(cl.m.length-1):''}${cn?`<tspan class="cdn" dx="6">${cn}</tspan>`:''}</text>`});
-$('chart').innerHTML=s+'</svg>';
-$('tzl').textContent=base+(c.st?'・価格は約'+agoTxt(c.st)+'の控え（取得元が混雑中）':'')+(all.length>inR.length?'・範囲外'+(all.length-inR.length)+'件':'');
-ovw(c);eqChart();sqChart();side();
-bindHL('#chart .evg',g=>g.dataset.rep);
-const sv=$('chart').querySelector('svg');sv.addEventListener('click',ev=>{if(!ev.target.closest('.evg')){sel=null;hl(null)}})
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SYMS=['BTC','ETH','SOL','BNB'];
+const TFD={'5m':{ms:3e5},'15m':{ms:9e5},'1h':{ms:36e5},'4h':{ms:144e5},'1d':{ms:864e5}};
+const VIEW={'1h':{past:72,fut:48},'4h':{past:60,fut:24},'1d':{past:50,fut:14}};
+const IMPTF=['5m','15m','1h','4h','1d'];
+const HZ=[['5分','5m',3e5],['15分','15m',9e5],['1時間','1h',36e5],['4時間','4h',144e5],['24時間','24h',864e5]];
+const HZL=[['5分','5 min'],['15分','15 min'],['1時間','1 hour'],['4時間','4 hours'],['24時間','24 hours']];
+const CNJ={US:'米国',JP:'日本',EU:'ユーロ圏'},CNE={US:'US',JP:'Japan',EU:'Eurozone'},CORD={US:0,JP:1,EU:2};
+let sym='BTC',tf='4h',E=[],CD={},ST={},evState='loading',NC=0,HL=-1,PD=[],TGT=null;
+let IMPSEL=(()=>{try{return localStorage.getItem('csa-imp')||'auto'}catch(_){return'auto'}})(),IMPSIG='';
+const impSave=v=>{try{localStorage.setItem('csa-imp',v)}catch(_){}};
+const tz=(()=>{let v='';try{v=localStorage.getItem('tz')||''}catch(_){}
+  const ok=z=>{try{new Intl.DateTimeFormat('ja-JP',{timeZone:z});return true}catch(_){return false}};
+  if(v&&ok(v))return v;try{const d=Intl.DateTimeFormat().resolvedOptions().timeZone;if(d&&ok(d))return d}catch(_){}return'Asia/Tokyo'})();
+const EN=()=>!window.CSA_LANG||CSA_LANG()==='en',TL=(ja,en)=>EN()?en:ja,LOC=()=>EN()?'en-US':'ja-JP',MO=()=>EN()?'short':'numeric';
+const hzl=i=>TL(HZL[i][0],HZL[i][1]),cnm=c=>(EN()?CNE:CNJ)[c]||c||'';
+const TZC={};const tzNameF=()=>{const k=LOC();if(k in TZC)return TZC[k];let v='';try{v=new Intl.DateTimeFormat(k,{timeZone:tz,timeZoneName:'short'}).formatToParts(new Date()).find(p=>p.type==='timeZoneName').value}catch(_){}return TZC[k]=v};
+const FC={};const F=(o)=>{const k=LOC()+JSON.stringify(o);return FC[k]||(FC[k]=new Intl.DateTimeFormat(LOC(),Object.assign({timeZone:tz,hourCycle:'h23'},o)))};
+const fHM={format:t=>F({hour:'2-digit',minute:'2-digit'}).format(t)},fMD={format:t=>F({month:MO(),day:'numeric'}).format(t)},fMDW={format:t=>F({month:MO(),day:'numeric',weekday:'short'}).format(t)},fYMD=new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'});
+const fdt=t=>F({month:MO(),day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+const mdhm=t=>fMD.format(t)+' '+fHM.format(t),ymd=t=>fYMD.format(t).replace(/-/g,'/');
+const fp=v=>v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:0}):v>=1?v.toFixed(2):v.toFixed(4);
+const sgn=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
+const has=v=>v!=null&&v!=='';
+const numTxt=e=>(has(e.fc)||has(e.pv))?TL('予想 ','Fcst ')+(has(e.fc)?e.fc:'—')+TL(' · 前回 ',' · Prev ')+(has(e.pv)?e.pv:'—'):'';
+const IMPKEY=e=>(e.s||e.t)+'|'+(e.c||'');
+const evS=e=>EN()?(e.se||e.te||e.s||e.t):(e.s||e.t);
+const gf=u=>NC?fetch(u+(u.includes('?')?'&':'?')+'_='+NC,{cache:'no-store'}):fetch(u);
+
+/* ===== データ取得 ===== */
+async function load(s,t){const k=s+'|'+t;ST[k]='loading';
+  try{const r=await gf('/api/candles?sym='+s+'&tf='+t);if(!r.ok)throw new Error(r.status);const j=await r.json();
+    if(!j.bars||!j.bars.length)throw new Error('empty');
+    CD[k]={bars:j.bars,at:j.at||Date.now(),stale:!!j.stale};ST[k]='ok'}
+  catch(e){ST[k]=CD[k]?'ok':'error'}
+  if(s===sym)renderAll()}
+async function loadE(){
+  try{const r=await gf('/api/cal');if(!r.ok)throw new Error(r.status);const j=await r.json();
+    if(!Array.isArray(j.events))throw new Error('format');
+    E=j.events.map(e=>({...e,ts:Date.parse(e.at)})).filter(e=>isFinite(e.ts));evState='ok'}
+  catch(e){if(!E.length){evState='error';setTimeout(loadE,6e4)}}
+  renderAll()}
+function ensureImp(force){IMPTF.forEach(q=>{const k=sym+'|'+q;if(force||(!CD[k]&&ST[k]!=='loading'))load(sym,q)})}
+
+/* ===== 計算(PC版 v33〜v35 と同じ) ===== */
+const barPx=(bs,st,t)=>{let i=0;for(let j=0;j<bs.length;j++){if(bs[j][0]*1000<=t)i=j;else break}const fr=Math.min(1,(t-bs[i][0]*1000)/st);return bs[i][1]+(bs[i][4]-bs[i][1])*fr};
+function exc(ts,ms){if(ts+ms>Date.now())return null;
+  for(const q of IMPTF){const st=TFD[q].ms;if(st>ms)break;const d=CD[sym+'|'+q];if(!d||!d.bars.length)continue;
+    const bs=d.bars,b0=bs[0][0]*1000,end=bs[bs.length-1][0]*1000+st;if(ts<b0||ts+ms>end)continue;
+    const ref=barPx(bs,st,ts),fin=barPx(bs,st,ts+ms);if(!(ref>0))continue;let hi=Math.max(ref,fin),lo=Math.min(ref,fin);
+    bs.forEach(b=>{const s0=b[0]*1000,e0=s0+st;if(e0<=ts||s0>=ts+ms)return;
+      if(s0>ts&&e0<=ts+ms){hi=Math.max(hi,b[2]);lo=Math.min(lo,b[3])}
+      else if(s0<=ts){if(e0<=ts+ms){hi=Math.max(hi,b[4]);lo=Math.min(lo,b[4])}}
+      else{hi=Math.max(hi,b[1]);lo=Math.min(lo,b[1])}});
+    return{up:(hi/ref-1)*100,dn:(lo/ref-1)*100,end:(fin/ref-1)*100,hi,lo,ref}}
+  return null}
+function impStats(ref){const key=IMPKEY(ref),now=Date.now();
+  const past=E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key);
+  const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;let n=0;
+  const rows=HZ.map(h=>{const r=past.map(e=>exc(e.ts,h[2])).filter(Boolean);return{k:r.length,up:mean(r.map(x=>x.up)),dn:mean(r.map(x=>x.dn)),end:mean(r.map(x=>x.end))}});
+  past.forEach(e=>{if(HZ.some(h=>exc(e.ts,h[2])))n++});
+  return{rows,n,total:past.length}}
+/* 1つの発表の反応: 1時間→4時間→24時間→15分→5分 のうち測れる最初のもの */
+function react(e){for(const i of[2,3,4,1,0]){const r=exc(e.ts,HZ[i][2]);if(r)return{...r,l:hzl(i)}}return null}
+function chg24(s){
+  for(const t of['5m','15m','1h','4h','1d']){const d=CD[s+'|'+t];if(!d||!d.bars.length)continue;
+    const bs=d.bars,st=TFD[t].ms,lb=bs[bs.length-1],pt=Math.min(Date.now(),lb[0]*1000+st),ref=pt-864e5;let r=null;
+    for(let i=bs.length-2;i>=0;i--){if(bs[i][0]*1000+st<=ref+st*.01){r=bs[i];break}}
+    if(r&&r[4]>0)return(lb[4]/r[4]-1)*100}
+  return null}
+
+/* ===== 指標の一覧と選択 ===== */
+const nextKey=()=>{const now=Date.now();return E.filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0]};
+const evOK=e=>e.l==='macro'&&e.im!=='low'&&(!e.a||e.a.includes(sym));
+function impList(){const m=new Map();
+  E.forEach(e=>{if(!evOK(e))return;const k=IMPKEY(e);let g=m.get(k);if(!g){g={k,rep:e,hi:false};m.set(k,g)}
+    if(e.im==='high')g.hi=true;if(e.ts>=g.rep.ts)g.rep=e});
+  return[...m.values()].sort((a,b)=>((CORD[a.rep.c]??9)-(CORD[b.rep.c]??9))||evS(a.rep).localeCompare(evS(b.rep),LOC()))}
+function impPx(){if(IMPTF.some(q=>CD[sym+'|'+q]))return'ok';return IMPTF.every(q=>ST[sym+'|'+q]==='error')?'fail':'loading'}
+function impOpts(sel,list,nx,cur){
+  const lab=g=>cnm(g.rep.c)+' '+evS(g.rep),
+    cnt=g=>g.n==null?'…':g.n===0?TL('測れる発表なし','No measurable releases'):g.n+TL('回','×'),
+    opt=g=>'<option value="'+esc(g.k)+'"'+(g.n===0?' class="z"':'')+' title="'+esc(lab(g))+'">'+esc(lab(g)+' · '+cnt(g))+'</option>',
+    grp=(l,a)=>a.length?'<optgroup label="'+esc(l)+'">'+a.map(opt).join('')+'</optgroup>':'',
+    al=TL('自動：次の重要イベント','Auto: next key event')+(nx?TL('（',' (')+evS(nx)+TL('）',')'):''),
+    html='<option value="auto">'+esc(al)+'</option>'+grp(TL('重要度 高','Impact: High'),list.filter(g=>g.hi))+grp(TL('重要度 中','Impact: Medium'),list.filter(g=>!g.hi));
+  if(document.activeElement===sel)return;
+  if(html!==IMPSIG){sel.innerHTML=html;IMPSIG=html}
+  if(sel.value!==cur)sel.value=cur}
+
+/* ===== 描画 ===== */
+function renderAll(){
+  const nx=nextKey(),list=impList(),px=impPx(),sel=$('indicatorSelect');
+  list.forEach(g=>{g.n=px==='ok'?impStats(g.rep).n:px==='loading'?null:0});
+  if(IMPSEL!=='auto'&&evState==='ok'&&E.length&&!list.some(g=>g.k===IMPSEL)){IMPSEL='auto';impSave('auto')}
+  impOpts(sel,list,nx,IMPSEL);
+  const auto=IMPSEL==='auto',ref=auto?nx:(list.find(g=>g.k===IMPSEL)||{}).rep;
+  /* カウントダウンの対象: 自動=次の重要イベント / 選択=その指標の次の発表 */
+  const now=Date.now();
+  TGT=auto?nx:E.filter(e=>e.l==='macro'&&IMPKEY(e)===IMPSEL&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0]||null;
+  renderCount(ref,auto);
+  renderImpact(ref,auto,px);
+  renderPrice();
 }
-/* ETH出口待ち: 価格の下に同じ時間軸で出す別枠(ETHタブのみ)。記録は自前で貯めているので、導入日から線が伸びる */
-let EQ=null,EQ_AT=0,CX=null;
-async function loadEQ(force){if(!force&&Date.now()-EQ_AT<3e5)return;EQ_AT=Date.now();try{const r=await gf('/api/ethqueue');if(!r.ok)throw new Error(r.status);EQ=await r.json()}catch(e){if(!EQ||!(EQ.samples||[]).length)EQ={error:String(e.message||e),samples:[]}}eqChart();sqChart()}
-function eqChart(){
-const el=$('eq');if(!el)return;
-if(asset!=='ETH'||!CX){el.innerHTML='';return}
-if(!EQ){el.innerHTML='<div class="msg" style="padding:14px">ETH出口待ちを読み込み中…</div>';return}
-const{d0,d1,L,R,W}=CX,H=96,Tp=22,B=6,S=(EQ.samples||[]).map(q=>({t:q[0]*1e3,n:q[1],d:q[2],en:q[3],ed:q[4]}));
-if(!S.length){el.innerHTML='<div class="msg" style="padding:14px">ETH出口待ち: '+(EQ.error?'取得できませんでした（'+esc(EQ.error)+'）':'記録がまだありません')+'</div>';return}
-const cur=S[S.length-1],inR=S.filter(q=>q.t>=d0&&q.t<=d1),mx=Math.max(1,...S.map(q=>q.d),...S.map(q=>q.ed||0))*1.15;
-const x=t=>L+(t-d0)/(d1-d0)*(W-L-R),y=v=>Tp+(1-v/mx)*(H-Tp-B);
-let s=`<svg width="${W}" height="${H}" role="img"><text x="${L}" y="13" style="fill:var(--champ)">ETH 出口待ち ${cur.d}日（${cur.n.toLocaleString('en-US')}件）</text>${cur.ed!=null?`<text x="${L+230}" y="13" style="fill:#d9a3a3">入口待ち 約${cur.ed}日（${cur.en.toLocaleString('en-US')}件）</text>`:''}<text x="${W-R}" y="13" text-anchor="end">記録: ${new Date(S[0].t).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric',timeZone:tz})} から・ビーコンチェーン直読み</text>`;
-s+=`<line x1="${L}" x2="${W-R}" y1="${y(0)}" y2="${y(0)}" stroke="rgba(212,175,122,.14)"/><text x="${L-8}" y="${y(mx/1.15)+3}" text-anchor="end">${(mx/1.15).toFixed(0)}日</text>`;
-if(inR.length>1){const pts=inR.map(q=>x(q.t).toFixed(1)+','+y(q.d).toFixed(1));s+=`<polygon points="${x(inR[0].t).toFixed(1)},${y(0)} ${pts.join(' ')} ${x(inR[inR.length-1].t).toFixed(1)},${y(0)}" fill="rgba(169,192,214,.18)"/><polyline points="${pts.join(' ')}" fill="none" stroke="#a9c0d6" stroke-width="1.4"/>`}
-else if(inR.length===1)s+=`<circle cx="${x(inR[0].t)}" cy="${y(inR[0].d)}" r="3" fill="#a9c0d6"/>`;
-const inE=inR.filter(q=>q.ed!=null);if(inE.length>1)s+=`<polyline points="${inE.map(q=>x(q.t).toFixed(1)+','+y(q.ed).toFixed(1)).join(' ')}" fill="none" stroke="#d9a3a3" stroke-width="1.4"/>`;
-if(NOW>=d0&&NOW<=d1)s+=`<line x1="${x(NOW)}" x2="${x(NOW)}" y1="${Tp}" y2="${H-B}" stroke="var(--mu)" stroke-dasharray="5 4"/>`;
-el.innerHTML=s+'</svg>'}
-/* ステーク量(ETH/SOL/BNB): 価格の下に同じ時間軸で出す別枠。ETHは稼働バリデータ数×32の概算、SOLは委任量の合計、BNBはStakeHub契約の合計 */
-const ETH_SUPPLY=121e6;let SQD={},SQ_AT={};
-async function loadSQ(sym,force){if(!force&&Date.now()-(SQ_AT[sym]||0)<3e5)return;SQ_AT[sym]=Date.now();try{const r=await gf('/api/stake?sym='+sym);if(!r.ok)throw new Error(r.status);SQD[sym]=await r.json()}catch(e){if(!SQD[sym]||!(SQD[sym].samples||[]).length)SQD[sym]={error:String(e.message||e),samples:[]}}sqChart()}
-function sqChart(){
-const el=$('sq');if(!el)return;
-if(!CX){el.innerHTML='';return}
-let S,head,sub,none;
-if(asset==='ETH'){
-if(!EQ){el.innerHTML='';return}
-S=(EQ.samples||[]).filter(q=>q[5]!=null).map(q=>({t:q[0]*1e3,e:q[5]*32}));
-head=c=>`ETH ステーク量 約${(c.e/1e6).toFixed(2)}百万ETH（供給の約${(c.e/ETH_SUPPLY*100).toFixed(1)}%・概算）`;sub='稼働バリデータ数×32';none='ETHステーク量: まだ記録がありません'+(EQ.act_error?'（'+esc(EQ.act_error)+'）':'（取得できないノードの場合は空のままです）')}
-else if(asset==='SOL'||asset==='BNB'){
-const D=SQD[asset];if(!D){el.innerHTML='<div class="msg" style="padding:14px">'+asset+'ステーク量を読み込み中…</div>';return}
-S=(D.samples||[]).map(q=>({t:q[0]*1e3,e:q[1],s:q[2]}));
-if(asset==='SOL'){head=c=>`SOL ステーク量 約${(c.e/1e6).toFixed(1)}百万SOL`+(c.s?`（総供給の約${(c.e/c.s*100).toFixed(1)}%）`:'');sub='Solana公開RPC・委任量の合計'}
-else{head=c=>`BNB ステーク量 約${(c.e/1e6).toFixed(2)}百万BNB（全バリデータの合計・概算）`;sub='StakeHub契約・各バリデータの合計'}
-none=asset+'ステーク量: '+(D.error?'取得できませんでした（'+esc(D.error)+'）':'記録がまだありません')}
-else{el.innerHTML='';return}
-const{d0,d1,L,R,W}=CX,H=84,Tp=22,B=6;
-if(!S.length){el.innerHTML='<div class="msg" style="padding:14px">'+none+'</div>';return}
-const cur=S[S.length-1],inR=S.filter(q=>q.t>=d0&&q.t<=d1),lo=Math.min(...S.map(q=>q.e)),hi=Math.max(...S.map(q=>q.e)),pad=Math.max((hi-lo)*.2,hi*.002);
-const x=t=>L+(t-d0)/(d1-d0)*(W-L-R),y=v=>Tp+(1-(v-(lo-pad))/((hi+pad)-(lo-pad)))*(H-Tp-B);
-let s=`<svg width="${W}" height="${H}" role="img"><text x="${L}" y="13" style="fill:var(--champ)">${head(cur)}</text><text x="${W-R}" y="13" text-anchor="end">${sub}</text>`;
-if(inR.length>1){const pts=inR.map(q=>x(q.t).toFixed(1)+','+y(q.e).toFixed(1));s+=`<polyline points="${pts.join(' ')}" fill="none" stroke="#9fd1b0" stroke-width="1.4"/>`}
-else if(inR.length===1)s+=`<circle cx="${x(inR[0].t)}" cy="${y(inR[0].e)}" r="3" fill="#9fd1b0"/>`;
-if(NOW>=d0&&NOW<=d1)s+=`<line x1="${x(NOW)}" x2="${x(NOW)}" y1="${Tp}" y2="${H-B}" stroke="var(--mu)" stroke-dasharray="5 4"/>`;
-el.innerHTML=s+'</svg>'}
-/* NEXT 24H: 今から24時間以内の予定。無ければ直近の3件を出す */
-function side(){NOW=Date.now();
-const LIM=innerWidth<720?5:8,up=vis().filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),w=up.filter(e=>e.ts<=NOW+864e5),rows=w.length?w:up.slice(0,3);
-$('sw').textContent=w.length?w.length+'件':'24時間以内の予定なし'+(rows.length?'・直近を表示':'');
-$('nx').innerHTML=rows.slice(0,LIM).map(e=>`<div class="nr ${esc(e.im)}" data-id="${esc(e.id)}" style="--c:${LC[e.l]||'#aab'}"><span class="nd2"></span><div class="nt"><b>${hhmm(e.ts)}</b><i>${dstr(e.ts)}</i></div><div class="nb"><div>${esc(e.s||e.t)}</div><div class="nc">${cdn(e.ts)}</div></div></div>`).join('')+(w.length>LIM?`<div class="nm">ほか${w.length-LIM}件</div>`:'')||'<div class="nm">'+(EV_FAIL?esc(EV_FAIL):'予定されたイベントはありません')+'</div>';
-bindHL('#nx .nr',n=>n.dataset.id);hl(sel)}
-function list(){
-const ev=vis(),up=ev.filter(e=>e.ts>NOW).sort((a,b)=>a.ts-b.ts),past=ev.filter(e=>e.ts<=NOW).sort((a,b)=>b.ts-a.ts);
-const card=e=>`<div class="cd" data-id="${esc(e.id)}" style="--c:${LC[e.l]||'#7b8490'}"><div class="t">${fmt(e.ts)}</div><div><span class="bg2 ${esc(e.im)}">${IM[e.im]||''} · ${LN[e.l]||''}</span><div><b>${esc(e.t)}</b></div><div class="src">${esc(e.src||'')}</div></div><div class="t" style="text-align:right">${esc(e.s||'')}</div></div>`;
-const none='<div class="empty">該当するイベントはありません'+(flt==='market'?'（市場ニュース層は準備中です）':'')+'</div>';
-$('list').innerHTML=`<div class="list-head"><span>これから（${up.length}件） → 時系列順</span><span style="color:var(--mu)">UPCOMING</span></div>${up.length?up.map(card).join(''):none}<div class="list-head"><span>直近（${past.length}件） → 新しい順</span><span style="color:var(--mu)">ARCHIVE</span></div>${past.length?past.map(card).join(''):none}`;
-bindHL('#list .cd',n=>n.dataset.id)
-}
+function renderCount(ref,auto){
+  const nm=TGT?evS(TGT):ref?evS(ref):TL('重要イベント','key event');
+  $('nextLbl').textContent=TGT?TL('次の'+nm+'まで','Until next '+nm):auto?TL('次の重要イベントまで','Until next key event'):TL('次の'+nm+'まで','Until next '+nm);
+  if(TGT){const dt=fMDW.format(TGT.ts)+' '+fHM.format(TGT.ts)+(tzNameF()?' '+tzNameF():'');$('nextDate').textContent=TL(dt+' に発表予定','Scheduled '+dt);$('cdRight').style.display=''}
+  else{$('countMain').textContent=!E.length?(evState==='loading'?TL('読み込み中…','Loading…'):TL('取得できません','Unavailable')):auto?TL('待機中','Waiting'):TL('未定','TBD');$('countSub').textContent='';
+    $('nextDate').textContent=!E.length?(evState==='loading'?TL('イベントを読み込み中…','Loading events…'):TL('イベントを取得できませんでした','Could not load events')):auto?TL('次の重要イベント待ち','Waiting for the next key event'):TL('この指標の次の発表日は、取得できているイベントの中にありません','No upcoming date for this indicator in the loaded events');$('cdRight').style.display='none'}
+  tickCount()}
+function tickCount(){if(!TGT)return;let s=Math.max(0,Math.floor((TGT.ts-Date.now())/1000));
+  const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60),sc=s%60,p=n=>String(n).padStart(2,'0');
+  if(s===0){$('countMain').textContent=TL('発表の時刻です','Release time');$('countSub').textContent=''}
+  else if(d>0){$('countMain').textContent=TL('あと '+d+'日',d+'d left');$('countSub').textContent=TL(h+'時間 '+m+'分',h+'h '+m+'m')}
+  else{$('countMain').textContent=TL('あと '+h+'時間',h+'h left');$('countSub').textContent=TL(m+'分 '+sc+'秒',m+'m '+sc+'s')}
+  $('cdHms').textContent=p(Math.floor(s/3600))+':'+p(m)+':'+p(sc)}
+
+/* 過去の発表(測れたものだけ・新しい順) */
+function pastRows(ref){const key=IMPKEY(ref),now=Date.now();
+  return E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key).sort((a,b)=>b.ts-a.ts)
+    .map(e=>({e,pts:HZ.slice(0,4).map(h=>exc(e.ts,h[2])),r:react(e)})).filter(x=>x.r)}
+
+function renderImpact(ref,auto,px){
+  const msg=$('impMsg'),setMsg=t=>{msg.textContent=t;msg.style.display=t?'flex':'none'};
+  const clear=(t)=>{PD=[];HL=-1;setMsg(t);['maxUp','maxDown','avgVal','lastVal'].forEach(i=>$(i).textContent='—');['maxUpDate','maxDownDate'].forEach(i=>$(i).innerHTML='&nbsp;');
+    $('avgD').textContent=TL('発表価格から','From release price');$('lastLabel').textContent=TL('前回','Previous');$('metaCount').textContent='—';$('metaPeriod').textContent='—';
+    $('historyList').innerHTML='<div class="hmsg">'+esc(t)+'</div>';$('yLabel').innerHTML='';$('xLabel').innerHTML='';$('centerLine').style.display='none';
+    $('impactSub').textContent=TL('発表時点=0% / 過去の事実（事実ベース）','At release = 0% / Past facts (fact-based)');$('historyTitle').textContent=TL('過去の発表 - いつ・どれだけ動いたか','Past releases – when and how much it moved');$('legAvg').style.display='none';
+    const c=$('chartImpact');c.getContext('2d').clearRect(0,0,c.width,c.height)};
+  const last=ST[sym+'|'+tf]&&CD[sym+'|'+tf]?CD[sym+'|'+tf].bars.slice(-1)[0]:null;
+  $('metaPrice').textContent=last?'$'+fp(last[4]):'—';
+  if(!E.length)return clear(evState==='loading'?TL('イベントを読み込み中…','Loading events…'):TL('イベントを取得できませんでした','Could not load events'));
+  if(!ref)return clear(auto?TL('次の重要イベント待ち','Waiting for the next key event'):TL('指標が見つかりません','Indicator not found'));
+  if(px==='loading')return clear(TL('価格を読み込み中…','Loading prices…'));
+  if(px==='fail')return clear(TL('価格を取得できませんでした','Could not load prices'));
+  const S=impStats(ref),nm=evS(ref);
+  if(!S.total)return clear(TL('この指標の過去の発表は、取得できているイベントの中にありません','No past releases of this indicator in the loaded events'));
+  if(!S.n)return clear(TL('取得済みの足の範囲に、この指標の過去の発表がありません','No past releases of this indicator fall within the loaded candle range'));
+  setMsg('');$('centerLine').style.display='';
+  PD=pastRows(ref);if(HL>=PD.length)HL=-1;
+  const n=S.n;
+  $('impactSub').textContent=TL('発表時点=0% / '+nm+'で'+sym+'はこう動いた（'+(n===1?'過去1回':'過去'+n+'回')+'・事実）','At release = 0% / How '+sym+' moved on '+nm+' ('+(n===1?'last 1 release':'last '+n+' releases')+' · facts)');
+  $('historyTitle').textContent=TL('過去の発表 - '+nm+' いつ・どれだけ動いたか','Past releases – '+nm+': when and how much it moved');
+  $('metaCount').textContent=TL(n+'回',n+(n===1?' time':' times'));
+  const ts=PD.map(x=>x.e.ts);$('metaPeriod').textContent=ymd(Math.min(...ts)).slice(0,7)+' - '+ymd(Math.max(...ts)).slice(0,7);
+  $('legAvg').style.display='';$('legAvg').textContent=n===1?TL('● 1回分','● 1 release'):TL('● 平均','● Average');
+  /* 1時間以内の最大・平均・前回 */
+  const h1=PD.map(x=>({e:x.e,r:exc(x.e.ts,HZ[2][2])})).filter(x=>x.r);
+  if(h1.length){const mu=h1.reduce((a,b)=>a.r.up>=b.r.up?a:b),md=h1.reduce((a,b)=>a.r.dn<=b.r.dn?a:b),av=S.rows[2];
+    $('maxUp').textContent=sgn(mu.r.up);$('maxUpDate').textContent=ymd(mu.e.ts)+TL(' 発表時',' release');
+    $('maxDown').textContent=sgn(md.r.dn);$('maxDownDate').textContent=ymd(md.e.ts)+TL(' 発表時',' release');
+    $('avgVal').textContent=sgn(av.end);$('avgD').textContent=TL('発表価格から（'+av.k+'回分）','From release price ('+av.k+' releases)');
+    const lt=h1[0];$('lastLabel').textContent=TL('前回 ','Previous ')+ymd(lt.e.ts);$('lastVal').textContent=sgn(lt.r.end)}
+  else{['maxUp','maxDown','avgVal','lastVal'].forEach(i=>$(i).textContent='—');$('maxUpDate').textContent=TL('1時間後まで測れた発表なし','No release measurable up to 1h after');$('maxDownDate').textContent=TL('1時間後まで測れた発表なし','No release measurable up to 1h after');$('avgD').textContent=TL('発表価格から','From release price');$('lastLabel').textContent=TL('前回','Previous')}
+  renderHistory();drawImpact(S)}
+function renderHistory(){const list=$('historyList'),MAXR=10;list.innerHTML='';
+  const anyNum=PD.slice(0,MAXR).some(x=>has(x.e.fc)||has(x.e.pv));
+  PD.slice(0,MAXR).forEach((x,i)=>{const r=x.r,div=document.createElement('div');div.className='hRow'+(i===HL?' active':'');
+    div.innerHTML='<div><span class="date">'+ymd(x.e.ts)+'</span><span class="time">'+fHM.format(x.e.ts)+'</span>'+
+      '<div class="hud"><u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u></div>'+(anyNum&&numTxt(x.e)?'<div class="sub" style="text-align:left">'+esc(numTxt(x.e))+'</div>':'')+'</div>'+
+      '<div style="text-align:right"><div class="move '+(r.end>=0?'up':'down')+'">'+sgn(r.end)+'</div><div class="sub">'+TL('発表から'+r.l,'After '+r.l)+'</div></div>';
+    div.addEventListener('click',()=>{HL=HL===i?-1:i;renderHistory();const ref=curRef();if(ref)drawImpact(impStats(ref))});list.appendChild(div)});
+  if(PD.length>MAXR){const d=document.createElement('div');d.className='hmsg';d.textContent=TL('ほか '+(PD.length-MAXR)+' 件','+'+(PD.length-MAXR)+' more');list.appendChild(d)}}
+function curRef(){if(IMPSEL==='auto')return nextKey();return E.filter(e=>evOK(e)&&IMPKEY(e)===IMPSEL)[0]||null}
+
+function sizeCv(box,cv){const r=box.getBoundingClientRect(),dpr=devicePixelRatio||1,W=r.width,H=r.height;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
+  const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);return{ctx,W,H}}
+function drawImpact(S){
+  const box=$('boxImpact'),{ctx,W,H}=sizeCv(box,$('chartImpact'));if(!W||!S)return;
+  const L=40,R=22,T=10,B=28,cw=W-L-R,ch=H-T-B,xPos=[0,.22,.48,.74,1].map(f=>L+cw*f);
+  const avg=[0].concat(S.rows.slice(0,4).map(r=>r.k>0?r.end:null));
+  let m=0;PD.forEach(x=>x.pts.forEach(p=>{if(p)m=Math.max(m,Math.abs(p.end))}));avg.forEach(v=>{if(v!=null)m=Math.max(m,Math.abs(v))});
+  const NICE=[.25,.5,1,2,3,5,10,20,50],mx=NICE.find(q=>q>=m*1.1)||m*1.1,mid=T+ch/2,yF=v=>mid-v/mx*(ch/2-4);
+  const fl=v=>v===0?'0%':(v>0?'+':'')+(Math.abs(v)<1?v.toFixed(2):v.toFixed(1))+'%';
+  $('yLabel').innerHTML=[mx,mx/2,0,-mx/2,-mx].map(v=>'<span style="top:'+yF(v)+'px">'+fl(v)+'</span>').join('');
+  $('centerLine').style.top=mid+'px';
+  $('xLabel').innerHTML=TL(['発表','5分後','15分後','1時間後','4時間後'],['Release','+5m','+15m','+1h','+4h']).map((t,i)=>'<span style="left:'+xPos[i]+'px">'+t+(i>0&&S.rows[i-1].k>0?'<em>n='+S.rows[i-1].k+'</em>':'<em>&nbsp;</em>')+'</span>').join('');
+  ctx.lineWidth=1;[mx/2,-mx/2].forEach(v=>{ctx.strokeStyle='rgba(126,164,195,.06)';ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(L,yF(v));ctx.lineTo(L+cw,yF(v));ctx.stroke();ctx.setLineDash([])});
+  xPos.forEach(x=>{ctx.strokeStyle='rgba(126,164,195,.05)';ctx.beginPath();ctx.moveTo(x,T);ctx.lineTo(x,T+ch);ctx.stroke()});
+  const path=(vals)=>{let s=false;ctx.beginPath();vals.forEach((v,i)=>{if(v==null)return;const x=xPos[i],y=yF(v);s?ctx.lineTo(x,y):ctx.moveTo(x,y);s=true});ctx.stroke()};
+  PD.forEach((x,i)=>{if(i===HL)return;if(S.n===1){ctx.save();ctx.strokeStyle='#e4b96a';ctx.lineWidth=2.2;ctx.shadowColor='rgba(228,185,106,.45)';ctx.shadowBlur=10;path([0].concat(x.pts.map(p=>p?p.end:null)));ctx.restore();return}ctx.strokeStyle='rgba(127,138,153,.24)';ctx.lineWidth=1;path([0].concat(x.pts.map(p=>p?p.end:null)))});
+  if(HL>=0&&PD[HL]){ctx.save();ctx.strokeStyle='rgba(228,185,106,.85)';ctx.lineWidth=2.4;ctx.shadowColor='rgba(228,185,106,.5)';ctx.shadowBlur=14;path([0].concat(PD[HL].pts.map(p=>p?p.end:null)));ctx.restore()}
+  if(S.n>1){ctx.save();ctx.strokeStyle='#e4b96a';ctx.lineWidth=2.2;ctx.shadowColor='rgba(228,185,106,.45)';ctx.shadowBlur=12;path(avg);ctx.restore()}
+  PD.forEach((x,i)=>{const p=x.pts[2];if(!p)return;const hl=i===HL;ctx.fillStyle=hl?'#e4b96a':(p.end>=0?'rgba(108,202,160,.7)':'rgba(216,120,120,.7)');ctx.beginPath();ctx.arc(xPos[3],yF(p.end),hl?4.5:2.5,0,7);ctx.fill()});
+  if(S.n>1&&avg[3]!=null){ctx.fillStyle='#e4b96a';ctx.beginPath();ctx.arc(xPos[3],yF(avg[3]),4,0,7);ctx.fill()}}
+
+/* ===== 価格チャート ===== */
+function renderPrice(){
+  const k=sym+'|'+tf,d=CD[k],cl=d?d.bars[d.bars.length-1]:null;
+  $('symChips').innerHTML=SYMS.map(s=>'<button type="button" data-s="'+s+'" class="'+(s===sym?'on':'')+'">'+s+'</button>').join('');
+  $('tfChips').innerHTML=['1h','4h','1d'].map(t=>'<button type="button" data-t="'+t+'" class="'+(t===tf?'on':'')+'">'+t.toUpperCase().replace('1D',TL('1日','1D'))+'</button>').join('');
+  const c=chg24(sym),ce=$('chg24');ce.textContent=c==null?'—':sgn(c);ce.style.color=c==null?'var(--muted)':c>=0?'var(--up)':'var(--down)';
+  $('legPrice').textContent=TL('現在価格 ','Price ')+(cl?'$'+fp(cl[4]):'—');
+  let sub=sym+'/USDT '+tf.toUpperCase()+(TGT?TL(' / 次は '+evS(TGT)+' '+mdhm(TGT.ts)+' に発表',' / Next: '+evS(TGT)+' '+mdhm(TGT.ts)):'');
+  if(d&&d.stale){const m=Math.max(1,Math.round((Date.now()-d.at)/6e4));sub=TL('価格は約'+(m<90?m+'分':Math.round(m/60)+'時間')+'前の控え / ','Prices are ~'+(m<90?m+' min':Math.round(m/60)+' h')+' old (cached) / ')+sub}
+  $('priceSub').textContent=sub;
+  drawPrice()}
+function drawPrice(){
+  const box=$('boxPrice'),{ctx,W,H}=sizeCv(box,$('chartPrice')),layer=$('cardLayer'),msg=$('priceMsg');if(!W)return;
+  layer.innerHTML='';const tags=['nowline','nowtag','futureShade'].map($),hide=()=>tags.forEach(e=>e.style.display='none');
+  const d=CD[sym+'|'+tf];
+  if(!d){msg.textContent=ST[sym+'|'+tf]==='error'?TL('価格を取得できませんでした','Could not load prices'):TL('価格を読み込み中…','Loading prices…');msg.style.display='flex';hide();return}
+  msg.style.display='none';
+  const V=VIEW[tf],st=TFD[tf].ms,bs=d.bars.slice(-V.past),n=bs.length,now=Date.now();
+  const L=10,R=10,T=12,B=22,cw=W-L-R,ch=H-T-B,d0=bs[0][0]*1000,d1=bs[n-1][0]*1000+st*(1+V.fut);
+  const x=t=>L+(t-d0)/(d1-d0)*cw,xc=t=>x(t+st/2);
+  let lo=Math.min(...bs.map(b=>b[3])),hi=Math.max(...bs.map(b=>b[2]));const pd=(hi-lo)*.06||hi*.002;lo-=pd;hi+=pd;
+  const Y=v=>T+(hi-v)/(hi-lo)*ch;
+  ctx.font='8px system-ui,sans-serif';ctx.fillStyle='#7f8a99';ctx.textAlign='left';
+  for(let i=0;i<=3;i++){const yy=T+ch*i/3;ctx.strokeStyle='rgba(126,164,195,.05)';ctx.beginPath();ctx.moveTo(L,yy);ctx.lineTo(L+cw,yy);ctx.stroke();ctx.fillText(fp(hi-(hi-lo)*i/3),L+2,yy-2)}
+  ctx.textAlign='center';for(let i=0;i<=3;i++){const t=d0+(d1-d0)*i/3.2;ctx.fillText(tf==='1d'?fMD.format(t):mdhm(t),Math.min(W-30,Math.max(30,x(t))),H-8)}
+  /* 未来の帯・NOW */
+  const nx=x(now);
+  if(nx>=L&&nx<=L+cw){tags.forEach(e=>e.style.display='');
+    $('nowline').style.left=nx+'px';$('nowtag').style.left=nx+'px';$('futureShade').style.left=nx+'px';$('futureShade').style.right=R+'px'}else hide();
+  const bw=Math.max(2,cw/(n+V.fut+1)*.62);
+  bs.forEach(b=>{const xx=xc(b[0]*1000),up=b[4]>=b[1];ctx.strokeStyle=up?'#6ccaa0':'#d87878';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(xx,Y(b[2]));ctx.lineTo(xx,Y(b[3]));ctx.stroke();
+    ctx.fillStyle=up?'rgba(108,202,160,.72)':'rgba(216,120,120,.72)';const y1=Y(Math.max(b[1],b[4])),y2=Y(Math.min(b[1],b[4]));ctx.fillRect(xx-bw/2,y1,bw,Math.max(1.5,y2-y1))});
+  /* イベント: 同じ時刻は1つにまとめる */
+  const sk=IMPSEL!=='auto'?IMPSEL:null,mp=new Map();
+  E.filter(e=>evOK(e)&&e.ts>=d0&&e.ts<=d1).forEach(e=>{let g=mp.get(e.ts);if(!g){g={ts:e.ts,items:[],rep:e};mp.set(e.ts,g)}g.items.push(e);
+    const better=sk&&IMPKEY(e)===sk&&IMPKEY(g.rep)!==sk||(!(sk&&IMPKEY(g.rep)===sk)&&e.im==='high'&&g.rep.im!=='high');if(better)g.rep=e});
+  const groups=[...mp.values()].sort((a,b)=>a.ts-b.ts),isSel=g=>sk&&IMPKEY(g.rep)===sk;
+  const tg=TGT?groups.find(g=>g.ts===TGT.ts):null;if(tg)tg.rep=TGT;
+  groups.forEach(g=>{const px=x(g.ts),nxt=g===tg;ctx.strokeStyle=nxt?'rgba(105,199,214,.35)':'rgba(217,173,104,.20)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px,T);ctx.lineTo(px,T+ch);ctx.stroke()});
+  const byNow=(a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now);
+  const cand=[...(tg?[tg]:[]),...groups.filter(g=>g!==tg&&isSel(g)&&g.ts<now).sort(byNow),...groups.filter(g=>g!==tg&&!isSel(g)&&g.rep.im==='high').sort(byNow)].slice(0,12);
+  const tiers=[40,84,128,172],placed=[];
+  for(const g of cand){if(placed.length>=4)break;const e=g.rep,past=g.ts<now,kind=g===tg?'next':e.im==='high'?'high':'';
+    const rc=past?react(e):null,el=document.createElement('div');el.className='eventCard '+kind;el.style.visibility='hidden';
+    el.innerHTML='<span class="tag">'+(kind==='next'?'NEXT':e.im==='high'?'HIGH':'MED')+'</span><b>'+esc(evS(e))+(g.items.length>1?' <i>+'+(g.items.length-1)+'</i>':'')+'</b><span>'+mdhm(g.ts)+'</span>'+
+      (rc?'<span class="rx"><u class="up">▲'+sgn(rc.up)+'</u> <u class="dn">▼'+sgn(rc.dn)+'</u></span>':'');
+    layer.appendChild(el);const w=el.offsetWidth,h=el.offsetHeight,px=x(g.ts),l=Math.max(4,Math.min(W-w-4,px-w/2));
+    if(px<l+6||px>l+w-6){el.remove();continue}
+    const tp=tiers.find(t=>placed.every(p=>l>=p.l+p.w+4||l+w+4<=p.l||t>=p.t+p.h+4||t+h+4<=p.t));
+    if(tp==null||tp+h>H-40){el.remove();continue}
+    el.style.left=l+'px';el.style.top=tp+'px';el.style.visibility='';placed.push({l,t:tp,w,h});
+    const ln=document.createElement('div');ln.className='eventLine'+(kind==='next'?' next':'');ln.style.left=px+'px';ln.style.top=(tp+h)+'px';layer.appendChild(ln)}}
+
+/* ===== 操作 ===== */
+function init(){
+  const sel=$('indicatorSelect');
+  addEventListener('csa-lang',()=>{IMPSIG='';renderAll()});
+  sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';impSave(IMPSEL);HL=-1;sel.blur();renderAll()});
+  sel.addEventListener('blur',()=>renderAll());
+  document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+    if(b.dataset.s&&b.dataset.s!==sym){sym=b.dataset.s;HL=-1;renderAll();load(sym,tf);ensureImp()}
+    else if(b.dataset.t&&b.dataset.t!==tf){tf=b.dataset.t;renderAll();if(!CD[sym+'|'+tf])load(sym,tf)}});
+  $('rf').addEventListener('click',async()=>{const b=$('rf');if(b.disabled)return;b.disabled=true;NC=Date.now();
+    try{await Promise.all([loadE(),load(sym,tf),...IMPTF.filter(q=>q!==tf).map(q=>load(sym,q))])}finally{NC=0;b.disabled=false}});
+  renderAll();load(sym,tf).then(()=>ensureImp());loadE();
+  setInterval(tickCount,1000);
+  setInterval(()=>{if(!document.hidden)renderAll()},3e4);
+  setInterval(()=>{if(!document.hidden){load(sym,tf);IMPTF.forEach(q=>{if(ST[sym+'|'+q]==='error'&&!CD[sym+'|'+q])load(sym,q)})}},3e5);
+  setInterval(()=>{if(!document.hidden)loadE()},18e5);
+  let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(renderAll,120)})}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
+<span id="accState" hidden></span>
+<script id="v38-i18n">
+/* 言語切り替え(モバイル版 / PC版と同じ保存キー csa-lang)。固定の文言は「完全一致」だけ置き換える。
+   動的に描く部分は各関数が TL(日本語,English) で選び、言語が変わると 'csa-lang' で描き直す。 */
+(function(){
+const PAIRS=[
+["CRYPTO SIGNAL ARCHIVE","暗号資産シグナル・アーカイブ"],
+["ALL SIGNALS. ONE TIMELINE.","すべてのシグナルを、ひとつのタイムラインに。"],
+["ARCHIVE ACCESS","アーカイブアクセス"],
+["Pick Your Coin","支払うコインを選択"],
+["ONE PAYMENT · 365 DAYS","1回の支払い · 365日アクセス"],
+["MORE","その他"],
+["SOON","近日公開"],
+["Use the coin already in your wallet.","ウォレットにあるコインをそのまま使えます。"],
+["Rates are intentionally simple.","料金はあえてシンプルに。"],
+["Until next key event","次の重要イベントまで"],
+["Loading…","読み込み中…"],
+["Time left","残り時間"],
+["Pick an indicator / When is it out?","指標を選択 / いつ発表？"],
+["Past","過去"],
+["Period","期間"],
+["Now","現在"],
+["Price chart","現在の価格チャート"],
+["24h","24時間"],
+["● Indicator","● 指標"],
+["Price —","現在価格 —"],
+["Move from release price","発表価格からの変動率"],
+["At release = 0% / Past facts (fact-based)","発表時点=0% / 過去の事実（事実ベース）"],
+["Fact-based","事実ベース"],
+["Not a forecast","予測ではない"],
+["Thin lines: each release","薄線:各回の事実"],
+["Tap the list below to highlight","下の一覧をタップで強調"],
+["Max up (within 1h)","上方向の最大（1時間以内）"],
+["Max down (within 1h)","下方向の最大（1時間以内）"],
+["Avg move (after 1h · fact)","平均の動き（1時間後・事実）"],
+["From release price","発表価格から"],
+["Previous","前回"],
+["Past releases – when and how much it moved","過去の発表 - いつ・どれだけ動いたか"],
+["Tap to highlight","タップで強調"],
+["Open PC version","PC版を開く"],
+["Classic mobile view","従来のスマホ画面"]
+];
+const NOTE={ja:"統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。",en:"Statistics are observed values from past data and do not imply trading advice or causation. They are computed only from releases that fall within the loaded candles (5m ≈ 8 hours, 1h ≈ 2.5 days, 1d ≈ 60 days), and the position inside each candle is approximated as a straight line from open to close. “Max up / Max down” is how far price moved to its high / low within 1 hour of the release, measured from the price at release."};
+const e2j={},j2e={};PAIRS.forEach(([e,j])=>{e2j[e]=j;j2e[j]=e});
+const norm=t=>t.replace(/\s+/g,' ').trim();
+let nodes=null;
+function collect(){nodes=[];const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT);
+  while(w.nextNode()){const n=w.currentNode,p=n.parentElement;if(!p||p.tagName==='SCRIPT'||p.tagName==='STYLE'||p.closest('[data-dyn],.lang-switch,#noteMain'))continue;
+    const t=norm(n.nodeValue);if(!t)continue;const en=e2j[t]?t:j2e[t];if(en)nodes.push([n,en,n.nodeValue.match(/^\s*/)[0],n.nodeValue.match(/\s*$/)[0]])}}
+function apply(lang){if(!nodes)collect();
+  nodes.forEach(([n,en,a,b])=>{n.nodeValue=a+(lang==='ja'?e2j[en]:en)+b});
+  const nm=document.getElementById('noteMain');if(nm)nm.textContent=NOTE[lang];
+  const sel=document.getElementById('indicatorSelect');if(sel)sel.setAttribute('aria-label',lang==='ja'?'指標を選択':'Select indicator');
+  const cl=document.getElementById('centerLine');if(cl)cl.setAttribute('data-label',lang==='ja'?'発表時点 0%':'At release 0%');
+  const rf=document.getElementById('rf');if(rf)rf.title=lang==='ja'?'更新':'Refresh';
+  document.title=lang==='ja'?'暗号資産シグナル・アーカイブ':'CRYPTO SIGNAL ARCHIVE';
+  document.documentElement.lang=lang;try{localStorage.setItem('csa-lang',lang)}catch(_){}
+  document.querySelectorAll('.lang-switch button').forEach(b=>{const on=b.dataset.lang===lang;b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false')});
+  const lb=document.querySelector('.lang-switch-label');if(lb)lb.textContent=lang==='ja'?'言語':'LANG';
+  window.dispatchEvent(new CustomEvent('csa-lang',{detail:lang}))}
+const sw=document.querySelector('.lang-switch');
+if(sw)sw.addEventListener('click',e=>{const b=e.target.closest('button[data-lang]');if(b&&b.dataset.lang!==window.CSA_LANG())apply(b.dataset.lang)});
+apply(window.CSA_LANG());
+})();
+</script>
+<script id="v29-wallet">
+(function(){
+const $=id=>document.getElementById(id);
+const btn=$('walletBtn'),pop=$('walletPopover'),go=$('walletGo'),msg=$('walletMsg'),off=$('walletOff'),acc=$('accState'),safe=$('walletSafe'),term=$('walletTerm');
+const walletAccess=document.getElementById('walletAccess');
+if(!btn||!pop||!go||!msg)return;
+if(walletAccess)walletAccess.addEventListener('click',e=>{if(e.target!==btn){e.stopPropagation();btn.click()}});
+const st=document.createElement('style');st.textContent='.lock.open{border-color:rgba(205,168,95,.6)!important;opacity:.7}.access .price .small{font-size:16px!important;font-weight:700;color:#d9c084!important}';document.head.appendChild(st);
+const lang=()=>(window.CSA_LANG&&window.CSA_LANG()==='ja')?'ja':'en';
+const T=(e,j)=>lang()==='ja'?j:e;
+let PAYTO=null;
+const S={addr:null,p:null,until:0,busy:false,phase:'',err:''};
+const active=()=>S.until>Date.now();
+const short=a=>a.slice(0,4)+'…'+a.slice(-4);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const sel=()=>pop.querySelector('.pay-choice.active');
+const getPend=()=>{try{return JSON.parse(localStorage.getItem('csa-pay')||'null')}catch(_){return null}};
 function render(){
-if(sel&&!vis().some(e=>e.id===sel))sel=null;
-$('tabs').innerHTML=A.map(a=>`<button class="tab ${a===asset?'on':''}" data-a="${a}">${a}</button>`).join('');
-$('fl').innerHTML=FL.map(f=>`<button class="f ${f[0]===flt?'on':''}" data-f="${f[0]}">${f[1]}</button>`).join('');
-$('ttl').textContent=asset+' / '+TF[tf][1];
-$('tfs').innerHTML=TF.map((f,i)=>`<button class="f ${i===tf?'on':''}" data-t="${i}">${f[1]}</button>`).join('');
-$('st').textContent=evErr.join(' / ');
-loadC(asset,tf);chart();list();hl(sel);if(asset==='ETH')loadEQ();else{eqChart();if(asset==='SOL'||asset==='BNB')loadSQ(asset);else sqChart()}
+  const a=active(),b=sel();
+  btn.textContent=S.addr?short(S.addr)+(a?' ✓':''):T('CONNECT WALLET','ウォレット接続');
+  go.innerHTML=(S.busy?(S.phase||T('WAITING…','応答待ち…')):!S.addr?T('CONNECT & SIGN IN','接続して署名'):a?T('ACCESS ACTIVE','アクセス有効'):T('PAY ','支払う ')+(b?b.querySelector('b').textContent:'')+T(' · 1 YEAR',' · 1年間'))+' <i>→</i>';
+  go.disabled=S.busy||(!!S.addr&&a);
+  off.style.display=S.addr&&!S.busy?'inline':'none';off.textContent=T('Disconnect','切断');
+  acc.textContent=a?T('✓ Access until ','✓ アクセス有効期限 ')+new Date(S.until).toLocaleDateString(lang()==='ja'?'ja-JP':'en-CA'):'';
+  const lk=document.querySelector('.lock');if(lk)lk.classList.toggle('open',a);
+  term.textContent=T('1 YEAR OF ACCESS','1年間 使い放題');
+  safe.textContent='';
+  [T('Signing is not a payment. It never touches your funds.','署名は送金ではなく、資金には一切触れません。'),
+   T('You pay only the amount shown, plus the network fee.','払うのは、表示された枚数とネットワーク手数料だけです。'),
+   T('No approvals, and no way to charge you later.','「承認(approve)」や、あとで引き落とす権限は求めません。')].forEach(t=>{const d=document.createElement('div'),c=document.createElement('span');c.textContent='✓ ';c.style.cssText='color:#d9c084;font-weight:700';d.appendChild(c);d.appendChild(document.createTextNode(t));safe.appendChild(d)});
+  if(PAYTO){const d=document.createElement('div');d.style.cssText='margin-top:8px;font-size:11px;color:#9eacb7';d.appendChild(document.createTextNode(T('Receiving address: ','受取アドレス: ')+short(PAYTO)+' · '));
+    const l=document.createElement('a');l.href='https://solscan.io/account/'+PAYTO;l.target='_blank';l.rel='noopener noreferrer';l.textContent=T('Open on Solscan','Solscanで開く');l.style.color='#7bbfff';d.appendChild(l);safe.appendChild(d)}
+  msg.style.color=S.err?'#e59a9a':'#9eacb7';
+  msg.textContent=S.err||(a?T('Signed in: ','署名済み: ')+S.addr:S.addr?T('Pick a coin and pay the exact amount. Send only from the button — other transfers get no access and no refund.','コインを選んで表示どおりの枚数を支払います。ボタン以外からの送金はアクセスが付かず、返金もできません。'):T('Connect a Solana wallet and sign a message. No funds move.','Solanaウォレットを接続してメッセージに署名します。送金は発生しません。'));
 }
-document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.a){asset=b.dataset.a;render()}if(b.dataset.f){flt=b.dataset.f;render()}if(b.dataset.t){tf=+b.dataset.t;render()}});
-addEventListener('resize',()=>{chart();hl(sel)});
-function tick(){$('clk').textContent=new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',timeZone:tz})+' '+ofs()};
-(function(){const z=$('tz');z.innerHTML=TZ.map(c=>`<option value="${c[0]}">${c[1]}</option>`).join('');z.value=tz;z.onchange=()=>{tz=z.value;try{localStorage.setItem('tz',tz)}catch(_){}render();tick()}})();
-$('tip').addEventListener('pointerenter',()=>clearTimeout(hideT));$('tip').addEventListener('pointerleave',()=>{hideT=setTimeout(()=>hl(sel),180)});
-$('tip').addEventListener('click',ev=>{if(ev.target.closest('.x')){sel=null;hl(null)}});
-if(SHOW_ACCESS)$('key').innerHTML='<span class="kk">1 YEAR ACCESS</span><span class="kv">1 USDC<i>·</i>0.01 SOL<i>·</i>1 RAY</span><span class="kn">NO SUBSCRIPTION</span>';else $('key').style.display='none';
-tick();setInterval(tick,60000);
-setInterval(()=>{if(!document.hidden)loadC(asset,tf,true)},3e5);   // 値段の保存は5分ごとなので、取り直しも5分ごと
-setInterval(()=>{if(!document.hidden)loadE()},6e5);
-setInterval(()=>{if(document.hidden)return;if(asset==='ETH')loadEQ(true);else if(asset==='SOL'||asset==='BNB')loadSQ(asset,true)},3e5);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)return;loadC(asset,tf,true);loadE();if(asset==='ETH')loadEQ(true);else if(asset==='SOL'||asset==='BNB')loadSQ(asset,true)});
-async function refreshAll(){const b=$('rf');if(b.disabled)return;b.disabled=true;b.classList.add('on');NC=Date.now();
-const k=asset+'|'+TF[tf][0];if(CS[k]==='loading')CS[k]='ok';
-try{await Promise.all([loadC(asset,tf,true),loadE(),asset==='ETH'?loadEQ(true):(asset==='SOL'||asset==='BNB')?loadSQ(asset,true):null])}finally{NC=0;b.disabled=false;b.classList.remove('on');b.title='更新しました '+new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'})}}
-$('rf').addEventListener('click',refreshAll);
-render();loadE();
-</script></main></body></html>
+const prov=()=>window.phantom&&window.phantom.solana&&window.phantom.solana.isPhantom?window.phantom.solana:window.solflare&&window.solflare.isSolflare?window.solflare:window.backpack&&window.backpack.isBackpack?window.backpack:window.solana||null;
+const setup=(e)=>e==='AUTH_SECRET not set'?T('Server is not set up yet (AUTH_SECRET).','サーバー側の設定がまだです(AUTH_SECRET)。'):e==='PAY_TO not set'?T('Server is not set up yet (PAY_TO).','サーバー側の設定がまだです(PAY_TO)。'):(e||'error');
+async function confirmPay(invoice,sig){
+  for(let i=0;i<40;i++){
+    S.phase=T('CONFIRMING ON-CHAIN…','チェーンで確認中…');render();
+    const r=await(await fetch('/api/pay/confirm',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:S.addr,invoice:invoice,signature:sig})})).json();
+    if(r.status==='ok'){S.until=r.until;try{localStorage.removeItem('csa-pay')}catch(_){}return}
+    if(r.status==='rejected'){try{localStorage.removeItem('csa-pay')}catch(_){}throw new Error(T('Payment did not match the invoice: ','請求と一致しない支払いでした: ')+r.reason)}
+    if(r.error)throw new Error(setup(r.error));
+    await sleep(3000);
+  }
+  throw new Error(T('Still confirming. Reconnect later to finish.','確認に時間がかかっています。後でもう一度接続すると反映されます。'));
+}
+async function signIn(){
+  const p=prov();
+  if(!p)throw new Error(T('No Solana wallet found. Install Phantom, Solflare or Backpack.','Solanaウォレットが見つかりません。Phantom・Solflare・Backpackなどを入れてください。'));
+  const r=await p.connect();
+  const addr=String(r&&r.publicKey?r.publicKey:p.publicKey);
+  const n=await(await fetch('/api/auth/nonce?addr='+encodeURIComponent(addr),{cache:'no-store'})).json();
+  if(!n.message)throw new Error(setup(n.error));
+  const s=await p.signMessage(new TextEncoder().encode(n.message),'utf8');
+  const sig=s&&s.signature?s.signature:s;
+  const v=await(await fetch('/api/auth/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:addr,message:n.message,signature:btoa(String.fromCharCode.apply(null,Array.from(sig)))})})).json();
+  if(!v.ok)throw new Error(T('Signature check failed: ','署名の確認に失敗: ')+(v.error||''));
+  S.addr=addr;S.p=p;S.until=v.until||0;
+  const pend=getPend();
+  if(!active()&&pend&&pend.address===addr){try{await confirmPay(pend.invoice,pend.signature)}catch(_){}}   // 前回の支払いの確認待ちを引き継ぐ
+}
+const loadW3=()=>window.solanaWeb3?Promise.resolve():new Promise((ok,ng)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@solana/web3.js@1.98.0/lib/index.iife.min.js';s.onload=ok;s.onerror=()=>ng(new Error(T('Could not load the Solana library.','Solanaライブラリを読み込めませんでした。')));document.head.appendChild(s)});
+function buildTx(inv){
+  const W=window.solanaWeb3,PK=W.PublicKey,me=new PK(S.addr),to=new PK(inv.to),ref=new PK(inv.ref),ixs=[];
+  const k=(pubkey,isSigner,isWritable)=>({pubkey:pubkey,isSigner:isSigner,isWritable:isWritable});
+  if(!inv.mint)ixs.push(W.SystemProgram.transfer({fromPubkey:me,toPubkey:to,lamports:BigInt(inv.amount)}));
+  else{
+    const mint=new PK(inv.mint),prog=new PK(inv.prog),ATAP=new PK('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    const ata=o=>PK.findProgramAddressSync([o.toBytes(),prog.toBytes(),mint.toBytes()],ATAP)[0];
+    const src=ata(me),dst=ata(to);
+    ixs.push(new W.TransactionInstruction({programId:ATAP,keys:[k(me,true,true),k(dst,false,true),k(to,false,false),k(mint,false,false),k(W.SystemProgram.programId,false,false),k(prog,false,false)],data:new Uint8Array([1])}));
+    const d=new Uint8Array(10);d[0]=12;new DataView(d.buffer).setBigUint64(1,BigInt(inv.amount),true);d[9]=inv.dec;
+    ixs.push(new W.TransactionInstruction({programId:prog,keys:[k(src,false,true),k(mint,false,false),k(dst,false,true),k(me,true,false)],data:d}));
+  }
+  ixs[ixs.length-1].keys.push(k(ref,false,false));
+  const tx=new W.Transaction({feePayer:me,blockhash:inv.blockhash,lastValidBlockHeight:inv.lastValidBlockHeight});
+  ixs.forEach(i=>tx.add(i));return tx;
+}
+async function pay(){
+  S.phase=T('PREPARING…','準備中…');render();
+  const coin=sel().dataset.coin;
+  const inv=await(await fetch('/api/pay/invoice?addr='+encodeURIComponent(S.addr)+'&coin='+coin,{cache:'no-store'})).json();
+  if(!inv.invoice)throw new Error(setup(inv.error));
+  await loadW3();
+  const tx=buildTx(inv);
+  S.phase=T('APPROVE IN YOUR WALLET…','ウォレットで承認してください…');render();
+  const r=await S.p.signAndSendTransaction(tx),sig=typeof r==='string'?r:r.signature;
+  try{localStorage.setItem('csa-pay',JSON.stringify({address:S.addr,invoice:inv.invoice,signature:sig}))}catch(_){}
+  await confirmPay(inv.invoice,sig);
+}
+function open(o){pop.classList.toggle('open',o);pop.setAttribute('aria-hidden',String(!o))}
+btn.addEventListener('click',e=>{e.stopPropagation();open(!pop.classList.contains('open'))});
+pop.addEventListener('click',e=>e.stopPropagation());
+document.addEventListener('click',()=>open(false));
+pop.querySelector('.wallet-close').addEventListener('click',()=>open(false));
+pop.querySelectorAll('.pay-choice:not(.more)').forEach(b=>b.addEventListener('click',()=>{pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render()}));
+go.addEventListener('click',async()=>{
+  if(S.busy)return;S.err='';S.busy=true;render();
+  try{if(!S.addr)await signIn();else if(!active())await pay()}
+  catch(e){S.err=(e&&e.code===4001)?T('Cancelled in the wallet.','ウォレットで取り消されました。'):String((e&&e.message)||e)}
+  S.busy=false;S.phase='';render();
+});
+off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';render()});
+window.addEventListener('csa-lang',render);
+render();
+fetch('/api/pay/info',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(j.to||'')){PAYTO=j.to;render()}}).catch(()=>{});
+})();
+</script>
+</body></html>
