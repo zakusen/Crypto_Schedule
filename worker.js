@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v25-pxawait';
+const VERSION = '2026-10-06-clean-v26-pcui';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -315,6 +315,13 @@ async function tvChunk(from, to) {
   return j.result;
 }
 
+// TradingView の数値(例: 3.1, unit '%', scale 'K')を表示用の文字列にする。無ければ null
+function tvNum(v, e) {
+  if (v == null || v === '' || !isFinite(+v)) return null;
+  const n = +v, sc = e.scale ? String(e.scale) : '', u = e.unit ? String(e.unit) : '';
+  return (Math.abs(n) >= 1000 ? n.toLocaleString('en-US', { maximumFractionDigits: 2 }) : String(Math.round(n * 1000) / 1000)) + sc + u;
+}
+
 async function tvEvents() {
   const now = Date.now();
   const from = now - PAST_KEEP, to = now + 90 * DAY, step = 50 * DAY;   // 範囲の上限が不明なので50日ずつに分けて取る
@@ -327,7 +334,12 @@ async function tvEvents() {
         if (!e || !e.id || !e.date || !REGION[e.country] || e.importance < 0) continue;     // 低重要度と祝日は除く
         if (/holiday/i.test(e.indicator || '')) continue;
         const L = jaLabel(e.country, String(e.title || e.indicator || ''));
-        seen.set(e.id, { id: 'tv-' + e.id, l: 'macro', t: L.t, s: L.s, src: e.source || 'TradingView', at: new Date(e.date).toISOString(), im: e.importance >= 1 ? 'high' : 'mid', c: e.country });
+        const ev = { id: 'tv-' + e.id, l: 'macro', t: L.t, s: L.s, src: e.source || 'TradingView', at: new Date(e.date).toISOString(), im: e.importance >= 1 ? 'high' : 'mid', c: e.country };
+        // 予想・前回・結果(元データにある時だけ)。EVENT DATA と一覧に出す。指標名(英語)は将来の EVENT IMPACT の集計に使う
+        const fc = tvNum(e.forecast, e), pv = tvNum(e.previous, e), ac = tvNum(e.actual, e);
+        if (fc) ev.fc = fc; if (pv) ev.pv = pv; if (ac) ev.ac = ac;
+        if (e.indicator) ev.ind = String(e.indicator).slice(0, 80);
+        seen.set(e.id, ev);
       }
     } catch (err) { errors.push('マクロ(TradingView): ' + (err.message || err)); }
   }));
@@ -345,7 +357,9 @@ async function ffEvents() {
         const c = CC[e.country], ts = Date.parse(e.date);
         if (!c || !isFinite(ts) || !['High', 'Medium'].includes(e.impact)) continue;
         const L = jaLabel(c, String(e.title || ''));
-        out.push({ id: 'ff-' + c + '-' + ts + '-' + String(e.title).replace(/[^A-Za-z0-9]/g, '').slice(0, 24), l: 'macro', t: L.t, s: L.s, src: 'Forex Factory（予備）', at: new Date(ts).toISOString(), im: e.impact === 'High' ? 'high' : 'mid', c });
+        const ev = { id: 'ff-' + c + '-' + ts + '-' + String(e.title).replace(/[^A-Za-z0-9]/g, '').slice(0, 24), l: 'macro', t: L.t, s: L.s, src: 'Forex Factory（予備）', at: new Date(ts).toISOString(), im: e.impact === 'High' ? 'high' : 'mid', c };
+        if (e.forecast) ev.fc = String(e.forecast).slice(0, 20); if (e.previous) ev.pv = String(e.previous).slice(0, 20);
+        out.push(ev);
       }
     } catch (err) { errors.push('予備(Forex Factory): ' + (err.message || err)); }
   }));
