@@ -2369,7 +2369,8 @@ function impList(){const m=new Map();
     const k=IMPKEY(e);let g=m.get(k);if(!g){g={k,rep:e,hi:false};m.set(k,g)}
     if(e.im==='high')g.hi=true;if(e.ts>=g.rep.ts)g.rep=e});
   const cmp=(a,b)=>((CORD[a.rep.c]??9)-(CORD[b.rep.c]??9))||evS(a.rep).localeCompare(evS(b.rep),LOC());
-  return[...m.values()].filter(g=>!RXI||RXI[g.k]>0).sort(cmp)}   // v55: 記録の無い指標は選択肢に出さない
+  const L=[...m.values()].sort(cmp);
+  return RXI&&L.some(g=>RXI[g.k]>0)?L.filter(g=>RXI[g.k]>0):L}   // 記録の無い指標は選択肢に出さない。1つも一致しない時は絞らない(全部消えるのを防ぐ)
 function impOpts(sel,list,nx,cur){
   const lab=g=>(CN[g.rep.c]||g.rep.c||'')+' '+evS(g.rep),
     cnt=g=>g.n==null?'…':g.n===0?TL('測れる発表なし','no measurable release'):TL(g.n+'回',g.n+(g.n>1?' releases':' release')),
@@ -2391,7 +2392,7 @@ function impRows(ref){const key=IMPKEY(ref),now=Date.now();
     (L.length>show.length?'<div class="more">'+TL('ほか '+(L.length-show.length)+' 件','+'+(L.length-show.length)+' more')+'</div>':'')+'</div>'}
 function impCard(){const c=$('impCard'),sel=$('impSel'),body=$('impBody');if(!c||!sel||!body)return;
   const nx=nextKey(),list=impList(),px=impPx();
-  rxIndex();list.forEach(g=>{g.n=RXI?(RXI[g.k]||0):null});
+  rxIndex();const hit=!!RXI&&list.some(g=>RXI[g.k]>0);list.forEach(g=>{g.n=hit?RXI[g.k]:null});
   if(IMPSEL!=='auto'&&evState==='ok'&&E.length&&!list.some(g=>g.k===IMPSEL)){IMPSEL='auto';impSave('auto')}   /* 消えた指標は黙って自動へ */
   const cur=IMPSEL,auto=cur==='auto',ref=auto?nx:(list.find(g=>g.k===cur)||{}).rep;
   impOpts(sel,list,nx,cur);

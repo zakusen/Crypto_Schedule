@@ -1239,9 +1239,13 @@ async function rxCron(env) {
   return rxStep(env, { fetches: 15, chunks: 3 });
 }
 // 画面向け。無料: 各指標の直近2回だけ / 有効期限内のウォレットでログイン済み: 全期間。
+// 取り込み時の指標名(k)は、その後 jaLabel の対応表が変わるとずれる。読む時に英語名(se)から今の対応表で作り直して、画面の指標名と必ず合わせる
+function rxKey(e) { const c = String(e.k || '').split('|').pop(); return e.se && REGION[c] ? jaLabel(c, e.se).s + '|' + c : e.k; }
 async function rxApi(request, url, env) {
   if (!env.CAL) return json({ error: 'KV(CAL)が接続されていません' }, 503);
-  const doc = await rxLoad(env, 60), has = e => doc.res[e.i] && Object.keys(doc.res[e.i]).some(s => doc.res[e.i][s]);
+  const doc = await rxLoad(env, 60);
+  for (const e of doc.ev) e.k = rxKey(e);
+  const has = e => doc.res[e.i] && Object.keys(doc.res[e.i]).some(s => doc.res[e.i][s]);
   const k = url.searchParams.get('k');
   if (!k) {
     const m = new Map();

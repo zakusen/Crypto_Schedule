@@ -321,7 +321,8 @@ const evOK=e=>e.l==='macro'&&e.im!=='low'&&(!e.a||e.a.includes(sym));
 function impList(){const m=new Map();
   E.forEach(e=>{if(!evOK(e))return;const k=IMPKEY(e);let g=m.get(k);if(!g){g={k,rep:e,hi:false};m.set(k,g)}
     if(e.im==='high')g.hi=true;if(e.ts>=g.rep.ts)g.rep=e});
-  return[...m.values()].filter(g=>!RXI||RXI[g.k]>0).sort((a,b)=>((CORD[a.rep.c]??9)-(CORD[b.rep.c]??9))||evS(a.rep).localeCompare(evS(b.rep),LOC()))}
+  const L=[...m.values()].sort((a,b)=>((CORD[a.rep.c]??9)-(CORD[b.rep.c]??9))||evS(a.rep).localeCompare(evS(b.rep),LOC()));
+  return RXI&&L.some(g=>RXI[g.k]>0)?L.filter(g=>RXI[g.k]>0):L}   /* 1つも一致しない時は絞らない(全部消えるのを防ぐ) */
 function impPx(){if(IMPTF.some(q=>CD[sym+'|'+q]))return'ok';return IMPTF.every(q=>ST[sym+'|'+q]==='error')?'fail':'loading'}
 function impOpts(sel,list,nx,cur){
   const lab=g=>cnm(g.rep.c)+' '+evS(g.rep),
@@ -337,7 +338,7 @@ function impOpts(sel,list,nx,cur){
 /* ===== 描画 ===== */
 function renderAll(){
   const nx=nextKey(),list=impList(),px=impPx(),sel=$('indicatorSelect');
-  rxIndex();list.forEach(g=>{g.n=RXI?(RXI[g.k]||0):null});
+  rxIndex();const hit=!!RXI&&list.some(g=>RXI[g.k]>0);list.forEach(g=>{g.n=hit?RXI[g.k]:null});
   if(IMPSEL!=='auto'&&evState==='ok'&&E.length&&!list.some(g=>g.k===IMPSEL)){IMPSEL='auto';impSave('auto')}
   impOpts(sel,list,nx,IMPSEL);
   const auto=IMPSEL==='auto',ref=auto?nx:(list.find(g=>g.k===IMPSEL)||{}).rep;
