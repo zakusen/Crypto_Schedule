@@ -214,7 +214,7 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
   <div class="historyList" id="historyList"></div>
 </div>
 
-<div class="note" id="noteMain">統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。</div>
+<div class="note" id="noteMain">統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。有料の集計は2017年以降の発表を5分足から計算した記録で、「上方向・下方向の最大」は1時間以内のみ、ほかの時間は終値の変化率です。</div>
 <div class="note" style="margin-top:2px"><a href="/?pc" style="color:var(--muted)">PC版を開く</a> · <a href="/classic-legacy" style="color:var(--muted)">従来のスマホ画面</a></div>
 
 </div>
@@ -248,6 +248,28 @@ const sgn=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
 const has=v=>v!=null&&v!=='';
 const numTxt=e=>(has(e.fc)||has(e.pv))?TL('予想 ','Fcst ')+(has(e.fc)?e.fc:'—')+TL(' · 前回 ',' · Prev ')+(has(e.pv)?e.pv:'—'):'';
 const IMPKEY=e=>(e.s||e.t)+'|'+(e.c||'');
+/* ===== v52: 過去の反応は有料。2017年からの集計を /api/rx から取る(無料は件数だけ) ===== */
+const tok=()=>window.CSA?CSA.token():null;
+const RXC={};let RXI=null,RXIat=0;
+const RXH=[3e5,9e5,36e5,144e5,864e5];
+function rxIndex(){if(RXI||Date.now()-RXIat<6e4)return;RXIat=Date.now();
+  fetch('/api/rx',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(!j||!Array.isArray(j.indicators))return;RXI={};j.indicators.forEach(g=>{RXI[g.k]=g.n});renderAll()}).catch(()=>{})}
+function rxGet(key){const tk=tok(),X=RXC[key];
+  if(X&&X.tk===tk&&(X.st==='loading'||X.st==='ok'||(X.st==='fail'&&Date.now()-X.at<6e4)))return X;
+  const N=RXC[key]={st:'loading',tk,rows:[],total:0,locked:true,at:Date.now()};
+  fetch('/api/rx?k='+encodeURIComponent(key),{cache:'no-store',headers:tk?{authorization:'Bearer '+tk}:{}})
+    .then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{if(!j||j.error)throw new Error('rx');
+      Object.assign(N,{st:'ok',rows:Array.isArray(j.rows)?j.rows:[],total:Number(j.total)||0,locked:!!j.locked})})
+    .catch(()=>{N.st='fail';N.at=Date.now()}).then(()=>renderAll());
+  return N}
+window.addEventListener('csa-auth',()=>renderAll());
+/* 1つの指標の過去の発表。有料で取得済みなら2017年からの記録、取得に失敗した時だけ、読み込み済みの足で測れる分 */
+function pastEvs(key){const X=RXC[key];
+  if(X&&X.st==='ok'&&!X.locked)return X.rows.filter(w=>w.r&&w.r[sym]).map(w=>({l:'macro',ts:w.t,fc:w.fc,pv:w.pv,ac:w.ac,rx:w.r[sym]}));
+  return E.filter(e=>e.l==='macro'&&e.ts<Date.now()&&IMPKEY(e)===key)}
+/* rx の1行 = [発表時価格,5分,15分,1時間,4時間,24時間,1時間内の最大上,最大下]。最大上下は1時間だけ測れる */
+function rxExc(a,ms){const i=RXH.indexOf(ms);if(i<0)return null;const v=a[1+i];if(v==null)return null;
+  const one=i===2&&a[6]!=null&&a[7]!=null;return{up:one?a[6]:null,dn:one?a[7]:null,end:v,ref:a[0]}}
 const evS=e=>EN()?(e.se||e.te||e.s||e.t):(e.s||e.t);
 const gf=u=>NC?fetch(u+(u.includes('?')?'&':'?')+'_='+NC,{cache:'no-store'}):fetch(u);
 
@@ -268,7 +290,7 @@ function ensureImp(force){IMPTF.forEach(q=>{const k=sym+'|'+q;if(force||(!CD[k]&
 
 /* ===== 計算(PC版 v33〜v35 と同じ) ===== */
 const barPx=(bs,st,t)=>{let i=0;for(let j=0;j<bs.length;j++){if(bs[j][0]*1000<=t)i=j;else break}const fr=Math.min(1,(t-bs[i][0]*1000)/st);return bs[i][1]+(bs[i][4]-bs[i][1])*fr};
-function exc(ts,ms){if(ts+ms>Date.now())return null;
+function exc(ts,ms,ev){if(ev&&ev.rx)return rxExc(ev.rx,ms);if(ts+ms>Date.now())return null;
   for(const q of IMPTF){const st=TFD[q].ms;if(st>ms)break;const d=CD[sym+'|'+q];if(!d||!d.bars.length)continue;
     const bs=d.bars,b0=bs[0][0]*1000,end=bs[bs.length-1][0]*1000+st;if(ts<b0||ts+ms>end)continue;
     const ref=barPx(bs,st,ts),fin=barPx(bs,st,ts+ms);if(!(ref>0))continue;let hi=Math.max(ref,fin),lo=Math.min(ref,fin);
@@ -279,13 +301,13 @@ function exc(ts,ms){if(ts+ms>Date.now())return null;
     return{up:(hi/ref-1)*100,dn:(lo/ref-1)*100,end:(fin/ref-1)*100,hi,lo,ref}}
   return null}
 function impStats(ref){const key=IMPKEY(ref),now=Date.now();
-  const past=E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key);
+  const past=pastEvs(key);
   const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;let n=0;
-  const rows=HZ.map(h=>{const r=past.map(e=>exc(e.ts,h[2])).filter(Boolean);return{k:r.length,up:mean(r.map(x=>x.up)),dn:mean(r.map(x=>x.dn)),end:mean(r.map(x=>x.end))}});
-  past.forEach(e=>{if(HZ.some(h=>exc(e.ts,h[2])))n++});
+  const rows=HZ.map(h=>{const r=past.map(e=>exc(e.ts,h[2],e)).filter(Boolean);return{k:r.length,up:mean(r.map(x=>x.up).filter(v=>v!=null)),dn:mean(r.map(x=>x.dn).filter(v=>v!=null)),end:mean(r.map(x=>x.end))}});
+  past.forEach(e=>{if(HZ.some(h=>exc(e.ts,h[2],e)))n++});
   return{rows,n,total:past.length}}
 /* 1つの発表の反応: 1時間→4時間→24時間→15分→5分 のうち測れる最初のもの */
-function react(e){for(const i of[2,3,4,1,0]){const r=exc(e.ts,HZ[i][2]);if(r)return{...r,l:hzl(i)}}return null}
+function react(e){for(const i of[2,3,4,1,0]){const r=exc(e.ts,HZ[i][2],e);if(r)return{...r,l:hzl(i)}}return null}
 function chg24(s){
   for(const t of['5m','15m','1h','4h','1d']){const d=CD[s+'|'+t];if(!d||!d.bars.length)continue;
     const bs=d.bars,st=TFD[t].ms,lb=bs[bs.length-1],pt=Math.min(Date.now(),lb[0]*1000+st),ref=pt-864e5;let r=null;
@@ -315,7 +337,7 @@ function impOpts(sel,list,nx,cur){
 /* ===== 描画 ===== */
 function renderAll(){
   const nx=nextKey(),list=impList(),px=impPx(),sel=$('indicatorSelect');
-  list.forEach(g=>{g.n=px==='ok'?impStats(g.rep).n:px==='loading'?null:0});
+  rxIndex();list.forEach(g=>{g.n=RXI?(RXI[g.k]||0):null});
   if(IMPSEL!=='auto'&&evState==='ok'&&E.length&&!list.some(g=>g.k===IMPSEL)){IMPSEL='auto';impSave('auto')}
   impOpts(sel,list,nx,IMPSEL);
   const auto=IMPSEL==='auto',ref=auto?nx:(list.find(g=>g.k===IMPSEL)||{}).rep;
@@ -341,9 +363,9 @@ function tickCount(){if(!TGT)return;let s=Math.max(0,Math.floor((TGT.ts-Date.now
   $('cdHms').textContent=p(Math.floor(s/3600))+':'+p(m)+':'+p(sc)}
 
 /* 過去の発表(測れたものだけ・新しい順) */
-function pastRows(ref){const key=IMPKEY(ref),now=Date.now();
-  return E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key).sort((a,b)=>b.ts-a.ts)
-    .map(e=>({e,pts:HZ.slice(0,4).map(h=>exc(e.ts,h[2])),r:react(e)})).filter(x=>x.r)}
+function pastRows(ref){const key=IMPKEY(ref);
+  return pastEvs(key).sort((a,b)=>b.ts-a.ts)
+    .map(e=>({e,pts:HZ.slice(0,4).map(h=>exc(e.ts,h[2],e)),r:react(e)})).filter(x=>x.r)}
 
 function renderImpact(ref,auto,px){
   const msg=$('impMsg'),setMsg=t=>{msg.textContent=t;msg.style.display=t?'flex':'none'};
@@ -356,11 +378,28 @@ function renderImpact(ref,auto,px){
   $('metaPrice').textContent=last?'$'+fp(last[4]):'—';
   if(!E.length)return clear(evState==='loading'?TL('イベントを読み込み中…','Loading events…'):TL('イベントを取得できませんでした','Could not load events'));
   if(!ref)return clear(auto?TL('次の重要イベント待ち','Waiting for the next key event'):TL('指標が見つかりません','Indicator not found'));
-  if(px==='loading')return clear(TL('価格を読み込み中…','Loading prices…'));
-  if(px==='fail')return clear(TL('価格を取得できませんでした','Could not load prices'));
+  const key=IMPKEY(ref),X=rxGet(key),paid=!!tok();
+  if(!paid||(X.st==='ok'&&X.locked)){   /* 無料: 変動率まわりはすべて有料。件数だけ見せる */
+    clear('');const nm0=evS(ref),tot=X.st==='ok'?X.total:((RXI&&RXI[key])||0),act=!!(window.CSA&&CSA.active());
+    msg.innerHTML='<div><div style="font-size:20px;margin-bottom:4px">🔒</div><div><b>'+esc(nm0)+'</b>'+esc(TL(' の発表後の動きは有料機能です',' – post-release moves are a paid feature'))+'</div>'+
+      (tot?'<div style="margin-top:2px">'+esc(TL('2017年からの記録 '+tot+'回分',tot+' releases on record since 2017'))+'</div>':'')+
+      '<button type="button" id="impUnlock" style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer">'+
+      esc(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続 / 購入','Connect wallet / buy access'))+'</button></div>';
+    msg.style.display='flex';
+    const ub=$('impUnlock');if(ub)ub.onclick=()=>{if(!window.CSA)return;act?CSA.unlock():CSA.open()};
+    ['maxUp','maxDown','avgVal','lastVal'].forEach(i=>$(i).textContent='🔒');
+    ['maxUpDate','maxDownDate'].forEach(i=>$(i).textContent=TL('有料','Paid'));
+    $('historyList').innerHTML='<div class="hmsg">🔒 '+esc(TL('過去の発表の一覧は有料です','The release history is a paid feature'))+'</div>';
+    $('metaCount').textContent=tot?TL(tot+'回',tot+(tot===1?' time':' times')):'—';
+    return}
+  if(X.st==='loading')return clear(TL('2017年からの記録を読み込み中…','Loading records since 2017…'));
+  const rxOn=X.st==='ok';
+  if(!rxOn){
+    if(px==='loading')return clear(TL('価格を読み込み中…','Loading prices…'));
+    if(px==='fail')return clear(TL('価格を取得できませんでした','Could not load prices'));}
   const S=impStats(ref),nm=evS(ref);
-  if(!S.total)return clear(TL('この指標の過去の発表は、取得できているイベントの中にありません','No past releases of this indicator in the loaded events'));
-  if(!S.n)return clear(TL('取得済みの足の範囲に、この指標の過去の発表がありません','No past releases of this indicator fall within the loaded candle range'));
+  if(!S.total)return clear(rxOn?TL('この指標の過去の記録は、まだ取り込まれていません','No stored records for this indicator yet'):TL('この指標の過去の発表は、取得できているイベントの中にありません','No past releases of this indicator in the loaded events'));
+  if(!S.n)return clear(rxOn?TL('この銘柄では、反応を測れた発表がありません','No measurable releases of this indicator for this asset'):TL('取得済みの足の範囲に、この指標の過去の発表がありません','No past releases of this indicator fall within the loaded candle range'));
   setMsg('');$('centerLine').style.display='';
   PD=pastRows(ref);if(HL>=PD.length)HL=-1;
   const n=S.n;
@@ -370,19 +409,21 @@ function renderImpact(ref,auto,px){
   const ts=PD.map(x=>x.e.ts);$('metaPeriod').textContent=ymd(Math.min(...ts)).slice(0,7)+' - '+ymd(Math.max(...ts)).slice(0,7);
   $('legAvg').style.display='';$('legAvg').textContent=n===1?TL('● 1回分','● 1 release'):TL('● 平均','● Average');
   /* 1時間以内の最大・平均・前回 */
-  const h1=PD.map(x=>({e:x.e,r:exc(x.e.ts,HZ[2][2])})).filter(x=>x.r);
-  if(h1.length){const mu=h1.reduce((a,b)=>a.r.up>=b.r.up?a:b),md=h1.reduce((a,b)=>a.r.dn<=b.r.dn?a:b),av=S.rows[2];
-    $('maxUp').textContent=sgn(mu.r.up);$('maxUpDate').textContent=ymd(mu.e.ts)+TL(' 発表時',' release');
-    $('maxDown').textContent=sgn(md.r.dn);$('maxDownDate').textContent=ymd(md.e.ts)+TL(' 発表時',' release');
+  const h1=PD.map(x=>({e:x.e,r:exc(x.e.ts,HZ[2][2],x.e)})).filter(x=>x.r),hm=h1.filter(x=>x.r.up!=null&&x.r.dn!=null);
+  if(h1.length){const av=S.rows[2];
+    if(hm.length){const mu=hm.reduce((a,b)=>a.r.up>=b.r.up?a:b),md=hm.reduce((a,b)=>a.r.dn<=b.r.dn?a:b);
+      $('maxUp').textContent=sgn(mu.r.up);$('maxUpDate').textContent=ymd(mu.e.ts)+TL(' 発表時',' release');
+      $('maxDown').textContent=sgn(md.r.dn);$('maxDownDate').textContent=ymd(md.e.ts)+TL(' 発表時',' release')}
+    else{['maxUp','maxDown'].forEach(i=>$(i).textContent='—');['maxUpDate','maxDownDate'].forEach(i=>$(i).textContent=TL('1時間以内の値なし','No 1-hour range'))}
     $('avgVal').textContent=sgn(av.end);$('avgD').textContent=TL('発表価格から（'+av.k+'回分）','From release price ('+av.k+' releases)');
     const lt=h1[0];$('lastLabel').textContent=TL('前回 ','Previous ')+ymd(lt.e.ts);$('lastVal').textContent=sgn(lt.r.end)}
   else{['maxUp','maxDown','avgVal','lastVal'].forEach(i=>$(i).textContent='—');$('maxUpDate').textContent=TL('1時間後まで測れた発表なし','No release measurable up to 1h after');$('maxDownDate').textContent=TL('1時間後まで測れた発表なし','No release measurable up to 1h after');$('avgD').textContent=TL('発表価格から','From release price');$('lastLabel').textContent=TL('前回','Previous')}
   renderHistory();drawImpact(S)}
-function renderHistory(){const list=$('historyList'),MAXR=10;list.innerHTML='';
+function renderHistory(){const list=$('historyList'),MAXR=40;list.innerHTML='';
   const anyNum=PD.slice(0,MAXR).some(x=>has(x.e.fc)||has(x.e.pv));
   PD.slice(0,MAXR).forEach((x,i)=>{const r=x.r,div=document.createElement('div');div.className='hRow'+(i===HL?' active':'');
     div.innerHTML='<div><span class="date">'+ymd(x.e.ts)+'</span><span class="time">'+fHM.format(x.e.ts)+'</span>'+
-      '<div class="hud"><u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u></div>'+(anyNum&&numTxt(x.e)?'<div class="sub" style="text-align:left">'+esc(numTxt(x.e))+'</div>':'')+'</div>'+
+      (r.up!=null?'<div class="hud"><u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u></div>':'')+(anyNum&&numTxt(x.e)?'<div class="sub" style="text-align:left">'+esc(numTxt(x.e))+'</div>':'')+'</div>'+
       '<div style="text-align:right"><div class="move '+(r.end>=0?'up':'down')+'">'+sgn(r.end)+'</div><div class="sub">'+TL('発表から'+r.l,'After '+r.l)+'</div></div>';
     div.addEventListener('click',()=>{HL=HL===i?-1:i;renderHistory();const ref=curRef();if(ref)drawImpact(impStats(ref))});list.appendChild(div)});
   if(PD.length>MAXR){const d=document.createElement('div');d.className='hmsg';d.textContent=TL('ほか '+(PD.length-MAXR)+' 件','+'+(PD.length-MAXR)+' more');list.appendChild(d)}}
@@ -453,9 +494,9 @@ function drawPrice(){
   const cand=[...(tg?[tg]:[]),...groups.filter(g=>g!==tg&&isSel(g)&&g.ts<now).sort(byNow),...groups.filter(g=>g!==tg&&!isSel(g)&&g.rep.im==='high').sort(byNow)].slice(0,12);
   const tiers=[40,84,128,172],placed=[];
   for(const g of cand){if(placed.length>=4)break;const e=g.rep,past=g.ts<now,kind=g===tg?'next':e.im==='high'?'high':'';
-    const rc=past?react(e):null,el=document.createElement('div');el.className='eventCard '+kind;el.style.visibility='hidden';
+    const rc=past&&tok()?react(e):null,el=document.createElement('div');el.className='eventCard '+kind;el.style.visibility='hidden';
     el.innerHTML='<span class="tag">'+(kind==='next'?'NEXT':e.im==='high'?'HIGH':'MED')+'</span><b>'+esc(evS(e))+(g.items.length>1?' <i>+'+(g.items.length-1)+'</i>':'')+'</b><span>'+mdhm(g.ts)+'</span>'+
-      (rc?'<span class="rx"><u class="up">▲'+sgn(rc.up)+'</u> <u class="dn">▼'+sgn(rc.dn)+'</u></span>':'');
+      (rc&&rc.up!=null?'<span class="rx"><u class="up">▲'+sgn(rc.up)+'</u> <u class="dn">▼'+sgn(rc.dn)+'</u></span>':'');
     layer.appendChild(el);const w=el.offsetWidth,h=el.offsetHeight,px=x(g.ts),l=Math.max(4,Math.min(W-w-4,px-w/2));
     if(px<l+6||px>l+w-6){el.remove();continue}
     const tp=tiers.find(t=>placed.every(p=>l>=p.l+p.w+4||l+w+4<=p.l||t>=p.t+p.h+4||t+h+4<=p.t));
@@ -525,7 +566,7 @@ const PAIRS=[
 ["Open PC version","PC版を開く"],
 ["Classic mobile view","従来のスマホ画面"]
 ];
-const NOTE={ja:"統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。",en:"Statistics are observed values from past data and do not imply trading advice or causation. They are computed only from releases that fall within the loaded candles (5m ≈ 8 hours, 1h ≈ 2.5 days, 1d ≈ 60 days), and the position inside each candle is approximated as a straight line from open to close. “Max up / Max down” is how far price moved to its high / low within 1 hour of the release, measured from the price at release."};
+const NOTE={ja:"統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。有料の集計は2017年以降の発表を5分足から計算した記録で、「上方向・下方向の最大」は1時間以内のみ、ほかの時間は終値の変化率です。",en:"Statistics are observed values from past data and do not imply trading advice or causation. They are computed only from releases that fall within the loaded candles (5m ≈ 8 hours, 1h ≈ 2.5 days, 1d ≈ 60 days), and the position inside each candle is approximated as a straight line from open to close. “Max up / Max down” is how far price moved to its high / low within 1 hour of the release, measured from the price at release. Paid statistics use records since 2017 computed from 5-minute candles; “Max up / Max down” covers the first hour only, and other horizons use the closing change."};
 const e2j={},j2e={};PAIRS.forEach(([e,j])=>{e2j[e]=j;j2e[j]=e});
 const norm=t=>t.replace(/\s+/g,' ').trim();
 let nodes=null;
@@ -561,6 +602,13 @@ const T=(e,j)=>lang()==='ja'?j:e;
 let PAYTO=null;
 const S={addr:null,p:null,until:0,busy:false,phase:'',err:''};
 const active=()=>S.until>Date.now();
+/* v52: 過去の反応(/api/rx)用トークン。署名ログインの時だけ発行される。タブを閉じると消える */
+const TKEY='csa-rxtok';
+const tokOk=t=>{const m=/^[1-9A-HJ-NP-Za-km-z]+\.(\d+)\.\w+$/.exec(t||'');return !!m&&Date.now()<Number(m[1])};
+const getTok=()=>{try{const t=sessionStorage.getItem(TKEY);if(tokOk(t))return t;sessionStorage.removeItem(TKEY)}catch(_){}return null};
+const setTok=t=>{try{t?sessionStorage.setItem(TKEY,t):sessionStorage.removeItem(TKEY)}catch(_){}window.dispatchEvent(new Event('csa-auth'))};
+window.CSA={token:getTok,active:()=>active(),open:()=>btn.click(),
+  unlock:async()=>{try{S.busy=true;S.phase=T('SIGN IN…','署名待ち…');S.err='';render();await signIn()}catch(e){S.err=String((e&&e.message)||e)}finally{S.busy=false;S.phase='';render()}}};
 const short=a=>a.slice(0,4)+'…'+a.slice(-4);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const sel=()=>pop.querySelector('.pay-choice.active');
@@ -653,7 +701,7 @@ async function signIn(){
   const sig=s&&s.signature?s.signature:s;
   const v=await(await fetch('/api/auth/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:addr,message:n.message,signature:btoa(String.fromCharCode.apply(null,Array.from(sig)))})})).json();
   if(!v.ok)throw new Error(T('Signature check failed: ','署名の確認に失敗: ')+(v.error||''));
-  S.addr=addr;S.p=p;S.until=v.until||0;
+  S.addr=addr;S.p=p;S.until=v.until||0;if(v.token)setTok(v.token);
   const pend=getPend();
   if(!active()&&pend&&pend.address===addr){try{await confirmPay(pend.invoice,pend.signature)}catch(_){}}   // 前回の支払いの確認待ちを引き継ぐ
 }
@@ -710,7 +758,7 @@ go.addEventListener('click',async()=>{
   catch(e){S.err=(e&&e.code===4001)?T('Cancelled in the wallet.','ウォレットで取り消されました。'):String((e&&e.message)||e)}
   S.busy=false;S.phase='';render();
 });
-off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';render()});
+off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';setTok(null);render()});
 window.addEventListener('csa-lang',render);
 render();
 {const m=/[#&]pay=(\w+)/.exec(location.hash||'');const b=m&&pop.querySelector('.pay-choice[data-coin="'+m[1]+'"]');if(b){pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();open(true)}}   // ウォレットアプリで開き直した時は、選んだコインを選択済みで開く

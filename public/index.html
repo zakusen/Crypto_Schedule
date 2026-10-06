@@ -2115,7 +2115,7 @@ const gKey=g=>g.ts+'|'+catOf(g.rep);
 function cardInner(g,full){const e=g.rep,k=gKind(g),num=numTxt(e);
   const t=k==='next'?TL('発表まで ','Release in ')+'<span class="cd" data-ts="'+e.ts+'">'+cdTxt(e.ts-Date.now())+'</span>':esc(kindTxt(e)+' '+whenTxt(e.ts));
   return'<span class="tag">'+(k==='next'?'NEXT':k==='high'?'HIGH':'MEDIUM')+'</span><b>'+esc(evS(e))+(!full&&g.n>1?' <i>'+TL('+'+(g.n-1)+'件','+'+(g.n-1))+'</i>':'')+'</b><span class="tm">'+t+'</span>'+(num?'<span class="nm">'+esc(num)+'</span>':'')+rxRow(e)}
-function rxRow(e){if(e.l!=='macro'||e.ts>Date.now())return'';const r=oneReact(e);return r?'<span class="rx"><u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u></span><span class="rx2">'+TL(r.l[0]+'以内 · 終値 ','within '+r.l[1]+' · end ')+sgn(r.end)+'</span>':''}
+function rxRow(e){if(e.l!=='macro'||e.ts>Date.now()||!tok())return'';const r=oneReact(e);return r&&r.up!=null?'<span class="rx"><u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u></span><span class="rx2">'+TL(r.l[0]+'以内 · 終値 ','within '+r.l[1]+' · end ')+sgn(r.end)+'</span>':''}
 /* 24時間の変化: 取得済みの足のうち細かい順に、約24時間前に確定した足の終値と比べる。出せなければ非表示 */
 function chg24(s){
   for(const t of['5m','15m','1h','4h','1d']){const d=CD[s+'|'+t];if(!d||!d.bars.length)continue;
@@ -2129,7 +2129,31 @@ const HZ=[['5分','5m',3e5],['15分','15m',9e5],['1時間','1h',36e5],['4時間'
 /* 足の中の位置は、始値→終値の直線で近似 */
 const barPx=(bs,st,t)=>{let i=0;for(let j=0;j<bs.length;j++){if(bs[j][0]*1000<=t)i=j;else break}const fr=Math.min(1,(t-bs[i][0]*1000)/st);return bs[i][1]+(bs[i][4]-bs[i][1])*fr};
 /* 発表(ts)から ms の間に、発表時点の価格から上へ最大・下へ最大で何%動いたか。窓を覆う最も細かい足で測る */
-function exc(ts,ms){if(ts+ms>Date.now())return null;
+/* ===== v52: 過去の反応は有料。2017年からの集計を /api/rx から取る(無料は件数だけ) ===== */
+const rxK=e=>(e.s||e.t)+'|'+(e.c||'');
+const tok=()=>window.CSA?CSA.token():null;
+const RXC={},RXH=[3e5,9e5,36e5,144e5,864e5];let RXI=null,RXIat=0;
+const rxRefresh=()=>{try{draw();hero();upcoming();evList();impCard()}catch(_){}};
+function rxIndex(){if(RXI||Date.now()-RXIat<6e4)return;RXIat=Date.now();
+  fetch('/api/rx',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(!j||!Array.isArray(j.indicators))return;RXI={};j.indicators.forEach(g=>{RXI[g.k]=g.n});rxRefresh()}).catch(()=>{})}
+function rxGet(key){const tk=tok(),X=RXC[key];
+  if(X&&X.tk===tk&&(X.st==='loading'||X.st==='ok'||(X.st==='fail'&&Date.now()-X.at<6e4)))return X;
+  const N=RXC[key]={st:'loading',tk,rows:[],total:0,locked:true,at:Date.now()};
+  fetch('/api/rx?k='+encodeURIComponent(key),{cache:'no-store',headers:tk?{authorization:'Bearer '+tk}:{}})
+    .then(r=>{if(!r.ok)throw new Error(r.status);return r.json()}).then(j=>{if(!j||j.error)throw new Error('rx');
+      Object.assign(N,{st:'ok',rows:Array.isArray(j.rows)?j.rows:[],total:Number(j.total)||0,locked:!!j.locked})})
+    .catch(()=>{N.st='fail';N.at=Date.now()}).then(rxRefresh);
+  return N}
+window.addEventListener('csa-auth',rxRefresh);
+/* 'lock'=無料(鍵) / 'wait'=読み込み中 / 'rx'=2017年からの記録 / 'px'=記録の取得に失敗した時だけ、読み込み済みの足 */
+function rxMode(ref,px){const X=rxGet(rxK(ref));if(!tok()||(X.st==='ok'&&X.locked))return'lock';if(X.st==='loading')return'wait';if(X.st==='ok')return'rx';return px==='ok'?'px':'wait'}
+function pastEvs(key){const X=RXC[key];
+  if(tok()&&X&&X.st==='ok'&&!X.locked)return X.rows.filter(w=>w.r&&w.r[sym]).map(w=>({l:'macro',ts:w.t,fc:w.fc,pv:w.pv,ac:w.ac,rx:w.r[sym]}));
+  return E.filter(e=>e.l==='macro'&&e.ts<Date.now()&&rxK(e)===key)}
+/* rx の1行 = [発表時価格,5分,15分,1時間,4時間,24時間,1時間内の最大上,最大下]。最大上下は1時間だけ測れる */
+function rxExc(a,ms){const i=RXH.indexOf(ms);if(i<0)return null;const v=a[1+i];if(v==null)return null;
+  const one=i===2&&a[6]!=null&&a[7]!=null;return{up:one?a[6]:null,dn:one?a[7]:null,end:v,ref:a[0]}}
+function exc(ts,ms,ev){if(ev&&ev.rx)return rxExc(ev.rx,ms);if(ts+ms>Date.now())return null;
   for(const q of IMPTF){const st=TFD[q].ms;if(st>ms)break;const d=CD[sym+'|'+q];if(!d||!d.bars.length)continue;
     const bs=d.bars,b0=bs[0][0]*1000,end=bs[bs.length-1][0]*1000+st;if(ts<b0||ts+ms>end)continue;
     const ref=barPx(bs,st,ts),fin=barPx(bs,st,ts+ms);if(!(ref>0))continue;let hi=Math.max(ref,fin),lo=Math.min(ref,fin);
@@ -2141,13 +2165,13 @@ function exc(ts,ms){if(ts+ms>Date.now())return null;
   return null}
 const sgn=v=>(v>=0?'+':'')+v.toFixed(2)+'%';
 function impStats(ref){const key=(ref.s||ref.t)+'|'+(ref.c||''),now=Date.now();
-  const past=E.filter(e=>e.l==='macro'&&e.ts<now&&((e.s||e.t)+'|'+(e.c||''))===key);
+  const past=pastEvs(key);
   const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;let n=0;
-  const rows=HZ.map(h=>{const r=past.map(e=>exc(e.ts,h[2])).filter(Boolean);return{k:r.length,up:mean(r.map(x=>x.up)),dn:mean(r.map(x=>x.dn)),end:mean(r.map(x=>x.end))}});
-  past.forEach(e=>{if(HZ.some(h=>exc(e.ts,h[2])))n++});
+  const rows=HZ.map(h=>{const r=past.map(e=>exc(e.ts,h[2],e)).filter(Boolean);return{k:r.length,up:mean(r.map(x=>x.up).filter(v=>v!=null)),dn:mean(r.map(x=>x.dn).filter(v=>v!=null)),end:mean(r.map(x=>x.end))}});
+  past.forEach(e=>{if(HZ.some(h=>exc(e.ts,h[2],e)))n++});
   return{rows,n,total:past.length}}
 /* 1つの発表の反応(カード・チャート用): 1時間→4時間→24時間のうち測れる最初のもの */
-function oneReact(e){for(const h of HZ.slice(2)){const r=exc(e.ts,h[2]);if(r)return{...r,l:h}}return null}
+function oneReact(e){for(const h of HZ.slice(2)){const r=exc(e.ts,h[2],e);if(r)return{...r,l:h}}return null}
 function ensureImp(){IMPTF.forEach(q=>{const k=sym+'|'+q;if(!CD[k]&&ST[k]!=='loading'&&ST[k]!=='error')load(sym,q)})}
 
 function msg(t){const tg=wrap.querySelector('.nowtag');if(tg)tg.style.display='none';ctx.fillStyle='#7f8a99';ctx.font='13px system-ui,sans-serif';ctx.textAlign='center';ctx.fillText(t,cv.clientWidth/2,cv.clientHeight/2);ctx.textAlign='left'}
@@ -2243,7 +2267,7 @@ function draw(){
     if(pt==null){el.remove();continue}
     el.style.left=pl+'px';el.style.top=pt+'px';placed.push({left:pl,top:pt,w,h,g});tix++}
   /* 過去の重要イベント: 発表時点の価格から上下に最大何%動いたかを、価格の上に帯で示す */
-  placed.forEach(pl=>{const g=pl.g;if(g.ts>now)return;const r=oneReact(g.rep);if(!r)return;
+  placed.forEach(pl=>{const g=pl.g;if(g.ts>now||!tok())return;const r=oneReact(g.rep);if(!r||r.up==null||r.hi==null)return;
     const x0=x(g.ts),x1=Math.max(x0+6,x(g.ts+r.l[2])),yt=Y(r.hi),yb=Y(r.lo);ctx.save();ctx.globalAlpha=.9;
     ctx.fillStyle='rgba(217,173,104,.08)';ctx.fillRect(x0,yt,x1-x0,yb-yt);ctx.strokeStyle='rgba(217,173,104,.45)';ctx.setLineDash([3,3]);ctx.strokeRect(x0+.5,yt+.5,x1-x0,Math.max(1,yb-yt));ctx.setLineDash([]);
     ctx.font='600 10px system-ui,sans-serif';ctx.textAlign='left';const tu='▲ '+sgn(r.up),td2='▼ '+sgn(r.dn),yu=Math.max(T+10,yt-5),yd=Math.min(T+ch-14,yb+13);ctx.lineWidth=3;ctx.strokeStyle='rgba(5,10,16,.85)';ctx.lineJoin='round';ctx.strokeText(tu,x0+4,yu);ctx.strokeText(td2,x0+4,yd);
@@ -2359,41 +2383,48 @@ function impOpts(sel,list,nx,cur){
   const o=sel.options[sel.selectedIndex];sel.title=o?o.title:''}
 /* 発表ごとの内訳(測れた発表だけ。新しい順) */
 function impRows(ref){const key=IMPKEY(ref),now=Date.now();
-  const L=E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key).sort((a,b)=>b.ts-a.ts).map(e=>({e,r:oneReact(e)})).filter(x=>x.r);
+  const L=pastEvs(key).sort((a,b)=>b.ts-a.ts).map(e=>({e,r:oneReact(e)})).filter(x=>x.r);
   if(!L.length)return'';const show=L.slice(0,IMP_ROWS),anyNum=show.some(x=>has(x.e.fc)||has(x.e.pv));
   return'<div class="improws"><div class="ih">'+TL('発表ごとの内訳','BY RELEASE')+'</div>'+show.map(({e,r})=>
     '<div class="improw" data-ts="'+e.ts+'"><div><span class="dt">'+esc(fdt(e.ts))+'</span>'+(anyNum&&numTxt(e)?'<span class="nm">'+esc(numTxt(e))+'</span>':'')+'</div>'+
-    '<div class="rr"><u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u><small>'+esc(TL(r.l[0],r.l[1]))+'</small></div></div>').join('')+
+    '<div class="rr">'+(r.up!=null?'<u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u>':'<u class="'+(r.end>=0?'up':'dn')+'">'+sgn(r.end)+'</u>')+'<small>'+esc(TL(r.l[0],r.l[1]))+'</small></div></div>').join('')+
     (L.length>show.length?'<div class="more">'+TL('ほか '+(L.length-show.length)+' 件','+'+(L.length-show.length)+' more')+'</div>':'')+'</div>'}
 function impCard(){const c=$('impCard'),sel=$('impSel'),body=$('impBody');if(!c||!sel||!body)return;
   const nx=nextKey(),list=impList(),px=impPx();
-  list.forEach(g=>{g.n=px==='ok'?impStats(g.rep).n:px==='loading'?null:0});
+  rxIndex();list.forEach(g=>{g.n=RXI?(RXI[g.k]||0):null});
   if(IMPSEL!=='auto'&&evState==='ok'&&E.length&&!list.some(g=>g.k===IMPSEL)){IMPSEL='auto';impSave('auto')}   /* 消えた指標は黙って自動へ */
   const cur=IMPSEL,auto=cur==='auto',ref=auto?nx:(list.find(g=>g.k===cur)||{}).rep;
   impOpts(sel,list,nx,cur);
   const msg=t=>'<div class="mean" style="color:var(--muted);font-size:12px;line-height:1.5;margin:4px 0 8px">'+t+'</div>',
     note='<div class="note">'+TL('統計は過去データの観測値であり、売買判断や因果関係を示しません。','Statistics are historical observations, not trading advice or evidence of causation.')+'</div>';
-  let st=TL('データ不足','NO DATA'),h='';
+  let st=TL('データ不足','NO DATA'),h='',MD='';
   if(!E.length){h=msg(evState==='loading'?TL('イベントを読み込み中…','Loading events…'):TL('イベントを取得できませんでした','Events unavailable'));if(evState==='loading')st=TL('読み込み中','LOADING')}
   else if(!ref){h=msg(auto?TL('次の重要イベント待ち','Waiting for the next key event'):TL('指標が見つかりません','Indicator not found'))}
-  else if(px==='loading'){h=msg(TL('価格を読み込み中…','Loading prices…'));st=TL('読み込み中','LOADING')}
-  else if(px==='fail'){h=msg(TL('価格を取得できませんでした','Prices unavailable'))}
+  else if((MD=rxMode(ref,px))==='lock'){h=lockHtml(ref);st=TL('有料','PAID')}
+  else if(MD==='wait'){if(RXC[rxK(ref)].st==='loading'||px==='loading'){h=msg(TL('2017年からの記録を読み込み中…','Loading records since 2017…'));st=TL('読み込み中','LOADING')}else h=msg(TL('価格を取得できませんでした','Prices unavailable'))}
   else{const S=impStats(ref),ok=S.n>0;
-    if(!S.total){h=msg(TL('この指標の過去の発表は、取得できているイベントの中にありません','No past release of this indicator among the loaded events'))}
+    if(!S.total){h=msg(MD==='rx'?TL('この指標の過去の記録は、まだ取り込まれていません','No stored records for this indicator yet'):TL('この指標の過去の発表は、取得できているイベントの中にありません','No past release of this indicator among the loaded events'))}
     else{if(ok)st=TL('実測','MEASURED');
-      h=msg(ok?(S.n===1?TL('過去 1 回の発表','Past 1 release'):TL('過去 '+S.n+' 回の発表の平均','Average of '+S.n+' past releases')):TL('取得済みの足の範囲に、この指標の過去の発表がありません','No past release of this indicator within the loaded price range'))+
+      h=msg(ok?(S.n===1?TL('過去 1 回の発表','Past 1 release'):TL('過去 '+S.n+' 回の発表の平均','Average of '+S.n+' past releases')):MD==='rx'?TL('この銘柄では、反応を測れた発表がありません','No measurable releases of this indicator for this asset'):TL('取得済みの足の範囲に、この指標の過去の発表がありません','No past release of this indicator within the loaded price range'))+
       '<div class="small">'+TL('発表時点の価格から、発表後の一定時間のうちに上へ最大・下へ最大で何%動いたか(と終値の変化)の平均。取得済みの足(5分足は約8時間、1時間足は約2.5日、日足は約60日)の範囲で測れた発表だけで計算します。足の中の位置は始値から終値への直線で近似しています。','Average of the largest move up and down from the price at release time within each window, plus the change at the end of the window. Only releases within the loaded candles (5m ≈ 8h, 1h ≈ 2.5 days, 1d ≈ 60 days) are used; position inside a candle is approximated linearly from open to close.')+'</div>'+
-      '<table class="table"><tr style="color:var(--dim);font-size:9px"><td>'+TL('発表後','After')+'</td><td>'+TL('最大 上','Max up')+'</td><td>'+TL('最大 下','Max down')+'</td><td>'+TL('終値','End')+'</td></tr>'+HZ.map((r,i)=>{const v=S.rows[i],ok2=v&&v.k>0,cell=(x,col)=>'<td style="'+(ok2?'color:'+col:'color:var(--dim)')+'">'+(ok2?sgn(x):'—')+'</td>';return'<tr><td>'+TL(r[0],r[1])+(ok2?' <span style="color:var(--dim);font-size:9px">n='+v.k+'</span>':'')+'</td>'+cell(ok2&&v.up,'#6ccaa0')+cell(ok2&&v.dn,'#d87878')+cell(ok2&&v.end,ok2&&v.end>=0?'#6ccaa0':'#d87878')+'</tr>'}).join('')+'</table>'+(ok?impRows(ref):'')}}
+      '<table class="table"><tr style="color:var(--dim);font-size:9px"><td>'+TL('発表後','After')+'</td><td>'+TL('最大 上','Max up')+'</td><td>'+TL('最大 下','Max down')+'</td><td>'+TL('終値','End')+'</td></tr>'+HZ.map((r,i)=>{const v=S.rows[i],ok2=v&&v.k>0,cell=(x,col)=>'<td style="'+(ok2&&x!=null?'color:'+col:'color:var(--dim)')+'">'+(ok2&&x!=null?sgn(x):'—')+'</td>';return'<tr><td>'+TL(r[0],r[1])+(ok2?' <span style="color:var(--dim);font-size:9px">n='+v.k+'</span>':'')+'</td>'+cell(ok2&&v.up,'#6ccaa0')+cell(ok2&&v.dn,'#d87878')+cell(ok2&&v.end,ok2&&v.end>=0?'#6ccaa0':'#d87878')+'</tr>'}).join('')+'</table>'+(ok?impRows(ref):'')}}
   $('impT').textContent=TL('イベント影響','EVENT IMPACT');$('impSt').textContent=st;
-  body.innerHTML=h+note;impChart(body,ref,px)}
+  body.innerHTML=h+note;
+  if(MD==='rx'){const sm=body.querySelector('.small');if(sm)sm.textContent=TL('2017年以降の発表を、5分足から計算した記録です。「最大 上・下」は1時間以内だけ測っています(ほかの時間は終値の変化率)。','Records since 2017, computed from 5-minute candles. “Max up / down” covers the first hour only; other horizons use the closing change.')}
+  const ub=body.querySelector('#impUnlock');if(ub)ub.onclick=()=>{if(!window.CSA)return;ub.dataset.a?CSA.unlock():CSA.open()};
+  impChart(body,ref,px)}
+function lockHtml(ref){const X=RXC[rxK(ref)],tot=X&&X.st==='ok'?X.total:((RXI&&RXI[rxK(ref)])||0),act=!!(window.CSA&&CSA.active());
+  return'<div style="text-align:center;padding:16px 8px;color:var(--muted);font-size:12px;line-height:1.7"><div style="font-size:22px">🔒</div><div><b>'+esc(evS(ref))+'</b>'+esc(TL(' の発表後の動きは有料機能です',' – post-release moves are a paid feature'))+'</div>'+
+    (tot?'<div>'+esc(TL('2017年からの記録 '+tot+'回分',tot+' releases on record since 2017'))+'</div>':'')+
+    '<button type="button" id="impUnlock"'+(act?' data-a="1"':'')+' style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer">'+esc(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続 / 購入','Connect wallet / buy access'))+'</button></div>'}
 /* v49: 発表価格からの変動率のグラフ(スマホ版と同じ。発表時点=0%、薄線=各回、金線=平均) */
 var IMPHL=0;
 function impChart(body,ref,px){
   const old=body.querySelector('.impchart');if(old)old.remove();impChart._d=null;
-  if(px!=='ok'||!ref||!E.length)return;
+  if(!ref||!E.length)return;const md=rxMode(ref,px);if(md!=='rx'&&md!=='px')return;
   const S=impStats(ref);if(!S.n)return;
   const key=IMPKEY(ref),now=Date.now();
-  const PD=E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key).sort((a,b)=>b.ts-a.ts).map(e=>({e,pts:HZ.slice(0,4).map(h=>exc(e.ts,h[2]))})).filter(x=>x.pts.some(Boolean));
+  const PD=pastEvs(key).sort((a,b)=>b.ts-a.ts).map(e=>({e,pts:HZ.slice(0,4).map(h=>exc(e.ts,h[2],e))})).filter(x=>x.pts.some(Boolean));
   const box=document.createElement('div');box.className='impchart';
   const nmI=evS(ref);
   box.innerHTML='<div class="ich"><b>'+TL('発表価格からの変動率','Move from release price')+'</b><span>'+TL('発表時点=0% · 過去の事実','At release = 0% · past facts')+'</span></div><div class="icn">'+esc(nmI)+'<small>'+esc(TL(sym+' はこう動いた（過去'+S.n+'回）',sym+' · last '+S.n+(S.n===1?' release':' releases')))+'</small></div><canvas></canvas><div class="icl"><span style="color:#e4b96a">● '+(S.n===1?TL('1回分','1 release'):TL('平均','Average'))+'</span><span>'+TL('薄線: 各回の事実','Thin lines: each release')+'</span></div>';
@@ -2584,6 +2615,13 @@ const T=(e,j)=>lang()==='ja'?j:e;
 let PAYTO=null;
 const S={addr:null,p:null,until:0,busy:false,phase:'',err:''};
 const active=()=>S.until>Date.now();
+/* v52: 過去の反応(/api/rx)用トークン。署名ログインの時だけ発行される。タブを閉じると消える */
+const TKEY='csa-rxtok';
+const tokOk=t=>{const m=/^[1-9A-HJ-NP-Za-km-z]+\.(\d+)\.\w+$/.exec(t||'');return !!m&&Date.now()<Number(m[1])};
+const getTok=()=>{try{const t=sessionStorage.getItem(TKEY);if(tokOk(t))return t;sessionStorage.removeItem(TKEY)}catch(_){}return null};
+const setTok=t=>{try{t?sessionStorage.setItem(TKEY,t):sessionStorage.removeItem(TKEY)}catch(_){}window.dispatchEvent(new Event('csa-auth'))};
+window.CSA={token:getTok,active:()=>active(),open:()=>btn.click(),
+  unlock:async()=>{try{S.busy=true;S.phase=T('SIGN IN…','署名待ち…');S.err='';render();await signIn()}catch(e){S.err=String((e&&e.message)||e)}finally{S.busy=false;S.phase='';render()}}};
 const short=a=>a.slice(0,4)+'…'+a.slice(-4);
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const sel=()=>pop.querySelector('.pay-choice.active');
@@ -2641,7 +2679,7 @@ async function signIn(){
   const sig=s&&s.signature?s.signature:s;
   const v=await(await fetch('/api/auth/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:addr,message:n.message,signature:btoa(String.fromCharCode.apply(null,Array.from(sig)))})})).json();
   if(!v.ok)throw new Error(T('Signature check failed: ','署名の確認に失敗: ')+(v.error||''));
-  S.addr=addr;S.p=p;S.until=v.until||0;
+  S.addr=addr;S.p=p;S.until=v.until||0;if(v.token)setTok(v.token);
   const pend=getPend();
   if(!active()&&pend&&pend.address===addr){try{await confirmPay(pend.invoice,pend.signature)}catch(_){}}   // 前回の支払いの確認待ちを引き継ぐ
 }
@@ -2698,7 +2736,7 @@ go.addEventListener('click',async()=>{
   catch(e){S.err=(e&&e.code===4001)?T('Cancelled in the wallet.','ウォレットで取り消されました。'):String((e&&e.message)||e)}
   S.busy=false;S.phase='';render();
 });
-off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';render()});
+off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';setTok(null);render()});
 window.addEventListener('csa-lang',render);
 render();
 {const m=/[#&]pay=(\w+)/.exec(location.hash||'');const b=m&&pop.querySelector('.pay-choice[data-coin="'+m[1]+'"]');if(b){pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();open(true)}}   // ウォレットアプリで開き直した時は、選んだコインを選択済みで開く

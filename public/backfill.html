@@ -15,7 +15,7 @@ button:disabled{opacity:.5;cursor:default}
 pre{white-space:pre-wrap;background:#0b1522;border:1px solid #2a3b4e;border-radius:8px;padding:10px;color:#9fb2c6;font-size:12px}
 .err{color:#ff9a9a}.ok{color:#7ee0a0}
 </style></head><body><main>
-<h1>過去の反応を取り込む(2021年〜)</h1>
+<h1>過去の反応を取り込む(2017年〜)</h1>
 <p>ボタンを押すと、経済指標の過去の発表時刻と、その前後の価格(BTC・ETH・SOL・BNB)から「発表後の動き」を計算して保存します。数分かかります。途中で閉じても、もう一度押せば続きから再開します。</p>
 <input id="key" type="password" placeholder="AUTH_SECRET(Workerに設定した文字列)" autocomplete="off">
 <button id="go" type="button">取り込みを開始</button>
@@ -49,7 +49,7 @@ go.addEventListener('click',async()=>{
     fails=0;
     total=Math.max(total,r.recorded+r.pending);
     bar.style.width=(total?Math.round(r.recorded/total*100):0)+'%';
-    stat.textContent='取り込み中… 記録 '+r.recorded+' 件 / 残り '+r.pending+' 件(指標 '+r.events+' 件、カレンダーは '+r.evTo.slice(0,10)+' まで)';
+    stat.textContent='取り込み中… 記録 '+r.recorded+' 件 / 残り '+r.pending+' 件(指標 '+r.events+' 件、カレンダーは '+(r.evFrom?r.evFrom.slice(0,10)+' 〜 ':'')+r.evTo.slice(0,10)+')';
     if(r.errors&&r.errors.length)log.textContent+=r.errors.join('\n')+'\n';
     if(r.done){stat.className='ok';stat.textContent='完了: '+r.events+' 件の発表、'+r.recorded+' 件の反応を保存しました';bar.style.width='100%';break}
     if(!r.chunks&&!r.recorded&&!r.events){stat.className='err';stat.textContent='データが1件も取れません。下のログを確認してください';break}

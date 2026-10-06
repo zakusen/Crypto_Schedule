@@ -1095,11 +1095,13 @@ async function payConfirm(request, url, env) {
   return json({ status: 'ok', until, coin: p[2] });
 }
 
-// === v38: 過去の反応(2021年〜)の取り込みと記録 ===
+// === v38: 過去の反応(2017年〜)の取り込みと記録 ===
 // 指標の発表時刻(TradingViewの過去カレンダー)と、その前後の5分足(Binance現物)から、発表後 5分/15分/1時間/4時間/24時間 の変化を計算して KV に貯める。
 // 取り込みは /backfill.html のボタン(または30分ごとの定時実行)が少しずつ進める。1回あたりの外部取得数を絞ってあるので、途中で止まっても続きから再開できる。
 // 保存は1つのKV値(rx:v1)。results[イベントid][銘柄] = [発表時価格, 5分, 15分, 1時間, 4時間, 24時間, 1時間内の最大上, 1時間内の最大下](変化は%)。取れなかったものは 0。
-const RX_KEY = 'rx:v1', RX_START = Date.UTC(2021, 0, 1);
+// v53: 開始を2017年に。Binanceの上場前は足が無いので、銘柄ごとの上場日より前の発表は取りに行かない(BTC・ETHは2017-08-17、BNBは2017-11-06、SOLは2020-08-11)
+const RX_KEY = 'rx:v1', RX_START = Date.UTC(2017, 7, 17), RX_OLD_START = Date.UTC(2021, 0, 1);
+const RX_FROM = { BTC: Date.UTC(2017, 7, 17), ETH: Date.UTC(2017, 7, 17), BNB: Date.UTC(2017, 10, 6), SOL: Date.UTC(2020, 7, 11) };
 const RX_SYMS = { BTC: 'BTCUSDT', ETH: 'ETHUSDT', SOL: 'SOLUSDT', BNB: 'BNBUSDT' };
 const RX_HZ = [3e5, 9e5, 36e5, 144e5, 864e5];
 const RX_BASES = ['https://data-api.binance.vision', 'https://api.binance.com'];
@@ -1115,28 +1117,40 @@ async function rxAccess(env, request) {
 }
 async function rxLoad(env, ttl) {
   const d = await env.CAL.get(RX_KEY, ttl ? { type: 'json', cacheTtl: ttl } : 'json');
-  return d && d.v === 1 ? d : { v: 1, evTo: RX_START, ev: [], res: {} };
+  return d && d.v === 1 ? d : { v: 1, evFrom: RX_START, evTo: RX_START, ev: [], res: {} };
+}
+function rxAdd(doc, have, list, now) {
+  for (const e of list) {
+    const ts = Date.parse(e && e.date);
+    if (!e || !e.id || !isFinite(ts) || ts > now || !REGION[e.country] || !(e.importance >= 1)) continue;
+    if (/holiday/i.test(e.indicator || '')) continue;
+    const id = 'tv-' + e.id;
+    if (have.has(id)) continue;
+    const title = String(e.title || e.indicator || '');
+    const ev = { i: id, t: ts, k: jaLabel(e.country, title).s + '|' + e.country, se: title.slice(0, 80) };
+    const fc = tvNum(e.forecast, e), pv = tvNum(e.previous, e), ac = tvNum(e.actual, e);
+    if (fc) ev.fc = fc; if (pv) ev.pv = pv; if (ac) ev.ac = ac;
+    doc.ev.push(ev); have.add(id);
+  }
 }
 async function rxIngest(doc, now, maxChunks) {
   const have = new Set(doc.ev.map(e => e.i)), errors = [];
   let chunks = 0;
   while (doc.evTo < now && chunks < maxChunks) {
     const a = doc.evTo, b = Math.min(a + 50 * DAY, now);
-    try {
-      for (const e of await tvChunk(a, b)) {
-        const ts = Date.parse(e && e.date);
-        if (!e || !e.id || !isFinite(ts) || ts > now || !REGION[e.country] || !(e.importance >= 1)) continue;
-        if (/holiday/i.test(e.indicator || '')) continue;
-        const id = 'tv-' + e.id;
-        if (have.has(id)) continue;
-        const title = String(e.title || e.indicator || '');
-        const ev = { i: id, t: ts, k: jaLabel(e.country, title).s + '|' + e.country, se: title.slice(0, 80) };
-        const fc = tvNum(e.forecast, e), pv = tvNum(e.previous, e), ac = tvNum(e.actual, e);
-        if (fc) ev.fc = fc; if (pv) ev.pv = pv; if (ac) ev.ac = ac;
-        doc.ev.push(ev); have.add(id);
-      }
-      doc.evTo = b; chunks++;
-    } catch (err) { errors.push(String((err && err.message) || err)); break; }
+    try { rxAdd(doc, have, await tvChunk(a, b), now); doc.evTo = b; chunks++; }
+    catch (err) { errors.push(String((err && err.message) || err)); break; }
+  }
+  return { chunks, errors };
+}
+// 過去へ遡る(50日ずつ)。doc.evFrom = ここまで取り込み済み
+async function rxIngestBack(doc, now, maxChunks) {
+  const have = new Set(doc.ev.map(e => e.i)), errors = [];
+  let chunks = 0;
+  while (doc.evFrom > RX_START && chunks < maxChunks) {
+    const b = doc.evFrom, a = Math.max(RX_START, b - 50 * DAY);
+    try { rxAdd(doc, have, await tvChunk(a, b), now); doc.evFrom = a; chunks++; }
+    catch (err) { errors.push(String((err && err.message) || err)); break; }
   }
   return { chunks, errors };
 }
@@ -1175,7 +1189,7 @@ function rxPending(doc, now) {
   for (const e of [...doc.ev].sort((a, b) => b.t - a.t)) {        // 新しい発表から先に
     if (e.t + 25 * 36e5 > now) continue;                            // 24時間後までの足が揃うまで待つ
     const r = doc.res[e.i] || {};
-    for (const s of Object.keys(RX_SYMS)) if (!(s in r)) pairs.push([e, s]);
+    for (const s of Object.keys(RX_SYMS)) if (!(s in r) && e.t >= RX_FROM[s]) pairs.push([e, s]);   // 上場前は足が無いので対象外
   }
   return pairs;
 }
@@ -1185,9 +1199,14 @@ async function rxStep(env, o) {
   const out = { errors: [] };
   let dirty = false;
   if (doc.evTo < RX_START) doc.evTo = RX_START;
+  if (doc.evFrom == null) { doc.evFrom = doc.ev.length ? Math.min(RX_OLD_START, doc.evTo) : RX_START; dirty = true; }   // v52までの記録は2021年から
   if (now - doc.evTo >= 6 * 36e5) {                                 // カレンダーは6時間以上空いたら取り足す(初回は50日ずつ)
     const g = await rxIngest(doc, now, (o && o.chunks) || 6);
     out.chunks = g.chunks; out.errors.push(...g.errors); if (g.chunks) dirty = true;
+  }
+  if (doc.evFrom > RX_START) {                                      // 2017年まで遡る(カレンダーの取り足しの後、残りの枠で)
+    const g = await rxIngestBack(doc, now, (o && o.chunks) || 6);
+    out.chunks = (out.chunks || 0) + g.chunks; out.errors.push(...g.errors); if (g.chunks) dirty = true;
   }
   const pairs = rxPending(doc, now), take = pairs.slice(0, fetches);
   for (let i = 0; i < take.length; i += 10) {                       // 10件ずつ並行
@@ -1201,8 +1220,8 @@ async function rxStep(env, o) {
   if (dirty) await env.CAL.put(RX_KEY, JSON.stringify(doc));
   const left = rxPending(doc, now).length;
   out.events = doc.ev.length; out.recorded = Object.values(doc.res).reduce((n, r) => n + Object.keys(r).length, 0);
-  out.pending = left; out.evTo = new Date(doc.evTo).toISOString();
-  out.done = left === 0 && now - doc.evTo < 6 * 36e5;
+  out.pending = left; out.evTo = new Date(doc.evTo).toISOString(); out.evFrom = new Date(doc.evFrom).toISOString();
+  out.done = left === 0 && now - doc.evTo < 6 * 36e5 && doc.evFrom <= RX_START;
   out.errors = [...new Set(out.errors)].slice(0, 5);
   return out;
 }
@@ -1230,12 +1249,13 @@ async function rxApi(request, url, env) {
     return json({ indicators: [...m.values()].sort((a, b) => b.last - a.last), evTo: doc.evTo });
   }
   const all = doc.ev.filter(e => e.k === k && has(e)).sort((a, b) => b.t - a.t);
-  const full = await rxAccess(env, request), FREE = 2;
-  const rows = (full ? all : all.slice(0, FREE)).map(e => {
+  // v52: 無料は件数(total)だけ。変動率の中身(rows)は有料のみ返す
+  const full = await rxAccess(env, request);
+  const rows = (full ? all : []).map(e => {
     const r = {}; for (const s of Object.keys(doc.res[e.i])) if (doc.res[e.i][s]) r[s] = doc.res[e.i][s];
     const o = { t: e.t, r }; if (e.fc) o.fc = e.fc; if (e.pv) o.pv = e.pv; if (e.ac) o.ac = e.ac; return o;
   });
-  return json({ k, total: all.length, locked: !full && all.length > FREE, rows });
+  return json({ k, total: all.length, locked: !full, rows });
 }
 
 export default {
