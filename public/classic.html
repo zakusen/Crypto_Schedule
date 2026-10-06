@@ -384,7 +384,7 @@ function renderImpact(ref,auto,px){
     msg.innerHTML='<div><div style="font-size:20px;margin-bottom:4px">🔒</div><div><b>'+esc(nm0)+'</b>'+esc(TL(' の発表後の動きは有料機能です',' – post-release moves are a paid feature'))+'</div>'+
       (tot?'<div style="margin-top:2px">'+esc(TL('2017年からの記録 '+tot+'回分',tot+' releases on record since 2017'))+'</div>':'')+
       '<button type="button" id="impUnlock" style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer">'+
-      esc(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続 / 購入','Connect wallet / buy access'))+'</button></div>';
+      esc(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続 / 購入','Connect wallet / buy access'))+'</button>'+(act?'':'<div style="margin-top:6px;font-size:10px">'+esc(TL('支払い済みの方は、接続して署名するだけで開きます','Already paid? Connect and sign to unlock'))+'</div>')+'</div>';
     msg.style.display='flex';
     const ub=$('impUnlock');if(ub)ub.onclick=()=>{if(!window.CSA)return;act?CSA.unlock():CSA.open()};
     ['maxUp','maxDown','avgVal','lastVal'].forEach(i=>$(i).textContent='🔒');
@@ -754,7 +754,7 @@ pop.querySelector('.wallet-close').addEventListener('click',()=>open(false));
 pop.querySelectorAll('.pay-choice:not(.more)').forEach(b=>b.addEventListener('click',()=>{pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();if(!S.busy&&!active())go.click()}));
 go.addEventListener('click',async()=>{
   if(S.busy)return;S.err='';S.busy=true;render();
-  try{if(!S.addr)await quick();else if(!active())await pay()}
+  try{if(!S.addr)await quick();else if(!active())await pay();if(active()&&!getTok()){S.phase=T('SIGN IN…','署名待ち…');render();await signIn()}}   // v54: 接続・支払い確認のあと、続けて署名(過去の反応を開くトークン)まで進める
   catch(e){S.err=(e&&e.code===4001)?T('Cancelled in the wallet.','ウォレットで取り消されました。'):String((e&&e.message)||e)}
   S.busy=false;S.phase='';render();
 });
