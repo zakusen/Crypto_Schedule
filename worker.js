@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-06-clean-v26-pcui';
+const VERSION = '2026-10-06-clean-v27-en';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -258,6 +258,7 @@ async function candles(url, env, ctx) {
 const TV_CAL = 'https://economic-calendar.tradingview.com/events';
 const FF_URLS = ['https://nfs.faireconomy.media/ff_calendar_thisweek.json', 'https://nfs.faireconomy.media/ff_calendar_nextweek.json'];
 const REGION = { US: '米', JP: '日', EU: '欧' };
+const REGION_EN = { US: 'US', JP: 'Japan', EU: 'Euro area' };   // 英語表示用(te)
 const UA = 'Mozilla/5.0 (compatible; signal-archive/1.0)';
 
 // 英語の指標名 → [日本語名, 画面の縦線ラベル]。上から順に最初に合ったものを使う(Coreを先に置く)。
@@ -334,7 +335,8 @@ async function tvEvents() {
         if (!e || !e.id || !e.date || !REGION[e.country] || e.importance < 0) continue;     // 低重要度と祝日は除く
         if (/holiday/i.test(e.indicator || '')) continue;
         const L = jaLabel(e.country, String(e.title || e.indicator || ''));
-        const ev = { id: 'tv-' + e.id, l: 'macro', t: L.t, s: L.s, src: e.source || 'TradingView', at: new Date(e.date).toISOString(), im: e.importance >= 1 ? 'high' : 'mid', c: e.country };
+        const title = String(e.title || e.indicator || '');
+        const ev = { id: 'tv-' + e.id, l: 'macro', t: L.t, s: L.s, te: REGION_EN[e.country] + ' ' + title, se: title, src: e.source || 'TradingView', at: new Date(e.date).toISOString(), im: e.importance >= 1 ? 'high' : 'mid', c: e.country };
         // 予想・前回・結果(元データにある時だけ)。EVENT DATA と一覧に出す。指標名(英語)は将来の EVENT IMPACT の集計に使う
         const fc = tvNum(e.forecast, e), pv = tvNum(e.previous, e), ac = tvNum(e.actual, e);
         if (fc) ev.fc = fc; if (pv) ev.pv = pv; if (ac) ev.ac = ac;
@@ -357,7 +359,7 @@ async function ffEvents() {
         const c = CC[e.country], ts = Date.parse(e.date);
         if (!c || !isFinite(ts) || !['High', 'Medium'].includes(e.impact)) continue;
         const L = jaLabel(c, String(e.title || ''));
-        const ev = { id: 'ff-' + c + '-' + ts + '-' + String(e.title).replace(/[^A-Za-z0-9]/g, '').slice(0, 24), l: 'macro', t: L.t, s: L.s, src: 'Forex Factory（予備）', at: new Date(ts).toISOString(), im: e.impact === 'High' ? 'high' : 'mid', c };
+        const ev = { id: 'ff-' + c + '-' + ts + '-' + String(e.title).replace(/[^A-Za-z0-9]/g, '').slice(0, 24), l: 'macro', t: L.t, s: L.s, src: 'Forex Factory（予備）', srce: 'Forex Factory (backup)', te: REGION_EN[c] + ' ' + String(e.title || ''), se: String(e.title || ''), at: new Date(ts).toISOString(), im: e.impact === 'High' ? 'high' : 'mid', c };
         if (e.forecast) ev.fc = String(e.forecast).slice(0, 20); if (e.previous) ev.pv = String(e.previous).slice(0, 20);
         out.push(ev);
       }
@@ -398,7 +400,7 @@ async function chainEvents() {
         const h = parseInt(await (await get(BTC_HEIGHT_URL)).text(), 10);
         if (!isFinite(h) || h <= 0) throw new Error('ブロック高が読めません');
         const next = (Math.floor(h / 210000) + 1) * 210000, ts = now + (next - h) * 600000;
-        out.push({ id: 'btc-halving-' + next, l: 'asset', a: ['BTC'], im: 'high', t: 'BTC 半減期（ブロック ' + next.toLocaleString('en-US') + '・日付は推定）', s: 'BTC半減期(推定)', src: 'チェーン由来・推定（現在のブロック高 ' + h.toLocaleString('en-US') + ' から10分/ブロックで逆算）', at: new Date(ts).toISOString() });
+        out.push({ id: 'btc-halving-' + next, l: 'asset', a: ['BTC'], im: 'high', t: 'BTC 半減期（ブロック ' + next.toLocaleString('en-US') + '・日付は推定）', s: 'BTC半減期(推定)', te: 'BTC halving (block ' + next.toLocaleString('en-US') + ', date estimated)', se: 'BTC halving (est.)', src: 'チェーン由来・推定（現在のブロック高 ' + h.toLocaleString('en-US') + ' から10分/ブロックで逆算）', srce: 'On-chain estimate (block height ' + h.toLocaleString('en-US') + ' at 10 min/block)', at: new Date(ts).toISOString() });
       } catch (e) { errors.push('チェーン読み取り(BTC): ' + (e.message || e)); }
     })(),
     (async () => {
@@ -410,7 +412,7 @@ async function chainEvents() {
           if (String(f.epoch) === FAR_EPOCH) continue;
           const ts = g + Number(f.epoch) * 32 * 12000;
           if (ts <= now) continue;                                     // 過去のフォークは出さない
-          out.push({ id: 'eth-fork-' + f.current_version, l: 'asset', a: ['ETH'], im: 'high', t: 'ETH ネットワークアップグレード（エポック ' + f.epoch + '・version ' + f.current_version + '）', s: 'ETHフォーク', src: 'チェーン確定（コンセンサス層の fork_schedule）', at: new Date(ts).toISOString() });
+          out.push({ id: 'eth-fork-' + f.current_version, l: 'asset', a: ['ETH'], im: 'high', t: 'ETH ネットワークアップグレード（エポック ' + f.epoch + '・version ' + f.current_version + '）', s: 'ETHフォーク', te: 'ETH network upgrade (epoch ' + f.epoch + ', version ' + f.current_version + ')', se: 'ETH upgrade', src: 'チェーン確定（コンセンサス層の fork_schedule）', srce: 'On-chain (consensus layer fork_schedule)', at: new Date(ts).toISOString() });
         }
       } catch (e) { errors.push('チェーン読み取り(ETH): ' + (e.message || e)); }
     })(),
@@ -420,7 +422,7 @@ async function chainEvents() {
         const left = e && +e.slotsInEpoch - +e.slotIndex;
         if (!e || !isFinite(left) || left <= 0) throw new Error('形式が想定と違います');
         const next = +e.epoch + 1, ts = now + left * SOL_SLOT_MS;
-        out.push({ id: 'sol-epoch-' + next, l: 'asset', a: ['SOL'], im: 'low', t: 'SOL エポック ' + next + ' 開始（機能の有効化・ステーク変更の反映はこの境界）', s: 'SOLエポック境界(推定)', src: 'チェーン由来・推定（getEpochInfo の残りスロット ' + left.toLocaleString('en-US') + ' を約0.4秒/スロットで換算。誤差は数十分）', at: new Date(ts).toISOString() });
+        out.push({ id: 'sol-epoch-' + next, l: 'asset', a: ['SOL'], im: 'low', t: 'SOL エポック ' + next + ' 開始（機能の有効化・ステーク変更の反映はこの境界）', s: 'SOLエポック境界(推定)', te: 'SOL epoch ' + next + ' begins (feature activations and stake changes take effect)', se: 'SOL epoch (est.)', src: 'チェーン由来・推定（getEpochInfo の残りスロット ' + left.toLocaleString('en-US') + ' を約0.4秒/スロットで換算。誤差は数十分）', srce: 'On-chain estimate (' + left.toLocaleString('en-US') + ' slots left × ~0.4s; error of tens of minutes)', at: new Date(ts).toISOString() });
       } catch (e) { errors.push('チェーン読み取り(SOL): ' + (e.message || e)); }
     })(),
   ]);
@@ -663,6 +665,7 @@ function expiryEvents(now) {
       id: 'exp-' + y + '-' + (m + 1), l: 'asset', a: EXPIRY_SYMS, im: q ? 'high' : 'mid',
       t: 'Deribit ' + (q ? '四半期' : '月次') + 'オプション・先物の満期（' + EXPIRY_SYMS.join('/') + '）',
       s: q ? '四半期満期' : '月次満期', src: 'Deribit満期規則（自動計算）', at: new Date(ts).toISOString(),
+      te: 'Deribit ' + (q ? 'quarterly' : 'monthly') + ' options & futures expiry (' + EXPIRY_SYMS.join('/') + ')', se: q ? 'Quarterly expiry' : 'Monthly expiry', srce: 'Deribit expiry rule (computed)',
     });
   }
   return out;
@@ -675,7 +678,7 @@ function bnbBurnEvents(now) {
   for (let k = -1; k <= 9; k++) {
     const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + k, 15, 12, 0, 0));
     if (d.getUTCMonth() % 3 !== 0) continue;
-    out.push({ id: 'bnbburn-' + d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1), l: 'asset', a: ['BNB'], im: 'mid', t: 'BNB 四半期オートバーン（日付は目安・中旬ごろ）', s: 'BNBバーン(目安)', src: 'BNB Chain公式の四半期方針（目安）', at: d.toISOString() });
+    out.push({ id: 'bnbburn-' + d.getUTCFullYear() + '-' + (d.getUTCMonth() + 1), l: 'asset', a: ['BNB'], im: 'mid', t: 'BNB 四半期オートバーン（日付は目安・中旬ごろ）', s: 'BNBバーン(目安)', te: 'BNB quarterly auto-burn (approx. mid-month)', se: 'BNB burn (approx.)', src: 'BNB Chain公式の四半期方針（目安）', srce: 'BNB Chain quarterly policy (approx.)', at: d.toISOString() });
   }
   return out;
 }
