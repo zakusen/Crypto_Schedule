@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-07-v67';
+const VERSION = '2026-10-07-v68';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -991,7 +991,7 @@ async function health(env) {
     version: VERSION, now: new Date(now).toISOString(),
     prices: px,
     price_cron: lastCron,
-    rx: await env.CAL.get('rx:sum', 'json').then((r) => (r ? { ...r, min_ago: min(Date.parse(r.at)) } : { never_ran: true })).catch(() => null),
+    rx: await env.CAL.get(RX_RUN, 'json').then((r) => (r ? { ...r, min_ago: min(Date.parse(r.at)) } : { never_ran: true })).catch(() => null),
     macro: st ? { min_ago: min(Date.parse(st.generated_at)), count: st.events.length, counts: st.counts || null, warns: st.warns || [] } : null,
     events_built_min: await env.CAL.get(EV_KEY).then((t) => { const m = t && t.match(/"built_at":"([^"]+)"/); return m ? min(Date.parse(m[1])) : null; }).catch(() => null),
     chain: st && st.chain ? Object.fromEntries(Object.entries(st.chain.by || {}).map(([k, v]) => [k, { min_ago: min(v.at), count: v.out.length }])) : null,
@@ -1323,42 +1323,74 @@ async function rxGuard(env, fn) {                                   // v66: 例�
     return r;
   }
 }
-async function rxAdmin(request, env) {
-  if (!env.AUTH_SECRET) return json({ error: 'AUTH_SECRET not set' }, 503);
-  const key = request.headers.get('x-admin-key') || '';
-  if (!authEq(key, env.AUTH_SECRET)) return json({ error: 'unauthorized' }, 401);
-  try { await env.CAL.put('rx:lock', '1', { expirationTtl: 60 }); } catch (_) {}   // 画面から進めている間は定時実行を譲らせる
-  return json(await rxGuard(env, () => rxStep(env, { fetches: 35, chunks: 8 })));
+async function rxAdmin(request, env) {                               // v68: backfill.html が呼ぶ。計算は GitHub Actions に移ったので、最後の実行結果を返すだけ
+  if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
+  let run = null; try { run = env.CAL ? await env.CAL.get(RX_RUN, 'json') : null; } catch (_) {}
+  return json({ note: 'v68: 値動きの計算は GitHub Actions(RX runner)が行います', done: !!(run && run.done), events: 0, recorded: 0, pending: 0, errors: [], ...(run || {}) });
 }
 async function rxCron(env) {
   if (!env.CAL) return { skipped: 'no KV' };
   try { if (await env.CAL.get('rx:lock')) return { skipped: 'busy' }; } catch (_) {}
-  return rxGuard(env, () => rxStep(env, { fetches: 15, chunks: 3 }));
+  return { skipped: 'v68: GitHub Actions(RX runner)が担当' };
 }
+// === v68: 過去の反応は GitHub Actions(tools/rx_runner.mjs)が計算し、指標ごとの小さな保存に分けて置く ===
+// 以前は全部を1つのKV値(rx:v1)に入れ、毎回まるごと読み書きしていた。記録が増えると無料プランの計算時間(10ms)を超えるため、
+//   指標の名前(k)から決まる64個の小さな保存(rx:s:00〜63。各 {v:1, ev:[{i,t,k,se,fc,pv,ac,r}]})に分け、見る時は1個だけ読む。
+//   一覧(件数・最終日)は rx:idx、最後の実行結果は rx:run。Worker は保存を置くだけで、計算はしない(計算は rxBucket / rxCalc を GitHub 側が同じコードで使う)。
+const RX_IDX = 'rx:idx', RX_RUN = 'rx:run';
+function rxBucket(k) { return String(parseInt(hash(String(k)), 36) % 64).padStart(2, '0'); }
+const rxShardKey = (k) => 'rx:s:' + rxBucket(k);
+function adminOk(request, env) {
+  const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
+  return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
+}
+const RX_NAME = /^(s\d\d|idx|run)$/;
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : 'rx:s:' + n.slice(1);
+
 // 画面向け。無料: 件数(total)だけ / 有効期限内のウォレットでログイン済み: 全期間の中身(rows)。
-// 取り込み時の指標名(k)は、その後 jaLabel の対応表が変わるとずれる。読む時に英語名(se)から今の対応表で作り直して、画面の指標名と必ず合わせる
-function rxKey(e) { const c = String(e.k || '').split('|').pop(); return e.se && REGION[c] ? jaLabel(c, e.se).s + '|' + c : e.k; }
 async function rxApi(request, url, env) {
   if (!env.CAL) return json({ error: 'KV(CAL)が接続されていません' }, 503);
-  let doc; try { doc = await rxLoad(env, 60); } catch (_) { return json({ error: 'kv' }, 503); }   // v57: KVの一時エラーで例外にせず、画面が再試行できる形で返す
-  for (const e of doc.ev) e.k = rxKey(e);
-  const has = e => doc.res[e.i] && Object.keys(doc.res[e.i]).some(s => doc.res[e.i][s]);
   const k = url.searchParams.get('k');
-  if (!k) {
-    const m = new Map();
-    const seen = new Set();
-    for (const e of doc.ev) if (has(e)) { const sk = e.k + '@' + e.t; if (seen.has(sk)) continue; seen.add(sk); const g = m.get(e.k) || { k: e.k, n: 0, last: 0 }; g.n++; g.last = Math.max(g.last, e.t); m.set(e.k, g); }
-    return json({ indicators: [...m.values()].sort((a, b) => b.last - a.last), evTo: doc.evTo });
+  if (!k) {                                                           // 指標の一覧は計算済みの文字列をそのまま返す(解析しない)
+    let txt = null;
+    try { txt = await env.CAL.get(RX_IDX); } catch (_) { return json({ error: 'kv' }, 503); }
+    return new Response(txt || '{"indicators":[],"evTo":0}', { headers: { 'content-type': 'application/json; charset=utf-8' } });
   }
-  const seenT = new Set();                                          // v64: 念のため、同じキーで同じ発表時刻の行は1回分にまとめる
-  const all = doc.ev.filter(e => e.k === k && has(e)).sort((a, b) => b.t - a.t).filter(e => !seenT.has(e.t) && seenT.add(e.t));
+  let sh; try { sh = await env.CAL.get(rxShardKey(k), { type: 'json', cacheTtl: 60 }); } catch (_) { return json({ error: 'kv' }, 503); }   // v57: KVの一時エラーは再試行できる形で返す
+  const has = e => e.r && Object.keys(e.r).some(s => e.r[s]);
+  const seenT = new Set();                                          // v64: 同じキーで同じ発表時刻の行は1回分にまとめる
+  const all = ((sh && sh.ev) || []).filter(e => e.k === k && has(e)).sort((a, b) => b.t - a.t).filter(e => !seenT.has(e.t) && seenT.add(e.t));
   // v52: 無料は件数(total)だけ。変動率の中身(rows)は有料のみ返す
   const auth = await rxAccess(env, request), full = auth === 'ok';
   const rows = (full ? all : []).map(e => {
-    const r = {}; for (const s of Object.keys(doc.res[e.i])) if (doc.res[e.i][s]) r[s] = doc.res[e.i][s];
+    const r = {}; for (const s of Object.keys(e.r)) if (e.r[s]) r[s] = e.r[s];
     const o = { t: e.t, r }; if (e.fc) o.fc = e.fc; if (e.pv) o.pv = e.pv; if (e.ac) o.ac = e.ac; return o;
   });
   return json({ k, total: all.length, locked: !full, auth, rows });
+}
+
+// GitHub Actions 用(合言葉つき)。GET: 保存を全部まとめて返す(解析しない)。POST ?name=s07|idx|run: 文字列をそのまま保存する。
+async function rxGet(request, env) {
+  if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
+  if (!env.CAL) return json({ error: 'KV(CAL)が接続されていません' }, 503);
+  try {
+    const names = Array.from({ length: 64 }, (_, i) => 's' + String(i).padStart(2, '0'));
+    const parts = await Promise.all(names.map((n) => env.CAL.get(rxNameKey(n))));
+    const seed = await env.CAL.get(RX_KEY);                          // v67までの取り込み済みの予定(最初の1回だけ使う)
+    const sh = names.map((n, i) => parts[i] ? JSON.stringify(n) + ':' + parts[i] : null).filter(Boolean).join(',');
+    return new Response('{"seed":' + (seed || 'null') + ',"shards":{' + sh + '}}', { headers: { 'content-type': 'application/json; charset=utf-8' } });
+  } catch (e) { return json({ error: String((e && e.message) || e) }, 503); }
+}
+async function rxPut(request, url, env) {
+  if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
+  if (!env.CAL) return json({ error: 'KV(CAL)が接続されていません' }, 503);
+  const name = url.searchParams.get('name') || '';
+  if (!RX_NAME.test(name)) return json({ error: 'bad name' }, 400);
+  if (name.startsWith('s') && Number(name.slice(1)) > 63) return json({ error: 'bad name' }, 400);
+  const body = await request.text();
+  if (!body || body.length > 3000000 || body[0] !== '{') return json({ error: 'bad body' }, 400);
+  try { await env.CAL.put(rxNameKey(name), body); } catch (e) { return json({ error: String((e && e.message) || e) }, 503); }
+  return json({ ok: true, name, bytes: body.length });
 }
 
 export default {
@@ -1375,6 +1407,8 @@ export default {
     if (url.pathname === '/api/px-run') { const r = await pxRun(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/admin/rx' && request.method === 'POST') { const r = await rxAdmin(request, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/admin/rx-get' && request.method === 'GET') { const r = await rxGet(request, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/admin/rx-put' && request.method === 'POST') { const r = await rxPut(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/rx') { const r = await rxApi(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/verify' && request.method === 'POST') { const r = await authVerify(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }

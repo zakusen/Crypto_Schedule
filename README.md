@@ -242,10 +242,30 @@
 - 区別を追加: 新規/継続/4週平均の失業保険、日銀短観の製造業/非製造業/見通し
 - 保存済みの記録は読み出し時に英語名から作り直すので、再取り込みは不要。名前が変わるため、画面に保存済みの選択(localStorage `csa-imp`)が古い名前だと、一度「自動」に戻る可能性がある
 - 注意: TradingViewの「Midterm Elections」「President Trump …」のような経済指標でない予定も、重要度「高」なら一覧に出る(取得元のデータどおり)
-- v66(確認用): 「この指標は、記録がまだありません」しか出ない時の原因を見えるようにした。取り込みの直近の結果(件数・取り込み済みの範囲・残り・エラー・例外)をKV `rx:sum` に残し、`/api/health` の `rx` に出す。`rx.never_ran` なら定時実行が一度も届いていない。`rx.fatal` があれば取り込みが例外で止まっている。`rx.errors` に外部取得の失敗理由(Binance・TradingView の応答コードなど)が出る。
+- v66(確認用。v68で rx:sum → rx:run に変更): 「この指標は、記録がまだありません」しか出ない時の原因を見えるようにした。取り込みの直近の結果(件数・取り込み済みの範囲・残り・エラー・例外)をKV `rx:sum` に残し、`/api/health` の `rx` に出す。`rx.never_ran` なら定時実行が一度も届いていない。`rx.fatal` があれば取り込みが例外で止まっている。`rx.errors` に外部取得の失敗理由(Binance・TradingView の応答コードなど)が出る。
 
 ## v67: `check_site.py` が「events」で失敗する問題を修正(worker.jsのみ)
 - 症状: events の警告に `チェーン読み取り(ETH): HTTP 429` が出て、check_site.py が失敗する。
 - 原因: ETH は未来のフォークが載るまでイベントが0件。控え(最後に成功した結果)をイベント単位でしか残していなかったため、ETH には控えが一度も作られず、公開ノードが429を返すと「控えなし=警告」になっていた(BTC・SOL は控えがあるので注記に回っていた)。
 - 直し方: 読めたチェーンは、イベントが0件でも「読めた」控えとして残す(`chainEvents` が `ok` を返し、`mergeChain` が空の控えを作る)。以後、429の時は「○分前の控えを表示」の注記になり、警告には出ない。
 - 反映のタイミング: 公開後、ETH が一度成功した30分ごとの更新から控えができる。それまでに429だと、その回だけ警告が残る。
+
+## v68: 過去の反応の計算を GitHub Actions に移した(完全自動)
+- **原因**: Cloudflare の Worker から Binance の5分足を取りに行くと、全て 403(拒否)で、記録が0件のままだった(`/api/health` の `rx.errors`)。さらに、(1)無料プランの外部取得50回の上限、(2)記録を1つのKV値にまとめて毎回読み書きする作りが、無料プランの計算時間(10ms)を超える見込み(2,330件で読み込み約7ms・書き込み約10ms)、という問題もあった。
+- **新しい仕組み**
+  - 計算係: `tools/rx_runner.mjs`(Node)。`.github/workflows/rx_runner.yml` が **1時間ごと**に自動で動かす。重要度「高」で、発表から25時間以上たち、未計算の指標×銘柄を、Binance(`data-api.binance.vision` → `api.binance.com` → …の順)の5分足で計算し、サイトへ書き戻す。過去分(2017年〜、v67までに取り込んだ予定)も新しい分も同じ処理。
+  - 予定の元: ①v67までに取り込んだ予定(KV `rx:v1`、最初の1回だけ使う) ②直近2週間の予定(`/api/cal`)。直近の予定からは、予想・前回・**結果**を毎回最新に更新する(以前は取り込み時点の結果で固定されていた)。
+  - 保存: 指標の名前(`米雇用統計|US` など)から決まる64個の小さなKV値(`rx:s:00`〜`63`)に分けた。見る時は1個だけ読む(`/api/rx?k=`)。一覧は `rx:idx`、最後の実行結果は `rx:run`。Worker は計算も解析もせず、保存を置くだけ(計算時間の上限に当たらない)。
+  - 指標の名前・保存先・計算は、`worker.js` の `jaLabel` / `rxBucket` / `rxCalc` を、runner が**同じコードのまま**借りて使う(食い違い防止)。
+  - Worker の30分ごとの定時実行から、過去の反応の処理(予定の取り込み・Binance取得)を外した。`/api/admin/rx`(backfill.html)は最後の実行結果を返すだけになった。
+- **設定(最初の1回だけ)**
+  1. GitHub の Settings → Secrets and variables → Actions → New repository secret
+     - `RX_ADMIN_KEY` = Cloudflare の `AUTH_SECRET` と同じ値(Worker は `RX_ADMIN_KEY` が無ければ `AUTH_SECRET` を使う)。別の値にしたい時は、Cloudflare にも `RX_ADMIN_KEY` を入れる
+     - `SITE_URL` は省略可(省略時は https://crypto-schedule.signalarchive.workers.dev)
+  2. **`.github/workflows/rx_runner.yml` だけは、zip の自動反映ができない**(GitHubの制限)。GitHub の画面で「Add file → Create new file」から、同じパスに中身を貼って保存する
+  3. Actions → 「RX runner」→ Run workflow で、最初の1回を手で動かす(過去分がまとめて入る。数分)
+  4. 確認: `/api/health` の `rx`(`computed`・`pending`・`errors`)と、`/api/rx`(記録のある指標の一覧)
+- **メモ**
+  - 公開リポジトリは、60日間まったく更新が無いと定時実行が止まる(zipの反映や更新があれば止まらない)
+  - Binance に届かない時は、runner が1件も計算できずに失敗(赤)になり、理由が `rx.errors` に出る
+  - 確認はモックのみ(偽のKV・偽のBinance・本物の worker.js と rx_runner.mjs を通した試験、全項目合格)。GitHub の実行環境から Binance に届くかは、最初の実行ログで確認すること
