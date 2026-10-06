@@ -1906,6 +1906,21 @@ html.lang-switching [data-csa-i18n]{
 .card.chart .caption strong{color:var(--text);font-weight:500;letter-spacing:.08em}
 </style>
 
+<style id="v35-impsel">
+.impsel{display:block;width:100%;max-width:100%;margin:7px 0 6px;padding:7px 8px;font:inherit;font-size:12px;color:var(--text);background:rgba(8,12,18,.7);border:1px solid var(--line);border-radius:5px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;cursor:pointer;color-scheme:dark}
+.impsel:focus{outline:none;border-color:rgba(217,173,104,.55)}
+.impsel option,.impsel optgroup{background:#0b1017;color:var(--text)}
+.impsel option.z{color:#6f7d8a}
+.improws{margin-top:10px;border-top:1px solid var(--line)}
+.improws .ih{font-size:9px;color:var(--dim);letter-spacing:.08em;padding:7px 0 3px}
+.improw{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid #1a232e;font-size:10px}
+.improw .dt{color:var(--text);white-space:nowrap}
+.improw .nm{display:block;font-size:9px;color:var(--dim);margin-top:1px}
+.improw .rr{text-align:right;white-space:nowrap;font-weight:600}
+.improw .rr u{text-decoration:none}.improw .rr u.up{color:#6ccaa0}.improw .rr u.dn{color:#d87878}
+.improw .rr small{display:block;font-weight:400;font-size:9px;color:var(--dim)}
+.improws .more{font-size:9px;color:var(--dim);padding:5px 0}
+</style>
 </head>
 <body data-visual-build="V18 DUAL UI"><div id="desktop-app">
 <header class="top"><div class="brand"><div class="archive-core" aria-label="Archive Core">
@@ -1978,7 +1993,7 @@ html.lang-switching [data-csa-i18n]{
 <div class="card evlist" id="evCard"><div class="ptitle"><span>EVENT ARCHIVE</span><span class="evtabs"><button type="button" data-ev="up" class="on">Upcoming</button><button type="button" data-ev="past">Recent</button><label><input type="checkbox" id="evHigh"> <span>High impact only</span></label></span></div><div id="evBody" data-dyn><div class="cs-msg">Loading…</div></div></div>
 </section>
 <aside class="right">
-<div class="card r impact" data-dyn id="impCard"><div class="ptitle"><span>EVENT IMPACT</span><span>準備中</span></div><div class="iname" id="impName">—</div><div class="mean" style="color:var(--muted)">準備中</div><div class="small">過去の同じ指標の発表後に、価格がどう動いたかを集計して表示します。計算の仕組みを準備しています。</div><table class="table"><tr><td>5分</td><td style="color:var(--dim)">—</td></tr><tr><td>15分</td><td style="color:var(--dim)">—</td></tr><tr><td>1時間</td><td style="color:var(--dim)">—</td></tr><tr><td>4時間</td><td style="color:var(--dim)">—</td></tr><tr><td>24時間</td><td style="color:var(--dim)">—</td></tr></table><div class="note">統計は過去データの観測値であり、売買判断や因果関係を示しません。</div></div>
+<div class="card r impact" data-dyn id="impCard"><div class="ptitle"><span id="impT">EVENT IMPACT</span><span id="impSt">準備中</span></div><select id="impSel" class="impsel" aria-label="EVENT IMPACT indicator"><option value="auto">自動：次の重要イベント</option></select><div id="impBody"><div class="mean" style="color:var(--muted);font-size:12px">準備中</div></div></div>
 <div class="card r" data-dyn id="upCard"><div class="ptitle"><span>UPCOMING EVENTS</span></div><div class="event"><div class="etime">NEXT</div><b>米 消費者物価指数 (CPI)</b><div class="ekind">指標 · HIGH IMPACT</div></div><div class="event"><div class="etime">—</div><b>ETH Upgrade</b><div class="ekind">チェーン</div></div><div class="event"><div class="etime">—</div><b>オプション満期</b><div class="ekind">満期</div></div><div class="event"><div class="etime">—</div><b>Burn</b><div class="ekind">バーン</div></div></div>
 <div class="lock"><b>US Employment Report</b><br>Past reactions 🔒</div>
 <div class="access"><div class="ptitle">ARCHIVE ACCESS</div><div class="price">1 USDC <span class="small">/ 365 DAYS</span></div><div class="small">4 major assets · event history · EVENT IMPACT<br>No subscription.</div><div class="small" id="accState" data-dyn style="margin-top:8px;color:#d9c084"></div><button id="walletBtn" type="button" data-dyn>CONNECT WALLET</button></div>
@@ -2203,7 +2218,9 @@ function draw(){
   if(L+cw-nx>110){tFut.style.display='block';tFut.style.right=(W-L-cw+10)+'px'}
   /* 常時出すカード: ①NEXT ②重要度高 ③NOWに近い順。上限は幅で4〜6枚。重なる時は段をずらし、無理なら線と点だけ(ホバーで出る) */
   const cap=Math.max(4,Math.min(6,Math.floor(cw/170))),tiers=[58,78,95],placed=[];
-  const cand=[...groups.filter(g=>g.next),...groups.filter(g=>!g.next&&g.rep.im==='high').sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now))];
+  const sk=impSelKey(),selG=sk?groups.filter(g=>g.ts<now&&g.items.some(e=>e.l==='macro'&&IMPKEY(e)===sk)).sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now)):[];
+  selG.forEach(g=>{g.rep=g.items.find(e=>e.l==='macro'&&IMPKEY(e)===sk)});
+  const cand=[...selG,...groups.filter(g=>g.next&&!selG.includes(g)),...groups.filter(g=>!g.next&&!selG.includes(g)&&g.rep.im==='high').sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now))];
   let tix=0;
   for(const g of cand){if(placed.length>=cap)break;
     const el=document.createElement('div');el.className='evc '+gKind(g)+(g.ts<now?' past':'');el.dataset.k=gKey(g);el.innerHTML=cardInner(g,false);layer.appendChild(el);
@@ -2274,7 +2291,7 @@ function watch(){
     c.style.cursor='pointer';c.style.opacity=s===sym?1:.78;
     if(d&&d.bars.length){const n=d.bars.length,last=d.bars[n-1][4],prev=n>1?d.bars[n-2][4]:d.bars[n-1][1],ch=(last/prev-1)*100;
       cv2.innerHTML=fp(last)+'<div class="'+(ch>=0?'up':'dn')+'" style="'+(ch<0?'color:#d87878':'')+'">'+(ch>=0?'+':'')+ch.toFixed(2)+'%</div>'}
-    if(!c._w){c._w=1;c.addEventListener('click',()=>{if(s===sym)return;sym=s;draw();head();legend();upcoming();watch();evList();impName();load(sym,tf);ensureImp();loadChain()})}})}
+    if(!c._w){c._w=1;c.addEventListener('click',()=>{if(s===sym)return;sym=s;draw();head();legend();upcoming();watch();evList();impCard();load(sym,tf);ensureImp();loadChain()})}})}
 
 /* 次の重要イベント(ヒーロー)と今後の一覧 */
 function hero(){
@@ -2303,15 +2320,65 @@ function evData(nx){const v=[...document.querySelectorAll('.hero .q .qrow b')];i
   const f=x=>x==null||x===''?'—':String(x);
   v[0].textContent=nx?f(nx.fc):'—';v[1].textContent=nx?f(nx.pv):'—';
   v[2].textContent=nx?(TL('経済指標','Indicator')+(CN[nx.c]?' · '+CN[nx.c]:'')):'—';v[3].textContent=nx?'UPCOMING':'—'}
-function impCard(){const c=$('impCard');if(!c)return;
-  const now=Date.now(),nx=E.filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0],S=nx?impStats(nx):null,ok=S&&S.n>0;
-  c.innerHTML='<div class="ptitle"><span>'+TL('イベント影響','EVENT IMPACT')+'</span><span>'+(ok?TL('実測','MEASURED'):TL('データ不足','NO DATA'))+'</span></div><div class="iname" id="impName">—</div>'+
-  '<div class="mean" style="color:var(--muted);font-size:12px;line-height:1.5;margin:4px 0 8px">'+(ok?TL('過去 '+S.n+' 回の発表の平均','Average of '+S.n+' past release'+(S.n>1?'s':'')):nx?TL('取得済みの足の範囲に、同じ指標の過去の発表がありません','No past release of this indicator within the loaded price range'):TL('次の重要イベント待ち','Waiting for the next key event'))+'</div>'+
-  '<div class="small">'+TL('発表時点の価格から、発表後の一定時間のうちに上へ最大・下へ最大で何%動いたか(と終値の変化)の平均。取得済みの足(5分足は約8時間、1時間足は約2.5日、日足は約60日)の範囲で測れた発表だけで計算します。足の中の位置は始値から終値への直線で近似しています。','Average of the largest move up and down from the price at release time within each window, plus the change at the end of the window. Only releases within the loaded candles (5m ≈ 8h, 1h ≈ 2.5 days, 1d ≈ 60 days) are used; position inside a candle is approximated linearly from open to close.')+'</div>'+
-  '<table class="table"><tr style="color:var(--dim);font-size:9px"><td>'+TL('発表後','After')+'</td><td>'+TL('最大 上','Max up')+'</td><td>'+TL('最大 下','Max down')+'</td><td>'+TL('終値','End')+'</td></tr>'+HZ.map((r,i)=>{const v=S&&S.rows[i],ok2=v&&v.k>0,cell=(x,c)=>'<td style="'+(ok2?'color:'+c:'color:var(--dim)')+'">'+(ok2?sgn(x):'—')+'</td>';return'<tr><td>'+TL(r[0],r[1])+(ok2?' <span style="color:var(--dim);font-size:9px">n='+v.k+'</span>':'')+'</td>'+cell(ok2&&v.up,'#6ccaa0')+cell(ok2&&v.dn,'#d87878')+cell(ok2&&v.end,ok2&&v.end>=0?'#6ccaa0':'#d87878')+'</tr>'}).join('')+'</table>'+
-  '<div class="note">'+TL('統計は過去データの観測値であり、売買判断や因果関係を示しません。','Statistics are historical observations, not trading advice or evidence of causation.')+'</div>';impName()}
-function impName(){const el=$('impName');if(!el)return;const now=Date.now(),nx=E.filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0];
-  el.textContent=nx?evS(nx)+' · '+sym+' / 1H':'—'}
+/* ===== v35: イベント影響の指標セレクター ===== */
+const IMPKEY=e=>(e.s||e.t)+'|'+(e.c||''),IMP_ROWS=10,CORD={US:0,JP:1,EU:2};
+let IMPSEL=(()=>{try{return localStorage.getItem('csa-imp')||'auto'}catch(_){return'auto'}})(),IMPSIG='';
+const impSave=v=>{try{localStorage.setItem('csa-imp',v)}catch(_){}};
+const impSelKey=()=>IMPSEL!=='auto'?IMPSEL:null;
+const nextKey=()=>{const now=Date.now();return E.filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0]};
+/* 足の状態(銘柄ごと。時間足には依存しない) */
+function impPx(){if(IMPTF.some(q=>CD[sym+'|'+q]))return'ok';return IMPTF.every(q=>ST[sym+'|'+q]==='error')?'fail':'loading'}
+/* 選択肢に出す指標: macro・重要度 低を除く・今の銘柄で表示対象のもの */
+function impList(){const m=new Map();
+  E.forEach(e=>{if(e.l!=='macro'||e.im==='low'||(e.a&&!e.a.includes(sym)))return;
+    const k=IMPKEY(e);let g=m.get(k);if(!g){g={k,rep:e,hi:false};m.set(k,g)}
+    if(e.im==='high')g.hi=true;if(e.ts>=g.rep.ts)g.rep=e});
+  const cmp=(a,b)=>((CORD[a.rep.c]??9)-(CORD[b.rep.c]??9))||evS(a.rep).localeCompare(evS(b.rep),LOC());
+  return[...m.values()].sort(cmp)}
+function impOpts(sel,list,nx,cur){
+  const lab=g=>(CN[g.rep.c]||g.rep.c||'')+' '+evS(g.rep),
+    cnt=g=>g.n==null?'…':g.n===0?TL('測れる発表なし','no measurable release'):TL(g.n+'回',g.n+(g.n>1?' releases':' release')),
+    opt=g=>'<option value="'+esc(g.k)+'"'+(g.n===0?' class="z"':'')+' title="'+esc(lab(g))+'">'+esc(lab(g)+' · '+cnt(g))+'</option>',
+    grp=(l,a)=>a.length?'<optgroup label="'+esc(l)+'">'+a.map(opt).join('')+'</optgroup>':'',
+    al=TL('自動：次の重要イベント','Auto: next key event')+(nx?TL('（','(')+evS(nx)+TL('）',')'):''),
+    html='<option value="auto" title="'+esc(al)+'">'+esc(al)+'</option>'+grp(TL('重要度 高','High impact'),list.filter(g=>g.hi))+grp(TL('重要度 中','Medium impact'),list.filter(g=>!g.hi));
+  if(document.activeElement===sel)return;                  /* 開いている間は差し替えない。閉じた時に反映 */
+  if(html!==IMPSIG){sel.innerHTML=html;IMPSIG=html}
+  if(sel.value!==cur)sel.value=cur;
+  const o=sel.options[sel.selectedIndex];sel.title=o?o.title:''}
+/* 発表ごとの内訳(測れた発表だけ。新しい順) */
+function impRows(ref){const key=IMPKEY(ref),now=Date.now();
+  const L=E.filter(e=>e.l==='macro'&&e.ts<now&&IMPKEY(e)===key).sort((a,b)=>b.ts-a.ts).map(e=>({e,r:oneReact(e)})).filter(x=>x.r);
+  if(!L.length)return'';const show=L.slice(0,IMP_ROWS),anyNum=show.some(x=>has(x.e.fc)||has(x.e.pv));
+  return'<div class="improws"><div class="ih">'+TL('発表ごとの内訳','BY RELEASE')+'</div>'+show.map(({e,r})=>
+    '<div class="improw"><div><span class="dt">'+esc(fdt(e.ts))+'</span>'+(anyNum&&numTxt(e)?'<span class="nm">'+esc(numTxt(e))+'</span>':'')+'</div>'+
+    '<div class="rr"><u class="up">▲ '+sgn(r.up)+'</u> <u class="dn">▼ '+sgn(r.dn)+'</u><small>'+esc(TL(r.l[0],r.l[1]))+'</small></div></div>').join('')+
+    (L.length>show.length?'<div class="more">'+TL('ほか '+(L.length-show.length)+' 件','+'+(L.length-show.length)+' more')+'</div>':'')+'</div>'}
+function impCard(){const c=$('impCard'),sel=$('impSel'),body=$('impBody');if(!c||!sel||!body)return;
+  const nx=nextKey(),list=impList(),px=impPx();
+  list.forEach(g=>{g.n=px==='ok'?impStats(g.rep).n:px==='loading'?null:0});
+  if(IMPSEL!=='auto'&&evState==='ok'&&E.length&&!list.some(g=>g.k===IMPSEL)){IMPSEL='auto';impSave('auto')}   /* 消えた指標は黙って自動へ */
+  const cur=IMPSEL,auto=cur==='auto',ref=auto?nx:(list.find(g=>g.k===cur)||{}).rep;
+  impOpts(sel,list,nx,cur);
+  const msg=t=>'<div class="mean" style="color:var(--muted);font-size:12px;line-height:1.5;margin:4px 0 8px">'+t+'</div>',
+    note='<div class="note">'+TL('統計は過去データの観測値であり、売買判断や因果関係を示しません。','Statistics are historical observations, not trading advice or evidence of causation.')+'</div>';
+  let st=TL('データ不足','NO DATA'),h='';
+  if(!E.length){h=msg(evState==='loading'?TL('イベントを読み込み中…','Loading events…'):TL('イベントを取得できませんでした','Events unavailable'));if(evState==='loading')st=TL('読み込み中','LOADING')}
+  else if(!ref){h=msg(auto?TL('次の重要イベント待ち','Waiting for the next key event'):TL('指標が見つかりません','Indicator not found'))}
+  else if(px==='loading'){h=msg(TL('価格を読み込み中…','Loading prices…'));st=TL('読み込み中','LOADING')}
+  else if(px==='fail'){h=msg(TL('価格を取得できませんでした','Prices unavailable'))}
+  else{const S=impStats(ref),ok=S.n>0;
+    if(!S.total){h=msg(TL('この指標の過去の発表は、取得できているイベントの中にありません','No past release of this indicator among the loaded events'))}
+    else{if(ok)st=TL('実測','MEASURED');
+      h=msg(ok?(S.n===1?TL('過去 1 回の発表','Past 1 release'):TL('過去 '+S.n+' 回の発表の平均','Average of '+S.n+' past releases')):TL('取得済みの足の範囲に、この指標の過去の発表がありません','No past release of this indicator within the loaded price range'))+
+      '<div class="small">'+TL('発表時点の価格から、発表後の一定時間のうちに上へ最大・下へ最大で何%動いたか(と終値の変化)の平均。取得済みの足(5分足は約8時間、1時間足は約2.5日、日足は約60日)の範囲で測れた発表だけで計算します。足の中の位置は始値から終値への直線で近似しています。','Average of the largest move up and down from the price at release time within each window, plus the change at the end of the window. Only releases within the loaded candles (5m ≈ 8h, 1h ≈ 2.5 days, 1d ≈ 60 days) are used; position inside a candle is approximated linearly from open to close.')+'</div>'+
+      '<table class="table"><tr style="color:var(--dim);font-size:9px"><td>'+TL('発表後','After')+'</td><td>'+TL('最大 上','Max up')+'</td><td>'+TL('最大 下','Max down')+'</td><td>'+TL('終値','End')+'</td></tr>'+HZ.map((r,i)=>{const v=S.rows[i],ok2=v&&v.k>0,cell=(x,col)=>'<td style="'+(ok2?'color:'+col:'color:var(--dim)')+'">'+(ok2?sgn(x):'—')+'</td>';return'<tr><td>'+TL(r[0],r[1])+(ok2?' <span style="color:var(--dim);font-size:9px">n='+v.k+'</span>':'')+'</td>'+cell(ok2&&v.up,'#6ccaa0')+cell(ok2&&v.dn,'#d87878')+cell(ok2&&v.end,ok2&&v.end>=0?'#6ccaa0':'#d87878')+'</tr>'}).join('')+'</table>'+(ok?impRows(ref):'')}}
+  $('impT').textContent=TL('イベント影響','EVENT IMPACT');$('impSt').textContent=st;
+  body.innerHTML=h+note}
+function impName(){impCard()}
+function impWire(){const sel=$('impSel');if(!sel||sel._w)return;sel._w=1;
+  sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';impSave(IMPSEL);sel.blur();impCard();draw()});
+  sel.addEventListener('blur',()=>impCard())}
 
 /* チャートの下: チェーンの記録(ETH 出口待ち・入口待ち・ステーク量 / SOL・BNB のステーク量) */
 let EQ=null,SQD={};
@@ -2385,11 +2452,11 @@ function init(){
   document.querySelectorAll('.coin').forEach(()=>{});
   const h=document.querySelector('.hero h1');if(h){[h,...h.querySelectorAll('*')].forEach(n=>{if(n.dataset)delete n.dataset.csaI18n});h.textContent=TL('読み込み中…','Loading…')}
   tfBtns();draw();head();
-  load(sym,tf).then(()=>{legend();ensureImp()});SYMS.forEach(s=>load(s,'1d'));loadE();evList();evToggles();refreshBtn();loadChain();impCard();
+  load(sym,tf).then(()=>{legend();ensureImp()});SYMS.forEach(s=>load(s,'1d'));loadE();evList();evToggles();refreshBtn();loadChain();impWire();impCard();
   addEventListener('csa-lang',()=>{draw();head();hero();upcoming();legend();evList();drawChain();impCard();if(typeof tick==='function')tick();document.querySelectorAll('.left .coin.evt').forEach(c=>c.title=TL('クリックで表示/非表示','Click to show / hide'))});
   setInterval(()=>{if(!document.hidden)load(sym,tf)},3e5);setInterval(()=>{if(!document.hidden&&sym!=='BTC')loadChain()},3e5);setInterval(loadE,18e5);setInterval(()=>{draw();head();hero()},30000);
   addEventListener('resize',()=>{draw();legend();drawChain()});if(window.ResizeObserver)new ResizeObserver(()=>draw()).observe(wrap);
-  $('city')&&$('city').addEventListener('change',()=>{draw();upcoming();evList();drawChain()})}
+  $('city')&&$('city').addEventListener('change',()=>{draw();upcoming();evList();drawChain();impCard()})}
 if(document.readyState==='complete')setTimeout(init,150);else addEventListener('load',()=>setTimeout(init,150));
 })();
 
