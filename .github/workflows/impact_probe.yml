@@ -1,0 +1,31 @@
+name: Event impact probe (発表前後の値動きが計算できるか確認)
+
+# 指標の過去の発表と、発表前後の5分足が実データで取れるかを確かめる(手動実行)。
+# 何も保存・変更しない。結果は実行ログと、Artifacts の event_impact_probe.json に出る。
+on:
+  workflow_dispatch:
+    inputs:
+      sym:
+        description: "銘柄 (BTC / ETH / SOL / BNB)"
+        default: "BTC"
+        required: true
+      days:
+        description: "遡る日数"
+        default: "400"
+        required: true
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline tests
+        run: python3 -m unittest tools/test_event_impact_probe.py
+      - name: Probe
+        run: python3 tools/event_impact_probe.py --sym "${{ github.event.inputs.sym }}" --days "${{ github.event.inputs.days }}" --out event_impact_probe.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: event_impact_probe
+          path: event_impact_probe.json
