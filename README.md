@@ -158,3 +158,5 @@
 - `GET /api/rx` は指標の一覧、`GET /api/rx?k=<指標キー>` は反応の行を返す。無料は各指標の直近2回だけ。有効期限内のウォレットでログインしていれば全期間(ログイン時に返る `token` を `Authorization: Bearer` で送る)
 - 画面(classic.html / index.html)はまだこのAPIを使っていない。取り込みの結果を確認してから接続する
 - classic.html(モバイル版)に日英切り替えを追加(PC版と同じ保存キー `csa-lang`)
+- 2026-10-06 v39-deeplink(v40に含む): スマホ版(`classic.html`)のウォレット接続で、ウォレットが見つからない端末(Safari・Chromeなど)には「Phantomで開く」「Solflareで開く」のリンクを出す(スマホのUAのみ・1.5秒待ってから判定)。リンクは各社公式ドキュメントの `https://phantom.com/ul/browse/<url>?ref=<ref>` と `https://solflare.com/ul/v1/browse/<url>?ref=<ref>`(url・refはURLエンコード)。アプリ内ブラウザでは既存のウォレット処理がそのまま動く。**実機(iPhone/Android)で、リンク→アプリ内でサイトが開く→署名→支払い、まで要確認**。`/api/rx` への画面接続は未着手。
+- 2026-10-06 v40-banner(v39bから改名): スマホでウォレットが無い時、画面上部(言語切替の下)に「Phantomで開く／Solflareで開く」の帯を最初から出す(ポップオーバー内のリンクも残す)。ウォレットがあるアプリ内ブラウザでは出ない。モックのAPIでの表示確認のみ(iPhone UA・幅390px)。実機確認は公開後。

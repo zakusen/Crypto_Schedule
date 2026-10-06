@@ -576,7 +576,41 @@ function render(){
     const l=document.createElement('a');l.href='https://solscan.io/account/'+PAYTO;l.target='_blank';l.rel='noopener noreferrer';l.textContent=T('Open on Solscan','Solscanで開く');l.style.color='#7bbfff';d.appendChild(l);safe.appendChild(d)}
   msg.style.color=S.err?'#e59a9a':'#9eacb7';
   msg.textContent=S.err||(a?T('Signed in: ','署名済み: ')+S.addr:S.addr?T('Pick a coin and pay the exact amount. Send only from the button — other transfers get no access and no refund.','コインを選んで表示どおりの枚数を支払います。ボタン以外からの送金はアクセスが付かず、返金もできません。'):T('Connect a Solana wallet and sign a message. No funds move.','Solanaウォレットを接続してメッセージに署名します。送金は発生しません。'));
+  renderDeep();
 }
+// v39: 普通のスマホブラウザ(ウォレット無し)には、ウォレットアプリ内ブラウザでこのページを開くリンクを出す
+let deepReady=false;
+const isMobileUA=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
+function renderBanner(show){
+  let b=document.getElementById('walletBanner');
+  if(!show){if(b)b.style.display='none';return}
+  if(!b){b=document.createElement('div');b.id='walletBanner';b.style.cssText='margin:10px 10px 0;padding:12px;border:1px solid rgba(205,168,95,.5);border-radius:10px;background:rgba(205,168,95,.08);font-size:12px;color:#c9d3db;display:flex;flex-direction:column;gap:8px';
+    const w=document.querySelector('.wrap');w.parentNode.insertBefore(b,w)}
+  b.style.display='flex';b.textContent='';
+  const t=document.createElement('div');t.textContent=T('To connect a wallet, open this page in your wallet app.','ウォレット接続は、ウォレットアプリの中でこのページを開きます。');b.appendChild(t);
+  const row=document.createElement('div');row.style.cssText='display:flex;gap:8px';
+  const u=encodeURIComponent(location.href),r=encodeURIComponent(location.origin);
+  [['Phantom','https://phantom.com/ul/browse/'+u+'?ref='+r],['Solflare','https://solflare.com/ul/v1/browse/'+u+'?ref='+r]].forEach(([n,h])=>{
+    const a=document.createElement('a');a.href=h;a.rel='noopener';a.textContent=T('Open in ','')+n+T('',' で開く');
+    a.style.cssText='flex:1;padding:10px 6px;border:1px solid rgba(205,168,95,.6);border-radius:8px;color:#d9c084;font-weight:700;text-align:center;text-decoration:none';row.appendChild(a)});
+  b.appendChild(row);
+}
+function renderDeep(){
+  let box=document.getElementById('walletDeep');
+  const show=isMobileUA&&deepReady&&!S.addr&&!prov();
+  renderBanner(show);
+  if(!show){if(box)box.style.display='none';return}
+  if(!box){box=document.createElement('div');box.id='walletDeep';box.style.cssText='margin-top:10px;display:flex;flex-direction:column;gap:6px;font-size:12px;color:#9eacb7';msg.parentNode.insertBefore(box,msg.nextSibling)}
+  box.style.display='flex';box.textContent='';
+  const t=document.createElement('div');t.textContent=T('No wallet in this browser. Open this page inside a wallet app:','このブラウザにはウォレットがありません。ウォレットアプリの中でこのページを開きます:');box.appendChild(t);
+  const u=encodeURIComponent(location.href),r=encodeURIComponent(location.origin);
+  [['Phantom','https://phantom.com/ul/browse/'+u+'?ref='+r],['Solflare','https://solflare.com/ul/v1/browse/'+u+'?ref='+r]].forEach(([n,h])=>{
+    const a=document.createElement('a');a.href=h;a.rel='noopener';a.textContent=T('Open in ','')+n+T('',' で開く')+' →';
+    a.style.cssText='display:block;padding:10px 12px;border:1px solid rgba(205,168,95,.5);border-radius:8px;color:#d9c084;font-weight:700;text-align:center;text-decoration:none';box.appendChild(a)});
+}
+// アプリ内ブラウザはウォレットの注入が遅れることがあるため、少し待ってから判定する
+setTimeout(()=>{deepReady=true;renderDeep()},1500);
+window.addEventListener('load',()=>setTimeout(renderDeep,1600));
 const prov=()=>window.phantom&&window.phantom.solana&&window.phantom.solana.isPhantom?window.phantom.solana:window.solflare&&window.solflare.isSolflare?window.solflare:window.backpack&&window.backpack.isBackpack?window.backpack:window.solana||null;
 const setup=(e)=>e==='AUTH_SECRET not set'?T('Server is not set up yet (AUTH_SECRET).','サーバー側の設定がまだです(AUTH_SECRET)。'):e==='PAY_TO not set'?T('Server is not set up yet (PAY_TO).','サーバー側の設定がまだです(PAY_TO)。'):(e||'error');
 async function confirmPay(invoice,sig){
