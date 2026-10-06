@@ -1021,6 +1021,14 @@ async function authRaw(env, text) {
   return new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(text)));
 }
 const payMissing = (env) => !env.AUTH_SECRET ? 'AUTH_SECRET not set' : !env.PAY_TO ? 'PAY_TO not set' : '';
+// v45: アドレスのアクセス期限(公開してよい値)。コインを押した直後に、契約済みなら二重に払わせないために見る。署名は不要。
+async function payStatus(url, env) {
+  const addr = url.searchParams.get('addr') || '', pk = b58dec(addr);
+  if (!pk || pk.length !== 32) return json({ error: 'bad request' }, 400);
+  let until = 0;
+  if (env.CAL) { try { const a = await env.CAL.get('acc:v1:' + addr, 'json'); until = (a && a.until) || 0; } catch (_) {} }
+  return json({ until });
+}
 async function payInvoice(url, env) {
   const miss = payMissing(env); if (miss) return json({ error: miss }, 503);
   const addr = url.searchParams.get('addr') || '', coin = url.searchParams.get('coin') || '', c = PAY[coin], pk = b58dec(addr);
@@ -1228,6 +1236,7 @@ export default {
     if (url.pathname === '/api/rx') { const r = await rxApi(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/verify' && request.method === 'POST') { const r = await authVerify(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/pay/status') { const r = await payStatus(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/info') { const r = json({ to: env.PAY_TO || null }); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/invoice') { const r = await payInvoice(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/confirm' && request.method === 'POST') { const r = await payConfirm(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }

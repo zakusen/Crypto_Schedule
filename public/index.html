@@ -2546,20 +2546,20 @@ const getPend=()=>{try{return JSON.parse(localStorage.getItem('csa-pay')||'null'
 function render(){
   const a=active(),b=sel();
   btn.textContent=S.addr?short(S.addr)+(a?' ✓':''):T('CONNECT WALLET','ウォレット接続');
-  go.innerHTML=(S.busy?(S.phase||T('WAITING…','応答待ち…')):!S.addr?T('CONNECT & SIGN IN','接続して署名'):a?T('ACCESS ACTIVE','アクセス有効'):T('PAY ','支払う ')+(b?b.querySelector('b').textContent:'')+T(' · 1 YEAR',' · 1年間'))+' <i>→</i>';
+  go.innerHTML=(S.busy?(S.phase||T('WAITING…','応答待ち…')):!S.addr?T('PAY ','支払う ')+(b?b.querySelector('b').textContent:'')+T(' · 1 YEAR',' · 1年間'):a?T('ACCESS ACTIVE','アクセス有効'):T('PAY ','支払う ')+(b?b.querySelector('b').textContent:'')+T(' · 1 YEAR',' · 1年間'))+' <i>→</i>';
   go.disabled=S.busy||(!!S.addr&&a);
   off.style.display=S.addr&&!S.busy?'inline':'none';off.textContent=T('Disconnect','切断');
   acc.textContent=a?T('✓ Access until ','✓ アクセス有効期限 ')+new Date(S.until).toLocaleDateString(lang()==='ja'?'ja-JP':'en-CA'):'';
   const lk=document.querySelector('.lock');if(lk)lk.classList.toggle('open',a);
   term.textContent=T('1 YEAR OF ACCESS','1年間 使い放題');
   safe.textContent='';
-  [T('Signing is not a payment. It never touches your funds.','署名は送金ではなく、資金には一切触れません。'),
+  [T('Connecting only shares your address. It never moves your funds.','接続はアドレスを共有するだけで、資金は動きません。'),
    T('You pay only the amount shown, plus the network fee.','払うのは、表示された枚数とネットワーク手数料だけです。'),
    T('No approvals, and no way to charge you later.','「承認(approve)」や、あとで引き落とす権限は求めません。')].forEach(t=>{const d=document.createElement('div'),c=document.createElement('span');c.textContent='✓ ';c.style.cssText='color:#d9c084;font-weight:700';d.appendChild(c);d.appendChild(document.createTextNode(t));safe.appendChild(d)});
   if(PAYTO){const d=document.createElement('div');d.style.cssText='margin-top:8px;font-size:11px;color:#9eacb7';d.appendChild(document.createTextNode(T('Receiving address: ','受取アドレス: ')+short(PAYTO)+' · '));
     const l=document.createElement('a');l.href='https://solscan.io/account/'+PAYTO;l.target='_blank';l.rel='noopener noreferrer';l.textContent=T('Open on Solscan','Solscanで開く');l.style.color='#7bbfff';d.appendChild(l);safe.appendChild(d)}
   msg.style.color=S.err?'#e59a9a':'#9eacb7';
-  msg.textContent=S.err||(a?T('Signed in: ','署名済み: ')+S.addr:S.addr?T('Pick a coin and pay the exact amount. Send only from the button — other transfers get no access and no refund.','コインを選んで表示どおりの枚数を支払います。ボタン以外からの送金はアクセスが付かず、返金もできません。'):T('Connect a Solana wallet and sign a message. No funds move.','Solanaウォレットを接続してメッセージに署名します。送金は発生しません。'));
+  msg.textContent=S.err||(a?T('Access active: ','アクセス有効: ')+S.addr:S.addr?T('Pick a coin and pay the exact amount. Send only from the button — other transfers get no access and no refund.','コインを選んで表示どおりの枚数を支払います。ボタン以外からの送金はアクセスが付かず、返金もできません。'):T('Tap a coin: connect your wallet and pay in one go. 1 year of access.','コインを押すと、ウォレット接続から支払いまで一度に進みます。1年間アクセスできます。'));
 }
 const prov=()=>window.phantom&&window.phantom.solana&&window.phantom.solana.isPhantom?window.phantom.solana:window.solflare&&window.solflare.isSolflare?window.solflare:window.backpack&&window.backpack.isBackpack?window.backpack:window.solana||null;
 const setup=(e)=>e==='AUTH_SECRET not set'?T('Server is not set up yet (AUTH_SECRET).','サーバー側の設定がまだです(AUTH_SECRET)。'):e==='PAY_TO not set'?T('Server is not set up yet (PAY_TO).','サーバー側の設定がまだです(PAY_TO)。'):(e||'error');
@@ -2573,6 +2573,17 @@ async function confirmPay(invoice,sig){
     await sleep(3000);
   }
   throw new Error(T('Still confirming. Reconnect later to finish.','確認に時間がかかっています。後でもう一度接続すると反映されます。'));
+}
+async function quick(){   // v45: 最短ルート。接続 → 契約済みか確認 → 未契約なら、そのまま支払い(署名ログインは挟まない)
+  const p=prov();
+  if(!p)throw new Error(T('No Solana wallet found. Install Phantom, Solflare or Backpack.','Solanaウォレットが見つかりません。Phantom・Solflare・Backpackなどを入れてください。'));
+  const r=await p.connect();
+  const addr=String(r&&r.publicKey?r.publicKey:p.publicKey);
+  S.addr=addr;S.p=p;S.phase=T('CHECKING…','確認中…');render();
+  try{const st=await(await fetch('/api/pay/status?addr='+encodeURIComponent(addr),{cache:'no-store'})).json();S.until=Number(st&&st.until)||0}catch(_){S.until=0}
+  const pend=getPend();
+  if(!active()&&pend&&pend.address===addr){try{await confirmPay(pend.invoice,pend.signature)}catch(_){}}   // 前回の支払いの確認待ちを引き継ぐ
+  if(!active())await pay();
 }
 async function signIn(){
   const p=prov();
@@ -2618,22 +2629,66 @@ async function pay(){
   try{localStorage.setItem('csa-pay',JSON.stringify({address:S.addr,invoice:inv.invoice,signature:sig}))}catch(_){}
   await confirmPay(inv.invoice,sig);
 }
-function open(o){pop.classList.toggle('open',o);pop.setAttribute('aria-hidden',String(!o))}
+function open(o){if(o)loadW3().catch(()=>{});pop.classList.toggle('open',o);pop.setAttribute('aria-hidden',String(!o))}
 btn.addEventListener('click',e=>{e.stopPropagation();open(!pop.classList.contains('open'))});
 pop.addEventListener('click',e=>e.stopPropagation());
 document.addEventListener('click',()=>open(false));
 pop.querySelector('.wallet-close').addEventListener('click',()=>open(false));
-pop.querySelectorAll('.pay-choice:not(.more)').forEach(b=>b.addEventListener('click',()=>{pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render()}));
+pop.querySelectorAll('.pay-choice:not(.more)').forEach(b=>b.addEventListener('click',()=>{pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();if(!S.busy&&!active())go.click()}));
 go.addEventListener('click',async()=>{
   if(S.busy)return;S.err='';S.busy=true;render();
-  try{if(!S.addr)await signIn();else if(!active())await pay()}
+  try{if(!S.addr)await quick();else if(!active())await pay()}
   catch(e){S.err=(e&&e.code===4001)?T('Cancelled in the wallet.','ウォレットで取り消されました。'):String((e&&e.message)||e)}
   S.busy=false;S.phase='';render();
 });
 off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';render()});
 window.addEventListener('csa-lang',render);
 render();
+{const m=/[#&]pay=(\w+)/.exec(location.hash||'');const b=m&&pop.querySelector('.pay-choice[data-coin="'+m[1]+'"]');if(b){pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render();open(true)}}   // ウォレットアプリで開き直した時は、選んだコインを選択済みで開く
 fetch('/api/pay/info',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(j.to||'')){PAYTO=j.to;render()}}).catch(()=>{});
+})();
+</script>
+<script id="v46-disclaimer">
+(function(){
+const L=()=>(window.CSA_LANG&&window.CSA_LANG()==='ja')?'ja':'en';
+const D={
+ ja:{h:'免責事項',tag:'必ずお読みください',link:'支払うと、免責事項に同意したものとみなします',
+  s:[
+  ['情報の性質','本サイトの価格・経済指標・チェーン上の予定・過去の値動きの集計は、情報提供のみを目的としたもので、投資の勧誘や助言ではありません。売買の判断と、その結果は、利用者ご自身の責任で行ってください。'],
+  ['正確性','情報は、第三者が公開しているデータ(TradingView、Pacifica、Hyperliquid、dYdX、各ブロックチェーンの公開RPCなど)に基づきます。遅れ・欠け・誤りが生じたり、取得できなくなったりすることがあり、正確性・完全性・即時性は保証しません。「推定」「目安」と記した日時は、実際と異なる場合があります。'],
+  ['過去の反応','過去の発表後の値動きの集計は、将来の結果を示すものではありません。件数が少ない指標は、特に参考になりません。'],
+  ['支払い','支払いは Solana のブロックチェーン上で行われ、送金は取り消せません。表示された通貨・枚数のとおりに、このサイトのボタンから送金してください。ボタン以外からの送金、別の通貨・枚数の送金には、アクセス権が付かず、返金もできない場合があります。ネットワーク手数料は利用者の負担です。暗号資産の価格は変動します。'],
+  ['アクセス権とサービス','アクセス権は、支払いの確認から365日です(重ねて支払うと延長されます)。サービスの内容は、予告なく変更・中断・終了することがあります。'],
+  ['ウォレット','ウォレットは第三者のサービスです。当サイトは、秘密鍵やシードフレーズを一切扱いません。承認画面の内容(相手・金額)は、必ずご自身で確認してください。'],
+  ['責任の制限','法令で認められる範囲で、本サイトの利用、または利用できなかったことによる損害について、運営者は責任を負いません。']]},
+ en:{h:'Disclaimer',tag:'Please read',link:'By paying you agree to the Disclaimer',
+  s:[
+  ['Not advice','Prices, economic releases, on-chain schedules and the historical reaction statistics on this site are provided for information only. They are not an offer, solicitation or investment advice. Any trading decision, and its outcome, is your own responsibility.'],
+  ['Accuracy','Data comes from third-party public sources (TradingView, Pacifica, Hyperliquid, dYdX, public blockchain RPCs and others). It may be delayed, incomplete, wrong or unavailable, and we do not guarantee its accuracy, completeness or timeliness. Dates marked "est." or "approx." may differ from what actually happens.'],
+  ['Past reactions','Statistics on price moves after past releases do not indicate future results. Indicators with few samples are especially unreliable.'],
+  ['Payments','Payments are made on the Solana blockchain and cannot be reversed. Send exactly the coin and amount shown, using the button on this site. Transfers sent any other way, or in a different coin or amount, may receive no access and may not be refundable. Network fees are paid by you. Crypto prices fluctuate.'],
+  ['Access and service','Access lasts 365 days from payment confirmation (paying again extends it). The service may be changed, suspended or ended without notice.'],
+  ['Wallets','Wallets are third-party services. This site never handles your private keys or seed phrase. Always check the recipient and amount on the wallet\'s approval screen yourself.'],
+  ['Limitation of liability','To the extent permitted by law, the operator is not liable for any loss arising from the use of, or inability to use, this site.']]}
+};
+const css=document.createElement('style');
+css.textContent='#disclaimer{max-width:880px;margin:22px auto 90px;padding:0 14px;color:#7f8a99;font:11px/1.7 system-ui,"Noto Sans JP",sans-serif}#disclaimer summary{cursor:pointer;color:#9eacb7;font-weight:700;letter-spacing:.08em;padding:10px 0;border-top:1px solid rgba(177,204,226,.18);list-style:none}#disclaimer summary::-webkit-details-marker{display:none}#disclaimer summary:after{content:" ＋";color:#d9c084}#disclaimer[open] summary:after{content:" －"}#disclaimer summary small{font-weight:400;margin-left:8px;color:#6e7a88}#disclaimer ol{margin:6px 0 0;padding-left:18px}#disclaimer li{margin:0 0 7px}#disclaimer li b{color:#aeb9c4;margin-right:6px}#walletDisc{margin-top:8px;font-size:11px;color:#9eacb7}#walletDisc a{color:#7bbfff;text-decoration:underline;cursor:pointer}';
+document.head.appendChild(css);
+const det=document.createElement('details');det.id='disclaimer';
+const sum=document.createElement('summary'),ol=document.createElement('ol');
+det.appendChild(sum);det.appendChild(ol);document.body.appendChild(det);
+const note=document.createElement('div');note.id='walletDisc';
+const a=document.createElement('a');note.appendChild(a);
+const safe=document.getElementById('walletSafe');
+if(safe&&safe.parentNode)safe.parentNode.insertBefore(note,safe.nextSibling);
+a.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const c=document.querySelector('.wallet-close');if(c)c.click();det.open=true;det.scrollIntoView({behavior:'smooth',block:'start'})});
+function draw(){
+  const d=D[L()];
+  sum.textContent=d.h;const sm=document.createElement('small');sm.textContent=d.tag;sum.appendChild(sm);
+  ol.textContent='';d.s.forEach(([t,x])=>{const li=document.createElement('li'),b=document.createElement('b');b.textContent=t;li.appendChild(b);li.appendChild(document.createTextNode(x));ol.appendChild(li)});
+  a.textContent=d.link;
+}
+window.addEventListener('csa-lang',draw);draw();
 })();
 </script>
 </body></html>
