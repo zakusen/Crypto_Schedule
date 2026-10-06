@@ -1845,6 +1845,66 @@ html.lang-switching [data-csa-i18n]{
 .left .coin.evt{cursor:pointer;user-select:none}.left .coin.evt.off{opacity:.35}
 </style>
 <style id="v19-live">.chart::after{display:none!important}.count{font-size:18px!important;white-space:nowrap}.chart-readout{min-width:150px}.eventsbar{align-items:center}.eventsbar span{white-space:nowrap}</style>
+<style id="v32-glass-chart">
+/* v32: チャートをモック(market-timeline-v27-final)の見た目に。描画は下のスクリプト、ここは外枠と質感 */
+.card.chart{position:relative!important;overflow:hidden!important;border-radius:8px;
+  background:linear-gradient(180deg,rgba(27,37,50,.78),rgba(9,14,21,.82)),radial-gradient(70% 45% at 50% 0%,rgba(125,185,235,.13),transparent 72%)!important;
+  background-size:auto!important;border:1px solid rgba(177,204,226,.30)!important;
+  box-shadow:0 28px 90px rgba(0,0,0,.52),0 0 90px rgba(74,140,190,.12),0 0 34px rgba(105,199,214,.06),inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.45)!important;
+  backdrop-filter:blur(24px) saturate(135%);-webkit-backdrop-filter:blur(24px) saturate(135%)}
+.card.chart::before{display:none!important}
+.card.chart .chead{position:relative;height:56px;padding:0 15px;background:linear-gradient(180deg,rgba(42,56,72,.30),rgba(8,13,19,.18));border-bottom:1px solid rgba(177,204,226,.20);box-shadow:0 12px 35px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)}
+.card.chart .chead::after{content:"";position:absolute;left:8%;right:8%;top:0;height:1px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(220,238,250,.55),transparent);box-shadow:0 0 18px rgba(150,210,240,.35)}
+.card.chart .asset b{font-weight:600;letter-spacing:.02em}
+.card.chart .asset .price{color:var(--text);margin-left:5px;font-weight:600}
+.card.chart .asset .change{font-size:10px;color:#6ccaa0}
+.card.chart .asset .change.dn{color:#d87878}
+.card.chart .asset .price:empty,.card.chart .asset .change:empty{display:none}
+.card.chart .tf{display:flex;gap:2px}
+.card.chart .tf button{font:10px system-ui,sans-serif;padding:5px 8px;border-radius:4px}
+.card.chart .tf .on{background:#1b2430;color:var(--text)}
+.card.chart .canvaswrap{height:540px;border:0;overflow:hidden;
+  background:radial-gradient(40% 48% at 70% 28%,rgba(82,165,225,.12),transparent 72%),radial-gradient(24% 36% at 24% 72%,rgba(217,173,104,.055),transparent 72%),linear-gradient(rgba(126,164,195,.038) 1px,transparent 1px),linear-gradient(90deg,rgba(126,164,195,.038) 1px,transparent 1px),rgba(4,9,15,.62);
+  background-size:auto,auto,54px 54px,54px 54px,auto;box-shadow:inset 0 0 70px rgba(60,120,165,.07),inset 0 -35px 55px rgba(0,0,0,.25)}
+.card.chart .canvaswrap::after{display:none}
+@media(max-width:900px){.card.chart .canvaswrap{height:430px}}
+.card.chart .nowtag{top:10px;z-index:12!important;font-size:8px;letter-spacing:.16em;color:#e8ebf0!important;background:rgba(12,17,24,.62)!important;border:1px solid rgba(210,225,238,.30)!important;border-radius:2px;padding:2px 6px;
+  box-shadow:0 5px 18px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.06)!important;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:none}
+.card.chart .tlabel{position:absolute;top:13px;font-size:10px;letter-spacing:.14em;color:#7f8a99;pointer-events:none;z-index:5;display:none}
+.card.chart .tlabel.fut{color:#8699ad}
+.card.chart .evlayer{position:absolute;inset:0;pointer-events:none;z-index:6;overflow:hidden}
+/* イベントカード */
+.evc,.evhover{position:absolute;min-width:116px;padding:7px 9px 8px;border-radius:6px;pointer-events:none;
+  background:linear-gradient(145deg,rgba(37,50,65,.78),rgba(8,13,20,.70)),radial-gradient(100% 80% at 0% 0%,rgba(255,255,255,.08),transparent 70%);
+  border:1px solid rgba(182,208,228,.32);
+  box-shadow:0 18px 42px rgba(0,0,0,.46),0 0 26px rgba(91,157,202,.10),inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(0,0,0,.40);
+  backdrop-filter:blur(16px) saturate(145%);-webkit-backdrop-filter:blur(16px) saturate(145%);transition:opacity .15s}
+.evc .tag,.evhover .tag{display:inline-block;font-size:8px;line-height:1;border:1px solid currentColor;border-radius:3px;padding:3px 5px;margin-bottom:5px;letter-spacing:.08em}
+.evc b,.evhover b{display:block;font-size:11px;font-weight:600;color:var(--text);white-space:nowrap}
+.evc b i,.evhover b i{font-style:normal;font-weight:500;color:var(--muted);font-size:9px}
+.evc span.tm,.evc span.nm,.evhover span.tm,.evhover span.nm{display:block;color:var(--muted);font-size:9px;white-space:nowrap}
+.evc span.nm,.evhover span.nm{color:#a9b6c6}
+.evc.high,.evhover.high{border-color:rgba(230,190,104,.65);box-shadow:0 18px 45px rgba(0,0,0,.48),0 0 34px rgba(217,173,104,.20),inset 0 1px 0 rgba(255,244,210,.16)}
+.evc.high .tag,.evhover.high .tag{color:#e4b96a}
+.evc.medium,.evhover.medium{border-color:rgba(127,138,153,.45)}
+.evc.medium .tag,.evhover.medium .tag{color:#9da8b7}
+.evc.next,.evhover.next{border-color:rgba(105,199,214,.72);box-shadow:0 18px 45px rgba(0,0,0,.48),0 0 38px rgba(105,199,214,.22),inset 0 1px 0 rgba(220,250,255,.16)}
+.evc.next .tag,.evhover.next .tag{color:#69c7d6}
+.evc.next span.tm{color:#9fd8e2}
+.evc.past{opacity:.62}
+.evc.hid{opacity:0}
+.evhover{z-index:9;display:none;background:linear-gradient(145deg,rgba(37,50,65,.94),rgba(8,13,20,.92));max-width:300px}
+.evhover .more{margin-top:6px;padding-top:6px;border-top:1px solid rgba(182,208,228,.16);font-size:9px;color:var(--muted);line-height:1.6}
+.evhover .more div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.evhover .more em{font-style:normal;color:#a9b6c6}
+.card.chart .chart-readout{z-index:10}
+/* 下の凡例帯とキャプション */
+.card.chart .eventsbar{gap:22px;padding:0 14px;height:42px;background:rgba(8,13,19,.28);border-top:1px solid rgba(145,170,195,.11);box-shadow:inset 0 1px 0 rgba(255,255,255,.018);overflow:hidden}
+.card.chart .eventsbar .nx{color:#69c7d6}
+.card.chart .caption{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-top:1px solid rgba(145,170,195,.10);background:rgba(8,13,19,.18);font-size:9px;color:var(--muted)}
+.card.chart .caption strong{color:var(--text);font-weight:500;letter-spacing:.08em}
+</style>
+
 </head>
 <body data-visual-build="V18 DUAL UI"><div id="desktop-app">
 <header class="top"><div class="brand"><div class="archive-core" aria-label="Archive Core">
@@ -1912,7 +1972,7 @@ html.lang-switching [data-csa-i18n]{
 <section>
 <div class="zones"><div class="zone active"><b>TOKYO</b><span id="z0">--:--</span></div><div class="zone"><b>NEW YORK</b><span id="z1">--:--</span></div><div class="zone"><b>LONDON</b><span id="z2">--:--</span></div><div class="zone"><b>SINGAPORE</b><span id="z3">--:--</span></div><div class="zone"><b>HONG KONG</b><span id="z4">--:--</span></div><div class="zone"><b>DUBAI</b><span id="z5">--:--</span></div><div class="zone"><b>FRANKFURT</b><span id="z6">--:--</span></div><div class="zone"><b>SYDNEY</b><span id="z7">--:--</span></div></div>
 <div class="hero"><div><div class="kicker">NEXT EVENT · HIGH IMPACT</div><h1 data-dyn>米 消費者物価指数 (CPI)<span class="pill">重要</span></h1><div class="when" id="eventTime" data-dyn>—</div><p class="desc" data-dyn>未来のイベントを価格チャート上に配置。発表までの時間をリアルタイムで追跡します。</p></div><div><div class="dial"><div class="dialin"><small>NEXT EVENT</small><div class="count" id="count" data-dyn>--:--:--</div><small>COUNTDOWN</small></div></div></div><div class="q"><div class="ptitle">EVENT DATA</div><div class="qrow"><span>Forecast</span><b data-dyn>—</b></div><div class="qrow"><span>Previous</span><b data-dyn>—</b></div><div class="qrow"><span>Category</span><b data-dyn>指標</b></div><div class="qrow"><span>Status</span><b data-dyn>UPCOMING</b></div></div></div>
-<div class="card chart"><div class="chead"><div class="asset" data-dyn><div class="badge">₿</div><b>BTC/USDT</b><span class="muted">—</span></div><div class="tf"><button>5M</button><button>15M</button><button>1H</button><button class="on">4H</button><button>1D</button><button>1W</button><button>1M</button></div></div><div class="canvaswrap"><canvas id="chart"></canvas><div class="nowtag">NOW</div></div><div class="eventsbar" data-dyn><span>● <b>CPI</b> 指標</span><span>● <b>FOMC</b> 指標</span><span>● <b>ETH Upgrade</b> チェーン</span><span>● <b>満期</b></span><span>● <b>Burn</b> バーン</span></div></div>
+<div class="card chart"><div class="chead"><div class="asset" data-dyn><div class="badge">₿</div><b>BTC/USDT</b><span class="price"></span><span class="change"></span><span class="muted">—</span></div><div class="tf"><button>5M</button><button>15M</button><button>1H</button><button class="on">4H</button><button>1D</button><button>1W</button><button>1M</button></div></div><div class="canvaswrap"><canvas id="chart"></canvas><div class="nowtag">NOW</div></div><div class="eventsbar" data-dyn><span>● <b>CPI</b> 指標</span><span>● <b>FOMC</b> 指標</span><span>● <b>ETH Upgrade</b> チェーン</span><span>● <b>満期</b></span><span>● <b>Burn</b> バーン</span></div><div class="caption"><strong>MARKET TIMELINE</strong><span>EVENT · NOW · PRICE</span></div></div>
 <div class="card chainstat" id="chainCard"><div class="ptitle"><span id="chainTitle" data-dyn>CHAIN DATA</span><span id="chainSrc" data-dyn></span></div><div id="chainBody" data-dyn></div></div>
 <div class="card evlist" id="evCard"><div class="ptitle"><span>EVENT ARCHIVE</span><span class="evtabs"><button type="button" data-ev="up" class="on">Upcoming</button><button type="button" data-ev="past">Recent</button><label><input type="checkbox" id="evHigh"> <span>High impact only</span></label></span></div><div id="evBody" data-dyn><div class="cs-msg">Loading…</div></div></div>
 </section>
@@ -1997,7 +2057,7 @@ async function load(s,t){const k=s+'|'+t;ST[k]='loading';
     if(!j.bars||!j.bars.length)throw new Error('empty');
     CD[k]={bars:j.bars,src:j.source||'',at:j.at||Date.now(),stale:!!j.stale};ST[k]='ok'}
   catch(e){ST[k]=CD[k]?'ok':'error'}
-  if(s===sym&&t===tf){draw();head()}
+  if(s===sym&&t===tf){draw();head()}else if(s===sym)head();
   watch()}
 async function loadE(){
   try{const r=await gf('/api/cal');if(!r.ok)throw new Error(r.status);const j=await r.json();
@@ -2008,18 +2068,52 @@ async function loadE(){
 
 const visEv=()=>E.filter(e=>(!e.a||e.a.includes(sym))&&e.im!=='low'&&CAT[catOf(e)]);
 
-function msg(t){ctx.fillStyle='#7f8a99';ctx.font='13px system-ui,sans-serif';ctx.textAlign='center';ctx.fillText(t,cv.clientWidth/2,cv.clientHeight/2);ctx.textAlign='left'}
+/* ===== v32: イベントのまとめ・カード・時刻の書き方 ===== */
+const pad2=n=>String(n).padStart(2,'0');
+const cdTxt=ms=>{const m=Math.max(0,Math.floor(ms/6e4)),h=Math.floor(m/60),d=Math.floor(h/24);return(d?d+TL('日 ','d '):'')+pad2(h%24)+':'+pad2(m%60)};
+const dayKey=t=>new Intl.DateTimeFormat('en-CA',{timeZone:tz(),year:'numeric',month:'2-digit',day:'2-digit'}).format(t);
+const hhmm=t=>new Intl.DateTimeFormat('en-GB',{timeZone:tz(),hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(t);
+const mdTxt=t=>new Intl.DateTimeFormat(LOC(),{timeZone:tz(),month:EN()?'short':'numeric',day:'numeric'}).format(t);
+const whenTxt=t=>(dayKey(t)===dayKey(Date.now())?'':mdTxt(t)+' ')+hhmm(t);
+const kindTxt=e=>e.l==='macro'?TL('発表','Release'):/^exp-/.test(e.id)?TL('満期','Expiry'):/bnbburn/.test(e.id)?TL('バーン','Burn'):TL('予定','Scheduled');
+/* 予想・前回: 元データにある時だけ。無ければ行ごと出さない */
+const has=v=>v!=null&&v!=='';
+const numTxt=e=>(has(e.fc)||has(e.pv))?TL('予想 ','Fcst ')+(has(e.fc)?e.fc:'—')+' · '+TL('前回 ','Prev ')+(has(e.pv)?e.pv:'—'):'';
+/* 同じ時刻・同じ種類は1つにまとめる。代表は重要度が高いもの */
+function groupEv(list){const m=new Map();
+  list.forEach(e=>{const k=e.ts+'|'+catOf(e);let g=m.get(k);if(!g){g={ts:e.ts,rep:e,items:[]};m.set(k,g)}g.items.push(e);if(e.im==='high'&&g.rep.im!=='high')g.rep=e});
+  return[...m.values()].map(g=>({...g,n:g.items.length}))}
+const gKind=g=>g.next?'next':g.rep.im==='high'?'high':'medium';
+const gKey=g=>g.ts+'|'+catOf(g.rep);
+function cardInner(g,full){const e=g.rep,k=gKind(g),num=numTxt(e);
+  const t=k==='next'?TL('発表まで ','Release in ')+'<span class="cd" data-ts="'+e.ts+'">'+cdTxt(e.ts-Date.now())+'</span>':esc(kindTxt(e)+' '+whenTxt(e.ts));
+  return'<span class="tag">'+(k==='next'?'NEXT':k==='high'?'HIGH':'MEDIUM')+'</span><b>'+esc(evS(e))+(!full&&g.n>1?' <i>'+TL('+'+(g.n-1)+'件','+'+(g.n-1))+'</i>':'')+'</b><span class="tm">'+t+'</span>'+(num?'<span class="nm">'+esc(num)+'</span>':'')}
+/* 24時間の変化: 取得済みの足のうち細かい順に、約24時間前に確定した足の終値と比べる。出せなければ非表示 */
+function chg24(s){
+  for(const t of['5m','15m','1h','4h','1d']){const d=CD[s+'|'+t];if(!d||!d.bars.length)continue;
+    const bs=d.bars,st=TFD[t].ms,lb=bs[bs.length-1],pt=Math.min(Date.now(),lb[0]*1000+st),ref=pt-864e5;let r=null;
+    for(let i=bs.length-2;i>=0;i--){if(bs[i][0]*1000+st<=ref+st*.01){r=bs[i];break}}
+    if(r&&r[4]>0)return(lb[4]/r[4]-1)*100}
+  return null}
+
+function msg(t){const tg=wrap.querySelector('.nowtag');if(tg)tg.style.display='none';ctx.fillStyle='#7f8a99';ctx.font='13px system-ui,sans-serif';ctx.textAlign='center';ctx.fillText(t,cv.clientWidth/2,cv.clientHeight/2);ctx.textAlign='left'}
+const layer=document.createElement('div');layer.className='evlayer';wrap.appendChild(layer);
+const tPast=document.createElement('div'),tFut=document.createElement('div');tPast.className='tlabel';tFut.className='tlabel fut';tPast.textContent='PAST';tFut.textContent='FUTURE';wrap.append(tPast,tFut);
+function glow(px,yy){
+  const g=ctx.createRadialGradient(px,yy,0,px,yy,46);g.addColorStop(0,'rgba(217,173,104,.24)');g.addColorStop(.22,'rgba(217,173,104,.11)');g.addColorStop(1,'rgba(217,173,104,0)');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,yy,46,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(217,173,104,.20)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px,yy-15);ctx.lineTo(px,yy+15);ctx.moveTo(px-15,yy);ctx.lineTo(px+15,yy);ctx.stroke()}
 function draw(){
   const W=cv.clientWidth,H=cv.clientHeight;if(!W||!H)return;
   const dpr=devicePixelRatio||1;
   if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr)}
-  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);geo=null;
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);geo=null;layer.innerHTML='';tPast.style.display=tFut.style.display='none';hideHover();
   const k=sym+'|'+tf,d=CD[k];
   if(!d){msg(ST[k]==='error'?TL('価格を取得できませんでした。しばらくして足を切り替えてください。','Price data unavailable. Try another timeframe shortly.'):TL('価格を読み込み中…','Loading prices…'));return}
   const L=W<560?46:62,R=W<560?12:24,T=22,B=28,cw=W-L-R,ch=H-T-B,bs=d.bars,n=bs.length,td=TFD[tf],step=td.ms;
   const d0=bs[0][0]*1000,last=bs[n-1][0]*1000,d1=last+(td.fut+1)*step;
   const x=t=>L+(t-d0)/(d1-d0)*cw, xc=t=>x(t+step/2);
-  let mn=Math.min(...bs.map(b=>b[3])),mx=Math.max(...bs.map(b=>b[2]));const pd=(mx-mn)*.12||mx*.01||1;mn-=pd;mx+=pd;
+  let mn=Math.min(...bs.map(b=>b[3])),mx=Math.max(...bs.map(b=>b[2]));const pd=(mx-mn)*.12||mx*.01||1;mn-=pd*1.6;mx+=pd*2.8;
   const Y=v=>T+(mx-v)/(mx-mn)*ch;
   /* 格子と価格軸 */
   ctx.font='10px system-ui,sans-serif';ctx.lineWidth=1;
@@ -2035,35 +2129,79 @@ function draw(){
   ctx.textAlign='center';ctx.fillStyle='#7f8a99';
   for(let t=d0;t<d1;t+=kk*step){const px=xc(t);if(px>L+cw-14)break;ctx.fillText(fx(t),px,H-9);ctx.strokeStyle='rgba(180,205,230,.045)';ctx.beginPath();ctx.moveTo(Math.round(px)+.5,T);ctx.lineTo(Math.round(px)+.5,T+ch);ctx.stroke()}
   ctx.textAlign='left';
-  /* 未来の帯 */
+  /* 未来の帯(モック: 淡い青のグラデーション+左の細線) */
   const now=Date.now(),nx=x(now);
-  if(nx<L+cw){const a=Math.max(L,nx);ctx.fillStyle='rgba(201,154,69,.035)';ctx.fillRect(a,T,L+cw-a,ch)}
-  /* ローソク足 */
+  if(nx<L+cw){const a=Math.max(L,nx),g=ctx.createLinearGradient(a,0,L+cw,0);g.addColorStop(0,'rgba(90,145,190,.018)');g.addColorStop(1,'rgba(90,145,190,.065)');
+    ctx.fillStyle=g;ctx.fillRect(a,T,L+cw-a,ch);ctx.strokeStyle='rgba(140,185,220,.13)';ctx.beginPath();ctx.moveTo(Math.round(a)+.5,T);ctx.lineTo(Math.round(a)+.5,T+ch);ctx.stroke()}
   const bw=Math.max(2,cw/(n+td.fut+1)*.62);
+  /* 出来高(足データの6番目。0や無い時は出さない) */
+  const vols=bs.map(b=>+b[5]||0),vmax=Math.max(...vols);
+  if(vmax>0){const vb=T+ch-2,vh=Math.min(34,ch*.09);
+    bs.forEach((b,i)=>{if(!(vols[i]>0))return;const h=Math.max(1.5,vols[i]/vmax*vh),w=Math.max(2,bw*.6);ctx.fillStyle=b[4]>=b[1]?'rgba(108,202,160,.25)':'rgba(216,120,120,.25)';ctx.fillRect(xc(b[0]*1000)-w/2,vb-h,w,h)})}
+  /* イベントをまとめる(同じ時刻・同じ種類 → 1つ) */
+  const evs=visEv().filter(e=>e.ts>=d0&&e.ts<=d1).sort((a,b)=>a.ts-b.ts);
+  const nxt=evs.find(e=>e.l==='macro'&&e.im==='high'&&e.ts>now);
+  const groups=groupEv(evs);groups.forEach(g=>{g.px=x(g.ts);g.next=!!(nxt&&g.items.includes(nxt));if(g.next)g.rep=nxt});
+  /* 価格の光: 過去の重要イベントの、その時点の価格の位置(反応の大きさは表さない) */
+  groups.forEach(g=>{if(g.ts>now||g.rep.im!=='high')return;let bi=-1;for(let i=0;i<n;i++)if(bs[i][0]*1000<=g.ts)bi=i;if(bi<0)return;
+    const b0=bs[bi][0]*1000,b1=bi+1<n?bs[bi+1][0]*1000:b0+step;if(g.ts>=b1)return;
+    const p=bs[bi][1]+(bs[bi][4]-bs[bi][1])*((g.ts-b0)/(b1-b0));glow(g.px,Y(p))});
+  /* ローソク足 */
   bs.forEach(b=>{const xx=xc(b[0]*1000),up=b[4]>=b[1];
     ctx.strokeStyle=up?'#6ccaa0':'#d87878';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(xx,Y(b[2]));ctx.lineTo(xx,Y(b[3]));ctx.stroke();
-    ctx.fillStyle=up?'rgba(108,202,160,.78)':'rgba(216,120,120,.78)';
+    ctx.fillStyle=up?'rgba(108,202,160,.72)':'rgba(216,120,120,.72)';
     const y1=Y(Math.max(b[1],b[4])),y2=Y(Math.min(b[1],b[4]));ctx.fillRect(xx-bw/2,y1,bw,Math.max(1.5,y2-y1))});
-  /* 7本の移動平均 */
-  ctx.strokeStyle='rgba(115,158,232,.6)';ctx.beginPath();
-  bs.forEach((b,i)=>{let s=0,c=0;for(let j=Math.max(0,i-6);j<=i;j++){s+=bs[j][4];c++}const xx=xc(b[0]*1000),yy=Y(s/c);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy)});ctx.stroke();
-  /* イベントの縦線 */
-  const evs=visEv().filter(e=>e.ts>=d0&&e.ts<=d1).sort((a,b)=>a.ts-b.ts),pos=[];let lastLab=-1e9,row=0;
-  evs.forEach(e=>{const px=x(e.ts),hi=e.im==='high',col=evColor(e),fade=e.ts<now?.5:1;
-    const g=ctx.createLinearGradient(0,T,0,T+ch);
-    g.addColorStop(0,col+(hi?'cc':'66'));g.addColorStop(.6,col+(hi?'33':'18'));g.addColorStop(1,col+'00');
-    ctx.globalAlpha=fade;ctx.strokeStyle=g;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px,T);ctx.lineTo(px,T+ch);ctx.stroke();
-    const by=T+ch*.9;ctx.fillStyle=col;ctx.beginPath();ctx.arc(px,by,hi?3:2,0,7);ctx.fill();
-    if(hi){ctx.strokeStyle=col+'66';ctx.beginPath();ctx.arc(px,by,7,0,7);ctx.stroke();
-      if(px-lastLab>78){const lab=String(evS(e));ctx.fillStyle=col;ctx.font='10px system-ui,sans-serif';ctx.fillText(lab.length>13?lab.slice(0,12)+'…':lab,px+5,T+13+(row++%2)*13);lastLab=px}}
-    ctx.globalAlpha=1;pos.push({px,e})});
-  /* NOW */
-  if(nx>=L&&nx<=L+cw){ctx.strokeStyle='#f4f5f7';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(nx,T);ctx.lineTo(nx,T+ch);ctx.stroke();
+  /* 移動平均: 7本(青)と18本(紫)。足が足りない間は、ある分だけで平均する */
+  const ma=(kk2,col,al)=>{ctx.save();ctx.globalAlpha=al;ctx.strokeStyle=col;ctx.lineWidth=1;ctx.beginPath();
+    bs.forEach((b,i)=>{let s=0,c=0;for(let j=Math.max(0,i-kk2+1);j<=i;j++){s+=bs[j][4];c++}const xx=xc(b[0]*1000),yy=Y(s/c);i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy)});ctx.stroke();ctx.restore()};
+  ma(7,'#739ee8',.52);ma(18,'#a17bd8',.42);
+  /* 全イベントの縦線と点(カテゴリ別の色。NEXTだけ水色) */
+  const pos=[];
+  groups.forEach(g=>{const e=g.rep,px=g.px,hi=e.im==='high',col=g.next?'#69c7d6':evColor(e),fade=g.ts<now?.5:1;
+    const gr=ctx.createLinearGradient(0,T,0,T+ch);
+    gr.addColorStop(0,col+(hi?'cc':'66'));gr.addColorStop(.6,col+(hi?'33':'18'));gr.addColorStop(1,col+'00');
+    ctx.globalAlpha=fade;ctx.strokeStyle=gr;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(px,T);ctx.lineTo(px,T+ch);ctx.stroke();
+    const by=T+ch*.9,rr=hi?4.5:3;ctx.save();if(hi){ctx.shadowColor=col;ctx.shadowBlur=10}
+    ctx.fillStyle='#0b1017';ctx.beginPath();ctx.arc(px,by,rr,0,7);ctx.fill();ctx.strokeStyle=col;ctx.lineWidth=1.2;ctx.stroke();ctx.restore();
+    ctx.globalAlpha=1;pos.push({px,g})});
+  /* NOW(上下で薄れる光る線) */
+  if(nx>=L&&nx<=L+cw){const g=ctx.createLinearGradient(0,T,0,T+ch);g.addColorStop(0,'rgba(240,244,248,0)');g.addColorStop(.09,'rgba(240,244,248,.95)');g.addColorStop(.78,'rgba(240,244,248,.6)');g.addColorStop(1,'rgba(240,244,248,0)');
+    ctx.save();ctx.shadowColor='rgba(120,180,220,.4)';ctx.shadowBlur=12;ctx.strokeStyle=g;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(nx,T);ctx.lineTo(nx,T+ch);ctx.stroke();ctx.restore();
     const ly=Y(bs[n-1][4]);ctx.fillStyle='#f4f5f7';ctx.beginPath();ctx.arc(nx,ly,2.6,0,7);ctx.fill();
     ctx.strokeStyle='rgba(244,245,247,.2)';ctx.beginPath();ctx.arc(nx,ly,7,0,7);ctx.stroke()}
   const tag=wrap.querySelector('.nowtag');if(tag){tag.style.display=(nx>=L&&nx<=L+cw)?'':'none';tag.style.left=(nx/W*100)+'%'}
+  /* PAST / FUTURE の表示(狭い時は出さない) */
+  if(nx-L>110){tPast.style.display='block';tPast.style.left=(L+10)+'px'}
+  if(L+cw-nx>110){tFut.style.display='block';tFut.style.right=(W-L-cw+10)+'px'}
+  /* 常時出すカード: ①NEXT ②重要度高 ③NOWに近い順。上限は幅で4〜6枚。重なる時は段をずらし、無理なら線と点だけ(ホバーで出る) */
+  const cap=Math.max(4,Math.min(6,Math.floor(cw/170))),tiers=[58,78,95],placed=[];
+  const cand=[...groups.filter(g=>g.next),...groups.filter(g=>!g.next&&g.rep.im==='high').sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now))];
+  let tix=0;
+  for(const g of cand){if(placed.length>=cap)break;
+    const el=document.createElement('div');el.className='evc '+gKind(g)+(g.ts<now?' past':'');el.dataset.k=gKey(g);el.innerHTML=cardInner(g,false);layer.appendChild(el);
+    const w=el.offsetWidth,h=el.offsetHeight,left=Math.max(8,Math.min(W-w-8,g.px-w/2));
+    const over=placed.filter(p=>left<p.left+p.w+3&&left+w+3>p.left);
+    const fits=top=>over.every(p=>top>=p.top+p.h+4||top+h+4<=p.top);
+    const opts=[tiers[tix%3],...tiers.filter((_,i)=>i!==tix%3)];
+    const top=opts.find(fits);
+    if(top==null){el.remove();continue}
+    el.style.left=left+'px';el.style.top=top+'px';placed.push({left,top,w,h});tix++}
   geo={L,R,T,cw,ch,W,H,d0,d1,step,n,bs,x,xc,Y,pos};
 }
+/* NEXT の発表までの残り時間は、描き直さなくても動かす */
+setInterval(()=>{document.querySelectorAll('.evc .cd,.evhover .cd').forEach(s=>{s.textContent=cdTxt(+s.dataset.ts-Date.now())})},15000);
+
+/* ホバー: 縦線・点に乗せるとカードが出る(同じ位置の他のイベントは内訳に並ぶ) */
+const hv=document.createElement('div');hv.className='evhover';wrap.appendChild(hv);let hvKey='';
+function hideHover(){hv.style.display='none';hvKey='';layer.querySelectorAll('.evc.hid').forEach(c=>c.classList.remove('hid'))}
+function showHover(near,px){
+  const g=near[0].g,key=near.map(o=>gKey(o.g)).join(',');
+  if(key!==hvKey){hvKey=key;
+    const rest=near.flatMap(o=>o.g.items.filter(e=>!(o.g===g&&e===g.rep)));
+    hv.className='evhover '+gKind(g);
+    hv.innerHTML=cardInner(g,true)+(rest.length?'<div class="more">'+rest.slice(0,6).map(e=>'<div><span style="color:'+evColor(e)+'">●</span> '+esc(evS(e))+' <em>'+esc(whenTxt(e.ts))+(numTxt(e)?' · '+esc(numTxt(e)):'')+'</em></div>').join('')+(rest.length>6?'<div>'+TL('ほか '+(rest.length-6)+'件','+'+(rest.length-6)+' more')+'</div>':'')+'</div>':'');
+    layer.querySelectorAll('.evc').forEach(c=>c.classList.toggle('hid',near.some(o=>c.dataset.k===gKey(o.g))))}
+  hv.style.display='block';const w=hv.offsetWidth;hv.style.left=Math.max(8,Math.min(geo.W-w-8,g.px-w/2))+'px';hv.style.top='58px'}
 
 /* ホバー表示(実際の足の値だけ) */
 const cross=document.createElement('div'),dot=document.createElement('div'),read=document.createElement('div');
@@ -2078,17 +2216,20 @@ function hov(e){
     h='<b>'+esc(fdt(b[0]*1000))+'</b><br>'+TL('始 ','O ')+fp(b[1])+TL('　高 ','　H ')+fp(b[2])+'<br>'+TL('安 ','L ')+fp(b[3])+TL('　終 ','　C ')+fp(b[4])+'<br><span style="color:'+(ch>=0?'#4ade80':'#f87171')+'">'+(ch>=0?'+':'')+ch.toFixed(2)+'%</span>';
     dot.style.left=geo.xc(b[0]*1000)+'px';dot.style.top=geo.Y(b[4])+'px';dot.classList.add('show')}
   else{h='<b>'+esc(fdt(t))+'</b><br><span style="color:#7f8a99">'+TL('未来(価格なし)','Future (no price yet)')+'</span>';dot.classList.remove('show')}
-  const near=geo.pos.filter(o=>Math.abs(o.px-px)<7).slice(0,3);
-  near.forEach(o=>{h+='<br><span style="color:'+evColor(o.e)+'">● '+esc(evS(o.e))+'</span> '+esc(fdt(o.e.ts))});
-  read.innerHTML=h;read.style.left=Math.min(geo.W-190,Math.max(8,px+12))+'px';read.style.top='34px';
+  const near=geo.pos.filter(o=>Math.abs(o.px-px)<7).sort((a,b)=>Math.abs(a.px-px)-Math.abs(b.px-px));
+  if(near.length)showHover(near,px);else hideHover();
+  read.innerHTML=h;read.style.left=Math.min(geo.W-190,Math.max(8,px+12))+'px';read.style.top=near.length?(58+hv.offsetHeight+8)+'px':'34px';
   cross.classList.add('show');read.classList.add('show')}
-function off(){cross.classList.remove('show');dot.classList.remove('show');read.classList.remove('show')}
+function off(){cross.classList.remove('show');dot.classList.remove('show');read.classList.remove('show');hideHover()}
 wrap.addEventListener('pointermove',hov,{passive:true});wrap.addEventListener('pointerleave',off,{passive:true});
 
 /* 見出し・足ボタン・ウォッチリスト */
 function head(){
   const a=document.querySelector('.chart .asset');if(!a)return;
   a.querySelector('.badge').textContent=BADGE[sym]||sym[0];a.querySelector('b').textContent=sym+' / USD';
+  const pr=a.querySelector('.price'),chg=a.querySelector('.change'),dd=CD[sym+'|'+tf];
+  if(pr)pr.textContent=dd&&dd.bars.length?'$'+fp(dd.bars[dd.bars.length-1][4]):'';
+  if(chg){const c=chg24(sym);chg.textContent=c==null?'':(c>=0?'+':'')+c.toFixed(2)+'% 24H';chg.classList.toggle('dn',c!=null&&c<0)}
   const m=a.querySelector('.muted'),d=CD[sym+'|'+tf];
   m.textContent=d?(d.src||'')+(d.src&&d.src!=='Pacifica'?TL('(予備)',' (backup)'):'')+' · '+agoTxt(d.at)+(d.stale?TL(' · 古い値',' · stale'):''):(ST[sym+'|'+tf]==='error'?TL('取得できません','Unavailable'):TL('読み込み中…','Loading…'))}
 function tfBtns(){document.querySelectorAll('.chart .tf button').forEach(b=>{b.classList.toggle('on',TFM[b.textContent.trim()]===tf)})}
@@ -2120,7 +2261,7 @@ function upcoming(){
 function legend(){
   const bar=document.querySelector('.chart .eventsbar');if(!bar||!geo)return;
   const c={m:0,c:0,x:0,b:0};visEv().filter(e=>e.ts>=geo.d0&&e.ts<=geo.d1).forEach(e=>{if(e.l==='macro')c.m++;else if(/^exp-/.test(e.id))c.x++;else if(/bnbburn/.test(e.id))c.b++;else c.c++});
-  bar.innerHTML='<span style="color:#c99a45">●</span> <b>'+TL('経済指標','Indicators')+'</b> '+c.m+'<span style="color:#69c7d6">●</span> <b>'+TL('チェーン','Chain')+'</b> '+c.c+'<span style="color:#69c7d6">●</span> <b>'+TL('満期','Expiry')+'</b> '+c.x+'<span style="color:#69c7d6">●</span> <b>'+TL('バーン','Burn')+'</b> '+c.b+'<span style="margin-left:auto">'+TL('表示中の範囲の件数','Count in view')+'</span>'}
+  bar.innerHTML='<span><span style="color:#c99a45">●</span> <b>'+TL('経済指標','Indicators')+'</b> '+c.m+'</span><span><span style="color:#69c7d6">●</span> <b>'+TL('チェーン','Chain')+'</b> '+c.c+'</span><span><span style="color:#69c7d6">●</span> <b>'+TL('満期','Expiry')+'</b> '+c.x+'</span><span><span style="color:#69c7d6">●</span> <b>'+TL('バーン','Burn')+'</b> '+c.b+'</span><span class="nx">● <b>NEXT</b> '+TL('次の重要イベント','next key event')+'</span><span style="margin-left:auto">'+TL('表示中の範囲の件数','Count in view')+'</span>'}
 
 /* EVENT DATA(予想・前回): TradingView の元データにある時だけ出す */
 const CN0={US:['米国','US'],JP:['日本','Japan'],EU:['ユーロ圏','Euro area']},CN=new Proxy({},{get:(_,k)=>CN0[k]?TL(CN0[k][0],CN0[k][1]):undefined});
