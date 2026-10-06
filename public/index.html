@@ -2624,6 +2624,18 @@ async function pay(){
   if(!inv.invoice)throw new Error(setup(inv.error));
   await loadW3();
   const tx=buildTx(inv);
+  S.phase=T('CHECKING THE TRANSFER…','送金を事前確認中…');render();   // v47: 署名前の試運転(sigVerify:false)。失敗する取引をウォレットに出さない(Phantomの警告対策)
+  try{
+    const u8=tx.serialize({requireAllSignatures:false,verifySignatures:false});
+    const sj=await(await fetch('/api/pay/sim',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tx:btoa(String.fromCharCode.apply(null,Array.from(u8)))})})).json();
+    if(sj&&sj.ok===false){
+      const e=sj.err,es=typeof e==='string'?e:JSON.stringify(e||'');
+      const why=es==='AccountNotFound'?T('Not enough SOL for the network fee (about 0.003 SOL needed).','ネットワーク手数料のSOLが足りません(0.003 SOL ほど必要です)。')
+        :(e&&e.InstructionError&&coin!=='SOL')?T('This coin is missing or the balance is not enough. Check the amount shown, or pick another coin.','このコインを持っていないか、残高が足りません。表示の枚数を確認するか、別のコインを選んでください。')
+        :T('The transfer would fail, so it was not sent to your wallet.','この送金は失敗する見込みのため、ウォレットには送りませんでした。');
+      throw new Error(why+' ('+es.slice(0,60)+')');
+    }
+  }catch(e){if(e&&/\(.*\)$/.test(String(e.message||'')))throw e}   // 試運転そのものが通信できない時(ok:null・通信エラー)は止めずに進む
   S.phase=T('APPROVE IN YOUR WALLET…','ウォレットで承認してください…');render();
   const r=await S.p.signAndSendTransaction(tx),sig=typeof r==='string'?r:r.signature;
   try{localStorage.setItem('csa-pay',JSON.stringify({address:S.addr,invoice:inv.invoice,signature:sig}))}catch(_){}

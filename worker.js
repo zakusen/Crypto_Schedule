@@ -1029,6 +1029,25 @@ async function payStatus(url, env) {
   if (env.CAL) { try { const a = await env.CAL.get('acc:v1:' + addr, 'json'); until = (a && a.until) || 0; } catch (_) {} }
   return json({ until });
 }
+// v47: 送金の事前確認。Phantom の公式案内(取引の事前確認の警告への対処)どおり、署名を求める前に sigVerify:false で試運転し、
+// 失敗する取引をウォレットに出さない(失敗しそうな取引を出すと「This dApp could be malicious」の警告になる)。署名前の取引(未署名)を受け取り、結果だけ返す。
+// 受取アドレスを含まない取引は受け付けない(汎用のRPC中継に使われないように)。通信エラーなどで試運転できない時は ok:null を返し、画面は止めない。
+async function paySim(request, env) {
+  const miss = payMissing(env); if (miss) return json({ error: miss }, 503);
+  let b; try { b = await request.json(); } catch (_) { return json({ error: 'bad json' }, 400); }
+  const t = b && b.tx;
+  if (typeof t !== 'string' || t.length > 4000 || !/^[A-Za-z0-9+/=]+$/.test(t)) return json({ error: 'bad request' }, 400);
+  let raw; try { raw = Uint8Array.from(atob(t), c => c.charCodeAt(0)); } catch (_) { return json({ error: 'bad request' }, 400); }
+  const to = b58dec(env.PAY_TO || '');
+  let has = false;
+  if (to && to.length === 32) for (let i = 0; i + 32 <= raw.length && !has; i++) { let k = 0; while (k < 32 && raw[i + k] === to[k]) k++; has = k === 32; }
+  if (!has) return json({ error: 'bad request' }, 400);
+  try {
+    const j = await rpcAny(solRpcs(env), { jsonrpc: '2.0', id: 1, method: 'simulateTransaction', params: [t, { encoding: 'base64', sigVerify: false, replaceRecentBlockhash: true, commitment: 'confirmed' }] }, 8000);
+    const v = (j.result && j.result.value) || {};
+    return json({ ok: !v.err, err: v.err || null, logs: (v.logs || []).slice(-6) });
+  } catch (e) { return json({ ok: null, note: String((e && e.message) || e).slice(0, 120) }); }
+}
 async function payInvoice(url, env) {
   const miss = payMissing(env); if (miss) return json({ error: miss }, 503);
   const addr = url.searchParams.get('addr') || '', coin = url.searchParams.get('coin') || '', c = PAY[coin], pk = b58dec(addr);
@@ -1237,6 +1256,7 @@ export default {
     if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/verify' && request.method === 'POST') { const r = await authVerify(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/status') { const r = await payStatus(url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/pay/sim' && request.method === 'POST') { const r = await paySim(request, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/info') { const r = json({ to: env.PAY_TO || null }); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/invoice') { const r = await payInvoice(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/confirm' && request.method === 'POST') { const r = await payConfirm(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
