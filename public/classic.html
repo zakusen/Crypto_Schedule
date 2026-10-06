@@ -321,7 +321,7 @@ const evOK=e=>e.l==='macro'&&e.im!=='low'&&(!e.a||e.a.includes(sym));
 function impList(){const m=new Map();
   E.forEach(e=>{if(!evOK(e))return;const k=IMPKEY(e);let g=m.get(k);if(!g){g={k,rep:e,hi:false};m.set(k,g)}
     if(e.im==='high')g.hi=true;if(e.ts>=g.rep.ts)g.rep=e});
-  return[...m.values()].sort((a,b)=>((CORD[a.rep.c]??9)-(CORD[b.rep.c]??9))||evS(a.rep).localeCompare(evS(b.rep),LOC()))}
+  return[...m.values()].filter(g=>!RXI||RXI[g.k]>0).sort((a,b)=>((CORD[a.rep.c]??9)-(CORD[b.rep.c]??9))||evS(a.rep).localeCompare(evS(b.rep),LOC()))}
 function impPx(){if(IMPTF.some(q=>CD[sym+'|'+q]))return'ok';return IMPTF.every(q=>ST[sym+'|'+q]==='error')?'fail':'loading'}
 function impOpts(sel,list,nx,cur){
   const lab=g=>cnm(g.rep.c)+' '+evS(g.rep),
@@ -379,6 +379,7 @@ function renderImpact(ref,auto,px){
   if(!E.length)return clear(evState==='loading'?TL('イベントを読み込み中…','Loading events…'):TL('イベントを取得できませんでした','Could not load events'));
   if(!ref)return clear(auto?TL('次の重要イベント待ち','Waiting for the next key event'):TL('指標が見つかりません','Indicator not found'));
   const key=IMPKEY(ref),X=rxGet(key),paid=!!tok();
+  if(RXI&&!(RXI[key]>0))return clear(TL('この指標は、記録がまだありません','No records for this indicator yet'));   // 記録が無い指標で有料を勧めない
   if(!paid||(X.st==='ok'&&X.locked)){   /* 無料: 変動率まわりはすべて有料。件数だけ見せる */
     clear('');const nm0=evS(ref),tot=X.st==='ok'?X.total:((RXI&&RXI[key])||0),act=!!(window.CSA&&CSA.active());
     msg.innerHTML='<div><div style="font-size:20px;margin-bottom:4px">🔒</div><div><b>'+esc(nm0)+'</b>'+esc(TL(' の発表後の動きは有料機能です',' – post-release moves are a paid feature'))+'</div>'+

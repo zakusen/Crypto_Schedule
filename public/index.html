@@ -2369,7 +2369,7 @@ function impList(){const m=new Map();
     const k=IMPKEY(e);let g=m.get(k);if(!g){g={k,rep:e,hi:false};m.set(k,g)}
     if(e.im==='high')g.hi=true;if(e.ts>=g.rep.ts)g.rep=e});
   const cmp=(a,b)=>((CORD[a.rep.c]??9)-(CORD[b.rep.c]??9))||evS(a.rep).localeCompare(evS(b.rep),LOC());
-  return[...m.values()].sort(cmp)}
+  return[...m.values()].filter(g=>!RXI||RXI[g.k]>0).sort(cmp)}   // v55: 記録の無い指標は選択肢に出さない
 function impOpts(sel,list,nx,cur){
   const lab=g=>(CN[g.rep.c]||g.rep.c||'')+' '+evS(g.rep),
     cnt=g=>g.n==null?'…':g.n===0?TL('測れる発表なし','no measurable release'):TL(g.n+'回',g.n+(g.n>1?' releases':' release')),
@@ -2400,6 +2400,7 @@ function impCard(){const c=$('impCard'),sel=$('impSel'),body=$('impBody');if(!c|
   let st=TL('データ不足','NO DATA'),h='',MD='';
   if(!E.length){h=msg(evState==='loading'?TL('イベントを読み込み中…','Loading events…'):TL('イベントを取得できませんでした','Events unavailable'));if(evState==='loading')st=TL('読み込み中','LOADING')}
   else if(!ref){h=msg(auto?TL('次の重要イベント待ち','Waiting for the next key event'):TL('指標が見つかりません','Indicator not found'))}
+  else if(RXI&&!(RXI[rxK(ref)]>0)){h=msg(TL('この指標は、記録がまだありません','No records for this indicator yet'))}
   else if((MD=rxMode(ref,px))==='lock'){h=lockHtml(ref);st=TL('有料','PAID')}
   else if(MD==='wait'){if(RXC[rxK(ref)].st==='loading'||px==='loading'){h=msg(TL('2017年からの記録を読み込み中…','Loading records since 2017…'));st=TL('読み込み中','LOADING')}else h=msg(TL('価格を取得できませんでした','Prices unavailable'))}
   else{const S=impStats(ref),ok=S.n>0;
