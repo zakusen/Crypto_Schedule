@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-07-v66';
+const VERSION = '2026-10-07-v67';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -485,7 +485,8 @@ async function chainEvents() {
       } catch (e) { errors.push('チェーン読み取り(SOL): ' + (e.message || e)); }
     })(),
   ]);
-  return { out, errors };
+  // v67: 読めたチェーン(イベントが0件でも)を ok に入れる。mergeChain が「0件で成功」も控えに残せるようにするため
+  return { out, errors, ok: ['BTC', 'ETH', 'SOL'].filter((k) => !errors.some((x) => x.includes('(' + k + ')'))) };
 }
 
 // ---------- ETHの出口待ち(時系列を自前で貯める) ----------
@@ -879,6 +880,7 @@ const chainOf = (e) => (Array.isArray(e.a) && e.a[0]) || '';
 function mergeChain(prev, ch) {
   const failed = failedChains(ch.errors), now = Date.now(), by = {};
   for (const [sym, v] of Object.entries((prev && prev.by) || {})) if (failed.includes(sym)) by[sym] = v;
+  for (const k of ch.ok || []) by[k] = { at: now, out: [] };   // v67: ETH は未来のフォークが無いと0件。0件でも「読めた」控えを残さないと、429のたびに警告になっていた
   for (const e of ch.out) { const k = chainOf(e); if (!failed.includes(k)) (by[k] = by[k] && by[k].at === now ? by[k] : { at: now, out: [] }).out.push(e); }
   return { by };
 }
