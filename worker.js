@@ -1076,6 +1076,7 @@ export default {
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/verify' && request.method === 'POST') { const r = await authVerify(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/pay/info') { const r = json({ to: env.PAY_TO || null }); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/invoice') { const r = await payInvoice(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/pay/confirm' && request.method === 'POST') { const r = await payConfirm(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);

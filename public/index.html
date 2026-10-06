@@ -1896,6 +1896,7 @@ html.lang-switching [data-csa-i18n]{
 
   <div id="walletMsg" data-dyn style="margin-top:12px;min-height:14px;font-size:10px;line-height:1.5;color:#9eacb7;word-break:break-all"></div>
   <button id="walletOff" type="button" data-dyn style="display:none;margin:6px 0 0;padding:0;background:none;border:0;color:#7d8c98;font-size:10px;cursor:pointer;text-decoration:underline"></button>
+  <div id="walletSafe" data-dyn style="margin-top:12px;padding:10px 12px;border:1px solid rgba(197,218,233,.08);border-radius:7px;font-size:10px;line-height:1.7;color:#9eacb7"></div>
   <div class="wallet-popover-foot">
     <div>
       <strong>Use the coin already in your wallet.</strong>
@@ -2274,11 +2275,12 @@ document.addEventListener('DOMContentLoaded', () => {
 <script id="v29-wallet">
 (function(){
 const $=id=>document.getElementById(id);
-const btn=$('walletBtn'),pop=$('walletPopover'),go=$('walletGo'),msg=$('walletMsg'),off=$('walletOff'),acc=$('accState');
+const btn=$('walletBtn'),pop=$('walletPopover'),go=$('walletGo'),msg=$('walletMsg'),off=$('walletOff'),acc=$('accState'),safe=$('walletSafe');
 if(!btn||!pop||!go||!msg)return;
 const st=document.createElement('style');st.textContent='.lock.open{border-color:rgba(205,168,95,.6)!important;opacity:.7}';document.head.appendChild(st);
 const lang=()=>(window.CSA_LANG&&window.CSA_LANG()==='ja')?'ja':'en';
 const T=(e,j)=>lang()==='ja'?j:e;
+let PAYTO=null;
 const S={addr:null,p:null,until:0,busy:false,phase:'',err:''};
 const active=()=>S.until>Date.now();
 const short=a=>a.slice(0,4)+'…'+a.slice(-4);
@@ -2293,6 +2295,12 @@ function render(){
   off.style.display=S.addr&&!S.busy?'inline':'none';off.textContent=T('Disconnect','切断');
   acc.textContent=a?T('✓ Access until ','✓ アクセス有効期限 ')+new Date(S.until).toLocaleDateString(lang()==='ja'?'ja-JP':'en-CA'):'';
   const lk=document.querySelector('.lock');if(lk)lk.classList.toggle('open',a);
+  safe.textContent='';
+  [T('Signing is not a payment. It never touches your funds.','署名は送金ではなく、資金には一切触れません。'),
+   T('You pay only the amount shown, plus the network fee.','払うのは、表示された枚数とネットワーク手数料だけです。'),
+   T('No approvals, and no way to charge you later.','「承認(approve)」や、あとで引き落とす権限は求めません。')].forEach(t=>{const d=document.createElement('div');d.textContent='✓ '+t;safe.appendChild(d)});
+  if(PAYTO){const d=document.createElement('div');d.style.marginTop='6px';d.appendChild(document.createTextNode(T('Receiving address: ','受取アドレス: ')+short(PAYTO)+' · '));
+    const l=document.createElement('a');l.href='https://solscan.io/account/'+PAYTO;l.target='_blank';l.rel='noopener noreferrer';l.textContent=T('Open on Solscan','Solscanで開く');l.style.color='#7bbfff';d.appendChild(l);safe.appendChild(d)}
   msg.style.color=S.err?'#e59a9a':'#9eacb7';
   msg.textContent=S.err||(a?T('Signed in: ','署名済み: ')+S.addr:S.addr?T('Pick a coin and pay the exact amount. Send only from the button — other transfers get no access and no refund.','コインを選んで表示どおりの枚数を支払います。ボタン以外からの送金はアクセスが付かず、返金もできません。'):T('Connect a Solana wallet and sign a message. No funds move.','Solanaウォレットを接続してメッセージに署名します。送金は発生しません。'));
 }
@@ -2368,6 +2376,7 @@ go.addEventListener('click',async()=>{
 off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';render()});
 window.addEventListener('csa-lang',render);
 render();
+fetch('/api/pay/info',{cache:'no-store'}).then(r=>r.json()).then(j=>{if(j&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(j.to||'')){PAYTO=j.to;render()}}).catch(()=>{});
 })();
 </script>
 </body></html>
