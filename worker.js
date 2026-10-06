@@ -994,12 +994,19 @@ async function authVerify(request, url, env) {
 // 請求は AUTH_SECRET で署名した短命トークン(保存しない)。照合キー(ref)もそこから決まる。確認は finalized の取引を1回読んで、
 // 支払い元・ref・ミント・枚数(ちょうど)を照らす。通ったら acc:v1:<アドレス> に期限を保存する(KV書き込みは支払い1件につき2回)。
 const TK = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', TK22 = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
-const PAY = {   // amt は最小単位。PUMP は Token-2022(2026-10-06に確認)。ミントは公開前に Solscan で再確認すること
-  SOL:  { amt: 10000000n },
-  USDC: { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', dec: 6, amt: 1000000n, prog: TK },
-  USDT: { mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', dec: 6, amt: 1000000n, prog: TK },
-  RAY:  { mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', dec: 6, amt: 1000000n, prog: TK },
-  PUMP: { mint: 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn', dec: 6, amt: 100000000n, prog: TK22 },
+const PAY = {   // amt は最小単位。追加分はSolanaの標準SPLトークン。ミントは公開前に確認済み
+  SOL:   { amt: 10000000n },
+  USDC:  { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', dec: 6, amt: 1000000n, prog: TK },
+  USDT:  { mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', dec: 6, amt: 1000000n, prog: TK },
+  RAY:   { mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', dec: 6, amt: 1000000n, prog: TK },
+  PUMP:  { mint: 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn', dec: 6, amt: 100000000n, prog: TK22 },
+  JUP:   { mint: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN', dec: 6, amt: 3000000n, prog: TK },
+  PENGU: { mint: '2zMMhcVQEXDtdE6vsFS7S7D5oUodfJHE8vd1gnBouauv', dec: 6, amt: 100000000n, prog: TK },
+  PYTH:  { mint: 'HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3', dec: 6, amt: 10000000n, prog: TK },
+  JTO:   { mint: 'jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL', dec: 9, amt: 2000000000n, prog: TK },
+  BONK:  { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', dec: 5, amt: 30000000000n, prog: TK },
+  WIF:   { mint: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm', dec: 6, amt: 4000000n, prog: TK },
+  POPCAT:{ mint: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr', dec: 9, amt: 20000000000n, prog: TK },
 };
 function b58enc(u8) {
   let n = 0n;

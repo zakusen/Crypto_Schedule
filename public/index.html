@@ -1920,6 +1920,10 @@ html.lang-switching [data-csa-i18n]{
 .improw .rr u{text-decoration:none}.improw .rr u.up{color:#6ccaa0}.improw .rr u.dn{color:#d87878}
 .improw .rr small{display:block;font-weight:400;font-size:9px;color:var(--dim)}
 .improws .more{font-size:9px;color:var(--dim);padding:5px 0}
+/* v43: 決済コインのバッジ(各コインのテーマ色の丸+文字。ロゴ・キャラクターは使わない独自の表現) */
+.pay-choice span{width:26px;height:26px;border-radius:50%;display:grid!important;place-items:center;font-size:11px!important;font-weight:700;line-height:1;color:var(--c,#cceaff)!important;border:1.5px solid var(--c,rgba(204,234,255,.4));background:rgba(255,255,255,.04);background:color-mix(in srgb,var(--c,#cceaff) 16%,transparent);text-shadow:none!important;box-shadow:0 0 10px color-mix(in srgb,var(--c,#cceaff) 22%,transparent)}
+.pay-choice[data-coin=USDC] span{--c:#2775ca}.pay-choice[data-coin=USDT] span{--c:#26a17b}.pay-choice[data-coin=SOL] span{--c:#9b6bff}.pay-choice[data-coin=RAY] span{--c:#7b5cff}.pay-choice[data-coin=PUMP] span{--c:#4ade80}.pay-choice[data-coin=JUP] span{--c:#c7f284}.pay-choice[data-coin=PENGU] span{--c:#6ec1ff}.pay-choice[data-coin=PYTH] span{--c:#8e5cf0}.pay-choice[data-coin=JTO] span{--c:#5be0a5}.pay-choice[data-coin=BONK] span{--c:#ff9a1f}.pay-choice[data-coin=WIF] span{--c:#e0a575}.pay-choice[data-coin=POPCAT] span{--c:#ffd166}
+.pay-choice.more span{--c:#7f8d99;box-shadow:none}
 </style>
 </head>
 <body data-visual-build="V18 DUAL UI"><div id="desktop-app">
@@ -1965,9 +1969,16 @@ html.lang-switching [data-csa-i18n]{
   <div class="wallet-choices">
     <button class="pay-choice active" type="button" data-coin="USDC"><span>◎</span><b>1 USDC</b><small>STABLE</small></button>
     <button class="pay-choice" type="button" data-coin="USDT"><span>₮</span><b>1 USDT</b><small>STABLE</small></button>
-        <button class="pay-choice" type="button" data-coin="SOL"><span>S</span><b>0.01 SOL</b><small>SOLANA</small></button>
+    <button class="pay-choice" type="button" data-coin="SOL"><span>S</span><b>0.01 SOL</b><small>SOLANA</small></button>
     <button class="pay-choice" type="button" data-coin="RAY"><span>R</span><b>1 RAY</b><small>RAYDIUM</small></button>
     <button class="pay-choice" type="button" data-coin="PUMP"><span>P</span><b>100 PUMP</b><small>PUMP</small></button>
+    <button class="pay-choice" type="button" data-coin="JUP"><span>J</span><b>3 JUP</b><small>JUPITER</small></button>
+    <button class="pay-choice" type="button" data-coin="PENGU"><span>Pe</span><b>100 PENGU</b><small>PENGU</small></button>
+    <button class="pay-choice" type="button" data-coin="PYTH"><span>Ψ</span><b>10 PYTH</b><small>PYTH</small></button>
+    <button class="pay-choice" type="button" data-coin="JTO"><span>JT</span><b>2 JTO</b><small>JITO</small></button>
+    <button class="pay-choice" type="button" data-coin="BONK"><span>B</span><b>300,000 BONK</b><small>BONK</small></button>
+    <button class="pay-choice" type="button" data-coin="WIF"><span>W</span><b>4 WIF</b><small>WIF</small></button>
+    <button class="pay-choice" type="button" data-coin="POPCAT"><span>C</span><b>20 POPCAT</b><small>POPCAT</small></button>
     <button class="pay-choice more" type="button"><span>+</span><b>MORE</b><small>SOON</small></button>
   </div>
 
