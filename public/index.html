@@ -1886,21 +1886,22 @@ html.lang-switching [data-csa-i18n]{
   </div>
 
   <div class="wallet-choices">
-    <button class="pay-choice active" type="button"><span>◎</span><b>1 USDC</b><small>STABLE</small></button>
-    <button class="pay-choice" type="button"><span>₮</span><b>1 USDT</b><small>STABLE</small></button>
-    <button class="pay-choice" type="button"><span>◈</span><b>1 DAI</b><small>STABLE</small></button>
-    <button class="pay-choice" type="button"><span>S</span><b>0.01 SOL</b><small>SOLANA</small></button>
-    <button class="pay-choice" type="button"><span>R</span><b>1 RAY</b><small>RAYDIUM</small></button>
-    <button class="pay-choice" type="button"><span>P</span><b>100 PUMP</b><small>PUMP</small></button>
+    <button class="pay-choice active" type="button" data-coin="USDC"><span>◎</span><b>1 USDC</b><small>STABLE</small></button>
+    <button class="pay-choice" type="button" data-coin="USDT"><span>₮</span><b>1 USDT</b><small>STABLE</small></button>
+        <button class="pay-choice" type="button" data-coin="SOL"><span>S</span><b>0.01 SOL</b><small>SOLANA</small></button>
+    <button class="pay-choice" type="button" data-coin="RAY"><span>R</span><b>1 RAY</b><small>RAYDIUM</small></button>
+    <button class="pay-choice" type="button" data-coin="PUMP"><span>P</span><b>100 PUMP</b><small>PUMP</small></button>
     <button class="pay-choice more" type="button"><span>+</span><b>MORE</b><small>SOON</small></button>
   </div>
 
+  <div id="walletMsg" data-dyn style="margin-top:12px;min-height:14px;font-size:10px;line-height:1.5;color:#9eacb7;word-break:break-all"></div>
+  <button id="walletOff" type="button" data-dyn style="display:none;margin:6px 0 0;padding:0;background:none;border:0;color:#7d8c98;font-size:10px;cursor:pointer;text-decoration:underline"></button>
   <div class="wallet-popover-foot">
     <div>
       <strong>Use the coin already in your wallet.</strong>
       <span>Rates are intentionally simple. Your small balance may win.</span>
     </div>
-    <button class="confirm-access" type="button">CONNECT &amp; ACCESS <i>→</i></button>
+    <button class="confirm-access" id="walletGo" type="button" data-dyn>CONNECT &amp; ACCESS <i>→</i></button>
   </div>
 </div>
 
@@ -1917,7 +1918,7 @@ html.lang-switching [data-csa-i18n]{
 <div class="card r impact" data-dyn id="impCard"><div class="ptitle"><span>EVENT IMPACT</span><span>準備中</span></div><div class="iname" id="impName">—</div><div class="mean" style="color:var(--muted)">準備中</div><div class="small">過去の同じ指標の発表後に、価格がどう動いたかを集計して表示します。計算の仕組みを準備しています。</div><table class="table"><tr><td>5分</td><td style="color:var(--dim)">—</td></tr><tr><td>15分</td><td style="color:var(--dim)">—</td></tr><tr><td>1時間</td><td style="color:var(--dim)">—</td></tr><tr><td>4時間</td><td style="color:var(--dim)">—</td></tr><tr><td>24時間</td><td style="color:var(--dim)">—</td></tr></table><div class="note">統計は過去データの観測値であり、売買判断や因果関係を示しません。</div></div>
 <div class="card r" data-dyn id="upCard"><div class="ptitle"><span>UPCOMING EVENTS</span></div><div class="event"><div class="etime">NEXT</div><b>米 消費者物価指数 (CPI)</b><div class="ekind">指標 · HIGH IMPACT</div></div><div class="event"><div class="etime">—</div><b>ETH Upgrade</b><div class="ekind">チェーン</div></div><div class="event"><div class="etime">—</div><b>オプション満期</b><div class="ekind">満期</div></div><div class="event"><div class="etime">—</div><b>Burn</b><div class="ekind">バーン</div></div></div>
 <div class="lock"><b>US Employment Report</b><br>Past reactions 🔒</div>
-<div class="access"><div class="ptitle">ARCHIVE ACCESS</div><div class="price">1 USDC <span class="small">/ 365 DAYS</span></div><div class="small">4 major assets · event history · EVENT IMPACT<br>No subscription.</div><button>CONNECT WALLET</button></div>
+<div class="access"><div class="ptitle">ARCHIVE ACCESS</div><div class="price">1 USDC <span class="small">/ 365 DAYS</span></div><div class="small">4 major assets · event history · EVENT IMPACT<br>No subscription.</div><div class="small" id="accState" data-dyn style="margin-top:8px;color:#d9c084"></div><button id="walletBtn" type="button" data-dyn>CONNECT WALLET</button></div>
 </aside></main>
 </div><script>
 let EVENT_AT=null;const zones=[['z0','Asia/Tokyo'],['z1','America/New_York'],['z2','Europe/London'],['z3','Asia/Singapore'],['z4','Asia/Hong_Kong'],['z5','Asia/Dubai'],['z6','Europe/Berlin'],['z7','Australia/Sydney']];
@@ -2270,4 +2271,103 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+<script id="v29-wallet">
+(function(){
+const $=id=>document.getElementById(id);
+const btn=$('walletBtn'),pop=$('walletPopover'),go=$('walletGo'),msg=$('walletMsg'),off=$('walletOff'),acc=$('accState');
+if(!btn||!pop||!go||!msg)return;
+const st=document.createElement('style');st.textContent='.lock.open{border-color:rgba(205,168,95,.6)!important;opacity:.7}';document.head.appendChild(st);
+const lang=()=>(window.CSA_LANG&&window.CSA_LANG()==='ja')?'ja':'en';
+const T=(e,j)=>lang()==='ja'?j:e;
+const S={addr:null,p:null,until:0,busy:false,phase:'',err:''};
+const active=()=>S.until>Date.now();
+const short=a=>a.slice(0,4)+'…'+a.slice(-4);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const sel=()=>pop.querySelector('.pay-choice.active');
+const getPend=()=>{try{return JSON.parse(localStorage.getItem('csa-pay')||'null')}catch(_){return null}};
+function render(){
+  const a=active(),b=sel();
+  btn.textContent=S.addr?short(S.addr)+(a?' ✓':''):T('CONNECT WALLET','ウォレット接続');
+  go.innerHTML=(S.busy?(S.phase||T('WAITING…','応答待ち…')):!S.addr?T('CONNECT & SIGN IN','接続して署名'):a?T('ACCESS ACTIVE','アクセス有効'):T('PAY ','支払う ')+(b?b.querySelector('b').textContent:''))+' <i>→</i>';
+  go.disabled=S.busy||(!!S.addr&&a);
+  off.style.display=S.addr&&!S.busy?'inline':'none';off.textContent=T('Disconnect','切断');
+  acc.textContent=a?T('✓ Access until ','✓ アクセス有効期限 ')+new Date(S.until).toLocaleDateString(lang()==='ja'?'ja-JP':'en-CA'):'';
+  const lk=document.querySelector('.lock');if(lk)lk.classList.toggle('open',a);
+  msg.style.color=S.err?'#e59a9a':'#9eacb7';
+  msg.textContent=S.err||(a?T('Signed in: ','署名済み: ')+S.addr:S.addr?T('Pick a coin and pay the exact amount. Send only from the button — other transfers get no access and no refund.','コインを選んで表示どおりの枚数を支払います。ボタン以外からの送金はアクセスが付かず、返金もできません。'):T('Connect a Solana wallet and sign a message. No funds move.','Solanaウォレットを接続してメッセージに署名します。送金は発生しません。'));
+}
+const prov=()=>window.phantom&&window.phantom.solana&&window.phantom.solana.isPhantom?window.phantom.solana:window.solflare&&window.solflare.isSolflare?window.solflare:window.backpack&&window.backpack.isBackpack?window.backpack:window.solana||null;
+const setup=(e)=>e==='AUTH_SECRET not set'?T('Server is not set up yet (AUTH_SECRET).','サーバー側の設定がまだです(AUTH_SECRET)。'):e==='PAY_TO not set'?T('Server is not set up yet (PAY_TO).','サーバー側の設定がまだです(PAY_TO)。'):(e||'error');
+async function confirmPay(invoice,sig){
+  for(let i=0;i<40;i++){
+    S.phase=T('CONFIRMING ON-CHAIN…','チェーンで確認中…');render();
+    const r=await(await fetch('/api/pay/confirm',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:S.addr,invoice:invoice,signature:sig})})).json();
+    if(r.status==='ok'){S.until=r.until;try{localStorage.removeItem('csa-pay')}catch(_){}return}
+    if(r.status==='rejected'){try{localStorage.removeItem('csa-pay')}catch(_){}throw new Error(T('Payment did not match the invoice: ','請求と一致しない支払いでした: ')+r.reason)}
+    if(r.error)throw new Error(setup(r.error));
+    await sleep(3000);
+  }
+  throw new Error(T('Still confirming. Reconnect later to finish.','確認に時間がかかっています。後でもう一度接続すると反映されます。'));
+}
+async function signIn(){
+  const p=prov();
+  if(!p)throw new Error(T('No Solana wallet found. Install Phantom, Solflare or Backpack.','Solanaウォレットが見つかりません。Phantom・Solflare・Backpackなどを入れてください。'));
+  const r=await p.connect();
+  const addr=String(r&&r.publicKey?r.publicKey:p.publicKey);
+  const n=await(await fetch('/api/auth/nonce?addr='+encodeURIComponent(addr),{cache:'no-store'})).json();
+  if(!n.message)throw new Error(setup(n.error));
+  const s=await p.signMessage(new TextEncoder().encode(n.message),'utf8');
+  const sig=s&&s.signature?s.signature:s;
+  const v=await(await fetch('/api/auth/verify',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({address:addr,message:n.message,signature:btoa(String.fromCharCode.apply(null,Array.from(sig)))})})).json();
+  if(!v.ok)throw new Error(T('Signature check failed: ','署名の確認に失敗: ')+(v.error||''));
+  S.addr=addr;S.p=p;S.until=v.until||0;
+  const pend=getPend();
+  if(!active()&&pend&&pend.address===addr){try{await confirmPay(pend.invoice,pend.signature)}catch(_){}}   // 前回の支払いの確認待ちを引き継ぐ
+}
+const loadW3=()=>window.solanaWeb3?Promise.resolve():new Promise((ok,ng)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@solana/web3.js@1.98.0/lib/index.iife.min.js';s.onload=ok;s.onerror=()=>ng(new Error(T('Could not load the Solana library.','Solanaライブラリを読み込めませんでした。')));document.head.appendChild(s)});
+function buildTx(inv){
+  const W=window.solanaWeb3,PK=W.PublicKey,me=new PK(S.addr),to=new PK(inv.to),ref=new PK(inv.ref),ixs=[];
+  const k=(pubkey,isSigner,isWritable)=>({pubkey:pubkey,isSigner:isSigner,isWritable:isWritable});
+  if(!inv.mint)ixs.push(W.SystemProgram.transfer({fromPubkey:me,toPubkey:to,lamports:BigInt(inv.amount)}));
+  else{
+    const mint=new PK(inv.mint),prog=new PK(inv.prog),ATAP=new PK('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    const ata=o=>PK.findProgramAddressSync([o.toBytes(),prog.toBytes(),mint.toBytes()],ATAP)[0];
+    const src=ata(me),dst=ata(to);
+    ixs.push(new W.TransactionInstruction({programId:ATAP,keys:[k(me,true,true),k(dst,false,true),k(to,false,false),k(mint,false,false),k(W.SystemProgram.programId,false,false),k(prog,false,false)],data:new Uint8Array([1])}));
+    const d=new Uint8Array(10);d[0]=12;new DataView(d.buffer).setBigUint64(1,BigInt(inv.amount),true);d[9]=inv.dec;
+    ixs.push(new W.TransactionInstruction({programId:prog,keys:[k(src,false,true),k(mint,false,false),k(dst,false,true),k(me,true,false)],data:d}));
+  }
+  ixs[ixs.length-1].keys.push(k(ref,false,false));
+  const tx=new W.Transaction({feePayer:me,blockhash:inv.blockhash,lastValidBlockHeight:inv.lastValidBlockHeight});
+  ixs.forEach(i=>tx.add(i));return tx;
+}
+async function pay(){
+  S.phase=T('PREPARING…','準備中…');render();
+  const coin=sel().dataset.coin;
+  const inv=await(await fetch('/api/pay/invoice?addr='+encodeURIComponent(S.addr)+'&coin='+coin,{cache:'no-store'})).json();
+  if(!inv.invoice)throw new Error(setup(inv.error));
+  await loadW3();
+  const tx=buildTx(inv);
+  S.phase=T('APPROVE IN YOUR WALLET…','ウォレットで承認してください…');render();
+  const r=await S.p.signAndSendTransaction(tx),sig=typeof r==='string'?r:r.signature;
+  try{localStorage.setItem('csa-pay',JSON.stringify({address:S.addr,invoice:inv.invoice,signature:sig}))}catch(_){}
+  await confirmPay(inv.invoice,sig);
+}
+function open(o){pop.classList.toggle('open',o);pop.setAttribute('aria-hidden',String(!o))}
+btn.addEventListener('click',e=>{e.stopPropagation();open(!pop.classList.contains('open'))});
+pop.addEventListener('click',e=>e.stopPropagation());
+document.addEventListener('click',()=>open(false));
+pop.querySelector('.wallet-close').addEventListener('click',()=>open(false));
+pop.querySelectorAll('.pay-choice:not(.more)').forEach(b=>b.addEventListener('click',()=>{pop.querySelectorAll('.pay-choice').forEach(x=>x.classList.remove('active'));b.classList.add('active');render()}));
+go.addEventListener('click',async()=>{
+  if(S.busy)return;S.err='';S.busy=true;render();
+  try{if(!S.addr)await signIn();else if(!active())await pay()}
+  catch(e){S.err=(e&&e.code===4001)?T('Cancelled in the wallet.','ウォレットで取り消されました。'):String((e&&e.message)||e)}
+  S.busy=false;S.phase='';render();
+});
+off.addEventListener('click',async()=>{try{await S.p.disconnect()}catch(_){}S.addr=null;S.p=null;S.until=0;S.err='';render()});
+window.addEventListener('csa-lang',render);
+render();
+})();
+</script>
 </body></html>

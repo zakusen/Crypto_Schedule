@@ -936,6 +936,131 @@ async function health(env) {
   });
 }
 
+
+// === v28: Solanaウォレットの署名ログイン(支払いはまだ無し・KV書き込みなし) ===
+// nonce は AUTH_SECRET で署名した使い切りでない短命トークン(5分)。保存しないので、連打されてもKVの書き込み枠は減らない。
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58dec(s) {
+  let n = 0n;
+  for (const c of s) { const i = B58.indexOf(c); if (i < 0) return null; n = n * 58n + BigInt(i); }
+  const b = [];
+  while (n > 0n) { b.push(Number(n & 255n)); n >>= 8n; }
+  for (const c of s) { if (c !== '1') break; b.push(0); }
+  return Uint8Array.from(b.reverse());
+}
+const authEq = (a, b) => a.length === b.length && [...a].reduce((r, c, i) => r | (c.charCodeAt(0) ^ b.charCodeAt(i)), 0) === 0;
+async function authMac(env, text) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.AUTH_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const s = new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(text)));
+  return [...s].map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 32);
+}
+async function authNonce(url, env) {
+  if (!env.AUTH_SECRET) return json({ error: 'AUTH_SECRET not set' }, 503);
+  const addr = url.searchParams.get('addr') || '';
+  const pk = b58dec(addr);
+  if (!pk || pk.length !== 32) return json({ error: 'bad address' }, 400);
+  const exp = Date.now() + 300000, rnd = crypto.randomUUID().replace(/-/g, '');
+  const mac = await authMac(env, [exp, rnd, addr, url.host].join('|'));
+  const message = ['CRYPTO SIGNAL ARCHIVE', 'Sign in to prove you own this wallet. No funds are moved.',
+    'Domain: ' + url.host, 'Address: ' + addr, 'Nonce: ' + exp + '.' + rnd + '.' + mac].join('\n');
+  return json({ message });
+}
+async function authVerify(request, url, env) {
+  if (!env.AUTH_SECRET) return json({ error: 'AUTH_SECRET not set' }, 503);
+  let b; try { b = await request.json(); } catch (_) { return json({ error: 'bad json' }, 400); }
+  const { address, message, signature } = b || {};
+  const m = /^CRYPTO SIGNAL ARCHIVE\nSign in [^\n]*\nDomain: ([^\n]+)\nAddress: ([^\n]+)\nNonce: (\d+)\.(\w+)\.(\w+)$/.exec(message || '');
+  if (!m || m[1] !== url.host || m[2] !== address) return json({ error: 'bad message' }, 400);
+  if (Date.now() > Number(m[3])) return json({ error: 'expired' }, 400);
+  if (!authEq(await authMac(env, [m[3], m[4], address, url.host].join('|')), m[5])) return json({ error: 'bad nonce' }, 400);
+  const pk = b58dec(address);
+  if (!pk || pk.length !== 32) return json({ error: 'bad address' }, 400);
+  let sig; try { sig = Uint8Array.from(atob(signature || ''), c => c.charCodeAt(0)); } catch (_) { return json({ error: 'bad signature' }, 400); }
+  const msg = new TextEncoder().encode(message);
+  let ok = false;
+  for (const legacy of [false, true]) {
+    try {
+      const key = await crypto.subtle.importKey('raw', pk, legacy ? { name: 'NODE-ED25519', namedCurve: 'NODE-ED25519' } : { name: 'Ed25519' }, false, ['verify']);
+      ok = await crypto.subtle.verify(legacy ? { name: 'NODE-ED25519' } : { name: 'Ed25519' }, key, sig, msg);
+      break;
+    } catch (_) {}
+  }
+  let until = 0;
+  if (ok && env.CAL) { try { const a = await env.CAL.get('acc:v1:' + address, 'json'); until = (a && a.until) || 0; } catch (_) {} }
+  return json(ok ? { ok: true, address, until } : { ok: false, error: 'bad signature' }, ok ? 200 : 401);
+}
+
+// === v29: 支払いの請求と確認(Solana) ===
+// 請求は AUTH_SECRET で署名した短命トークン(保存しない)。照合キー(ref)もそこから決まる。確認は finalized の取引を1回読んで、
+// 支払い元・ref・ミント・枚数(ちょうど)を照らす。通ったら acc:v1:<アドレス> に期限を保存する(KV書き込みは支払い1件につき2回)。
+const TK = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA', TK22 = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+const PAY = {   // amt は最小単位。PUMP は Token-2022(2026-10-06に確認)。ミントは公開前に Solscan で再確認すること
+  SOL:  { amt: 10000000n },
+  USDC: { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', dec: 6, amt: 1000000n, prog: TK },
+  USDT: { mint: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB', dec: 6, amt: 1000000n, prog: TK },
+  RAY:  { mint: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R', dec: 6, amt: 1000000n, prog: TK },
+  PUMP: { mint: 'pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn', dec: 6, amt: 100000000n, prog: TK22 },
+};
+function b58enc(u8) {
+  let n = 0n;
+  for (const x of u8) n = n * 256n + BigInt(x);
+  let s = '';
+  while (n > 0n) { s = B58[Number(n % 58n)] + s; n /= 58n; }
+  for (const x of u8) { if (x) break; s = '1' + s; }
+  return s;
+}
+async function authRaw(env, text) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(env.AUTH_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(text)));
+}
+const payMissing = (env) => !env.AUTH_SECRET ? 'AUTH_SECRET not set' : !env.PAY_TO ? 'PAY_TO not set' : '';
+async function payInvoice(url, env) {
+  const miss = payMissing(env); if (miss) return json({ error: miss }, 503);
+  const addr = url.searchParams.get('addr') || '', coin = url.searchParams.get('coin') || '', c = PAY[coin], pk = b58dec(addr);
+  if (!c || !pk || pk.length !== 32) return json({ error: 'bad request' }, 400);
+  const exp = Date.now() + 900000, rnd = crypto.randomUUID().replace(/-/g, '');
+  const mac = await authMac(env, ['inv', exp, rnd, coin, addr, url.host].join('|'));
+  const ref = b58enc(await authRaw(env, ['ref', exp, rnd, coin, addr].join('|')));
+  let bh;
+  try { bh = (await rpcAny(solRpcs(env), { jsonrpc: '2.0', id: 1, method: 'getLatestBlockhash', params: [{ commitment: 'confirmed' }] }, 8000)).result.value; }
+  catch (e) { return json({ error: 'rpc: ' + String((e && e.message) || e).slice(0, 160) }, 502); }
+  return json({ invoice: exp + '.' + rnd + '.' + coin + '.' + mac, coin, to: env.PAY_TO, ref, mint: c.mint || null, dec: c.dec || 9, prog: c.prog || null,
+    amount: String(c.amt), blockhash: bh.blockhash, lastValidBlockHeight: bh.lastValidBlockHeight });
+}
+async function payConfirm(request, url, env) {
+  const miss = payMissing(env); if (miss) return json({ error: miss }, 503);
+  let b; try { b = await request.json(); } catch (_) { return json({ error: 'bad json' }, 400); }
+  const { address, invoice, signature } = b || {};
+  const p = String(invoice || '').split('.'), c = PAY[p[2]];
+  if (p.length !== 4 || !c || !/^\d+$/.test(p[0]) || !/^\w+$/.test(p[1]) || typeof address !== 'string' || typeof signature !== 'string' || signature.length > 100) return json({ error: 'bad request' }, 400);
+  if (!authEq(await authMac(env, ['inv', p[0], p[1], p[2], address, url.host].join('|')), p[3])) return json({ error: 'bad invoice' }, 400);
+  if (Date.now() > Number(p[0]) + 3600000) return json({ status: 'rejected', reason: 'invoice expired' });
+  const ref = b58enc(await authRaw(env, ['ref', p[0], p[1], p[2], address].join('|')));
+  const seen = env.CAL ? await env.CAL.get('tx:v1:' + signature, 'json') : null;
+  if (seen) return json(seen.address === address ? { status: 'ok', until: seen.until, coin: seen.coin } : { status: 'rejected', reason: 'already used' });
+  let t;
+  try { t = (await rpcAny(solRpcs(env), { jsonrpc: '2.0', id: 1, method: 'getTransaction', params: [signature, { encoding: 'jsonParsed', commitment: 'finalized', maxSupportedTransactionVersion: 0 }] }, 10000)).result; }
+  catch (e) { return json({ status: 'pending', note: String((e && e.message) || e).slice(0, 120) }); }
+  if (!t) return json({ status: 'pending' });
+  if (t.meta && t.meta.err) return json({ status: 'rejected', reason: 'transaction failed' });
+  const keys = t.transaction.message.accountKeys.map(k => typeof k === 'string' ? { pubkey: k } : k);
+  if (!keys[0] || keys[0].pubkey !== address) return json({ status: 'rejected', reason: 'payer mismatch' });
+  if (!keys.some(k => k.pubkey === ref)) return json({ status: 'rejected', reason: 'reference missing' });
+  let got = 0n;
+  if (!c.mint) { const i = keys.findIndex(k => k.pubkey === env.PAY_TO); if (i >= 0) got = BigInt(t.meta.postBalances[i]) - BigInt(t.meta.preBalances[i]); }
+  else {
+    const sum = (a) => (a || []).filter(x => x.owner === env.PAY_TO && x.mint === c.mint).reduce((s, x) => s + BigInt(x.uiTokenAmount.amount), 0n);
+    got = sum(t.meta.postTokenBalances) - sum(t.meta.preTokenBalances);
+  }
+  if (got !== c.amt) return json({ status: 'rejected', reason: 'amount mismatch' });
+  if (!env.CAL) return json({ status: 'pending', note: 'KV not bound' });
+  const now = Date.now(), cur = await env.CAL.get('acc:v1:' + address, 'json');
+  const until = Math.max(now, (cur && cur.until) || 0) + 365 * 86400000;
+  await env.CAL.put('acc:v1:' + address, JSON.stringify({ until, coin: p[2], t: now }));   // 先にアクセス権(失敗しても払った人が損しない順)
+  await env.CAL.put('tx:v1:' + signature, JSON.stringify({ address, until, coin: p[2], t: now }));
+  return json({ status: 'ok', until, coin: p[2] });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -949,6 +1074,10 @@ export default {
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname === '/api/px-run') { const r = await pxRun(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/auth/verify' && request.method === 'POST') { const r = await authVerify(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/pay/invoice') { const r = await payInvoice(url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/pay/confirm' && request.method === 'POST') { const r = await payConfirm(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname.startsWith('/api/')) return json({ error: 'not found' }, 404);
     return env.ASSETS.fetch(request);
   },
