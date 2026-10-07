@@ -53,7 +53,11 @@ const store = await (await site('/api/admin/posts')).json();
 const byId = new Map((store.posts || []).map((p) => [p.id, p]));
 const out = [];
 // 中身が保存と同じなら送らない(書き込みを減らす)。予約済みで upd に同じ中身が添えてある時も送らない
-const put = (p) => { const o = byId.get(p.id); if (o && (o.h === p.h || (o.upd && o.upd.h === p.h))) return; out.push({ at: NOW, ...p }); };
+const DAILY_LINK = false;                                                   // v87: 朝の予定の投稿にURLを入れるか(いったん入れない。true で入る)
+const SITE_RE = /\n(Full calendar & past BTC moves|予定と過去の値動き): \S+/g;
+// v86: 予約済みの下書きは、URL の行が増えた/減っただけなら作り直さない(予約し直しを求めない)。予定そのものが変わった時だけ ⚠
+const sameButLink = (o, p) => o && o.done && (o.done.en || o.done.ja) && o.en.replace(SITE_RE, '') + o.ja.replace(SITE_RE, '') === p.en.replace(SITE_RE, '') + p.ja.replace(SITE_RE, '');
+const put = (p) => { const o = byId.get(p.id); if (o && (o.h === p.h || (o.upd && o.upd.h === p.h) || sameButLink(o, p))) return; out.push({ at: NOW, ...p }); };
 const today = dayStart(NOW);
 
 // ---- 1) 今日・今週の予定(30日先まで) ----
@@ -82,10 +86,11 @@ function dailyPost(day) {
     const head = en ? [`TODAY · ${enDate(day)}`, '', 'UPCOMING TODAY (JST)'] : [`今日のイベント ${jaDay(day)}`, '(このあとの予定・日本時間)'];
     const wTitle = en ? (next ? 'NEXT WEEK' : 'THIS WEEK') : (next ? '来週のイベント' : '今週のイベント');
     const none = en ? 'No scheduled events' : '予定なし', tag = en ? tags('Macro').en : tags('経済指標').ja;
+    const link = (en ? 'Full calendar & past BTC moves: ' : '予定と過去の値動き: ') + SITE;   // v86: サイトへの誘導(X は URL を23文字と数える)
     const more = (r) => r > 0 ? (en ? `+${r} more` : `ほか${r}件`) : null;
     const t = T[lang], w = W[lang];
     const mk = (tn, wn) => [...head, ...(t.length ? t.slice(0, tn) : [none]), ...(more(t.length - tn) ? [more(t.length - tn)] : []), '', wTitle,
-      ...(w.length ? w.slice(0, wn) : [none]), ...(more(w.length - wn) ? [more(w.length - wn)] : []), '', tag].join('\n');
+      ...(w.length ? w.slice(0, wn) : [none]), ...(more(w.length - wn) ? [more(w.length - wn)] : []), '', ...(DAILY_LINK ? [link] : []), tag].join('\n');
     let tn = t.length, wn = 0;                                              // 今日を優先し、残りに今週を入るだけ
     while (tn > 0 && xlen(mk(tn, 0)) > 280) tn--;
     while (wn < w.length && xlen(mk(tn, wn + 1)) <= 280) wn++;
