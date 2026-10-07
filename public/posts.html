@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>CSA Posts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* v73: X 投稿の下書き置き場(運営者だけ)。tools/x_notify.mjs が作った下書きを並べ、画像つきで投稿する */
+:root{--bg:#0a0e16;--panel:#111725;--line:#1f2a3d;--tx:#e6e9ef;--mut:#8a94a7;--gold:#c9b37e;--cyan:#7fc8d8;--up:#5fa88a;--dn:#c2645f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 "IBM Plex Sans","Noto Sans JP",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;background:rgba(10,14,22,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+header h1{margin:0 8px 0 0;font:600 13px "IBM Plex Mono",monospace;letter-spacing:.18em;color:var(--gold)}
+.chip{border:1px solid var(--line);background:transparent;color:var(--mut);border-radius:999px;padding:4px 11px;font:inherit;font-size:12px;cursor:pointer}
+.chip.on{color:var(--bg);background:var(--cyan);border-color:var(--cyan)}
+.sp{flex:1}
+main{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:0 0 16px;overflow:hidden}
+.card.done{opacity:.55}
+.ch{display:flex;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mut)}
+.badge{font:600 11px "IBM Plex Mono",monospace;letter-spacing:.12em;color:var(--gold)}
+.panes{display:grid;grid-template-columns:1fr 1fr}
+.pane{padding:12px 14px;min-width:0}
+.pane+.pane{border-left:1px solid var(--line)}
+@media (max-width:820px){.panes{grid-template-columns:1fr}.pane+.pane{border-left:0;border-top:1px solid var(--line)}}
+.lang{font:600 11px "IBM Plex Mono",monospace;color:var(--cyan);letter-spacing:.1em;display:flex;justify-content:space-between;margin-bottom:6px}
+.lang .over{color:var(--dn)}
+.pane img{width:100%;aspect-ratio:16/9;display:block;border-radius:6px;border:1px solid var(--line);background:#000}
+pre{white-space:pre-wrap;word-break:break-word;margin:8px 0;font:13px/1.45 "IBM Plex Sans","Noto Sans JP",sans-serif;background:#0c111c;border:1px solid var(--line);border-radius:6px;padding:9px 10px;max-height:260px;overflow:auto}
+.btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.btn{border:1px solid var(--line);background:#16203a;color:var(--tx);border-radius:7px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}
+.btn.main{background:var(--gold);color:#14110a;border-color:var(--gold);font-weight:600}
+.btn:active{transform:translateY(1px)}
+label.ck{display:flex;gap:5px;align-items:center;font-size:12px;color:var(--mut);margin-left:auto;cursor:pointer}
+label.ck input{width:18px;height:18px;accent-color:var(--up)}
+.ck.on{color:var(--up)}
+.empty,.keybox{color:var(--mut);text-align:center;padding:48px 16px}
+.keybox input{background:#0c111c;border:1px solid var(--line);color:var(--tx);border-radius:7px;padding:9px 11px;width:min(340px,100%);font:inherit}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#e6e9ef;color:#0a0e16;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92vw;text-align:center;z-index:9}
+#toast.on{opacity:1}
+.note{font-size:12px;color:var(--mut);margin:0 0 14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>CSA POSTS</h1>
+  <button class="chip on" data-f="todo">未投稿</button>
+  <button class="chip" data-f="all">すべて</button>
+  <span class="sp"></span>
+  <button class="chip" data-s="">全部</button>
+  <button class="chip" data-s="daily">DAILY</button>
+  <button class="chip" data-s="arch">ARCHIVED</button>
+  <button class="chip" data-s="otd">ON THIS DATE</button>
+  <button class="chip" data-s="week">WEEK</button>
+  <button class="chip" id="reload">↻</button>
+  <button class="chip" id="keyBtn">鍵</button>
+</header>
+<main id="main"><div class="empty">読み込み中…</div></main>
+<div id="toast"></div>
+<script>
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const KEYNAME = 'csa-admin';
+const getKey = () => { try { return localStorage.getItem(KEYNAME) || ''; } catch (_) { return ''; } };
+const setKey = (v) => { try { v ? localStorage.setItem(KEYNAME, v) : localStorage.removeItem(KEYNAME); } catch (_) {} };
+const MOBILE = matchMedia('(pointer:coarse)').matches;
+let POSTS = [], F = 'todo', SR = '';
+const IMG = new Map();   // id:lang -> {url, blob, file}
+
+function toast(t, ms = 2600) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), ms); }
+const xlen = (t) => { let n = 0; for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const intent = (t) => 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(t);
+
+async function api(body) {
+  const r = await fetch('/api/admin/posts', { method: body ? 'POST' : 'GET', headers: { 'x-admin-key': getKey(), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+  if (r.status === 401) throw new Error('401');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+function keyForm(msg) {
+  $('#main').innerHTML = `<div class="keybox"><p>${msg || '管理キー(RX_ADMIN_KEY)を入れてください。この端末にだけ保存されます。'}</p>
+    <p><input id="keyIn" type="password" autocomplete="off" placeholder="管理キー"> <button class="btn main" id="keySave">保存</button></p></div>`;
+  $('#keySave').onclick = () => { setKey($('#keyIn').value.trim()); load(); };
+  $('#keyIn').onkeydown = (e) => { if (e.key === 'Enter') $('#keySave').click(); };
+}
+
+async function load() {
+  if (!getKey()) return keyForm();
+  $('#main').innerHTML = '<div class="empty">読み込み中…</div>';
+  try { POSTS = (await api()).posts || []; }
+  catch (e) { return e.message === '401' ? keyForm('管理キーが違います。入れ直してください。') : ($('#main').innerHTML = `<div class="empty">読み込めませんでした(${esc(e.message)})</div>`); }
+  render();
+}
+
+const SRL = { daily: 'DAILY TIMELINE', arch: 'ARCHIVED', otd: 'ON THIS DATE', week: 'WEEK IN CRYPTO' };
+const fmtJ = (t) => { const d = new Date(t + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+
+function render() {
+  const list = POSTS.filter((p) => (!SR || p.sr === SR) && (F === 'all' || !(p.done && p.done.en && p.done.ja)));
+  if (!list.length) { $('#main').innerHTML = `<div class="empty">${F === 'todo' ? '未投稿の下書きはありません。' : '下書きはまだありません。'}<br>下書きは1時間ごとに自動で増えます。</div>`; return; }
+  const how = MOBILE ? '「画像つきで投稿」→ 共有メニューで X を選ぶ → 投稿。本文もコピー済みなので、もし本文が入っていなければ貼り付け。'
+    : '「画像をコピーしてXを開く」→ 開いた投稿画面で Ctrl+V(Macは⌘V)で画像を貼り付け → 投稿。';
+  $('#main').innerHTML = `<p class="note">${how} 投稿すると自動で「投稿済み」になります(外すこともできます)。英語 → 日本語の順で。</p>` + list.map((p) => `
+    <section class="card ${(p.done && p.done.en && p.done.ja) ? 'done' : ''}" data-id="${esc(p.id)}">
+      <div class="ch"><span class="badge">${SRL[p.sr] || p.sr}</span><span>作成 ${fmtJ(p.at)}</span></div>
+      <div class="panes">${['en', 'ja'].map((lg) => pane(p, lg)).join('')}</div>
+    </section>`).join('');
+  for (const p of list) for (const lg of ['en', 'ja']) paint(p, lg);
+}
+function pane(p, lg) {
+  const n = xlen(p[lg]), on = p.done && p.done[lg];
+  return `<div class="pane" data-lg="${lg}">
+    <div class="lang"><span>${lg === 'en' ? '① ENGLISH' : '② 日本語'}</span><span class="${n > 280 ? 'over' : ''}">${n}/280</span></div>
+    <img alt="" data-img="${esc(p.id)}:${lg}">
+    <pre>${esc(p[lg])}</pre>
+    <div class="btns">
+      <button class="btn main" data-act="share">${MOBILE ? '画像つきで投稿' : '画像をコピーしてXを開く'}</button>
+      <button class="btn" data-act="text">文だけ投稿</button>
+      <button class="btn" data-act="copy">文コピー</button>
+      <button class="btn" data-act="save">画像保存</button>
+      <label class="ck ${on ? 'on' : ''}"><input type="checkbox" data-act="done" ${on ? 'checked' : ''}>投稿済み</label>
+    </div></div>`;
+}
+
+// ---------- 画像(1200×675。仕様書のデザイン: near-black navy・細いグリッド・金・シアン・くすんだ緑/赤) ----------
+const W = 1200, Hh = 675, C = { bg: '#0a0e16', grid: 'rgba(140,160,190,0.07)', tx: '#e6e9ef', mut: '#8a94a7', gold: '#c9b37e', cyan: '#7fc8d8', up: '#5fa88a', dn: '#c2645f', line: '#1f2a3d' };
+const SANS = '"IBM Plex Sans","Noto Sans JP",sans-serif', MONO = '"IBM Plex Mono","Noto Sans JP",monospace';
+const P2 = (n) => String(n).padStart(2, '0');
+const WE = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'], ME = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'], WJ = ['日', '月', '火', '水', '木', '金', '土'];
+const D = (t, lg) => new Date(t + (lg === 'ja' ? 9 * 36e5 : 0));
+const hm = (t, lg) => { const d = D(t, lg); return P2(d.getUTCHours()) + ':' + P2(d.getUTCMinutes()); };
+const dayEn = (t) => { const d = D(t, 'en'); return `${WE[d.getUTCDay()]} ${ME[d.getUTCMonth()]} ${d.getUTCDate()}`; };
+const dateEn = (t) => { const d = D(t, 'en'); return `${ME[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`; };
+const dayJa = (t, utc) => { const d = D(t, utc ? 'en' : 'ja'); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WJ[d.getUTCDay()]})`; };
+const dateJa = (t, utc) => { const d = D(t, utc ? 'en' : 'ja'); return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; };
+const usd = (v, dp = 0) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const pctTxt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+
+function fitFont(g, text, maxW, size, weight, fam) { let s = size; do { g.font = `${weight} ${s}px ${fam}`; if (g.measureText(text).width <= maxW) return s; s -= 2; } while (s > 12); return s; }
+function txt(g, text, x, y, { size = 24, w = 400, fam = SANS, col = C.tx, max = 0, align = 'left', ls = 0 } = {}) {
+  if (max) fitFont(g, text, max, size, w, fam); else g.font = `${w} ${size}px ${fam}`;
+  g.fillStyle = col; g.textAlign = align; g.textBaseline = 'alphabetic';
+  if ('letterSpacing' in g) g.letterSpacing = ls + 'px';
+  let t = text;
+  if (max && g.measureText(t).width > max) { while (t.length > 1 && g.measureText(t + '…').width > max) t = t.slice(0, -1); t += '…'; }
+  g.fillText(t, x, y);
+  if ('letterSpacing' in g) g.letterSpacing = '0px';
+}
+function frame(g, label, foot) {
+  g.fillStyle = C.bg; g.fillRect(0, 0, W, Hh);
+  g.strokeStyle = C.grid; g.lineWidth = 1;
+  for (let x = 0; x <= W; x += 48) { g.beginPath(); g.moveTo(x + 0.5, 0); g.lineTo(x + 0.5, Hh); g.stroke(); }
+  for (let y = 0; y <= Hh; y += 48) { g.beginPath(); g.moveTo(0, y + 0.5); g.lineTo(W, y + 0.5); g.stroke(); }
+  txt(g, 'CRYPTO SIGNAL ARCHIVE', 56, 66, { size: 17, w: 600, fam: MONO, col: C.gold, ls: 4 });
+  txt(g, label, W - 56, 66, { size: 17, w: 600, fam: MONO, col: C.cyan, align: 'right', ls: 3 });
+  g.fillStyle = C.gold; g.globalAlpha = 0.5; g.fillRect(56, 84, W - 112, 1); g.globalAlpha = 1;
+  g.fillStyle = C.line; g.fillRect(56, Hh - 64, W - 112, 1);
+  txt(g, '@csa_archive', 56, Hh - 32, { size: 16, w: 600, fam: MONO, col: C.gold });
+  txt(g, foot, W - 56, Hh - 32, { size: 13, fam: MONO, col: C.mut, align: 'right', max: 820 });
+}
+function spark(g, vals, x, y, w, h, opt = {}) {
+  const v = vals.map((a) => (a == null ? null : +a)), ok = v.filter((a) => a != null).concat(opt.extra || []);
+  const lo = Math.min(...ok), hi = Math.max(...ok), pad = (hi - lo) * 0.12 || hi * 0.001;
+  const X = (i) => x + (i / (v.length - 1)) * w, Y = (a) => y + h - ((a - (lo - pad)) / ((hi + pad) - (lo - pad))) * h;
+  g.strokeStyle = C.line; g.lineWidth = 1; g.strokeRect(x + 0.5, y + 0.5, w, h);
+  for (const m of opt.marks || []) { g.strokeStyle = m.col; g.setLineDash(m.dash || []); g.beginPath(); g.moveTo(X(m.i), y); g.lineTo(X(m.i), y + h); g.stroke(); g.setLineDash([]); if (m.label) txt(g, m.label, X(m.i), y + h + 24, { size: 14, fam: MONO, col: m.col, align: 'center' }); }
+  g.strokeStyle = opt.col || C.cyan; g.lineWidth = 2.5; g.beginPath(); let st = false;
+  v.forEach((a, i) => { if (a == null) return; st ? g.lineTo(X(i), Y(a)) : g.moveTo(X(i), Y(a)); st = true; }); g.stroke();
+  for (const d of opt.dots || []) { g.fillStyle = d.col; g.beginPath(); g.arc(X(d.i), Y(d.v), 6, 0, 7); g.fill(); }
+}
+
+function drawDaily(g, im, lg) {
+  const en = lg === 'en';
+  frame(g, im.next && !im.today.length ? (en ? 'DAILY TIMELINE' : 'DAILY TIMELINE') : 'DAILY TIMELINE', en ? 'Times in UTC · source: CSA calendar' : '時刻は日本時間 · CSAカレンダーより');
+  txt(g, en ? `TODAY · ${dateEn(im.day)}` : `今日のイベント  ${dayJa(im.day)}`, 56, 150, { size: 44, w: 600, col: C.tx, max: 1088 });
+  // 左: 今日(縦のタイムライン)
+  txt(g, en ? "TODAY'S EVENTS" : '今日', 56, 210, { size: 16, w: 600, fam: MONO, col: C.cyan, ls: 2 });
+  const T = im.today.slice(0, 6), top = 250, step = T.length > 4 ? 58 : 70;
+  g.fillStyle = C.cyan; g.globalAlpha = 0.6; g.fillRect(74, top - 10, 1.5, Math.max(1, (T.length - 1) * step + 20)); g.globalAlpha = 1;
+  if (!T.length) txt(g, en ? 'No scheduled events' : '予定なし', 100, top + 10, { size: 26, col: C.mut });
+  T.forEach((e, i) => {
+    const y = top + i * step; g.fillStyle = C.gold; g.beginPath(); g.arc(75, y, 6, 0, 7); g.fill();
+    const nx = !en && new Date(e.t + 9 * 36e5).getUTCDate() !== new Date(im.day + 9 * 36e5).getUTCDate() ? '翌' : '';
+    txt(g, nx + hm(e.t, lg), 100, y + 9, { size: 24, w: 600, fam: MONO, col: C.gold });
+    txt(g, e[lg], 210, y + 9, { size: 24, w: 600, col: C.tx, max: 400 });
+  });
+  if (im.today.length > 6) txt(g, (en ? `+${im.today.length - 6} more` : `ほか${im.today.length - 6}件`), 100, top + 6 * step, { size: 18, col: C.mut });
+  // 右: 今週
+  const rx = 660; g.fillStyle = C.line; g.fillRect(rx - 28, 190, 1, 400);
+  txt(g, en ? (im.next ? 'NEXT WEEK' : 'THIS WEEK') : (im.next ? '来週' : '今週'), rx, 210, { size: 16, w: 600, fam: MONO, col: C.cyan, ls: 2 });
+  const Wk = im.week.slice(0, 8);
+  if (!Wk.length) txt(g, en ? 'No scheduled events' : '予定なし', rx, 256, { size: 22, col: C.mut });
+  Wk.forEach((e, i) => {
+    const y = 254 + i * 44;
+    txt(g, en ? dayEn(e.t) : dayJa(e.t), rx, y, { size: 17, w: 600, fam: MONO, col: C.gold });
+    txt(g, e[lg], rx + 150, y, { size: 19, col: C.tx, max: 340 });
+  });
+  if (im.week.length > 8) txt(g, en ? `+${im.week.length - 8} more` : `ほか${im.week.length - 8}件`, rx, 254 + 8 * 44, { size: 16, col: C.mut });
+}
+function drawEvent(g, im, lg, otd) {
+  const en = lg === 'en', up = im.chg >= 0, col = im.chg > 0 ? C.up : im.chg < 0 ? C.dn : C.tx;
+  frame(g, otd ? 'ON THIS DATE' : 'ARCHIVED', en ? 'BTCUSDT · Binance spot · before = 5m open at release · after = 5m close at +1h' : 'BTCUSDT・Binance現物 / 前 = 発表時刻の5分足の始値 / 後 = 1時間後の5分足の終値');
+  if (otd) {
+    txt(g, en ? dateEn(im.t) : dateJa(im.t, true), 56, 150, { size: 46, w: 600, col: C.gold, max: 1088 });
+    txt(g, im[lg], 56, 200, { size: 30, w: 600, col: C.tx, max: 860 });
+    txt(g, hm(im.t, 'en') + ' UTC', 56 + 1088, 200, { size: 22, fam: MONO, col: C.mut, align: 'right' });
+  } else {
+    txt(g, im[lg], 56, 150, { size: 42, w: 600, col: C.tx, max: 1088 });
+    txt(g, en ? `${dateEn(im.t)} · ${hm(im.t, 'en')} UTC` : `${dateJa(im.t)} ${hm(im.t, 'ja')}(日本時間)`, 56, 196, { size: 22, fam: MONO, col: C.mut });
+  }
+  spark(g, im.spark, 56, 240, 640, 300, {
+    extra: [im.before, im.after],
+    marks: [{ i: 0, col: C.mut, label: '−1h' }, { i: 12, col: C.gold, label: en ? 'RELEASE' : '発表' }, { i: 23, col: C.cyan, dash: [5, 5], label: '+1h' }],
+    dots: [{ i: 12, v: im.before, col: C.gold }, { i: 23, v: im.after, col: C.cyan }],
+  });
+  const rx = 760;
+  txt(g, en ? 'BEFORE' : 'イベント前', rx, 270, { size: 16, w: 600, fam: MONO, col: C.gold, ls: 2 });
+  txt(g, 'BTC ' + usd(im.before), rx, 312, { size: 34, w: 600, fam: MONO, col: C.tx, max: 384 });
+  txt(g, en ? 'AFTER (+1h)' : 'イベント後(1時間後)', rx, 372, { size: 16, w: 600, fam: MONO, col: C.cyan, ls: 2 });
+  txt(g, 'BTC ' + usd(im.after), rx, 414, { size: 34, w: 600, fam: MONO, col: C.tx, max: 384 });
+  txt(g, en ? 'CHANGE' : '変動', rx, 474, { size: 16, w: 600, fam: MONO, col: C.mut, ls: 2 });
+  txt(g, pctTxt(im.chg), rx, 540, { size: 60, w: 600, fam: MONO, col, max: 384 });
+  void up;
+}
+function drawWeek(g, im, lg) {
+  const en = lg === 'en';
+  frame(g, 'WEEK IN CRYPTO', en ? 'Binance spot · week = Mon 00:00 → Mon 00:00 UTC · daily open → daily close' : 'Binance現物 / 週 = 月曜0時〜次の月曜0時(UTC) / 月曜の日足始値 → 日曜の日足終値');
+  txt(g, en ? `${dayEn(im.ws)} — ${dayEn(im.we - 864e5)}, ${new Date(im.ws).getUTCFullYear()}` : `${dayJa(im.ws, true)} 〜 ${dayJa(im.we - 864e5, true)}(UTC基準)`, 56, 150, { size: 40, w: 600, col: C.tx, max: 1088 });
+  [['BTC', im.btc], ['ETH', im.eth]].forEach(([sym, o], k) => {
+    const y = 200 + k * 200, col = o.chg > 0 ? C.up : o.chg < 0 ? C.dn : C.tx;
+    txt(g, sym, 56, y + 30, { size: 22, w: 600, fam: MONO, col: C.gold, ls: 3 });
+    txt(g, `${usd(o.s, o.dp)} → ${usd(o.e, o.dp)}`, 56, y + 76, { size: 28, w: 600, fam: MONO, col: C.tx, max: 420 });
+    txt(g, pctTxt(o.chg), 56, y + 140, { size: 48, w: 600, fam: MONO, col, max: 300 });
+    spark(g, o.spark, 380, y + 96, 220, 70, { col });
+  });
+  const rx = 660; g.fillStyle = C.line; g.fillRect(rx - 28, 190, 1, 400);
+  txt(g, en ? 'EVENTS' : 'イベント', rx, 214, { size: 16, w: 600, fam: MONO, col: C.cyan, ls: 2 });
+  const E = im.ev.slice(0, 8);
+  if (!E.length) txt(g, en ? 'None' : 'なし', rx, 258, { size: 22, col: C.mut });
+  E.forEach((e, i) => { const y = 258 + i * 42; txt(g, en ? dayEn(e.t) : dayJa(e.t, true), rx, y, { size: 17, w: 600, fam: MONO, col: C.gold }); txt(g, e[lg], rx + 150, y, { size: 19, col: C.tx, max: 340 }); });
+  if (im.ev.length > 8) txt(g, en ? `+${im.ev.length - 8} more` : `ほか${im.ev.length - 8}件`, rx, 258 + 8 * 42, { size: 16, col: C.mut });
+}
+
+let fontsReady = null;
+function loadFonts(sample) {
+  const specs = ['600 24px "IBM Plex Mono"', '400 24px "IBM Plex Mono"', '600 24px "IBM Plex Sans"', '400 24px "IBM Plex Sans"', '700 24px "Noto Sans JP"', '400 24px "Noto Sans JP"'];
+  return Promise.race([Promise.all(specs.map((s) => document.fonts.load(s, sample).catch(() => null))), new Promise((r) => setTimeout(r, 4000))]);
+}
+async function paint(p, lg) {
+  const key = p.id + ':' + lg, el = document.querySelector(`img[data-img="${CSS.escape(key)}"]`);
+  if (!el || !p.img) { if (el) el.remove(); return; }
+  if (IMG.has(key)) { el.src = IMG.get(key).url; return; }
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日' + p[lg]);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
+  try {
+    if (p.sr === 'daily') drawDaily(g, p.img, lg);
+    else if (p.sr === 'arch') drawEvent(g, p.img, lg, false);
+    else if (p.sr === 'otd') drawEvent(g, p.img, lg, true);
+    else if (p.sr === 'week') drawWeek(g, p.img, lg);
+  } catch (e) { console.error(e); el.remove(); return; }
+  const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+  const name = `csa-${p.id.replace(/[^a-z0-9-]+/gi, '-')}-${lg}.png`;
+  const o = { blob, url: URL.createObjectURL(blob), file: new File([blob], name, { type: 'image/png' }), name };
+  IMG.set(key, o); el.src = o.url;
+}
+
+// ---------- 操作 ----------
+async function mark(id, lang, v) {
+  const p = POSTS.find((x) => x.id === id); if (!p) return;
+  p.done = p.done || {}; p.done[lang] = v ? Date.now() : 0;
+  const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
+  if (card) { const ck = card.querySelector(`.pane[data-lg="${lang}"] .ck`); ck.classList.toggle('on', v); ck.querySelector('input').checked = v; card.classList.toggle('done', !!(p.done.en && p.done.ja)); }
+  try { await api({ mark: { id, lang, v } }); } catch (e) { toast('「投稿済み」を保存できませんでした(' + e.message + ')'); }
+}
+document.addEventListener('click', async (ev) => {
+  const b = ev.target.closest('[data-act]'); if (!b) return;
+  const card = b.closest('.card'), pane = b.closest('.pane'), id = card.dataset.id, lg = pane.dataset.lg;
+  const p = POSTS.find((x) => x.id === id), im = IMG.get(id + ':' + lg), text = p[lg], act = b.dataset.act;
+  if (act === 'done') return mark(id, lg, b.checked);
+  if (act === 'copy') { try { await navigator.clipboard.writeText(text); toast('本文をコピーしました'); } catch (_) { toast('コピーできませんでした'); } return; }
+  if (act === 'text') { window.open(intent(text), '_blank', 'noopener'); mark(id, lg, true); return; }
+  if (act === 'save') { if (!im) return toast('画像の準備中です'); const a = document.createElement('a'); a.href = im.url; a.download = im.name; a.click(); return; }
+  if (act === 'share') {
+    if (!im) return toast('画像の準備中です。少し待ってもう一度');
+    if (MOBILE && navigator.canShare && navigator.canShare({ files: [im.file] })) {
+      try { navigator.clipboard.writeText(text).catch(() => {}); } catch (_) {}   // 本文が入らないアプリ向けの保険(待たない: 共有の許可が切れるため)
+      try { await navigator.share({ files: [im.file], text }); mark(id, lg, true); toast('共有しました。X に本文が無ければ貼り付けてください'); }
+      catch (e) { if (e && e.name !== 'AbortError') toast('共有できませんでした(' + e.name + ')'); }
+      return;
+    }
+    try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': im.blob })]); }
+    catch (_) { toast('画像をコピーできませんでした。「画像保存」→ 投稿画面で添付してください', 4000); window.open(intent(text), '_blank', 'noopener'); return; }
+    window.open(intent(text), '_blank', 'noopener');
+    mark(id, lg, true);
+    toast('画像をコピーしました。投稿画面で Ctrl+V(⌘V)で貼り付け', 4500);
+  }
+});
+document.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { F = b.dataset.f; document.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('on', x === b)); render(); });
+document.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => { SR = b.dataset.s; document.querySelectorAll('[data-s]').forEach((x) => x.classList.toggle('on', x === b)); render(); });
+$('[data-s=""]').classList.add('on');
+$('#reload').onclick = load;
+$('#keyBtn').onclick = () => { if (confirm('この端末に保存した管理キーを消して、入れ直しますか?')) { setKey(''); keyForm(); } };
+load();
+</script>
+</body>
+</html>

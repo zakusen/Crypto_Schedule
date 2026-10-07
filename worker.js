@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-07-v70';
+const VERSION = '2026-10-07-v73';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1369,8 +1369,39 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run)$/;
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : 'rx:s:' + n.slice(1);
+const RX_NAME = /^(s\d\d|idx|run|xs)$/;   // v72: xs = X投稿のお知らせの送信記録(tools/x_notify.mjs)
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : 'rx:s:' + n.slice(1);
+
+// === v73: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs が作って足し、画面で「投稿済み」を付ける ===
+//   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, en, ja, img, done:{en,ja}}]})。合言葉(x-admin-key)が無いと読めない。
+const POSTS_KEY = 'posts:v1', POSTS_KEEP = 30 * DAY, POSTS_MAX = 300;
+async function postsApi(request, env) {
+  if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
+  if (!env.CAL) return json({ error: 'KV(CAL)が接続されていません' }, 503);
+  if (request.method === 'GET') {
+    const txt = await env.CAL.get(POSTS_KEY);
+    return new Response(txt || '{"v":1,"posts":[]}', { headers: { 'content-type': 'application/json; charset=utf-8' } });
+  }
+  if (request.method !== 'POST') return json({ error: 'method' }, 405);
+  const body = await request.text();
+  if (!body || body.length > 1000000) return json({ error: 'bad body' }, 400);
+  let q; try { q = JSON.parse(body); } catch (_) { return json({ error: 'bad json' }, 400); }
+  let doc; try { doc = (await env.CAL.get(POSTS_KEY, { type: 'json' })) || { v: 1, posts: [] }; } catch (_) { return json({ error: 'kv' }, 503); }
+  const have = new Map(doc.posts.map((p) => [p.id, p]));
+  let added = 0, changed = 0;
+  for (const p of Array.isArray(q.add) ? q.add : []) {               // 足す(同じidは上書きしない=投稿済みの印を消さない)
+    if (!p || typeof p.id !== 'string' || have.has(p.id)) continue;
+    const o = { id: p.id.slice(0, 80), sr: String(p.sr || ''), at: +p.at || Date.now(), en: String(p.en || ''), ja: String(p.ja || ''), img: p.img || null, done: { en: 0, ja: 0 } };
+    doc.posts.push(o); have.set(o.id, o); added++;
+  }
+  const m = q.mark;                                                   // 印を付ける/外す {id, lang:'en'|'ja', v:true|false}
+  if (m && have.has(m.id) && (m.lang === 'en' || m.lang === 'ja')) { const p = have.get(m.id); p.done = p.done || {}; p.done[m.lang] = m.v ? Date.now() : 0; changed++; }
+  if (!added && !changed) return json({ ok: true, added, changed });
+  const now = Date.now();
+  doc.posts = doc.posts.filter((p) => now - p.at < POSTS_KEEP).sort((a, b) => b.at - a.at).slice(0, POSTS_MAX);
+  try { await env.CAL.put(POSTS_KEY, JSON.stringify(doc)); } catch (e) { return json({ error: String((e && e.message) || e) }, 503); }
+  return json({ ok: true, added, changed, total: doc.posts.length });
+}
 
 // 画面向け。無料: 件数(total)だけ / 有効期限内のウォレットでログイン済み: 全期間の中身(rows)。
 async function rxApi(request, url, env) {
@@ -1433,7 +1464,15 @@ export default {
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/admin/rx' && request.method === 'POST') { const r = await rxAdmin(request, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/admin/rx-get' && request.method === 'GET') { const r = await rxGet(request, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/admin/rx-one' && request.method === 'GET') {   // v72: 合言葉つき。1つの保存をそのまま返す(今は xs だけで使う)
+      if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
+      const name = url.searchParams.get('name') || '';
+      if (!RX_NAME.test(name) || !env.CAL) return json({ error: 'bad name' }, 400);
+      const txt = await env.CAL.get(rxNameKey(name));
+      return new Response(txt || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+    }
     if (url.pathname === '/api/admin/rx-put' && request.method === 'POST') { const r = await rxPut(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/admin/posts') { const r = await postsApi(request, env); r.headers.set('cache-control', 'no-store'); return r; }   // v73
     if (url.pathname === '/api/rx') { const r = await rxApi(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/verify' && request.method === 'POST') { const r = await authVerify(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }

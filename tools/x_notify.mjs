@@ -1,0 +1,253 @@
+#!/usr/bin/env node
+// X 投稿の下書きづくり(v73)。RX runner のワークフローの最後に1時間ごとに動く。
+// 仕様書(crypto_signal_archive_x_spec.md)の4シリーズを作り、サイトの下書き置き場(/api/admin/posts)へ足す。
+// あなたは /posts.html を開き、ボタンで投稿する(画像つき)。X の API は使わない。
+//   DAILY TIMELINE : 毎日 UTC 0時台の実行で1本(今日=UTCの今日、今週=明日〜日曜。日曜は来週)
+//   ON THIS DATE   : 毎日 UTC 0時台の実行で1本(過去の同じ月日の指標から1つ)
+//   ARCHIVED       : 対象イベントの発表から65分たった後の最初の実行で1本(48時間を過ぎたら作らない)
+//   WEEK IN CRYPTO : 月曜 UTC 0時台の実行で1本(前の週 月曜0時〜月曜0時 UTC)
+// 数値の決まり(全シリーズ共通・変えない):
+//   価格 = Binance 現物 BTCUSDT / ETHUSDT。時刻はUTC。
+//   BEFORE = 発表時刻を含む5分足の始値。AFTER = 発表から1時間後に閉じる5分足の終値(サイトの EVENT IMPACT「1時間後」と同じ)。
+//   週 = 月曜00:00〜次の月曜00:00 UTC。開始 = 月曜の日足の始値、終了 = 日曜の日足の終値。
+//   変化率 = (後 ÷ 前 − 1) × 100、小数2桁で四捨五入。価格は BTC が整数ドル、ETH が小数2桁。
+// 必要: RX_ADMIN_KEY。任意: NTFY_TOPIC(新しい下書きができたらスマホに通知)。
+// 確認用: X_DRY=1 で保存も通知もせず、作った文面を表示 / X_NOW=ISO時刻 で「今」を差し替え /
+//         X_MOCK=フォルダ で サイトと Binance の代わりにフォルダ内の JSON を読む(テスト用)
+import fs from 'node:fs';
+import path from 'node:path';
+
+const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
+const KEY = process.env.RX_ADMIN_KEY || '';
+const TOPIC = process.env.NTFY_TOPIC || '';
+const NTFY = (process.env.NTFY_SERVER || 'https://ntfy.sh').replace(/\/+$/, '');
+const DRY = !!process.env.X_DRY;
+const MOCK = process.env.X_MOCK || '';
+const NOW = process.env.X_NOW ? Date.parse(process.env.X_NOW) : Date.now();
+const BASES = (process.env.BINANCE_BASES || 'https://data-api.binance.vision,https://api.binance.com,https://api1.binance.com').split(',').map((x) => x.trim()).filter(Boolean);
+const M5 = 3e5, H = 36e5, DAY = 24 * H, JST = 9 * H;
+const ARCH_WAIT = 65 * 60000, ARCH_MAX = 48 * H;
+const REGIONS = ['US', 'JP', 'EU'];
+const REGION_EN = { US: 'US', JP: 'Japan', EU: 'Euro area' };
+
+if (!KEY && !MOCK) { console.log('[x] RX_ADMIN_KEY が未設定のため何もしません'); process.exit(0); }
+
+// ---- 読み込み(本番はサイト・Binance、テストはフォルダ) ----
+const mockFile = (name) => JSON.parse(fs.readFileSync(path.join(MOCK, name), 'utf8'));
+async function site(p, opt = {}) {
+  if (MOCK) {
+    if (opt.method === 'POST') { console.log('[mock] POST', p, String(opt.body).length, 'bytes'); fs.writeFileSync(path.join(MOCK, 'posted.json'), String(opt.body)); return { json: async () => ({ ok: true }) }; }
+    const name = { '/api/cal': 'cal.json', '/api/admin/rx-get': 'rx-get.json', '/api/admin/posts': 'posts.json' }[p.split('?')[0]];
+    return { json: async () => (fs.existsSync(path.join(MOCK, name)) ? mockFile(name) : {}) };
+  }
+  const r = await fetch(SITE + p, { ...opt, headers: { 'User-Agent': 'signal-archive-x-posts/1.0', 'x-admin-key': KEY, ...(opt.headers || {}) }, signal: AbortSignal.timeout(60000) });
+  if (!r.ok) throw new Error(p.split('?')[0] + ' HTTP ' + r.status);
+  return r;
+}
+// Binance の足 [開始, 始, 高, 安, 終, ...]。取れなければ null
+async function klines(sym, interval, startTime, limit) {
+  if (MOCK) {
+    const all = (mockFile('klines.json')[sym + ':' + interval]) || [];
+    return all.filter((b) => b[0] >= startTime).slice(0, limit);
+  }
+  for (const base of BASES) {
+    try {
+      const r = await fetch(`${base}/api/v3/klines?symbol=${sym}&interval=${interval}&startTime=${startTime}&limit=${limit}`, { signal: AbortSignal.timeout(15000) });
+      if (r.ok) return (await r.json()).map((b) => [+b[0], +b[1], +b[2], +b[3], +b[4]]);
+    } catch (_) {}
+  }
+  return null;
+}
+
+// ---- 文字の数え方(X: 日本語などは2、URLは23。上限280) ----
+const xlen = (t) => { let n = 0; for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
+
+// ---- 日時・数字の書き方 ----
+const WJ = ['日', '月', '火', '水', '木', '金', '土'], WE = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], ME = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const p2 = (n) => String(n).padStart(2, '0');
+const U = (t) => new Date(t), J = (t) => new Date(t + JST);
+const enDay = (t) => { const d = U(t); return `${WE[d.getUTCDay()]} ${ME[d.getUTCMonth()]} ${d.getUTCDate()}`; };          // Wed Oct 7
+const enDate = (t) => { const d = U(t); return `${ME[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`; };       // Oct 7, 2026
+const enHM = (t) => { const d = U(t); return `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`; };
+const jaDay = (t) => { const d = J(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WJ[d.getUTCDay()]})`; };          // 10/7(水)
+const jaDate = (t) => { const d = J(t); return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; };
+const jaHM = (t) => { const d = J(t); return `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`; };
+const pct = (a, b) => Math.round((b / a - 1) * 1e4) / 100;                                     // 小数2桁
+const pctTxt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+const usd = (v, dp = 0) => '$' + v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const dayStart = (t) => Math.floor(t / DAY) * DAY;                                             // UTC 0時
+const weekStart = (t) => { const d0 = dayStart(t); return d0 - ((U(d0).getUTCDay() + 6) % 7) * DAY; };   // UTC 月曜0時
+
+// ---- イベントの名前 ----
+const enName = (e) => e.te || e.se || e.s || e.t;
+const jaName = (e) => /^(FOMC|日銀|ECB)$/.test(e.s || '') ? (e.t || e.s) : (e.s || e.t);
+// 同じ時刻・同じ地域の発表(CPIの前年比・前月比など)は1行にまとめる。名前は重ならないものを2つまで
+function groupLine(g, lang) {
+  const names = [];
+  for (const e of g) { const n = lang === 'en' ? enName(e) : jaName(e); if (!names.includes(n)) names.push(n); }
+  if (lang === 'en' && names.length > 1) {                                                    // 2つ目以降は地域名を省く(US CPI YoY / CPI MoM)
+    const pre = REGION_EN[g[0].c] ? REGION_EN[g[0].c] + ' ' : '';
+    for (let i = 1; i < names.length; i++) if (pre && names[i].startsWith(pre)) names[i] = names[i].slice(pre.length);
+  }
+  const more = names.length - 2;
+  return names.slice(0, 2).join(' / ') + (more > 0 ? (lang === 'en' ? ` +${more}` : ` ほか${more}`) : '');
+}
+
+// ---- タグ(指標 + 銘柄 + 仮想通貨) ----
+function tags(name) {
+  const T = [[/CPI/, '#CPI', '#CPI'], [/PPI/, '#PPI', '#PPI'], [/PCE/, '#PCE', '#PCE'], [/雇用統計|失業率|Nonfarm|Payroll|Unemployment/i, '#雇用統計', '#NFP'], [/FOMC/, '#FOMC', '#FOMC'],
+    [/FRB|Fed\b/, '#FRB', '#Fed'], [/日銀|BoJ|BOJ/, '#日銀', '#BOJ'], [/ECB/, '#ECB', '#ECB'], [/GDP/, '#GDP', '#GDP'], [/ISM/, '#ISM', '#ISM'], [/小売|Retail/, '#小売売上高', '#RetailSales'],
+    [/満期|Expiry|expiry/, '#オプション満期', '#OptionsExpiry'], [/ETH|Ethereum/, '#イーサリアム', '#Ethereum']];
+  const hit = T.find(([re]) => re.test(name));
+  return { ja: [hit ? hit[1] : '#経済指標', '#ビットコイン', '#仮想通貨'].join(' '), en: [hit ? hit[2] : '#Macro', '#Bitcoin', '#Crypto'].join(' ') };
+}
+
+// 行を入るだけ入れる(280を超える分は「+N more」にまとめる)。fixed は必ず入れる行(見出しやタグ)
+function fit(build, items, lang) {
+  for (let n = items.length; n >= 0; n--) {
+    const rest = items.length - n;
+    const t = build(items.slice(0, n), rest ? (lang === 'en' ? `+${rest} more` : `ほか${rest}件`) : null);
+    if (xlen(t) <= 280) return t;
+  }
+  return build([], null);
+}
+
+// ---- 対象のイベント ----
+const cal = await (await site('/api/cal')).json();
+const events = (cal.events || []).map((e) => ({ ...e, ts: Date.parse(e.at) })).filter((e) => isFinite(e.ts) && e.im === 'high'
+  && ((e.l === 'macro' && REGIONS.includes(e.c)) || (e.l === 'asset' && !/ニュース/.test(e.s || ''))));
+function groups(list) {                                                                         // 時刻+地域ごと
+  const m = new Map();
+  for (const e of list) { const k = e.ts + ':' + (e.c || e.l); const g = m.get(k) || []; g.push(e); m.set(k, g); }
+  return [...m.values()].sort((a, b) => a[0].ts - b[0].ts);
+}
+const between = (a, b) => groups(events.filter((e) => e.ts >= a && e.ts < b));
+
+const store = MOCK || KEY ? await (await site('/api/admin/posts')).json() : { posts: [] };
+const have = new Set((store.posts || []).map((p) => p.id));
+const out = [];
+const add = (p) => { if (!have.has(p.id)) { have.add(p.id); out.push({ at: NOW, ...p }); } };
+const today = dayStart(NOW), isoDay = (t) => U(t).toISOString().slice(0, 10);
+const dailyTime = U(NOW).getUTCHours() < 3 || process.env.X_FORCE_DAILY;                 // UTC 0〜2時台(日本時間 9〜11時台)の最初の実行。2回目以降は作成済みなので作らない
+
+// ---- 1) DAILY TIMELINE ----
+if (dailyTime && !have.has('daily:' + isoDay(today))) {
+  const tg = between(today, today + DAY);
+  let wa = today + DAY, wb = weekStart(today) + 7 * DAY, next = false;
+  if (wb - wa <= 0) { wb = wa + 7 * DAY; next = true; }                                       // 日曜は来週を出す
+  const wk = between(wa, wb);
+  const nextJ = (t) => dayStart(t + JST) !== dayStart(today + JST) ? '翌' : '';                 // 日本時間で日付が変わった分
+  const todayL = { en: tg.map((g) => enHM(g[0].ts) + ' — ' + groupLine(g, 'en')), ja: tg.map((g) => nextJ(g[0].ts) + jaHM(g[0].ts) + ' — ' + groupLine(g, 'ja')) };
+  const weekL = { en: wk.map((g) => `${enDay(g[0].ts)} ${enHM(g[0].ts)} — ` + groupLine(g, 'en')), ja: wk.map((g) => `${jaDay(g[0].ts)} ${jaHM(g[0].ts)} — ` + groupLine(g, 'ja')) };
+  const daily = (lang) => {
+    const en = lang === 'en';
+    const head = en ? [`TODAY · ${enDate(today)}`, '', "TODAY'S EVENTS (UTC)"] : [`今日のイベント ${jaDay(today)}`, '(日本時間)'];
+    const wTitle = en ? (next ? 'NEXT WEEK' : 'THIS WEEK') : (next ? '来週のイベント' : '今週のイベント');
+    const none = en ? 'No scheduled events' : '予定なし', tag = en ? tags('Macro').en : tags('経済指標').ja;
+    const more = (r) => r > 0 ? (en ? `+${r} more` : `ほか${r}件`) : null;
+    const T = todayL[lang], W = weekL[lang];
+    const mk = (tn, wn) => [...head, ...(T.length ? T.slice(0, tn) : [none]), ...(more(T.length - tn) ? [more(T.length - tn)] : []), '', wTitle,
+      ...(W.length ? W.slice(0, wn) : [none]), ...(more(W.length - wn) ? [more(W.length - wn)] : []), '', tag].join('\n');
+    let tn = T.length, wn = 0;                                                                 // 今日を優先し、残りに今週を入るだけ
+    while (tn > 0 && xlen(mk(tn, 0)) > 280) tn--;
+    while (wn < W.length && xlen(mk(tn, wn + 1)) <= 280) wn++;
+    return mk(tn, wn);
+  };
+  add({
+    id: 'daily:' + isoDay(today), sr: 'daily',
+    en: daily('en'), ja: daily('ja'),
+    img: { day: today, next, today: tg.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })), week: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) },
+  });
+}
+
+// BEFORE / AFTER(共通の決まり)と、画像用の前後1時間の5分足の終値
+async function beforeAfter(ts) {
+  const t0 = Math.floor(ts / M5) * M5;
+  const bars = await klines('BTCUSDT', '5m', t0 - 12 * M5, 25);
+  if (!bars) return null;
+  const m = new Map(bars.map((b) => [b[0], b]));
+  const f = m.get(t0), l = m.get(t0 + 11 * M5);
+  if (!f || !l) return null;
+  const before = f[1], after = l[4];
+  const spark = []; for (let i = -12; i <= 12; i++) { const b = m.get(t0 + i * M5); spark.push(b ? b[4] : null); }
+  return { before, after, chg: pct(before, after), spark, t0 };
+}
+
+// ---- 2) ARCHIVED ----
+for (const g of groups(events.filter((e) => NOW - e.ts >= ARCH_WAIT && NOW - e.ts < ARCH_MAX && !/halving/.test(e.id || '')))) {
+  const e = g[0], id = 'arch:' + e.ts + ':' + (e.c || e.l);
+  if (have.has(id)) continue;
+  const ba = await beforeAfter(e.ts);
+  if (!ba) { console.log('[x] 価格が取れないので次回:', id); continue; }
+  const nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), tg = tags(nE + ' ' + nJ);
+  add({
+    id, sr: 'arch',
+    en: ['ARCHIVED', '', nE, `${enDate(e.ts)} · ${enHM(e.ts)} UTC`, '', 'BEFORE', `BTC: ${usd(ba.before)}`, '', 'AFTER (+1h)', `BTC: ${usd(ba.after)}`, '', 'CHANGE', pctTxt(ba.chg), '', tg.en].join('\n'),
+    ja: ['アーカイブ', '', nJ, `${jaDate(e.ts)} ${jaHM(e.ts)}(日本時間)`, '', 'イベント前', `BTC: ${usd(ba.before)}`, '', 'イベント後(1時間後)', `BTC: ${usd(ba.after)}`, '', '変動', pctTxt(ba.chg), '', tg.ja].join('\n'),
+    img: { t: e.ts, en: nE, ja: nJ, ...ba },
+  });
+}
+
+// ---- 3) ON THIS DATE ----
+const PRIO = [/FOMC/, /CPI/, /雇用統計|非農業/, /PCE/, /GDP/, /PPI/, /日銀/, /ECB/, /小売/, /ISM/, /失業率/];
+if (dailyTime && !have.has('otd:' + isoDay(today))) {
+  const dump = await (await site('/api/admin/rx-get')).json();
+  const md = isoDay(today).slice(5), cand = [], seen = new Set();
+  for (const doc of Object.values(dump.shards || {})) for (const e of (doc && doc.ev) || []) {
+    const a = e.r && e.r.BTC, c = String(e.k || '').split('|').pop();
+    if (!Array.isArray(a) || !(a[0] > 0) || !REGIONS.includes(c) || isoDay(e.t).slice(5) !== md || e.t > today - 300 * DAY) continue;
+    const key = e.k + ':' + e.t; if (seen.has(key)) continue; seen.add(key);
+    const ja = String(e.k).split('|')[0], pr = PRIO.findIndex((re) => re.test(ja));
+    cand.push({ e, c, ja, pr: pr < 0 ? 99 : pr });
+  }
+  cand.sort((x, y) => x.pr - y.pr || y.e.t - x.e.t);                                          // 決まった順(主要な指標 → 新しい年)
+  let made = false;
+  for (const { e, c, ja } of cand.slice(0, 3)) {
+    const ba = await beforeAfter(e.t);
+    if (!ba) continue;
+    const enN = (REGION_EN[c] ? REGION_EN[c] + ' ' : '') + (e.se || ja), jaN = /^(FOMC|日銀|ECB)$/.test(ja) ? ja + ' ' + (e.se || '') : ja, tg = tags(enN + ' ' + ja);
+    add({
+      id: 'otd:' + isoDay(today), sr: 'otd',
+      en: ['ON THIS DATE', '', enDate(e.t), '', 'EVENT', `${enN} · ${enHM(e.t)} UTC`, '', 'BTC (before → +1h)', `${usd(ba.before)} → ${usd(ba.after)}`, '', 'CHANGE', pctTxt(ba.chg), '', tg.en].join('\n'),
+      ja: ['今日は何があった？', '', jaDate(e.t - JST), '', 'イベント', `${jaN} ${enHM(e.t)} UTC`, '', 'BTC(発表時 → 1時間後)', `${usd(ba.before)} → ${usd(ba.after)}`, '', '変動', pctTxt(ba.chg), '', tg.ja].join('\n'),
+      img: { t: e.t, en: enN, ja: jaN, ...ba },
+    });
+    made = true; break;
+  }
+  if (!made) console.log('[x] ON THIS DATE: 過去の同じ日付に記録がない/価格が取れない', md);
+}
+
+// ---- 4) WEEK IN CRYPTO ----
+if (dailyTime && U(NOW).getUTCDay() === 1) {
+  const we = weekStart(NOW), ws = we - 7 * DAY, id = 'week:' + isoDay(ws);
+  if (!have.has(id)) {
+    const [b, e] = await Promise.all([klines('BTCUSDT', '1d', ws, 7), klines('ETHUSDT', '1d', ws, 7)]);
+    if (b && e && b.length === 7 && e.length === 7 && b[0][0] === ws && e[0][0] === ws) {
+      const S = (k, dp) => ({ s: k[0][1], e: k[6][4], chg: pct(k[0][1], k[6][4]), dp, spark: [k[0][1], ...k.map((x) => x[4])] });
+      const btc = S(b, 0), eth = S(e, 2), wk = between(ws, we);
+      const lines = (lang) => wk.map((g) => (lang === 'en' ? enDay(g[0].ts) : jaDay(g[0].ts - JST)) + ' — ' + groupLine(g, lang));   // 週はUTC基準なので日本語もUTCの日付
+      const px = (o) => `${usd(o.s, o.dp)} → ${usd(o.e, o.dp)}`;
+      const tgE = '#Bitcoin #Ethereum #Crypto', tgJ = '#ビットコイン #イーサリアム #仮想通貨';
+      add({
+        id, sr: 'week',
+        en: fit((a, more) => ['WEEK IN CRYPTO', '', `${enDay(ws)} — ${enDay(we - DAY)}, ${U(ws).getUTCFullYear()} (UTC)`, '', 'EVENTS', ...(a.length ? a : wk.length ? [] : ['None']), ...(more ? [more] : []), '', 'BTC', px(btc), 'CHANGE ' + pctTxt(btc.chg), '', 'ETH', px(eth), 'CHANGE ' + pctTxt(eth.chg), '', tgE].join('\n'), lines('en'), 'en'),
+        ja: fit((a, more) => ['今週のCrypto', '', `${jaDay(ws - JST)}〜${jaDay(we - DAY - JST)}(UTC基準)`, '', 'イベント', ...(a.length ? a : wk.length ? [] : ['なし']), ...(more ? [more] : []), '', 'BTC', px(btc), '変動 ' + pctTxt(btc.chg), '', 'ETH', px(eth), '変動 ' + pctTxt(eth.chg), '', tgJ].join('\n'), lines('ja'), 'ja'),
+        img: { ws, we, btc, eth, ev: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) },
+      });
+    } else console.log('[x] WEEK: 日足が揃わないので次回');
+  }
+}
+
+// ---- 保存・通知 ----
+for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) console.log(`[x] 注意: ${p.id} ${lg} が280を超えています(${xlen(p[lg])})`);
+if (DRY) for (const p of out) console.log(`==== ${p.id} ====\n${p.en}\n(en ${xlen(p.en)}/280)\n--\n${p.ja}\n(ja ${xlen(p.ja)}/280)\n`);
+if (!DRY && out.length) {
+  await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ add: out }) });
+  if (TOPIC) {
+    const label = { daily: 'DAILY', arch: 'ARCHIVED', otd: 'ON THIS DATE', week: 'WEEK' };
+    const r = await fetch(NTFY, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(20000),
+      body: JSON.stringify({ topic: TOPIC, title: `投稿の下書き ${out.length}件`, message: out.map((p) => label[p.sr] + ' ' + p.en.split('\n')[p.sr === 'arch' ? 2 : 0]).join('\n'), tags: ['bird'], click: SITE + '/posts.html' }) });
+    if (!r.ok) console.log('[x] ntfy HTTP ' + r.status);
+  }
+}
+console.log(`[x] 新しい下書き ${out.length}件 (${out.map((p) => p.id).join(', ') || 'なし'})${DRY ? ' / DRY' : ''}`);
