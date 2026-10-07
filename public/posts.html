@@ -20,7 +20,7 @@ header h1{margin:0 8px 0 0;font:600 13px "IBM Plex Mono",monospace;letter-spacin
 .sp{flex:1}
 main{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:0 0 16px;overflow:hidden}
-.card.done{opacity:.7}
+.card.done{border-color:var(--up)}
 .ch{display:flex;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mut)}
 .badge{font:600 10px "IBM Plex Mono",monospace;letter-spacing:.12em;color:var(--mut)}
 .kind{font-weight:700;font-size:14px;color:var(--gold)}
@@ -139,10 +139,9 @@ function what(p) {
 const fmtHM = (t) => { const d = new Date(t + 9 * 36e5); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
 const fmtJ = (t) => { const d = new Date(t + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
 
-// v77: 4種類の欄を常に表示。各欄の中は 未投稿(投稿時刻の早い順)→ 投稿済み(新しい順)。投稿済みはたたんで表示
+// v78: 4種類の欄を常に表示。各欄の中は新しい順。投稿済みにしても消さない・たたまない・並びも変えない(チェックと色が変わるだけ)
 const ORDER = ['daily', 'otd', 'arch', 'week'];
 const RULE = { daily: '毎日 7時以降に作成 → 9:30に投稿', otd: '毎日 7時以降に作成 → 12:00に投稿', arch: '重要指標の発表の約1時間後に作成 → すぐ投稿', week: '毎週月曜 7時以降に作成 → 10:00に投稿' };
-const OPEN = new Set();   // たたんだ投稿済みのうち、開いているもの
 const isDone = (p) => !!(p.done && p.done.en && p.done.ja);
 function nextHint(sr) {
   const j = new Date(Date.now() + 9 * 36e5), h = j.getUTCHours(), dow = j.getUTCDay();
@@ -154,27 +153,26 @@ function render() {
   const since = F === '7d' ? Date.now() - 7 * 864e5 : 0;
   const how = MOBILE ? '「画像つきで投稿」→ 共有メニューで X を選ぶ → 投稿。本文が入っていなければ貼り付け(コピー済み)。'
     : '「画像をコピーしてXを開く」→ 開いた投稿画面で Ctrl+V(Macは⌘V)で画像を貼り付け → 投稿。';
-  let html = `<p class="note">${how}<br>投稿ボタンを押すと自動で「投稿済み」にチェックが付きます。別の方法で投稿したときは、チェックを手で付けてください(外すこともできます)。英語 → 日本語の順で。</p>`;
+  let html = `<p class="note">${how}<br>投稿ボタンを押すと自動で「投稿済み」にチェックが付きます(手でも付け外しできます)。投稿済みにしても消えずに残ります(30日)。英語 → 日本語の順で。</p>`;
   for (const sr of ORDER) {
     const all = POSTS.filter((p) => p.sr === sr && p.at >= since);
-    const todo = all.filter((p) => !isDone(p)).sort((a, b) => postAt(a) - postAt(b));
-    const done = all.filter(isDone).sort((a, b) => b.at - a.at);
+    const todo = all.filter((p) => !isDone(p)), done = all.filter(isDone);
+    const list = all.slice().sort((a, b) => postAt(b) - postAt(a));
     html += `<section class="sec" id="sec-${sr}"><div class="sh"><h2>${SRL[sr][0]}</h2><span class="badge">${SRL[sr][1]}</span>
       <span class="rule">${RULE[sr]}</span><span class="cnt ${todo.length ? 'todo' : ''}">未投稿 ${todo.length} / 投稿済み ${done.length}</span></div>`;
     if (!all.length) html += `<div class="none">まだありません。${nextHint(sr)}</div>`;
-    else if (!todo.length) html += `<div class="none ok">✔ 未投稿はありません。</div>`;
-    html += todo.map(card).join('') + done.map(card).join('') + '</section>';
+    html += list.map(card).join('') + '</section>';
   }
   $('#main').innerHTML = html;
-  for (const p of POSTS) if (p.at >= since && (!isDone(p) || OPEN.has(p.id))) for (const lg of ['en', 'ja']) paint(p, lg);
+  for (const p of POSTS) if (p.at >= since) for (const lg of ['en', 'ja']) paint(p, lg);
 }
 function card(p) {
-  const d = isDone(p), folded = d && !OPEN.has(p.id), st = (lg) => p.done && p.done[lg] ? `<span class="st on">${lg === 'en' ? '英' : '日'} ✔</span>` : `<span class="st">${lg === 'en' ? '英' : '日'} 未</span>`;
+  const d = isDone(p), st = (lg) => p.done && p.done[lg] ? `<span class="st on">${lg === 'en' ? '英' : '日'} ✔</span>` : `<span class="st">${lg === 'en' ? '英' : '日'} 未</span>`;
   return `<div class="card ${d ? 'done' : ''}" data-id="${esc(p.id)}">
       <div class="ch">${st('en')}${st('ja')}<span class="what">${esc(what(p))}</span>
         <span class="when ${!d && postAt(p) <= Date.now() ? 'now' : ''}">投稿 ${p.sr === 'arch' ? 'すぐ(' + fmtJ(postAt(p)) + '〜)' : fmtJ(postAt(p))}</span>
-        ${d ? `<button class="chip" data-act="fold">${folded ? '開く' : 'たたむ'}</button>` : ''}</div>
-      ${folded ? '' : `<div class="panes">${['en', 'ja'].map((lg) => pane(p, lg)).join('')}</div>`}
+        ${d ? '<span class="st on">✔ 投稿完了</span>' : ''}</div>
+      <div class="panes">${['en', 'ja'].map((lg) => pane(p, lg)).join('')}</div>
     </div>`;
 }
 function pane(p, lg) {
@@ -337,7 +335,6 @@ async function paint(p, lg) {
 async function mark(id, lang, v) {
   const p = POSTS.find((x) => x.id === id); if (!p) return;
   p.done = p.done || {}; p.done[lang] = v ? Date.now() : 0;
-  if (isDone(p)) OPEN.delete(id);
   render();
   try { await api({ mark: { id, lang, v } }); toast(v ? (lang === 'en' ? '英語' : '日本語') + 'を投稿済みにしました' : 'チェックを外しました'); }
   catch (e) { toast('「投稿済み」を保存できませんでした(' + e.message + ')'); }
@@ -345,7 +342,6 @@ async function mark(id, lang, v) {
 document.addEventListener('click', async (ev) => {
   const b = ev.target.closest('[data-act]'); if (!b) return;
   const card = b.closest('.card'), id = card.dataset.id;
-  if (b.dataset.act === 'fold') { OPEN.has(id) ? OPEN.delete(id) : OPEN.add(id); return render(); }
   const pane = b.closest('.pane'), lg = pane.dataset.lg;
   const p = POSTS.find((x) => x.id === id), im = IMG.get(id + ':' + lg), text = p[lg], act = b.dataset.act;
   if (act === 'done') return mark(id, lg, b.checked);
