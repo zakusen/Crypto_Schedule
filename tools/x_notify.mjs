@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// X 投稿の下書きづくり(v75: すべて日本時間 JST 基準)。RX runner のワークフローの最後に1時間ごとに動く。
+// X 投稿の下書きづくり(v76: すべて日本時間 JST 基準)。RX runner のワークフローの最後に1時間ごとに動く。
 // 仕様書(crypto_signal_archive_x_spec.md)の4シリーズを作り、サイトの下書き置き場(/api/admin/posts)へ足す。
 // あなたは /posts.html を開き、ボタンで投稿する(画像つき)。X の API は使わない。
-//   DAILY TIMELINE : 毎日 日本時間7〜9時台の最初の実行で1本。投稿は9:30の想定なので、9:30より後の予定だけ載せる(今日の残り+明日〜日曜。日曜は来週)
-//   ON THIS DATE   : 毎日 日本時間7〜9時台の実行で1本(過去の同じ月日の指標から1つ)
+//   DAILY TIMELINE : 毎日 日本時間7時以降の最初の実行で1本。投稿は9:30の想定なので、9:30より後の予定だけ載せる(今日の残り+明日〜日曜。日曜は来週)
+//   ON THIS DATE   : 毎日 日本時間7時以降の最初の実行で1本(過去の同じ月日の指標から1つ)
 //   ARCHIVED       : 対象イベントの発表から65分たった後の最初の実行で1本(48時間を過ぎたら作らない)
-//   WEEK IN CRYPTO : 月曜 日本時間7〜9時台の実行で1本(前の週 月曜0時〜次の月曜0時 JST)
+//   WEEK IN CRYPTO : 月曜 日本時間7時以降の最初の実行で1本(前の週 月曜0時〜次の月曜0時 JST)
 // 数値の決まり(全シリーズ共通・変えない):
 //   価格 = Binance 現物 BTCUSDT / ETHUSDT。時刻・日付はすべて日本時間(JST)。
 //   BEFORE = 発表時刻を含む5分足の始値。AFTER = 発表から1時間後に閉じる5分足の終値(サイトの EVENT IMPACT「1時間後」と同じ)。
@@ -112,7 +112,7 @@ const have = new Set((store.posts || []).map((p) => p.id));
 const out = [];
 const add = (p) => { if (!have.has(p.id)) { have.add(p.id); out.push({ at: NOW, ...p }); } };
 const today = dayStart(NOW), isoDay = (t) => U(t).toISOString().slice(0, 10);
-const hourJ = J(NOW).getUTCHours(), dailyTime = hourJ >= 7 && hourJ < 10;                  // 日本時間 7〜9時台の最初の実行。2回目以降は作成済みなので作らない
+const hourJ = J(NOW).getUTCHours(), dailyTime = hourJ >= 7;                                // v76: 日本時間7時以降、その日の分がまだ無ければ作る(朝の実行を逃しても後から作られる)
 const POST_AT = today + 9.5 * H;                                                                 // DAILY を投稿する想定の時刻(日本時間 9:30。posts.html と同じ)
 
 // ---- 1) DAILY TIMELINE ----

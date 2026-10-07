@@ -20,7 +20,7 @@ header h1{margin:0 8px 0 0;font:600 13px "IBM Plex Mono",monospace;letter-spacin
 .sp{flex:1}
 main{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:0 0 16px;overflow:hidden}
-.card.done{opacity:.55}
+.card.done{opacity:.7}
 .ch{display:flex;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mut)}
 .badge{font:600 10px "IBM Plex Mono",monospace;letter-spacing:.12em;color:var(--mut)}
 .kind{font-weight:700;font-size:14px;color:var(--gold)}
@@ -41,26 +41,38 @@ pre{white-space:pre-wrap;word-break:break-word;margin:8px 0;font:13px/1.45 "IBM 
 .btn.main{background:var(--gold);color:#14110a;border-color:var(--gold);font-weight:600}
 .btn:active{transform:translateY(1px)}
 label.ck{display:flex;gap:5px;align-items:center;font-size:12px;color:var(--mut);margin-left:auto;cursor:pointer}
-label.ck input{width:18px;height:18px;accent-color:var(--up)}
+label.ck input{width:22px;height:22px;accent-color:var(--up)}
+label.ck{font-size:13px!important;padding:6px 10px;border:1px solid var(--line);border-radius:7px}
+.ck.on{border-color:var(--up)}
 .ck.on{color:var(--up)}
 .empty,.keybox{color:var(--mut);text-align:center;padding:48px 16px}
 .keybox input{background:#0c111c;border:1px solid var(--line);color:var(--tx);border-radius:7px;padding:9px 11px;width:min(340px,100%);font:inherit}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#e6e9ef;color:#0a0e16;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92vw;text-align:center;z-index:9}
 #toast.on{opacity:1}
 .note{font-size:12px;color:var(--mut);margin:0 0 14px}
+.sec{margin:0 0 26px;scroll-margin-top:70px}
+.sh{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;border-bottom:1px solid var(--gold);padding:0 2px 6px;margin-bottom:10px}
+.sh h2{margin:0;font-size:17px;color:var(--gold)}
+.rule{font-size:12px;color:var(--mut)}
+.cnt{margin-left:auto;font-size:12px;color:var(--mut)}
+.cnt.todo{color:var(--cyan);font-weight:600}
+.none{color:var(--mut);font-size:13px;padding:14px;border:1px dashed var(--line);border-radius:10px;margin-bottom:10px}
+.none.ok{color:var(--up)}
+.st{font:600 11px "IBM Plex Mono","Noto Sans JP",monospace;padding:2px 7px;border-radius:5px;border:1px solid var(--line);color:var(--mut)}
+.st.on{color:#0a0e16;background:var(--up);border-color:var(--up)}
+a.chip{text-decoration:none}
 </style>
 </head>
 <body>
 <header>
   <h1>CSA POSTS</h1>
-  <button class="chip on" data-f="todo">未投稿</button>
-  <button class="chip" data-f="all">すべて</button>
+  <button class="chip on" data-f="7d">最近7日</button>
+  <button class="chip" data-f="all">全部(30日)</button>
   <span class="sp"></span>
-  <button class="chip" data-s="">全部</button>
-  <button class="chip" data-s="daily">今日・今週の予定</button>
-  <button class="chip" data-s="arch">発表後の値動き</button>
-  <button class="chip" data-s="otd">過去の今日</button>
-  <button class="chip" data-s="week">先週のまとめ</button>
+  <a class="chip" href="#sec-daily">今日・今週の予定</a>
+  <a class="chip" href="#sec-otd">過去の今日</a>
+  <a class="chip" href="#sec-arch">発表後の値動き</a>
+  <a class="chip" href="#sec-week">先週のまとめ</a>
   <button class="chip" id="reload">↻</button>
   <button class="chip" id="keyBtn">鍵</button>
 </header>
@@ -73,7 +85,7 @@ const KEYNAME = 'csa-admin';
 const getKey = () => { try { return localStorage.getItem(KEYNAME) || ''; } catch (_) { return ''; } };
 const setKey = (v) => { try { v ? localStorage.setItem(KEYNAME, v) : localStorage.removeItem(KEYNAME); } catch (_) {} };
 const MOBILE = matchMedia('(pointer:coarse)').matches;
-let POSTS = [], F = 'todo', SR = '';
+let POSTS = [], F = '7d';
 const IMG = new Map();   // id:lang -> {url, blob, file}
 
 function toast(t, ms = 2600) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), ms); }
@@ -127,19 +139,43 @@ function what(p) {
 const fmtHM = (t) => { const d = new Date(t + 9 * 36e5); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
 const fmtJ = (t) => { const d = new Date(t + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
 
+// v77: 4種類の欄を常に表示。各欄の中は 未投稿(投稿時刻の早い順)→ 投稿済み(新しい順)。投稿済みはたたんで表示
+const ORDER = ['daily', 'otd', 'arch', 'week'];
+const RULE = { daily: '毎日 7時以降に作成 → 9:30に投稿', otd: '毎日 7時以降に作成 → 12:00に投稿', arch: '重要指標の発表の約1時間後に作成 → すぐ投稿', week: '毎週月曜 7時以降に作成 → 10:00に投稿' };
+const OPEN = new Set();   // たたんだ投稿済みのうち、開いているもの
+const isDone = (p) => !!(p.done && p.done.en && p.done.ja);
+function nextHint(sr) {
+  const j = new Date(Date.now() + 9 * 36e5), h = j.getUTCHours(), dow = j.getUTCDay();
+  if (sr === 'arch') return '重要指標が発表されると、約1時間後にここに出ます。';
+  if (sr === 'week') return dow === 1 && h >= 7 ? 'まもなく(毎時23分ごろの実行で)作られます。' : '次の月曜 7時以降に作られます。';
+  return h >= 7 ? '今日の分は、まもなく(毎時23分ごろの実行で)作られます。' : '今日 7時以降に作られます。';
+}
 function render() {
-  const list = POSTS.filter((p) => (!SR || p.sr === SR) && (F === 'all' || !(p.done && p.done.en && p.done.ja)))
-    .sort((a, b) => F === 'todo' ? postAt(a) - postAt(b) : b.at - a.at);   // 未投稿は投稿する順(時刻の早い順)
-  if (!list.length) { $('#main').innerHTML = `<div class="empty">${F === 'todo' ? '未投稿の下書きはありません。' : '下書きはまだありません。'}<br>下書きは1時間ごとに自動で増えます。</div>`; return; }
-  const how = MOBILE ? '「画像つきで投稿」→ 共有メニューで X を選ぶ → 投稿。本文もコピー済みなので、もし本文が入っていなければ貼り付け。'
+  const since = F === '7d' ? Date.now() - 7 * 864e5 : 0;
+  const how = MOBILE ? '「画像つきで投稿」→ 共有メニューで X を選ぶ → 投稿。本文が入っていなければ貼り付け(コピー済み)。'
     : '「画像をコピーしてXを開く」→ 開いた投稿画面で Ctrl+V(Macは⌘V)で画像を貼り付け → 投稿。';
-  $('#main').innerHTML = `<p class="note">${how} 投稿すると自動で「投稿済み」になります(外すこともできます)。英語 → 日本語の順で。</p>` + list.map((p) => `
-    <section class="card ${(p.done && p.done.en && p.done.ja) ? 'done' : ''}" data-id="${esc(p.id)}">
-      <div class="ch"><span class="kind">${(SRL[p.sr] || [p.sr])[0]}</span><span class="badge">${(SRL[p.sr] || ['', ''])[1]}</span><span class="what">${esc(what(p))}</span>
-        <span class="when ${postAt(p) <= Date.now() ? 'now' : ''}">投稿 ${p.sr === 'arch' ? 'すぐ(' + fmtJ(postAt(p)) + '〜)' : fmtJ(postAt(p))}</span></div>
-      <div class="panes">${['en', 'ja'].map((lg) => pane(p, lg)).join('')}</div>
-    </section>`).join('');
-  for (const p of list) for (const lg of ['en', 'ja']) paint(p, lg);
+  let html = `<p class="note">${how}<br>投稿ボタンを押すと自動で「投稿済み」にチェックが付きます。別の方法で投稿したときは、チェックを手で付けてください(外すこともできます)。英語 → 日本語の順で。</p>`;
+  for (const sr of ORDER) {
+    const all = POSTS.filter((p) => p.sr === sr && p.at >= since);
+    const todo = all.filter((p) => !isDone(p)).sort((a, b) => postAt(a) - postAt(b));
+    const done = all.filter(isDone).sort((a, b) => b.at - a.at);
+    html += `<section class="sec" id="sec-${sr}"><div class="sh"><h2>${SRL[sr][0]}</h2><span class="badge">${SRL[sr][1]}</span>
+      <span class="rule">${RULE[sr]}</span><span class="cnt ${todo.length ? 'todo' : ''}">未投稿 ${todo.length} / 投稿済み ${done.length}</span></div>`;
+    if (!all.length) html += `<div class="none">まだありません。${nextHint(sr)}</div>`;
+    else if (!todo.length) html += `<div class="none ok">✔ 未投稿はありません。</div>`;
+    html += todo.map(card).join('') + done.map(card).join('') + '</section>';
+  }
+  $('#main').innerHTML = html;
+  for (const p of POSTS) if (p.at >= since && (!isDone(p) || OPEN.has(p.id))) for (const lg of ['en', 'ja']) paint(p, lg);
+}
+function card(p) {
+  const d = isDone(p), folded = d && !OPEN.has(p.id), st = (lg) => p.done && p.done[lg] ? `<span class="st on">${lg === 'en' ? '英' : '日'} ✔</span>` : `<span class="st">${lg === 'en' ? '英' : '日'} 未</span>`;
+  return `<div class="card ${d ? 'done' : ''}" data-id="${esc(p.id)}">
+      <div class="ch">${st('en')}${st('ja')}<span class="what">${esc(what(p))}</span>
+        <span class="when ${!d && postAt(p) <= Date.now() ? 'now' : ''}">投稿 ${p.sr === 'arch' ? 'すぐ(' + fmtJ(postAt(p)) + '〜)' : fmtJ(postAt(p))}</span>
+        ${d ? `<button class="chip" data-act="fold">${folded ? '開く' : 'たたむ'}</button>` : ''}</div>
+      ${folded ? '' : `<div class="panes">${['en', 'ja'].map((lg) => pane(p, lg)).join('')}</div>`}
+    </div>`;
 }
 function pane(p, lg) {
   const n = xlen(p[lg]), on = p.done && p.done[lg];
@@ -152,7 +188,7 @@ function pane(p, lg) {
       <button class="btn" data-act="text">文だけ投稿</button>
       <button class="btn" data-act="copy">文コピー</button>
       <button class="btn" data-act="save">画像保存</button>
-      <label class="ck ${on ? 'on' : ''}"><input type="checkbox" data-act="done" ${on ? 'checked' : ''}>投稿済み</label>
+      <label class="ck ${on ? 'on' : ''}"><input type="checkbox" data-act="done" ${on ? 'checked' : ''}>${on ? '✔ 投稿済み' : '投稿済みにする'}</label>
     </div></div>`;
 }
 
@@ -301,13 +337,16 @@ async function paint(p, lg) {
 async function mark(id, lang, v) {
   const p = POSTS.find((x) => x.id === id); if (!p) return;
   p.done = p.done || {}; p.done[lang] = v ? Date.now() : 0;
-  const card = document.querySelector(`.card[data-id="${CSS.escape(id)}"]`);
-  if (card) { const ck = card.querySelector(`.pane[data-lg="${lang}"] .ck`); ck.classList.toggle('on', v); ck.querySelector('input').checked = v; card.classList.toggle('done', !!(p.done.en && p.done.ja)); }
-  try { await api({ mark: { id, lang, v } }); } catch (e) { toast('「投稿済み」を保存できませんでした(' + e.message + ')'); }
+  if (isDone(p)) OPEN.delete(id);
+  render();
+  try { await api({ mark: { id, lang, v } }); toast(v ? (lang === 'en' ? '英語' : '日本語') + 'を投稿済みにしました' : 'チェックを外しました'); }
+  catch (e) { toast('「投稿済み」を保存できませんでした(' + e.message + ')'); }
 }
 document.addEventListener('click', async (ev) => {
   const b = ev.target.closest('[data-act]'); if (!b) return;
-  const card = b.closest('.card'), pane = b.closest('.pane'), id = card.dataset.id, lg = pane.dataset.lg;
+  const card = b.closest('.card'), id = card.dataset.id;
+  if (b.dataset.act === 'fold') { OPEN.has(id) ? OPEN.delete(id) : OPEN.add(id); return render(); }
+  const pane = b.closest('.pane'), lg = pane.dataset.lg;
   const p = POSTS.find((x) => x.id === id), im = IMG.get(id + ':' + lg), text = p[lg], act = b.dataset.act;
   if (act === 'done') return mark(id, lg, b.checked);
   if (act === 'copy') { try { await navigator.clipboard.writeText(text); toast('本文をコピーしました'); } catch (_) { toast('コピーできませんでした'); } return; }
@@ -329,8 +368,6 @@ document.addEventListener('click', async (ev) => {
   }
 });
 document.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { F = b.dataset.f; document.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('on', x === b)); render(); });
-document.querySelectorAll('[data-s]').forEach((b) => b.onclick = () => { SR = b.dataset.s; document.querySelectorAll('[data-s]').forEach((x) => x.classList.toggle('on', x === b)); render(); });
-$('[data-s=""]').classList.add('on');
 $('#reload').onclick = load;
 $('#keyBtn').onclick = () => { if (confirm('この端末に保存した管理キーを消して、入れ直しますか?')) { setKey(''); keyForm(); } };
 load();
