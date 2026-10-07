@@ -130,6 +130,13 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 #cardLayer{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none}
 .eventCard .rx{font-size:9px;font-weight:700;white-space:nowrap;margin-top:3px;padding-top:3px;border-top:1px solid rgba(182,208,228,.14)}.eventCard .rx u,.hud u{text-decoration:none}.eventCard .rx u.up,.hud u.up{color:var(--up)}.eventCard .rx u.dn,.hud u.dn{color:var(--down)}
 .eventCard i{font-style:normal;color:var(--dim);font-size:8px}
+/* v89: カードは押せる(押すとその指標を選択) */
+#cardLayer .eventCard{pointer-events:auto;cursor:pointer}
+.eventCard.sel{border-color:rgba(240,205,130,.95)!important;box-shadow:0 14px 32px rgba(0,0,0,.38),0 0 0 1px rgba(240,205,130,.5),0 0 26px rgba(217,173,104,.35)}
+.pick-tip{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:20;background:rgba(12,17,24,.9);border:1px solid rgba(217,173,104,.6);color:#e8ebf0;font-size:11px;padding:6px 10px;border-radius:6px;pointer-events:none;white-space:nowrap;animation:pickTip 2.2s ease forwards}
+@keyframes pickTip{0%{opacity:0}12%,80%{opacity:1}100%{opacity:0}}
+.pick-flash{animation:pickFlash 1.2s ease}
+@keyframes pickFlash{0%{box-shadow:0 0 0 0 rgba(217,173,104,0)}25%{box-shadow:0 0 0 2px rgba(217,173,104,.75),0 0 30px rgba(217,173,104,.35)}100%{box-shadow:0 0 0 0 rgba(217,173,104,0)}}
 .eventLine{bottom:0}.eventLine:after{display:none}
 .hud{font-size:8px;margin-top:1px;font-weight:600}
 .hmsg{padding:14px;text-align:center;font-size:9px;color:var(--muted)}
@@ -514,7 +521,7 @@ function drawPrice(){
   const cand=[...(tg?[tg]:[]),...groups.filter(g=>g!==tg&&isSel(g)&&g.ts<now).sort(byNow),...groups.filter(g=>g!==tg&&!isSel(g)&&g.rep.im==='high').sort(byNow)].slice(0,12);
   const tiers=[40,84,128,172],placed=[];
   for(const g of cand){if(placed.length>=4)break;const e=g.rep,past=g.ts<now,kind=g===tg?'next':e.im==='high'?'high':'';
-    const rc=past&&tok()?react(e):null,el=document.createElement('div');el.className='eventCard '+kind;el.style.visibility='hidden';
+    const rc=past&&tok()?react(e):null,el=document.createElement('div');el.className='eventCard '+kind+(isSel(g)?' sel':'');el._g=g;el.style.visibility='hidden';
     el.innerHTML='<span class="tag">'+(kind==='next'?'NEXT':e.im==='high'?'HIGH':'MED')+'</span><b>'+esc(evS(e))+(g.items.length>1?' <i>+'+(g.items.length-1)+'</i>':'')+'</b><span>'+mdhm(g.ts)+'</span>'+
       (rc&&rc.up!=null?'<span class="rx"><u class="up">▲'+sgn(rc.up)+'</u> <u class="dn">▼'+sgn(rc.dn)+'</u></span>':'');
     layer.appendChild(el);const w=el.offsetWidth,h=el.offsetHeight,px=x(g.ts),l=Math.max(4,Math.min(W-w-4,px-w/2));
@@ -530,6 +537,14 @@ function init(){
   addEventListener('csa-lang',()=>{IMPSIG='';renderAll()});
   sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';impSave(IMPSEL);HL=-1;sel.blur();renderAll()});
   sel.addEventListener('blur',()=>renderAll());
+  /* v89: チャートのイベントカードを押すと、その指標を選択(PC版 v88 と同じ) */
+  $('cardLayer').addEventListener('click',ev=>{const c=ev.target.closest('.eventCard');if(!c||!c._g)return;const g=c._g;
+    const keys=new Set(impList().map(x=>x.k)),e=[g.rep,...g.items].find(e=>e.l==='macro'&&keys.has(IMPKEY(e)));
+    const box=$('boxPrice'),tip=document.createElement('div');tip.className='pick-tip';box.appendChild(tip);setTimeout(()=>tip.remove(),2200);
+    if(!e){tip.textContent=TL('この予定は、過去の記録がある指標ではありません','This event has no recorded indicator');return}
+    IMPSEL=IMPKEY(e);impSave(IMPSEL);HL=-1;renderAll();
+    tip.textContent=TL('選択中の指標: ','Selected: ')+evS(e);
+    ['indInfo'].forEach(id=>{const b=$(id);if(b){b.classList.remove('pick-flash');void b.offsetWidth;b.classList.add('pick-flash')}})});
   document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
     if(b.dataset.s&&b.dataset.s!==sym){sym=b.dataset.s;HL=-1;renderAll();load(sym,tf);ensureImp()}
     else if(b.dataset.t&&b.dataset.t!==tf){tf=b.dataset.t;renderAll();if(!CD[sym+'|'+tf])load(sym,tf)}});

@@ -1914,6 +1914,14 @@ html.lang-switching [data-csa-i18n]{
 .evc.next span.tm{color:#9fd8e2}
 .evc.past{opacity:.62}
 .evc.hid{opacity:0}
+/* v88: カードは押せる(押すとその指標を選択) */
+.card.chart .evc{pointer-events:auto;cursor:pointer;transition:transform .12s,box-shadow .12s}
+.card.chart .evc:hover{transform:translateY(-2px);box-shadow:0 22px 50px rgba(0,0,0,.55),0 0 40px rgba(217,173,104,.28)}
+.card.chart .evc.sel{border-color:rgba(240,205,130,.95)!important;box-shadow:0 18px 45px rgba(0,0,0,.48),0 0 0 1px rgba(240,205,130,.55),0 0 42px rgba(217,173,104,.35)!important;opacity:1}
+.pick-tip{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;background:rgba(12,17,24,.88);border:1px solid rgba(217,173,104,.6);color:#e8ebf0;font-size:12px;padding:7px 12px;border-radius:6px;pointer-events:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:pickTip 2.2s ease forwards}
+@keyframes pickTip{0%{opacity:0;transform:translate(-50%,6px)}12%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
+.pick-flash{animation:pickFlash 1.2s ease}
+@keyframes pickFlash{0%{box-shadow:0 0 0 0 rgba(217,173,104,0)}25%{box-shadow:0 0 0 2px rgba(217,173,104,.75),0 0 34px rgba(217,173,104,.35)}100%{box-shadow:0 0 0 0 rgba(217,173,104,0)}}
 .evhover{z-index:9;display:none;background:linear-gradient(145deg,rgba(37,50,65,.94),rgba(8,13,20,.92));max-width:300px}
 .evhover .more{margin-top:6px;padding-top:6px;border-top:1px solid rgba(182,208,228,.16);font-size:9px;color:var(--muted);line-height:1.6}
 .evhover .more div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2281,7 +2289,7 @@ function draw(){
   const cand=[...selG,...groups.filter(g=>g.next&&!selG.includes(g)),...groups.filter(g=>!g.next&&!selG.includes(g)&&g.rep.im==='high').sort((a,b)=>Math.abs(a.ts-now)-Math.abs(b.ts-now))];
   let tix=0;
   for(const g of cand){if(placed.length>=cap)break;
-    const el=document.createElement('div');el.className='evc '+gKind(g)+(g.ts<now?' past':'');el.dataset.k=gKey(g);el.innerHTML=cardInner(g,false);layer.appendChild(el);
+    const el=document.createElement('div');el.className='evc '+gKind(g)+(g.ts<now?' past':'')+(sk&&g.items.some(e=>e.l==='macro'&&IMPKEY(e)===sk)?' sel':'');el.dataset.k=gKey(g);el._g=g;el.title=TL('クリックでこの指標を選択','Click to select this indicator');el.innerHTML=cardInner(g,false);layer.appendChild(el);
     const w=el.offsetWidth,h=el.offsetHeight,lefts=[g.px-w/2];placed.forEach(p=>{lefts.push(p.left-w-3,p.left+p.w+3)});
     let pl=null,pt=null;
     for(const l0 of lefts){const l=Math.max(8,Math.min(W-w-8,l0));if(g.px<l+10||g.px>l+w-10)continue;   /* 縦線から離れすぎる位置には置かない */
@@ -2331,6 +2339,20 @@ function hov(e){
   cross.classList.add('show');read.classList.add('show')}
 function off(){cross.classList.remove('show');dot.classList.remove('show');read.classList.remove('show');hideHover()}
 wrap.addEventListener('pointermove',hov,{passive:true});wrap.addEventListener('pointerleave',off,{passive:true});
+/* v88: チャートのイベントカード(ガラスの窓)や縦線を押すと、その指標を「選択中の指標」にする(右のプルダウンと同じ動き) */
+function pickFromChart(g){
+  const keys=new Set(impList().map(x=>x.k)),e=[g.rep,...g.items].find(e=>e.l==='macro'&&keys.has(IMPKEY(e)));
+  const tip=document.createElement('div');tip.className='pick-tip';wrap.appendChild(tip);setTimeout(()=>tip.remove(),2200);
+  if(!e){tip.textContent=TL('この予定は、過去の記録がある指標ではありません','This event has no recorded indicator');return}
+  IMPSEL=IMPKEY(e);IMPHL=0;impSave(IMPSEL);impCard();draw();hero();
+  tip.textContent=TL('選択中の指標: ','Selected: ')+evS(e);
+  ['impCard','indInfo'].forEach(id=>{const c=$(id);if(c){c.classList.remove('pick-flash');void c.offsetWidth;c.classList.add('pick-flash')}});
+  const h=document.querySelector('.hero');if(h){h.classList.remove('pick-flash');void h.offsetWidth;h.classList.add('pick-flash')}}
+wrap.addEventListener('click',ev=>{
+  const c=ev.target.closest&&ev.target.closest('.evc');if(c&&c._g)return pickFromChart(c._g);
+  if(!geo)return;const r=wrap.getBoundingClientRect(),px=ev.clientX-r.left;
+  const near=geo.pos.filter(o=>Math.abs(o.px-px)<7).sort((a,b)=>Math.abs(a.px-px)-Math.abs(b.px-px));
+  if(near.length)pickFromChart(near[0].g)});
 
 /* 見出し・足ボタン・ウォッチリスト */
 function head(){
