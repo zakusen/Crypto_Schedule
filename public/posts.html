@@ -315,8 +315,8 @@ const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き'
 const ICON = { daily: '🗓', arch: '📈', week: '📊' };
 const dueOf = (p) => p.due || (p.sr === 'daily' ? L.dayStart(p.at) + L.DAILY_AT : p.at);
 function build() {
-  // v84: 土曜で今日の予定が無い「今日・今週の予定」は出さない(自動作成側も作らないが、作成済みの古い下書きをすぐ隠す)
-  const satEmpty = (p) => p.sr === 'daily' && jd(dueOf(p)).getUTCDay() === 6 && !(p.img && p.img.today && p.img.today.length) && !(p.done && (p.done.en || p.done.ja));
+  // v85: その日にもその週の残りにも予定が無い「今日・今週の予定」は出さない(自動作成側も作らないが、作成済みの古い下書きをすぐ隠す)
+  const satEmpty = (p) => p.sr === 'daily' && !(p.img && p.img.today && p.img.today.length) && !(p.img && p.img.week && p.img.week.length) && !(p.done && (p.done.en || p.done.ja));
   const by = new Map(POSTS.filter((p) => LABEL[p.sr] && !satEmpty(p)).map((p) => [p.id, p]));
   const items = [...by.values()].map((p) => ({ id: p.id, sr: p.sr, due: dueOf(p), post: p }));
   for (const g of L.groups(EVENTS.filter(L.MAJOR))) {                     // これからの主要指標(下書きはまだ無い)
