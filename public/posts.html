@@ -4,190 +4,138 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>CSA Posts</title>
+<title>CSA POSTS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
 <style>
-/* v73: X 投稿の下書き置き場(運営者だけ)。tools/x_notify.mjs が作った下書きを並べ、画像つきで投稿する */
-:root{--bg:#0a0e16;--panel:#111725;--line:#1f2a3d;--tx:#e6e9ef;--mut:#8a94a7;--gold:#c9b37e;--cyan:#7fc8d8;--up:#5fa88a;--dn:#c2645f}
+/* v81: X 投稿の管理(運営者だけ)。カレンダーで「いつ・何を・済んだか」を見て、クリックで投稿/予約する */
+:root{--bg:#0a0e16;--panel:#111725;--panel2:#0d1320;--line:#1f2a3d;--tx:#e6e9ef;--mut:#8a94a7;--gold:#c9b37e;--cyan:#7fc8d8;--up:#5fa88a;--dn:#c2645f}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 "IBM Plex Sans","Noto Sans JP",system-ui,sans-serif}
-header{position:sticky;top:0;z-index:5;background:rgba(10,14,22,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-header h1{margin:0 8px 0 0;font:600 13px "IBM Plex Mono",monospace;letter-spacing:.18em;color:var(--gold)}
-.chip{border:1px solid var(--line);background:transparent;color:var(--mut);border-radius:999px;padding:4px 11px;font:inherit;font-size:12px;cursor:pointer}
-.chip.on{color:var(--bg);background:var(--cyan);border-color:var(--cyan)}
+button{font:inherit}
+header{position:sticky;top:0;z-index:20;background:rgba(10,14,22,.95);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;gap:10px;align-items:center}
+header h1{margin:0;font:600 13px "IBM Plex Mono",monospace;letter-spacing:.18em;color:var(--gold)}
 .sp{flex:1}
-main{max-width:1180px;margin:0 auto;padding:14px 16px 80px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:0 0 16px;overflow:hidden}
-.card.done{border-color:var(--up)}
-.ch{display:flex;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--mut)}
-.badge{font:600 10px "IBM Plex Mono",monospace;letter-spacing:.12em;color:var(--mut)}
-.kind{font-weight:700;font-size:14px;color:var(--gold)}
-.what{color:var(--tx);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.when{margin-left:auto;white-space:nowrap;font-weight:600;color:var(--mut)}
-.when.now{color:var(--cyan)}
-.ch{flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:transparent;color:var(--mut);border-radius:999px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
+.chip:hover{color:var(--tx);border-color:var(--mut)}
+.chip.on{color:var(--bg);background:var(--cyan);border-color:var(--cyan)}
+main{max-width:1320px;margin:0 auto;padding:18px 20px 80px}
+h2{font-size:15px;margin:0 0 10px;color:var(--gold);display:flex;align-items:center;gap:8px}
+/* 今やること */
+#todo{display:grid;gap:8px;margin-bottom:22px}
+.task{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--mut);border-radius:10px;padding:12px 16px;cursor:pointer}
+.task:hover{border-color:var(--mut)}
+.task .ic{font-size:22px;width:30px;text-align:center}
+.task .tt{font-weight:600}
+.task .sub{font-size:12px;color:var(--mut)}
+.task .go{margin-left:auto}
+.task.now{border-left-color:var(--cyan);background:#0f1d27}
+.task.warn{border-left-color:var(--dn);background:#22141a}
+.task.plan{border-left-color:var(--gold)}
+.task.wait{cursor:default;opacity:.8}
+.btn{border:1px solid var(--line);background:#16203a;color:var(--tx);border-radius:8px;padding:9px 14px;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--mut)}
+.btn.main{background:var(--gold);color:#14110a;border-color:var(--gold);font-weight:700}
+.btn.cy{background:var(--cyan);color:#06222a;border-color:var(--cyan);font-weight:700}
+/* カレンダー */
+.calbar{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.calbar h2{white-space:nowrap}
+.calbar .ym{font-size:20px;font-weight:700;min-width:150px;text-align:center}
+.legend{margin-left:auto;display:flex;gap:4px 12px;font-size:12px;color:var(--mut);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--line);gap:1px}
+.dow{background:var(--panel2);text-align:center;font-size:12px;color:var(--mut);padding:6px 0;font-weight:600}
+.dow.sat{color:#7fa6d8}.dow.sun{color:#d88a7f}
+.cell{background:var(--panel);min-height:118px;padding:6px;display:flex;flex-direction:column;gap:4px}
+.cell.out{background:#0c111b}
+.cell.out .dn{opacity:.4}
+.cell.past{background:#0e1420}
+.cell.today{box-shadow:inset 0 0 0 2px var(--gold)}
+.dn{font:600 13px "IBM Plex Mono",monospace;color:var(--mut);display:flex;justify-content:space-between}
+.cell.today .dn{color:var(--gold)}
+.ev{display:flex;align-items:center;gap:5px;font-size:12px;line-height:1.3;border-radius:6px;padding:4px 6px;cursor:pointer;border:1px solid var(--line);background:#141c2e;color:var(--tx);text-align:left;width:100%}
+.ev:hover{border-color:var(--mut)}
+.ev .t{font:600 11px "IBM Plex Mono",monospace;color:var(--mut)}
+.ev .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.ev .s{font-size:11px;flex:none}
+.ev.todo{border-color:var(--gold);color:var(--tx)}
+.ev.todo .s{color:var(--gold)}
+.ev.ready{border-color:var(--cyan);background:#0f2430;animation:pulse 1.6s infinite}
+.ev.ready .s{color:var(--cyan)}
+.ev.done{background:#13261f;border-color:#2c5a46}
+.ev.done .s{color:var(--up)}
+.ev.wait{opacity:.75;border-style:dashed}
+.ev.warn{border-color:var(--dn);background:#2a1519}
+.ev.warn .s{color:var(--dn)}
+.ev.missed{opacity:.5}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(127,200,216,.0)}50%{box-shadow:0 0 0 3px rgba(127,200,216,.25)}}
+/* 詳細(モーダル) */
+#ov{position:fixed;inset:0;background:rgba(3,6,12,.72);z-index:40;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:28px 16px}
+#ov.on{display:flex}
+.md{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:min(1200px,100%);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.mh{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.mh .k{font-size:13px;color:var(--gold);font-weight:700}
+.mh .w{font-size:18px;font-weight:700}
+.mh .x{margin-left:auto;display:flex;gap:6px}
+.when{display:flex;align-items:center;gap:14px;padding:14px 18px;background:#0f1726;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.calicon{width:60px;height:70px;border-radius:9px;background:#f4efe3;color:#1a1a1a;display:flex;flex-direction:column;align-items:center;overflow:hidden;flex:none;box-shadow:0 2px 0 #b8ac8e}
+.calicon .m{background:var(--dn);color:#fff;width:100%;text-align:center;font-size:11px;font-weight:700;padding:2px 0}
+.calicon .d{font:700 26px/1.1 "IBM Plex Sans",sans-serif;margin-top:3px}
+.calicon .w{font-size:10px;color:#555}
+.when .big{font:700 26px "IBM Plex Mono","Noto Sans JP",monospace}
+.when .lab{font-size:12px;color:var(--mut)}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.step{font-size:12px;background:#16203a;border:1px solid var(--line);border-radius:999px;padding:5px 11px;color:var(--mut)}
+.step b{color:var(--gold);margin-right:4px}
+.warnbox{margin:14px 18px 0;padding:12px 14px;border:1px solid var(--dn);background:#2a1519;border-radius:10px;font-size:13px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .panes{display:grid;grid-template-columns:1fr 1fr}
-.pane{padding:12px 14px;min-width:0}
+.pane{padding:14px 18px;min-width:0}
 .pane+.pane{border-left:1px solid var(--line)}
-@media (max-width:820px){.panes{grid-template-columns:1fr}.pane+.pane{border-left:0;border-top:1px solid var(--line)}}
-.lang{font:600 11px "IBM Plex Mono",monospace;color:var(--cyan);letter-spacing:.1em;display:flex;justify-content:space-between;margin-bottom:6px}
+@media (max-width:860px){.panes{grid-template-columns:1fr}.pane+.pane{border-left:0;border-top:1px solid var(--line)}.cell{min-height:90px}.ev .n{display:none}}
+.lang{font:600 12px "IBM Plex Mono",monospace;color:var(--cyan);letter-spacing:.1em;display:flex;justify-content:space-between;margin-bottom:8px}
 .lang .over{color:var(--dn)}
-.pane img{width:100%;aspect-ratio:16/9;display:block;border-radius:6px;border:1px solid var(--line);background:#000}
-pre{white-space:pre-wrap;word-break:break-word;margin:8px 0;font:13px/1.45 "IBM Plex Sans","Noto Sans JP",sans-serif;background:#0c111c;border:1px solid var(--line);border-radius:6px;padding:9px 10px;max-height:260px;overflow:auto}
+.pane img{width:100%;aspect-ratio:16/9;display:block;border-radius:8px;border:1px solid var(--line);background:#000;cursor:grab}
+pre{white-space:pre-wrap;word-break:break-word;margin:10px 0;font:13px/1.45 "IBM Plex Sans","Noto Sans JP",sans-serif;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;max-height:230px;overflow:auto}
 .btns{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.btn{border:1px solid var(--line);background:#16203a;color:var(--tx);border-radius:7px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}
-.btn.main{background:var(--gold);color:#14110a;border-color:var(--gold);font-weight:600}
-.btn:active{transform:translateY(1px)}
-label.ck{display:flex;gap:5px;align-items:center;font-size:12px;color:var(--mut);margin-left:auto;cursor:pointer}
+label.ck{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--mut);margin-left:auto;cursor:pointer;padding:7px 12px;border:1px solid var(--line);border-radius:8px;font-weight:600}
 label.ck input{width:22px;height:22px;accent-color:var(--up)}
-label.ck{font-size:13px!important;padding:6px 10px;border:1px solid var(--line);border-radius:7px}
-.ck.on{border-color:var(--up)}
-.ck.on{color:var(--up)}
-.empty,.keybox{color:var(--mut);text-align:center;padding:48px 16px}
-.keybox input{background:#0c111c;border:1px solid var(--line);color:var(--tx);border-radius:7px;padding:9px 11px;width:min(340px,100%);font:inherit}
-#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#e6e9ef;color:#0a0e16;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92vw;text-align:center;z-index:9}
+label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
+.empty{color:var(--mut);text-align:center;padding:48px 16px}
+.keybox input{background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:10px 12px;width:min(340px,100%);font:inherit}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#e6e9ef;color:#0a0e16;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92vw;text-align:center;z-index:60}
 #toast.on{opacity:1}
-.note{font-size:12px;color:var(--mut);margin:0 0 14px}
-.sec{margin:0 0 26px;scroll-margin-top:70px}
-.sh{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;border-bottom:1px solid var(--gold);padding:0 2px 6px;margin-bottom:10px}
-.sh h2{margin:0;font-size:17px;color:var(--gold)}
-.rule{font-size:12px;color:var(--mut)}
-.cnt{margin-left:auto;font-size:12px;color:var(--mut)}
-.cnt.todo{color:var(--cyan);font-weight:600}
-.none{color:var(--mut);font-size:13px;padding:14px;border:1px dashed var(--line);border-radius:10px;margin-bottom:10px}
-.none.ok{color:var(--up)}
-.st{font:600 11px "IBM Plex Mono","Noto Sans JP",monospace;padding:2px 7px;border-radius:5px;border:1px solid var(--line);color:var(--mut)}
-.st.on{color:#0a0e16;background:var(--up);border-color:var(--up)}
-a.chip{text-decoration:none}
+.kbd{font:600 11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--mut)}
 </style>
 </head>
 <body>
 <header>
   <h1>CSA POSTS</h1>
-  <button class="chip on" data-f="7d">最近7日</button>
-  <button class="chip" data-f="all">全部(30日)</button>
   <span class="sp"></span>
-  <a class="chip" href="#sec-daily">今日・今週の予定</a>
-  <a class="chip" href="#sec-arch">発表後の値動き</a>
-  <a class="chip" href="#sec-week">先週のまとめ</a>
-  <button class="chip" id="reload">↻</button>
+  <button class="chip" id="bell">🔔 通知をオンにする</button>
+  <button class="chip" id="reload">↻ 更新</button>
   <button class="chip" id="keyBtn">鍵</button>
 </header>
 <main id="main"><div class="empty">読み込み中…</div></main>
+<div id="ov"><div class="md" id="md"></div></div>
 <div id="toast"></div>
-<script>
+<script type="module">
 'use strict';
+import * as L from './xpost-lib.js';
 const $ = (s, r = document) => r.querySelector(s);
 const KEYNAME = 'csa-admin';
 const getKey = () => { try { return localStorage.getItem(KEYNAME) || ''; } catch (_) { return ''; } };
 const setKey = (v) => { try { v ? localStorage.setItem(KEYNAME, v) : localStorage.removeItem(KEYNAME); } catch (_) {} };
 const MOBILE = matchMedia('(pointer:coarse)').matches;
-let POSTS = [], F = '7d';
-const IMG = new Map();   // id:lang -> {url, blob, file}
-
-function toast(t, ms = 2600) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), ms); }
-const xlen = (t) => { let n = 0; t = String(t).replace(/https?:\/\/\S+/g, 'x'.repeat(23)); for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
+const SITE = location.origin;
+const BASES = ['https://data-api.binance.vision', 'https://api.binance.com', 'https://api1.binance.com'];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const intent = (t) => 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(t);
-
-async function api(body) {
-  const r = await fetch('/api/admin/posts', { method: body ? 'POST' : 'GET', headers: { 'x-admin-key': getKey(), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
-  if (r.status === 401) throw new Error('401');
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
-}
-
-function keyForm(msg) {
-  $('#main').innerHTML = `<div class="keybox"><p>${msg || '管理キー(RX_ADMIN_KEY)を入れてください。この端末にだけ保存されます。'}</p>
-    <p><input id="keyIn" type="password" autocomplete="off" placeholder="管理キー"> <button class="btn main" id="keySave">保存</button></p></div>`;
-  $('#keySave').onclick = () => { setKey($('#keyIn').value.trim()); load(); };
-  $('#keyIn').onkeydown = (e) => { if (e.key === 'Enter') $('#keySave').click(); };
-}
-
-async function load() {
-  if (!getKey()) return keyForm();
-  $('#main').innerHTML = '<div class="empty">読み込み中…</div>';
-  try { POSTS = (await api()).posts || []; }
-  catch (e) { return e.message === '401' ? keyForm('管理キーが違います。入れ直してください。') : ($('#main').innerHTML = `<div class="empty">読み込めませんでした(${esc(e.message)})</div>`); }
-  render();
-}
-
-// v73b: 種類は日本語で。英語名は小さく添える
-const SRL = { daily: ['今日・今週の予定', 'DAILY TIMELINE'], arch: ['発表後の値動き', 'ARCHIVED'], otd: ['過去の今日', 'ON THIS DATE'], week: ['先週のまとめ', 'WEEK IN CRYPTO'] };
-// 投稿する時刻(日本時間)。DAILY = 作成日の 9:30、過去の今日 = 12:00、先週のまとめ = 月曜 10:00、発表後の値動き = できたらすぐ
-const jDay0 = (t) => Math.floor((t + 9 * 36e5) / 864e5) * 864e5 - 9 * 36e5;   // 日本時間の0時
-function postAt(p) {
-  const d0 = jDay0(p.at);
-  if (p.sr === 'daily') return Math.max(p.at, d0 + 9.5 * 36e5);
-  if (p.sr === 'otd') return Math.max(p.at, d0 + 12 * 36e5);
-  if (p.sr === 'week') return Math.max(p.at, d0 + 10 * 36e5);
-  return p.at;
-}
-// 何の投稿かを一言で
-function what(p) {
-  const im = p.img || {};
-  const md = (t) => { const d = new Date(t + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
-  if (p.sr === 'daily') return `${md(im.day || p.at)}の予定 ${(im.today || []).length}件(このあと・前回の値動きつき)・${im.next ? '来週' : '今週'} ${(im.week || []).length}件`;
-  if (p.sr === 'arch') return `${im.ja || ''}(${md(im.t)} ${fmtHM(im.t)}発表)`;
-  if (p.sr === 'otd') return `${new Date(im.t + 9 * 36e5).getUTCFullYear()}年${md(im.t)} ${im.ja || ''}`;
-  if (p.sr === 'week') return `${md(im.ws)}〜${md(im.we - 864e5)} BTC${im.eth ? '・ETH' : ''}`;
-  return '';
-}
-const fmtHM = (t) => { const d = new Date(t + 9 * 36e5); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
-const fmtJ = (t) => { const d = new Date(t + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
-
-// v78: 4種類の欄を常に表示。各欄の中は新しい順。投稿済みにしても消さない・たたまない・並びも変えない(チェックと色が変わるだけ)
-const ORDER = ['daily', 'arch', 'week'];   // v79: 過去の今日は廃止(今日の予定に「前回」を組み込んだ)
-const RULE = { daily: '毎日 7時以降に作成 → 9:30に投稿(時刻はすべて日本時間)', otd: '毎日 7時以降に作成 → 12:00に投稿', arch: '主要指標(FOMC・日銀・ECB・米CPI・雇用統計・PCE)の発表の約1時間後に作成 → すぐ投稿', week: '毎週月曜 7時以降に作成 → 10:00に投稿' };
-const isDone = (p) => !!(p.done && p.done.en && p.done.ja);
-function nextHint(sr) {
-  const j = new Date(Date.now() + 9 * 36e5), h = j.getUTCHours(), dow = j.getUTCDay();
-  if (sr === 'arch') return '主要指標が発表されると、約1時間後にここに出ます。';
-  if (sr === 'week') return dow === 1 && h >= 7 ? 'まもなく(毎時23分ごろの実行で)作られます。' : '次の月曜 7時以降に作られます。';
-  return h >= 7 ? '今日の分は、まもなく(毎時23分ごろの実行で)作られます。' : '今日 7時以降に作られます。';
-}
-function render() {
-  const since = F === '7d' ? Date.now() - 7 * 864e5 : 0;
-  const how = MOBILE ? '「画像つきで投稿」→ 共有メニューで X を選ぶ → 投稿。本文が入っていなければ貼り付け(コピー済み)。'
-    : '「画像をコピーしてXを開く」→ 開いた投稿画面で Ctrl+V(Macは⌘V)で画像を貼り付け → 投稿。';
-  let html = `<p class="note">${how}<br>投稿ボタンを押すと自動で「投稿済み」にチェックが付きます(手でも付け外しできます)。投稿済みにしても消えずに残ります(30日)。英語 → 日本語の順で。</p>`;
-  for (const sr of ORDER) {
-    const all = POSTS.filter((p) => p.sr === sr && p.at >= since);
-    const todo = all.filter((p) => !isDone(p)), done = all.filter(isDone);
-    const list = all.slice().sort((a, b) => postAt(b) - postAt(a));
-    html += `<section class="sec" id="sec-${sr}"><div class="sh"><h2>${SRL[sr][0]}</h2><span class="badge">${SRL[sr][1]}</span>
-      <span class="rule">${RULE[sr]}</span><span class="cnt ${todo.length ? 'todo' : ''}">未投稿 ${todo.length} / 投稿済み ${done.length}</span></div>`;
-    if (!all.length) html += `<div class="none">まだありません。${nextHint(sr)}</div>`;
-    html += list.map(card).join('') + '</section>';
-  }
-  $('#main').innerHTML = html;
-  for (const p of POSTS) if (p.at >= since) for (const lg of ['en', 'ja']) paint(p, lg);
-}
-function card(p) {
-  const d = isDone(p), st = (lg) => p.done && p.done[lg] ? `<span class="st on">${lg === 'en' ? '英' : '日'} ✔</span>` : `<span class="st">${lg === 'en' ? '英' : '日'} 未</span>`;
-  return `<div class="card ${d ? 'done' : ''}" data-id="${esc(p.id)}">
-      <div class="ch">${st('en')}${st('ja')}<span class="what">${esc(what(p))}</span>
-        <span class="when ${!d && postAt(p) <= Date.now() ? 'now' : ''}">投稿 ${p.sr === 'arch' ? 'すぐ(' + fmtJ(postAt(p)) + '〜)' : fmtJ(postAt(p))}(日本時間)</span>
-        ${d ? '<span class="st on">✔ 投稿完了</span>' : ''}</div>
-      <div class="panes">${['en', 'ja'].map((lg) => pane(p, lg)).join('')}</div>
-    </div>`;
-}
-function pane(p, lg) {
-  const n = xlen(p[lg]), on = p.done && p.done[lg];
-  return `<div class="pane" data-lg="${lg}">
-    <div class="lang"><span>${lg === 'en' ? '① ENGLISH' : '② 日本語'}</span><span class="${n > 280 ? 'over' : ''}">${n}/280</span></div>
-    <img alt="" data-img="${esc(p.id)}:${lg}">
-    <pre>${esc(p[lg])}</pre>
-    <div class="btns">
-      <button class="btn main" data-act="share">${MOBILE ? '画像つきで投稿' : '画像をコピーしてXを開く'}</button>
-      <button class="btn" data-act="text">文だけ投稿</button>
-      <button class="btn" data-act="copy">文コピー</button>
-      <button class="btn" data-act="save">画像保存</button>
-      <label class="ck ${on ? 'on' : ''}"><input type="checkbox" data-act="done" ${on ? 'checked' : ''}>${on ? '✔ 投稿済み' : '投稿済みにする'}</label>
-    </div></div>`;
-}
+function toast(t, ms = 2800) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), ms); }
+const WJA = ['日', '月', '火', '水', '木', '金', '土'];
+const jd = (t) => new Date(t + L.JST);
+const fmtDT = (t) => { const d = jd(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WJA[d.getUTCDay()]}) ${L.hm(t)}`; };
+const left = (ms) => { if (ms <= 0) return 'まもなく'; const m = Math.round(ms / 6e4); if (m < 60) return `あと${m}分`; const h = Math.floor(m / 60); if (h < 24) return `あと${h}時間${m % 60 ? (m % 60) + '分' : ''}`; return `あと${Math.floor(h / 24)}日${h % 24 ? (h % 24) + '時間' : ''}`; };
 
 // ---------- 画像(1200×675。仕様書のデザイン: near-black navy・細いグリッド・金・シアン・くすんだ緑/赤) ----------
 const W = 1200, Hh = 675, C = { bg: '#0a0e16', grid: 'rgba(140,160,190,0.07)', tx: '#e6e9ef', mut: '#8a94a7', gold: '#c9b37e', cyan: '#7fc8d8', up: '#5fa88a', dn: '#c2645f', line: '#1f2a3d' };
@@ -320,60 +268,233 @@ function loadFonts(sample) {
   const specs = ['600 24px "IBM Plex Mono"', '400 24px "IBM Plex Mono"', '600 24px "IBM Plex Sans"', '400 24px "IBM Plex Sans"', '700 24px "Noto Sans JP"', '400 24px "Noto Sans JP"'];
   return Promise.race([Promise.all(specs.map((s) => document.fonts.load(s, sample).catch(() => null))), new Promise((r) => setTimeout(r, 4000))]);
 }
-async function paint(p, lg) {
-  const key = p.id + ':' + lg, el = document.querySelector(`img[data-img="${CSS.escape(key)}"]`);
-  if (!el || !p.img) { if (el) el.remove(); return; }
-  if (IMG.has(key)) { el.src = IMG.get(key).url; return; }
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日' + p[lg]);
+
+const IMG = new Map();   // id:lang:h -> {url, blob, file}
+async function image(p, lg) {
+  const key = p.id + ':' + lg + ':' + (p.h || '');
+  if (IMG.has(key)) return IMG.get(key);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
-  try {
-    if (p.sr === 'daily') drawDaily(g, p.img, lg);
-    else if (p.sr === 'arch') drawEvent(g, p.img, lg, false);
-    else if (p.sr === 'otd') drawEvent(g, p.img, lg, true);
-    else if (p.sr === 'week') drawWeek(g, p.img, lg);
-  } catch (e) { console.error(e); el.remove(); return; }
+  if (p.sr === 'daily') drawDaily(g, p.img, lg);
+  else if (p.sr === 'arch') drawEvent(g, p.img, lg, false);
+  else if (p.sr === 'week') drawWeek(g, p.img, lg);
+  else return null;
   const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
   const name = `csa-${p.id.replace(/[^a-z0-9-]+/gi, '-')}-${lg}.png`;
   const o = { blob, url: URL.createObjectURL(blob), file: new File([blob], name, { type: 'image/png' }), name };
-  IMG.set(key, o); el.src = o.url;
+  IMG.set(key, o); return o;
 }
+
+// ---------- データ ----------
+let POSTS = [], EVENTS = [], ITEMS = [], VIEW = null, OPEN = null, OPENUPD = false, READY = false;
+async function api(body) {
+  const r = await fetch('/api/admin/posts', { method: body ? 'POST' : 'GET', headers: { 'x-admin-key': getKey(), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+  if (r.status === 401) throw new Error('401');
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+function keyForm(msg) {
+  READY = false;
+  $('#main').innerHTML = `<div class="empty keybox"><p>${msg || '管理キー(RX_ADMIN_KEY)を入れてください。この端末にだけ保存されます。'}</p>
+    <p><input id="keyIn" type="password" autocomplete="off" placeholder="管理キー"> <button class="btn main" id="keySave">保存</button></p></div>`;
+  $('#keySave').onclick = () => { setKey($('#keyIn').value.trim()); load(); };
+  $('#keyIn').onkeydown = (e) => { if (e.key === 'Enter') $('#keySave').click(); };
+}
+async function load() {
+  if (!getKey()) return keyForm();
+  try {
+    const [p, c] = await Promise.all([api(), fetch('/api/cal', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ events: [] }))]);
+    POSTS = p.posts || []; EVENTS = L.pickEvents(c);
+  } catch (e) { return e.message === '401' ? keyForm('管理キーが違います。入れ直してください。') : ($('#main').innerHTML = `<div class="empty">読み込めませんでした(${esc(e.message)})</div>`); }
+  READY = true; build(); render(); tick();
+}
+
+// 予定(下書き)と、まだ下書きの無い「発表後の値動き」をひとつの並びにする
+const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '先週のまとめ' };
+const ICON = { daily: '🗓', arch: '📈', week: '📊' };
+const dueOf = (p) => p.due || (p.sr === 'daily' ? L.dayStart(p.at) + L.DAILY_AT : p.at);
+function build() {
+  const by = new Map(POSTS.filter((p) => LABEL[p.sr]).map((p) => [p.id, p]));
+  const items = [...by.values()].map((p) => ({ id: p.id, sr: p.sr, due: dueOf(p), post: p }));
+  for (const g of L.groups(EVENTS.filter(L.MAJOR))) {                     // これからの主要指標(下書きはまだ無い)
+    const id = L.archId(g);
+    if (by.has(id)) { by.get(id)._g = g; continue; }
+    items.push({ id, sr: 'arch', due: g[0].ts + L.ARCH_WAIT, g, post: null });
+  }
+  ITEMS = items.sort((a, b) => a.due - b.due);
+}
+const isDone = (p) => !!(p && p.done && p.done.en && p.done.ja);
+// 状態: done(済) / warn(予約後に変更) / ready(今投稿できる) / todo(予約・投稿待ち) / wait(時刻待ち) / missed(過ぎた・作れなかった)
+function stateOf(it, now = Date.now()) {
+  const p = it.post;
+  if (p && p.upd) return 'warn';
+  if (isDone(p)) return 'done';
+  if (it.sr === 'daily') return it.due >= now ? 'todo' : it.due + 14 * L.H > now ? 'ready' : 'missed';   // 予約しそびれた今日の分は、その日のうちならすぐ投稿
+  if (!p) return it.due <= now ? (now - it.due < 48 * L.H ? 'ready' : 'missed') : 'wait';
+  return it.due <= now ? 'ready' : 'todo';
+}
+const STXT = { done: (sr) => sr === 'daily' ? '✔ 予約済' : '✔ 済', warn: () => '⚠ 要修正', ready: () => '● 今', todo: (sr) => sr === 'daily' ? '未予約' : '待ち', wait: () => '発表待ち', missed: () => '時刻過ぎ' };
+const shortName = (it) => it.sr === 'daily' ? '予定' : it.sr === 'week' ? '先週まとめ' : (it.post ? (it.post.img && it.post.img.ja) : L.groupLine(it.g, 'ja'));
+
+// ---------- 画面 ----------
+function render() {
+  const now = Date.now();
+  if (!VIEW) { const d = jd(now); VIEW = { y: d.getUTCFullYear(), m: d.getUTCMonth() }; }
+  // 今やること
+  const T = [];
+  for (const it of ITEMS) { const s = stateOf(it, now); if (s === 'warn') T.push({ cls: 'warn', ic: '⚠', tt: `${LABEL[it.sr]} ${fmtDT(it.due)} — 予約した後に予定が変わりました`, sub: 'Xの予約を消して、新しい内容で予約し直してください', id: it.id, go: '直す' }); }
+  for (const it of ITEMS) { const s = stateOf(it, now); if (s === 'ready') T.push({ cls: 'now', ic: ICON[it.sr], tt: `今すぐ投稿: ${LABEL[it.sr]}${it.sr === 'arch' ? ' — ' + shortName(it) : ''}`, sub: `投稿時刻 ${fmtDT(it.due)}${it.post ? '' : '(価格を取得中…)'}`, id: it.id, go: '投稿する' }); }
+  const plan = ITEMS.filter((it) => it.sr === 'daily' && stateOf(it, now) === 'todo' && it.due < now + 8 * L.DAY);
+  if (plan.length) T.push({ cls: 'plan', ic: '🗓', tt: `予約がまだの「今日・今週の予定」 ${plan.length}件(${fmtDT(plan[0].due).split(' ')[0]}〜${fmtDT(plan[plan.length - 1].due).split(' ')[0]})`, sub: '順番に開いて、Xで 9:30 に予約していきます', id: plan[0].id, go: '順番に予約する' });
+  const nx = ITEMS.find((it) => it.sr !== 'daily' && stateOf(it, now) === 'wait');
+  if (nx) T.push({ cls: 'wait', ic: '⏳', tt: `次の値動き投稿: ${shortName(nx)}(発表 ${fmtDT(nx.g ? nx.g[0].ts : nx.due - L.ARCH_WAIT)})`, sub: `投稿は ${fmtDT(nx.due)} ・ ${left(nx.due - now)}。時刻になるとこのページが下書きを作ります(このタブを開いたままに)` });
+  if (!T.length) T.push({ cls: 'wait', ic: '✔', tt: '今やることはありません', sub: '' });
+  // カレンダー(月曜はじまり)
+  const first = Date.UTC(VIEW.y, VIEW.m, 1) - L.JST, start = L.weekStart(first);
+  const nextM = Date.UTC(VIEW.y, VIEW.m + 1, 1) - L.JST, weeks = Math.ceil((nextM - start) / (7 * L.DAY));
+  const today = L.dayStart(now);
+  let cells = ['月', '火', '水', '木', '金', '土', '日'].map((w, i) => `<div class="dow ${i === 5 ? 'sat' : i === 6 ? 'sun' : ''}">${w}</div>`).join('');
+  for (let i = 0; i < weeks * 7; i++) {
+    const day = start + i * L.DAY, d = jd(day), out = d.getUTCMonth() !== VIEW.m;
+    const its = ITEMS.filter((it) => it.due >= day && it.due < day + L.DAY);
+    cells += `<div class="cell ${out ? 'out' : ''} ${day < today ? 'past' : ''} ${day === today ? 'today' : ''}"><div class="dn"><span>${d.getUTCDate()}</span>${day === today ? '<span>今日</span>' : ''}</div>
+      ${its.map((it) => { const s = stateOf(it, now); return `<button class="ev ${s}" data-open="${esc(it.id)}" title="${esc(LABEL[it.sr] + ' ' + fmtDT(it.due))}"><span>${ICON[it.sr]}</span><span class="t">${L.hm(it.due)}</span><span class="n">${esc(shortName(it) || '')}</span><span class="s">${STXT[s](it.sr)}</span></button>`; }).join('')}</div>`;
+  }
+  const n = ITEMS.filter((it) => ['ready', 'warn'].includes(stateOf(it, now))).length;
+  document.title = (n ? `(${n}) ` : '') + 'CSA POSTS';
+  $('#main').innerHTML = `
+    <h2>✅ 今やること</h2><div id="todo">${T.map((t) => `<div class="task ${t.cls}" ${t.id ? `data-open="${esc(t.id)}"` : ''}><span class="ic">${t.ic}</span><div><div class="tt">${esc(t.tt)}</div>${t.sub ? `<div class="sub">${esc(t.sub)}</div>` : ''}</div>${t.go ? `<button class="btn ${t.cls === 'now' ? 'cy' : 'main'} go">${t.go} →</button>` : ''}</div>`).join('')}</div>
+    <div class="calbar"><h2 style="margin:0">📅 カレンダー</h2><button class="chip" data-mv="-1">‹ 前の月</button><span class="ym">${VIEW.y}年${VIEW.m + 1}月</span><button class="chip" data-mv="1">次の月 ›</button><button class="chip" data-mv="0">今月</button>
+      <div class="legend"><span><i style="background:var(--gold)"></i>未予約・待ち</span><span><i style="background:var(--cyan)"></i>今投稿できる</span><span><i style="background:var(--up)"></i>済み</span><span><i style="background:var(--dn)"></i>要修正</span><span>🗓 今日・今週の予定(9:30)</span><span>📈 発表後の値動き(発表65分後)</span><span>📊 先週のまとめ(月曜10:00)</span></div></div>
+    <div class="cal">${cells}</div>
+    <p class="sub" style="color:var(--mut);font-size:12px;margin-top:10px">時刻はすべて日本時間。予定をクリックすると、画像と本文と投稿ボタンが開きます。<span class="kbd">←</span><span class="kbd">→</span> で前後の予定へ、<span class="kbd">Esc</span> で閉じる。</p>`;
+  if (OPEN) modal(OPEN, true);
+}
+
+// ---------- 詳細(モーダル) ----------
+const kind = (sr) => sr === 'daily' ? '予約' : '投稿';
+async function modal(id, keep) {
+  const it = ITEMS.find((x) => x.id === id); if (!it) return closeModal();
+  if (!keep) OPENUPD = false;
+  OPEN = id; $('#ov').classList.add('on');
+  const now = Date.now(), s = stateOf(it, now), p = it.post, show = p && OPENUPD && p.upd ? { ...p, ...p.upd } : p, d = jd(it.due);
+  const steps = it.sr === 'daily'
+    ? ['画像をコピーしてXを開く', 'Ctrl+V で画像を貼る', `Xの📅で ${d.getUTCMonth() + 1}月${d.getUTCDate()}日 ${L.hm(it.due)} に予約`, '「予約済み」にチェック']
+    : ['画像をコピーしてXを開く', 'Ctrl+V で画像を貼る', 'そのまま投稿', '「投稿済み」にチェック'];
+  const idx = ITEMS.indexOf(it);
+  $('#md').innerHTML = `
+    <div class="mh"><span style="font-size:22px">${ICON[it.sr]}</span><span class="k">${LABEL[it.sr]}</span><span class="w">${esc(it.sr === 'arch' ? shortName(it) : fmtDT(it.due).split(' ')[0])}</span>
+      <div class="x"><button class="chip" data-nav="${idx - 1}" ${idx > 0 ? '' : 'disabled'}>← 前</button><button class="chip" data-nav="${idx + 1}" ${idx < ITEMS.length - 1 ? '' : 'disabled'}>次 →</button><button class="chip" id="close">✕ 閉じる</button></div></div>
+    <div class="when"><div class="calicon"><div class="m">${d.getUTCMonth() + 1}月</div><div class="d">${d.getUTCDate()}</div><div class="w">${WJA[d.getUTCDay()]}曜</div></div>
+      <div><div class="lab">${kind(it.sr)}する日時(日本時間)</div><div class="big">${L.hm(it.due)}</div><div class="lab">${s === 'wait' ? '発表 ' + fmtDT(it.g[0].ts) + ' → ' + left(it.due - now) : s === 'ready' ? '今すぐ投稿できます' : s === 'done' ? '✔ 済み' : ''}</div></div>
+      <div class="steps">${steps.map((t, i) => `<span class="step"><b>${'①②③④'[i]}</b>${esc(t)}</span>`).join('')}</div></div>
+    ${p && p.upd ? `<div class="warnbox">⚠ 予約した後に予定が変わりました。Xで予約を削除して、新しい内容で予約し直してください。
+      <button class="btn" id="showUpd">${OPENUPD ? '元の内容を見る' : '新しい内容を見る'}</button><button class="btn main" id="accept">新しい内容で予約し直した</button></div>` : ''}
+    ${show ? `<div class="panes">${['en', 'ja'].map((lg) => pane(show, lg)).join('')}</div>`
+      : `<div class="empty">${s === 'wait' ? `⏳ まだ発表前です。投稿時刻(${fmtDT(it.due)})になると、このページがBinanceから価格を取って下書きを作ります。` : s === 'ready' ? '価格を取得しています…(1分ほどで出ます)' : '下書きは作られませんでした。'}</div>`}`;
+  if (show) for (const lg of ['en', 'ja']) image(show, lg).then((o) => { const el = $(`#md img[data-lg="${lg}"]`); if (el && o) el.src = o.url; }).catch((e) => console.error(e));
+}
+function pane(p, lg) {
+  const n = L.xlen(p[lg]), on = p.done && p.done[lg], lab = p.sr === 'daily' ? '予約済み' : '投稿済み';
+  return `<div class="pane" data-lg="${lg}">
+    <div class="lang"><span>${lg === 'en' ? '① ENGLISH(先に)' : '② 日本語'}</span><span class="${n > 280 ? 'over' : ''}">${n}/280</span></div>
+    <img alt="" data-lg="${lg}" draggable="true">
+    <pre>${esc(p[lg])}</pre>
+    <div class="btns">
+      <button class="btn main" data-act="share">${MOBILE ? '画像つきで投稿' : '画像をコピーしてXを開く'}</button>
+      <button class="btn" data-act="save">画像保存</button>
+      <button class="btn" data-act="copy">文コピー</button>
+      <label class="ck ${on ? 'on' : ''}"><input type="checkbox" data-act="done" ${on ? 'checked' : ''}>${on ? '✔ ' + lab : lab + 'にする'}</label>
+    </div></div>`;
+}
+function closeModal() { OPEN = null; $('#ov').classList.remove('on'); }
 
 // ---------- 操作 ----------
 async function mark(id, lang, v) {
   const p = POSTS.find((x) => x.id === id); if (!p) return;
   p.done = p.done || {}; p.done[lang] = v ? Date.now() : 0;
-  render();
-  try { await api({ mark: { id, lang, v } }); toast(v ? (lang === 'en' ? '英語' : '日本語') + 'を投稿済みにしました' : 'チェックを外しました'); }
-  catch (e) { toast('「投稿済み」を保存できませんでした(' + e.message + ')'); }
+  build(); render();
+  try { await api({ mark: { id, lang, v } }); toast(v ? `${lang === 'en' ? '英語' : '日本語'}を${p.sr === 'daily' ? '予約済み' : '投稿済み'}にしました` : 'チェックを外しました'); }
+  catch (e) { toast('保存できませんでした(' + e.message + ')'); }
 }
 document.addEventListener('click', async (ev) => {
-  const b = ev.target.closest('[data-act]'); if (!b) return;
-  const card = b.closest('.card'), id = card.dataset.id;
-  const pane = b.closest('.pane'), lg = pane.dataset.lg;
-  const p = POSTS.find((x) => x.id === id), im = IMG.get(id + ':' + lg), text = p[lg], act = b.dataset.act;
-  if (act === 'done') return mark(id, lg, b.checked);
+  const o = ev.target.closest('[data-open]'); if (o && !ev.target.closest('#md')) return modal(o.dataset.open);
+  const mv = ev.target.closest('[data-mv]');
+  if (mv) { const k = +mv.dataset.mv; if (!k) VIEW = null; else { const d = new Date(Date.UTC(VIEW.y, VIEW.m + k, 1)); VIEW = { y: d.getUTCFullYear(), m: d.getUTCMonth() }; } return render(); }
+  const nv = ev.target.closest('[data-nav]'); if (nv && !nv.disabled) { const it = ITEMS[+nv.dataset.nav]; if (it) modal(it.id); return; }
+  if (ev.target.id === 'close' || ev.target.id === 'ov') return closeModal();
+  if (ev.target.id === 'showUpd') { OPENUPD = !OPENUPD; return modal(OPEN, true); }
+  if (ev.target.id === 'accept') { try { await api({ accept: OPEN }); const p = POSTS.find((x) => x.id === OPEN); Object.assign(p, p.upd); delete p.upd; OPENUPD = false; build(); render(); toast('新しい内容にしました'); } catch (e) { toast('保存できませんでした(' + e.message + ')'); } return; }
+  const b = ev.target.closest('[data-act]'); if (!b || !OPEN) return;
+  const it = ITEMS.find((x) => x.id === OPEN), p0 = it && it.post; if (!p0) return;
+  const p = OPENUPD && p0.upd ? { ...p0, ...p0.upd } : p0, lg = b.closest('.pane').dataset.lg, text = p[lg], act = b.dataset.act;
+  if (act === 'done') return mark(p0.id, lg, b.checked);
   if (act === 'copy') { try { await navigator.clipboard.writeText(text); toast('本文をコピーしました'); } catch (_) { toast('コピーできませんでした'); } return; }
-  if (act === 'text') { window.open(intent(text), '_blank', 'noopener'); mark(id, lg, true); return; }
-  if (act === 'save') { if (!im) return toast('画像の準備中です'); const a = document.createElement('a'); a.href = im.url; a.download = im.name; a.click(); return; }
+  const im = await image(p, lg).catch(() => null);
+  if (act === 'save') { if (!im) return toast('画像を作れませんでした'); const a = document.createElement('a'); a.href = im.url; a.download = im.name; a.click(); return; }
   if (act === 'share') {
-    if (!im) return toast('画像の準備中です。少し待ってもう一度');
+    if (!im) return toast('画像を作れませんでした');
     if (MOBILE && navigator.canShare && navigator.canShare({ files: [im.file] })) {
-      try { navigator.clipboard.writeText(text).catch(() => {}); } catch (_) {}   // 本文が入らないアプリ向けの保険(待たない: 共有の許可が切れるため)
-      try { await navigator.share({ files: [im.file], text }); mark(id, lg, true); toast('共有しました。X に本文が無ければ貼り付けてください'); }
-      catch (e) { if (e && e.name !== 'AbortError') toast('共有できませんでした(' + e.name + ')'); }
+      try { navigator.clipboard.writeText(text).catch(() => {}); } catch (_) {}
+      try { await navigator.share({ files: [im.file], text }); toast('共有しました。投稿したら「済み」にチェック'); } catch (e) { if (e && e.name !== 'AbortError') toast('共有できませんでした(' + e.name + ')'); }
       return;
     }
     try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': im.blob })]); }
-    catch (_) { toast('画像をコピーできませんでした。「画像保存」→ 投稿画面で添付してください', 4000); window.open(intent(text), '_blank', 'noopener'); return; }
-    window.open(intent(text), '_blank', 'noopener');
-    mark(id, lg, true);
-    toast('画像をコピーしました。投稿画面で Ctrl+V(⌘V)で貼り付け', 4500);
+    catch (_) { toast('画像をコピーできませんでした。画像をXの投稿欄にドラッグしてください', 4500); window.open(intent(text), '_blank'); return; }
+    window.open(intent(text), '_blank');
+    toast(p.sr === 'daily' ? '画像をコピーしました → Ctrl+V → 📅で予約 → 戻って「予約済み」' : '画像をコピーしました → Ctrl+V → 投稿 → 戻って「投稿済み」', 5000);
   }
 });
-document.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { F = b.dataset.f; document.querySelectorAll('[data-f]').forEach((x) => x.classList.toggle('on', x === b)); render(); });
+document.addEventListener('dragstart', (ev) => {   // 画像をXの投稿欄へドラッグして添付できるように
+  const img = ev.target.closest && ev.target.closest('#md img'); if (!img || !OPEN) return;
+  const it = ITEMS.find((x) => x.id === OPEN), lg = img.dataset.lg, o = it && it.post && IMG.get(it.post.id + ':' + lg + ':' + ((OPENUPD && it.post.upd ? it.post.upd.h : it.post.h) || ''));
+  if (o) try { ev.dataTransfer.items.add(o.file); } catch (_) {}
+});
+document.addEventListener('keydown', (ev) => {
+  if (!OPEN || ev.target.tagName === 'INPUT') return;
+  if (ev.key === 'Escape') closeModal();
+  const i = ITEMS.findIndex((x) => x.id === OPEN);
+  if (ev.key === 'ArrowRight' && ITEMS[i + 1]) modal(ITEMS[i + 1].id);
+  if (ev.key === 'ArrowLeft' && ITEMS[i - 1]) modal(ITEMS[i - 1].id);
+});
 $('#reload').onclick = load;
 $('#keyBtn').onclick = () => { if (confirm('この端末に保存した管理キーを消して、入れ直しますか?')) { setKey(''); keyForm(); } };
-load();
+const bellTxt = () => { $('#bell').textContent = !('Notification' in window) ? '🔕 通知は使えません' : Notification.permission === 'granted' ? '🔔 通知オン' : '🔔 通知をオンにする'; };
+$('#bell').onclick = async () => { if ('Notification' in window) { await Notification.requestPermission(); bellTxt(); } };
+bellTxt();
+
+// ---------- 発表後の値動きを時刻どおりに作る(このタブが開いている間) ----------
+const notified = new Set(), busy = new Set();
+function notify(title, body, id) {
+  if (notified.has(id)) return; notified.add(id);
+  try { if ('Notification' in window && Notification.permission === 'granted') { const n = new Notification(title, { body, tag: id }); n.onclick = () => { window.focus(); modal(id); n.close(); }; } } catch (_) {}
+}
+async function klines(sym, interval, startTime, limit) {
+  for (const base of BASES) { try { const r = await fetch(L.klinesUrl(base, sym, interval, startTime, limit), { cache: 'no-store' }); if (r.ok) return await r.json(); } catch (_) {} }
+  return null;
+}
+async function tick() {
+  if (!READY) return;
+  const now = Date.now();
+  for (const it of ITEMS) {
+    if (it.sr !== 'arch' || it.post || busy.has(it.id) || it.due > now || now - it.due > 48 * L.H) continue;
+    busy.add(it.id);
+    try {
+      const bars = await klines('BTCUSDT', '5m', Math.floor(it.g[0].ts / L.M5) * L.M5 - 12 * L.M5, 25);
+      const ba = bars && L.beforeAfter(bars, it.g[0].ts);
+      if (ba) {
+        const post = { at: now, ...L.archPost(it.g, ba, SITE) };
+        await api({ add: [post] });
+        POSTS.push({ ...post, done: { en: 0, ja: 0 } }); build(); render();
+      }
+    } catch (e) { console.error(e); }
+    busy.delete(it.id);
+  }
+  for (const it of ITEMS) if (stateOf(it, now) === 'ready' && it.post) notify(`投稿の時間です: ${LABEL[it.sr]}`, it.sr === 'arch' ? shortName(it) : fmtDT(it.due), it.id);
+  if (!OPEN) render(); else { const n = ITEMS.filter((x) => ['ready', 'warn'].includes(stateOf(x, now))).length; document.title = (n ? `(${n}) ` : '') + 'CSA POSTS'; }
+}
+load(); setInterval(tick, 30000);
+setInterval(() => { if (!OPEN && getKey()) load(); }, 10 * 60000);   // 10分ごとに下書きを読み直す
 </script>
 </body>
 </html>

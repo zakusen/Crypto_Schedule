@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-07-v80';
+const VERSION = '2026-10-07-v81';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1372,9 +1372,11 @@ function adminOk(request, env) {
 const RX_NAME = /^(s\d\d|idx|run|xs)$/;   // v72: xs = X投稿のお知らせの送信記録(tools/x_notify.mjs)
 const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : 'rx:s:' + n.slice(1);
 
-// === v73: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs が作って足し、画面で「投稿済み」を付ける ===
-//   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, en, ja, img, done:{en,ja}}]})。合言葉(x-admin-key)が無いと読めない。
-const POSTS_KEY = 'posts:v1', POSTS_KEEP = 30 * DAY, POSTS_MAX = 300;
+// === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
+//   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
+//   upsert: 無ければ足す / 済みの印が無ければ中身を置き換える / 済みの印があれば置き換えず upd に新しい中身を添える(予約後に予定が変わった印)
+//   accept: upd を本体にする(予約し直した) / mark: 済みの印を付ける・外す
+const POSTS_KEY = 'posts:v1', POSTS_KEEP = 30 * DAY, POSTS_MAX = 400;
 async function postsApi(request, env) {
   if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
   if (!env.CAL) return json({ error: 'KV(CAL)が接続されていません' }, 503);
@@ -1388,19 +1390,24 @@ async function postsApi(request, env) {
   let q; try { q = JSON.parse(body); } catch (_) { return json({ error: 'bad json' }, 400); }
   let doc; try { doc = (await env.CAL.get(POSTS_KEY, { type: 'json' })) || { v: 1, posts: [] }; } catch (_) { return json({ error: 'kv' }, 503); }
   const have = new Map(doc.posts.map((p) => [p.id, p]));
-  let added = 0, changed = 0;
-  for (const p of Array.isArray(q.add) ? q.add : []) {               // 足す(同じidは上書きしない=投稿済みの印を消さない)
-    if (!p || typeof p.id !== 'string' || have.has(p.id)) continue;
-    const o = { id: p.id.slice(0, 80), sr: String(p.sr || ''), at: +p.at || Date.now(), en: String(p.en || ''), ja: String(p.ja || ''), img: p.img || null, done: { en: 0, ja: 0 } };
-    doc.posts.push(o); have.set(o.id, o); added++;
+  let added = 0, changed = 0, flagged = 0;
+  const clean = (p) => ({ sr: String(p.sr || ''), due: +p.due || 0, en: String(p.en || ''), ja: String(p.ja || ''), h: String(p.h || ''), img: p.img || null });
+  for (const p of [].concat(Array.isArray(q.add) ? q.add : [], Array.isArray(q.upsert) ? q.upsert : [])) {
+    if (!p || typeof p.id !== 'string') continue;
+    const o = have.get(p.id), c = clean(p);
+    if (!o) { const n = { id: p.id.slice(0, 80), at: +p.at || Date.now(), ...c, done: { en: 0, ja: 0 } }; doc.posts.push(n); have.set(n.id, n); added++; continue; }
+    if (!Array.isArray(q.upsert) || !q.upsert.includes(p) || o.h === c.h) continue;   // add は上書きしない
+    if (o.done && (o.done.en || o.done.ja)) { if (!o.upd || o.upd.h !== c.h) { o.upd = c; flagged++; } }
+    else { Object.assign(o, c); delete o.upd; changed++; }
   }
+  if (q.accept && have.has(q.accept)) { const o = have.get(q.accept); if (o.upd) { Object.assign(o, o.upd); delete o.upd; changed++; } }
   const m = q.mark;                                                   // 印を付ける/外す {id, lang:'en'|'ja', v:true|false}
   if (m && have.has(m.id) && (m.lang === 'en' || m.lang === 'ja')) { const p = have.get(m.id); p.done = p.done || {}; p.done[m.lang] = m.v ? Date.now() : 0; changed++; }
-  if (!added && !changed) return json({ ok: true, added, changed });
-  const now = Date.now();
-  doc.posts = doc.posts.filter((p) => now - p.at < POSTS_KEEP).sort((a, b) => b.at - a.at).slice(0, POSTS_MAX);
+  if (!added && !changed && !flagged) return json({ ok: true, added, changed, flagged });
+  const now = Date.now(), keyT = (p) => Math.max(p.due || 0, p.at || 0);
+  doc.posts = doc.posts.filter((p) => now - keyT(p) < POSTS_KEEP).sort((a, b) => keyT(b) - keyT(a)).slice(0, POSTS_MAX);
   try { await env.CAL.put(POSTS_KEY, JSON.stringify(doc)); } catch (e) { return json({ error: String((e && e.message) || e) }, 503); }
-  return json({ ok: true, added, changed, total: doc.posts.length });
+  return json({ ok: true, added, changed, flagged, total: doc.posts.length });
 }
 
 // 画面向け。無料: 件数(total)だけ / 有効期限内のウォレットでログイン済み: 全期間の中身(rows)。
