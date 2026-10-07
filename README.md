@@ -297,9 +297,8 @@
   - 通知(ntfy)に「Xで投稿(日本語)」「Post on X (English)」のボタン。押すと X 公式の Web Intent で文面入りの投稿画面が開く
   - 送った記録は KV `x:sent`(`/api/admin/rx-put?name=xs`・`/api/admin/rx-one?name=xs`。合言葉つき)。40日で消える
 - **設定**: スマホに ntfy アプリを入れ、推測されにくい購読名(例: csa-x-ランダムな英数字)を購読する。同じ購読名を GitHub の Secrets に `NTFY_TOPIC` として入れる(チャットや画面に出さない)。`.github/workflows/rx_runner.yml` は手で貼り替える
-- 確認: `X_DRY=1 X_NOW=2026-10-14T06:00:00Z node tools/x_notify.mjs`(通知も記録もせず、文面を表示)
 
-## v73: X投稿の下書き置き場(/posts.html)
+## v73〜v74: X投稿の下書き置き場(/posts.html)。v74 = 管理画面の種類名を日本語化・投稿時刻の表示
 - `tools/x_notify.mjs` を作り直し。仕様書の4シリーズの下書きを自動で作り、サイトに貯める(1時間ごと、RX runner の最後)。
   - DAILY TIMELINE / ON THIS DATE: 毎日 UTC 0時台(日本時間 9時台)。WEEK IN CRYPTO: 月曜 UTC 0時台。ARCHIVED: 発表の65分後以降(48時間以内)。
   - 対象: 重要度「高」の日米欧の指標と、銘柄イベント(半減期の推定日は ARCHIVED の対象外)。
@@ -311,4 +310,3 @@
   - PC: 「画像をコピーしてXを開く」→ 投稿画面で Ctrl+V。
   - 投稿すると「投稿済み」が付く(外せる)。
 - `NTFY_TOPIC` があれば、新しい下書きができた時にスマホへ通知(押すと /posts.html が開く)。無くても下書きは作られる。
-- 確認: `X_MOCK=フォルダ X_DRY=1 X_NOW=2026-10-12T00:23:00Z node tools/x_notify.mjs`

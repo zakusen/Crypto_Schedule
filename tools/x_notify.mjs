@@ -12,44 +12,28 @@
 //   週 = 月曜00:00〜次の月曜00:00 UTC。開始 = 月曜の日足の始値、終了 = 日曜の日足の終値。
 //   変化率 = (後 ÷ 前 − 1) × 100、小数2桁で四捨五入。価格は BTC が整数ドル、ETH が小数2桁。
 // 必要: RX_ADMIN_KEY。任意: NTFY_TOPIC(新しい下書きができたらスマホに通知)。
-// 確認用: X_DRY=1 で保存も通知もせず、作った文面を表示 / X_NOW=ISO時刻 で「今」を差し替え /
-//         X_MOCK=フォルダ で サイトと Binance の代わりにフォルダ内の JSON を読む(テスト用)
-import fs from 'node:fs';
-import path from 'node:path';
 
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
 const KEY = process.env.RX_ADMIN_KEY || '';
 const TOPIC = process.env.NTFY_TOPIC || '';
 const NTFY = (process.env.NTFY_SERVER || 'https://ntfy.sh').replace(/\/+$/, '');
-const DRY = !!process.env.X_DRY;
-const MOCK = process.env.X_MOCK || '';
-const NOW = process.env.X_NOW ? Date.parse(process.env.X_NOW) : Date.now();
+const NOW = Date.now();
 const BASES = (process.env.BINANCE_BASES || 'https://data-api.binance.vision,https://api.binance.com,https://api1.binance.com').split(',').map((x) => x.trim()).filter(Boolean);
 const M5 = 3e5, H = 36e5, DAY = 24 * H, JST = 9 * H;
 const ARCH_WAIT = 65 * 60000, ARCH_MAX = 48 * H;
 const REGIONS = ['US', 'JP', 'EU'];
 const REGION_EN = { US: 'US', JP: 'Japan', EU: 'Euro area' };
 
-if (!KEY && !MOCK) { console.log('[x] RX_ADMIN_KEY が未設定のため何もしません'); process.exit(0); }
+if (!KEY) { console.log('[x] RX_ADMIN_KEY が未設定のため何もしません'); process.exit(0); }
 
 // ---- 読み込み(本番はサイト・Binance、テストはフォルダ) ----
-const mockFile = (name) => JSON.parse(fs.readFileSync(path.join(MOCK, name), 'utf8'));
 async function site(p, opt = {}) {
-  if (MOCK) {
-    if (opt.method === 'POST') { console.log('[mock] POST', p, String(opt.body).length, 'bytes'); fs.writeFileSync(path.join(MOCK, 'posted.json'), String(opt.body)); return { json: async () => ({ ok: true }) }; }
-    const name = { '/api/cal': 'cal.json', '/api/admin/rx-get': 'rx-get.json', '/api/admin/posts': 'posts.json' }[p.split('?')[0]];
-    return { json: async () => (fs.existsSync(path.join(MOCK, name)) ? mockFile(name) : {}) };
-  }
   const r = await fetch(SITE + p, { ...opt, headers: { 'User-Agent': 'signal-archive-x-posts/1.0', 'x-admin-key': KEY, ...(opt.headers || {}) }, signal: AbortSignal.timeout(60000) });
   if (!r.ok) throw new Error(p.split('?')[0] + ' HTTP ' + r.status);
   return r;
 }
 // Binance の足 [開始, 始, 高, 安, 終, ...]。取れなければ null
 async function klines(sym, interval, startTime, limit) {
-  if (MOCK) {
-    const all = (mockFile('klines.json')[sym + ':' + interval]) || [];
-    return all.filter((b) => b[0] >= startTime).slice(0, limit);
-  }
   for (const base of BASES) {
     try {
       const r = await fetch(`${base}/api/v3/klines?symbol=${sym}&interval=${interval}&startTime=${startTime}&limit=${limit}`, { signal: AbortSignal.timeout(15000) });
@@ -123,12 +107,12 @@ function groups(list) {                                                         
 }
 const between = (a, b) => groups(events.filter((e) => e.ts >= a && e.ts < b));
 
-const store = MOCK || KEY ? await (await site('/api/admin/posts')).json() : { posts: [] };
+const store = await (await site('/api/admin/posts')).json();
 const have = new Set((store.posts || []).map((p) => p.id));
 const out = [];
 const add = (p) => { if (!have.has(p.id)) { have.add(p.id); out.push({ at: NOW, ...p }); } };
 const today = dayStart(NOW), isoDay = (t) => U(t).toISOString().slice(0, 10);
-const dailyTime = U(NOW).getUTCHours() < 3 || process.env.X_FORCE_DAILY;                 // UTC 0〜2時台(日本時間 9〜11時台)の最初の実行。2回目以降は作成済みなので作らない
+const dailyTime = U(NOW).getUTCHours() < 3;                 // UTC 0〜2時台(日本時間 9〜11時台)の最初の実行。2回目以降は作成済みなので作らない
 
 // ---- 1) DAILY TIMELINE ----
 if (dailyTime && !have.has('daily:' + isoDay(today))) {
@@ -240,8 +224,7 @@ if (dailyTime && U(NOW).getUTCDay() === 1) {
 
 // ---- 保存・通知 ----
 for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) console.log(`[x] 注意: ${p.id} ${lg} が280を超えています(${xlen(p[lg])})`);
-if (DRY) for (const p of out) console.log(`==== ${p.id} ====\n${p.en}\n(en ${xlen(p.en)}/280)\n--\n${p.ja}\n(ja ${xlen(p.ja)}/280)\n`);
-if (!DRY && out.length) {
+if (out.length) {
   await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ add: out }) });
   if (TOPIC) {
     const label = { daily: 'DAILY', arch: 'ARCHIVED', otd: 'ON THIS DATE', week: 'WEEK' };
@@ -250,4 +233,4 @@ if (!DRY && out.length) {
     if (!r.ok) console.log('[x] ntfy HTTP ' + r.status);
   }
 }
-console.log(`[x] 新しい下書き ${out.length}件 (${out.map((p) => p.id).join(', ') || 'なし'})${DRY ? ' / DRY' : ''}`);
+console.log(`[x] 新しい下書き ${out.length}件 (${out.map((p) => p.id).join(', ') || 'なし'})`);
