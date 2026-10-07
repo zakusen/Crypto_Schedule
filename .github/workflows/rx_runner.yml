@@ -1,10 +1,10 @@
 name: RX runner
 # 過去の反応(EVENT IMPACT)の計算。Cloudflare の Worker からは Binance に断られる(403)ので、GitHub 側で計算してサイトへ書き戻す。
 # 手で動かす: Actions → 「RX runner」→ Run workflow(最初の1回は手で動かすと、過去分がまとめて入る)
-# v72: 最後に X 投稿のお知らせ(tools/x_notify.mjs)も動かす。NTFY_TOPIC が無ければ何もしない。
+# v81: 最後に X 投稿の下書きづくり(tools/x_notify.mjs)も動かす。1日3回で足りる(下書きは30日先まで、発表後の値動きは /posts.html が時刻どおりに作る)。
 on:
   schedule:
-    - cron: '23 * * * *'
+    - cron: '23 6,14,22 * * *'   # 1日3回(日本時間 7:23・15:23・23:23)。GitHub の時刻は UTC
   workflow_dispatch:
 concurrency:
   group: rx-runner
