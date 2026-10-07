@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// X 投稿の下書きづくり(v79: すべて日本時間 JST 基準)。RX runner のワークフローの最後に1時間ごとに動く。
+// X 投稿の下書きづくり(v80: すべて日本時間 JST 基準)。RX runner のワークフローの最後に1時間ごとに動く。
 // 仕様書(crypto_signal_archive_x_spec.md)の4シリーズを作り、サイトの下書き置き場(/api/admin/posts)へ足す。
 // あなたは /posts.html を開き、ボタンで投稿する(画像つき)。X の API は使わない。
 //   DAILY TIMELINE : 毎日 日本時間7時以降の最初の実行で1本。投稿は9:30の想定なので、9:30より後の予定だけ載せる(今日の残り+明日〜日曜。日曜は来週)
 //   (v79: ON THIS DATE は廃止。代わりに DAILY の今日の指標に「前回発表から1時間のBTC変動」を付ける)
-//   ARCHIVED       : 対象イベントの発表から65分たった後の最初の実行で1本(48時間を過ぎたら作らない)
+//   ARCHIVED       : 主要指標(FOMC・日銀・ECB の政策金利、米CPI・雇用統計・PCE)の発表から65分たった後の最初の実行で1本(48時間を過ぎたら作らない)
 //   WEEK IN CRYPTO : 月曜 日本時間7時以降の最初の実行で1本(前の週 月曜0時〜次の月曜0時 JST)
 // 数値の決まり(全シリーズ共通・変えない):
 //   価格 = Binance 現物 BTCUSDT / ETHUSDT。時刻・日付はすべて日本時間(JST)。
@@ -44,7 +44,7 @@ async function klines(sym, interval, startTime, limit) {
 }
 
 // ---- 文字の数え方(X: 日本語などは2、URLは23。上限280) ----
-const xlen = (t) => { let n = 0; for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
+const xlen = (t) => { let n = 0; t = String(t).replace(/https?:\/\/\S+/g, 'x'.repeat(23)); for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
 
 // ---- 日時・数字の書き方 ----
 const WJ = ['日', '月', '火', '水', '木', '金', '土'], WE = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], ME = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -171,8 +171,10 @@ async function beforeAfter(ts) {
   return { before, after, chg: pct(before, after), spark, t0 };
 }
 
-// ---- 2) ARCHIVED ----
-for (const g of groups(events.filter((e) => NOW - e.ts >= ARCH_WAIT && NOW - e.ts < ARCH_MAX && !/halving/.test(e.id || '')))) {
+// ---- 2) ARCHIVED(v80: 主要指標だけ) ----
+const MAJOR = (e) => e.l === 'macro' && (/^(FOMC|日銀|ECB)$/.test(e.s || '') || (e.c === 'US' && /CPI|雇用統計|PCE/.test(e.s || '')));
+const SITE_EN = `ETH / SOL / BNB and 5m–24h moves: ${SITE}`, SITE_JA = `ETH・SOL・BNBや5分〜24時間の値動きはサイトで\n${SITE}`;
+for (const g of groups(events.filter((e) => MAJOR(e) && NOW - e.ts >= ARCH_WAIT && NOW - e.ts < ARCH_MAX))) {
   const e = g[0], id = 'arch:' + e.ts + ':' + (e.c || e.l);
   if (have.has(id)) continue;
   const ba = await beforeAfter(e.ts);
@@ -180,8 +182,8 @@ for (const g of groups(events.filter((e) => NOW - e.ts >= ARCH_WAIT && NOW - e.t
   const nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), tg = tags(nE + ' ' + nJ);
   add({
     id, sr: 'arch',
-    en: ['ARCHIVED', '', nE, `${enDate(e.ts)} · ${enHM(e.ts)} JST`, '', 'BEFORE', `BTC: ${usd(ba.before)}`, '', 'AFTER (+1h)', `BTC: ${usd(ba.after)}`, '', 'CHANGE', pctTxt(ba.chg), '', tg.en].join('\n'),
-    ja: ['アーカイブ', '', nJ, `${jaDate(e.ts)} ${jaHM(e.ts)}(日本時間)`, '', 'イベント前', `BTC: ${usd(ba.before)}`, '', 'イベント後(1時間後)', `BTC: ${usd(ba.after)}`, '', '変動', pctTxt(ba.chg), '', tg.ja].join('\n'),
+    en: ['ARCHIVED', '', nE, `${enDate(e.ts)} · ${enHM(e.ts)} JST`, '', 'BEFORE', `BTC: ${usd(ba.before)}`, '', 'AFTER (+1h)', `BTC: ${usd(ba.after)}`, '', 'CHANGE', pctTxt(ba.chg), '', SITE_EN, tg.en].join('\n'),
+    ja: ['アーカイブ', '', nJ, `${jaDate(e.ts)} ${jaHM(e.ts)}(日本時間)`, '', 'イベント前', `BTC: ${usd(ba.before)}`, '', 'イベント後(1時間後)', `BTC: ${usd(ba.after)}`, '', '変動', pctTxt(ba.chg), '', SITE_JA, tg.ja].join('\n'),
     img: { t: e.ts, en: nE, ja: nJ, ...ba },
   });
 }
@@ -190,19 +192,19 @@ for (const g of groups(events.filter((e) => NOW - e.ts >= ARCH_WAIT && NOW - e.t
 if (dailyTime && J(NOW).getUTCDay() === 1) {
   const we = weekStart(NOW), ws = we - 7 * DAY, id = 'week:' + isoDay(ws);
   if (!have.has(id)) {
-    const [b, e] = await Promise.all([klines('BTCUSDT', '1h', ws, 168), klines('ETHUSDT', '1h', ws, 168)]);   // 日本時間の週は日足と区切りがずれるので1時間足で
+    const b = await klines('BTCUSDT', '1h', ws, 168);   // 日本時間の週は日足と区切りがずれるので1時間足で。v80: BTC だけ(ほかの銘柄はサイトへ誘導)
     const ok = (k) => k && k.length === 168 && k[0][0] === ws && k[167][0] === we - H;
-    if (ok(b) && ok(e)) {
+    if (ok(b)) {
       const S = (k, dp) => ({ s: k[0][1], e: k[167][4], chg: pct(k[0][1], k[167][4]), dp, spark: [k[0][1], ...[23, 47, 71, 95, 119, 143, 167].map((i) => k[i][4])] });
-      const btc = S(b, 0), eth = S(e, 2), wk = between(ws, we);
+      const btc = S(b, 0), wk = between(ws, we);
       const lines = (lang) => wk.map((g) => (lang === 'en' ? enDay(g[0].ts) : jaDay(g[0].ts)) + ' — ' + groupLine(g, lang));
       const px = (o) => `${usd(o.s, o.dp)} → ${usd(o.e, o.dp)}`;
-      const tgE = '#Bitcoin #Ethereum #Crypto', tgJ = '#ビットコイン #イーサリアム #仮想通貨';
+      const tgE = '#Bitcoin #Crypto #Macro', tgJ = '#ビットコイン #仮想通貨 #経済指標';
       add({
         id, sr: 'week',
-        en: fit((a, more) => ['WEEK IN CRYPTO', '', `${enDay(ws)} — ${enDay(we - DAY)}, ${J(ws).getUTCFullYear()} (JST)`, '', 'EVENTS', ...(a.length ? a : wk.length ? [] : ['None']), ...(more ? [more] : []), '', 'BTC', px(btc), 'CHANGE ' + pctTxt(btc.chg), '', 'ETH', px(eth), 'CHANGE ' + pctTxt(eth.chg), '', tgE].join('\n'), lines('en'), 'en'),
-        ja: fit((a, more) => ['今週のCrypto', '', `${jaDay(ws)}〜${jaDay(we - DAY)}`, '', 'イベント', ...(a.length ? a : wk.length ? [] : ['なし']), ...(more ? [more] : []), '', 'BTC', px(btc), '変動 ' + pctTxt(btc.chg), '', 'ETH', px(eth), '変動 ' + pctTxt(eth.chg), '', tgJ].join('\n'), lines('ja'), 'ja'),
-        img: { ws, we, btc, eth, ev: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) },
+        en: fit((a, more) => ['WEEK IN CRYPTO', '', `${enDay(ws)} — ${enDay(we - DAY)}, ${J(ws).getUTCFullYear()} (JST)`, '', 'EVENTS', ...(a.length ? a : wk.length ? [] : ['None']), ...(more ? [more] : []), '', 'BTC', px(btc), 'CHANGE ' + pctTxt(btc.chg), '', SITE_EN, tgE].join('\n'), lines('en'), 'en'),
+        ja: fit((a, more) => ['今週のCrypto', '', `${jaDay(ws)}〜${jaDay(we - DAY)}`, '', 'イベント', ...(a.length ? a : wk.length ? [] : ['なし']), ...(more ? [more] : []), '', 'BTC', px(btc), '変動 ' + pctTxt(btc.chg), '', SITE_JA, tgJ].join('\n'), lines('ja'), 'ja'),
+        img: { ws, we, btc, ev: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) },
       });
     } else console.log('[x] WEEK: 1時間足が揃わないので次回');
   }

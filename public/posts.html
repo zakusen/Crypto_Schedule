@@ -88,7 +88,7 @@ let POSTS = [], F = '7d';
 const IMG = new Map();   // id:lang -> {url, blob, file}
 
 function toast(t, ms = 2600) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), ms); }
-const xlen = (t) => { let n = 0; for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
+const xlen = (t) => { let n = 0; t = String(t).replace(/https?:\/\/\S+/g, 'x'.repeat(23)); for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const intent = (t) => 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(t);
 
@@ -132,7 +132,7 @@ function what(p) {
   if (p.sr === 'daily') return `${md(im.day || p.at)}の予定 ${(im.today || []).length}件(このあと・前回の値動きつき)・${im.next ? '来週' : '今週'} ${(im.week || []).length}件`;
   if (p.sr === 'arch') return `${im.ja || ''}(${md(im.t)} ${fmtHM(im.t)}発表)`;
   if (p.sr === 'otd') return `${new Date(im.t + 9 * 36e5).getUTCFullYear()}年${md(im.t)} ${im.ja || ''}`;
-  if (p.sr === 'week') return `${md(im.ws)}〜${md(im.we - 864e5)} BTC・ETH`;
+  if (p.sr === 'week') return `${md(im.ws)}〜${md(im.we - 864e5)} BTC${im.eth ? '・ETH' : ''}`;
   return '';
 }
 const fmtHM = (t) => { const d = new Date(t + 9 * 36e5); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
@@ -140,11 +140,11 @@ const fmtJ = (t) => { const d = new Date(t + 9 * 36e5); return `${d.getUTCMonth(
 
 // v78: 4種類の欄を常に表示。各欄の中は新しい順。投稿済みにしても消さない・たたまない・並びも変えない(チェックと色が変わるだけ)
 const ORDER = ['daily', 'arch', 'week'];   // v79: 過去の今日は廃止(今日の予定に「前回」を組み込んだ)
-const RULE = { daily: '毎日 7時以降に作成 → 9:30に投稿(時刻はすべて日本時間)', otd: '毎日 7時以降に作成 → 12:00に投稿', arch: '重要指標の発表の約1時間後に作成 → すぐ投稿', week: '毎週月曜 7時以降に作成 → 10:00に投稿' };
+const RULE = { daily: '毎日 7時以降に作成 → 9:30に投稿(時刻はすべて日本時間)', otd: '毎日 7時以降に作成 → 12:00に投稿', arch: '主要指標(FOMC・日銀・ECB・米CPI・雇用統計・PCE)の発表の約1時間後に作成 → すぐ投稿', week: '毎週月曜 7時以降に作成 → 10:00に投稿' };
 const isDone = (p) => !!(p.done && p.done.en && p.done.ja);
 function nextHint(sr) {
   const j = new Date(Date.now() + 9 * 36e5), h = j.getUTCHours(), dow = j.getUTCDay();
-  if (sr === 'arch') return '重要指標が発表されると、約1時間後にここに出ます。';
+  if (sr === 'arch') return '主要指標が発表されると、約1時間後にここに出ます。';
   if (sr === 'week') return dow === 1 && h >= 7 ? 'まもなく(毎時23分ごろの実行で)作られます。' : '次の月曜 7時以降に作られます。';
   return h >= 7 ? '今日の分は、まもなく(毎時23分ごろの実行で)作られます。' : '今日 7時以降に作られます。';
 }
@@ -296,13 +296,17 @@ function drawWeek(g, im, lg) {
   const en = lg === 'en';
   frame(g, 'WEEK IN CRYPTO', en ? 'Binance spot · week = Mon 00:00 → Mon 00:00 JST · 1h open → 1h close' : 'Binance現物 / 週 = 月曜0時〜次の月曜0時(日本時間) / 最初の1時間足の始値 → 最後の1時間足の終値');
   txt(g, en ? `${dayEn(im.ws)} — ${dayEn(im.we - 864e5)}, ${D(im.ws).getUTCFullYear()} (JST)` : `${dayJa(im.ws)} 〜 ${dayJa(im.we - 864e5)}`, 56, 150, { size: 40, w: 600, col: C.tx, max: 1088 });
-  [['BTC', im.btc], ['ETH', im.eth]].forEach(([sym, o], k) => {
+  [['BTC', im.btc], ['ETH', im.eth]].filter(([, o]) => o).forEach(([sym, o], k) => {
     const y = 200 + k * 200, col = o.chg > 0 ? C.up : o.chg < 0 ? C.dn : C.tx;
     txt(g, sym, 56, y + 30, { size: 22, w: 600, fam: MONO, col: C.gold, ls: 3 });
     txt(g, `${usd(o.s, o.dp)} → ${usd(o.e, o.dp)}`, 56, y + 76, { size: 28, w: 600, fam: MONO, col: C.tx, max: 420 });
     txt(g, pctTxt(o.chg), 56, y + 140, { size: 48, w: 600, fam: MONO, col, max: 300 });
     spark(g, o.spark, 380, y + 96, 220, 70, { col });
   });
+  if (!im.eth) {   // v80: BTC だけ。ほかの銘柄はサイトへ
+    txt(g, en ? 'ETH / SOL / BNB and 5m–24h moves' : 'ETH・SOL・BNB や 5分〜24時間の値動きは', 56, 470, { size: 20, col: C.mut, max: 560 });
+    txt(g, en ? 'on the site →' : 'サイトで →', 56, 504, { size: 20, w: 600, col: C.cyan, max: 560 });
+  }
   const rx = 660; g.fillStyle = C.line; g.fillRect(rx - 28, 190, 1, 400);
   txt(g, en ? 'EVENTS' : 'イベント', rx, 214, { size: 16, w: 600, fam: MONO, col: C.cyan, ls: 2 });
   const E = im.ev.slice(0, 8);
