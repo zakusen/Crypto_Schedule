@@ -370,10 +370,18 @@ function renderAll(){
   /* カウントダウンの対象: 自動=次の重要イベント / 選択=その指標の次の発表 */
   const now=Date.now();
   TGT=auto?nx:E.filter(e=>e.l==='macro'&&IMPKEY(e)===IMPSEL&&e.ts>now).sort((a,b)=>a.ts-b.ts)[0]||null;
-  renderCount(ref,auto);
+  const pk=window.CSA_PICK;
+  if(pk&&!auto&&IMPKEY(pk)===IMPSEL&&pk.ts<now){TGT=null;renderPast(pk)}   /* v90: 過去の発表を出す(経過時間) */
+  else renderCount(ref,auto);
   renderImpact(ref,auto,px);
   renderPrice();
 }
+function renderPast(pk){
+  const ag=Math.max(0,Date.now()-pk.ts),mn=Math.floor(ag/6e4),hr=Math.floor(ag/36e5),dy=Math.floor(ag/864e5);
+  $('nextLbl').textContent=TL('選択した過去の発表: ','Selected past release: ')+evS(pk);
+  $('countMain').textContent=TL('発表済み','Released');
+  $('countSub').textContent=dy?TL(dy+'日前',dy+'d ago'):hr?TL(hr+'時間前',hr+'h ago'):TL(mn+'分前',mn+'m ago');
+  const dt=fMDW.format(pk.ts)+' '+fHM.format(pk.ts)+(tzNameF()?' '+tzNameF():'');$('nextDate').textContent=TL(dt+' に発表(次回は下の「次回」)','Released '+dt+' (next date below)');$('cdRight').style.display='none'}
 function renderCount(ref,auto){
   const nm=TGT?evS(TGT):ref?evS(ref):TL('重要イベント','key event');
   $('nextLbl').textContent=TGT?TL('次の'+nm+'まで','Until next '+nm):auto?TL('次の重要イベントまで','Until next key event'):TL('次の'+nm+'まで','Until next '+nm);
@@ -535,13 +543,14 @@ function drawPrice(){
 function init(){
   const sel=$('indicatorSelect');
   addEventListener('csa-lang',()=>{IMPSIG='';renderAll()});
-  sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';impSave(IMPSEL);HL=-1;sel.blur();renderAll()});
+  sel.addEventListener('change',()=>{window.CSA_PICK=null;IMPSEL=sel.value||'auto';impSave(IMPSEL);HL=-1;sel.blur();renderAll()});
   sel.addEventListener('blur',()=>renderAll());
   /* v89: チャートのイベントカードを押すと、その指標を選択(PC版 v88 と同じ) */
   $('cardLayer').addEventListener('click',ev=>{const c=ev.target.closest('.eventCard');if(!c||!c._g)return;const g=c._g;
     const keys=new Set(impList().map(x=>x.k)),e=[g.rep,...g.items].find(e=>e.l==='macro'&&keys.has(IMPKEY(e)));
     const box=$('boxPrice'),tip=document.createElement('div');tip.className='pick-tip';box.appendChild(tip);setTimeout(()=>tip.remove(),2200);
     if(!e){tip.textContent=TL('この予定は、過去の記録がある指標ではありません','This event has no recorded indicator');return}
+    window.CSA_PICK=g.ts<Date.now()?e:null;   /* v90: 過去のカードを押した時は、その発表を出す */
     IMPSEL=IMPKEY(e);impSave(IMPSEL);HL=-1;renderAll();
     tip.textContent=TL('選択中の指標: ','Selected: ')+evS(e);
     ['indInfo'].forEach(id=>{const b=$(id);if(b){b.classList.remove('pick-flash');void b.offsetWidth;b.classList.add('pick-flash')}})});

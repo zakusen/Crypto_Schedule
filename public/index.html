@@ -2042,7 +2042,7 @@ html.lang-switching [data-csa-i18n]{
 let EVENT_AT=null;const zones=[['z0','Asia/Tokyo'],['z1','America/New_York'],['z2','Europe/London'],['z3','Asia/Singapore'],['z4','Asia/Hong_Kong'],['z5','Asia/Dubai'],['z6','Europe/Berlin'],['z7','Australia/Sydney']];
 function ft(d,tz,sec=false){return new Intl.DateTimeFormat('en-GB',{timeZone:tz,hour:'2-digit',minute:'2-digit',...(sec?{second:'2-digit'}:{}),hour12:false}).format(d)}
 function fe(d,tz){const en=window.CSA_LANG&&CSA_LANG()==='en';return new Intl.DateTimeFormat(en?'en-US':'ja-JP',{timeZone:tz,month:en?'short':'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(d)}
-function tick(){const d=new Date(),s=document.getElementById('city'),o=s.options[s.selectedIndex];document.getElementById('clockCity').textContent=o.dataset.l;document.getElementById('tz').textContent=o.dataset.t;document.getElementById('clock').textContent=ft(d,s.value,true);zones.forEach(([id,t])=>document.getElementById(id).textContent=ft(d,t));if(!EVENT_AT){document.getElementById('eventTime').textContent='—';document.getElementById('count').textContent='—';return}document.getElementById('eventTime').textContent=fe(new Date(EVENT_AT),s.value)+' '+o.dataset.t;let x=new Date(EVENT_AT)-d;if(x<=0)document.getElementById('count').textContent='LIVE';else{let dd=Math.floor(x/864e5);x%=864e5;let h=Math.floor(x/36e5),m=Math.floor(x%36e5/6e4),sec=Math.floor(x%6e4/1e3);document.getElementById('count').textContent=(dd?dd+(window.CSA_LANG&&CSA_LANG()==='en'?'d ':'日 '):'')+[h,m,sec].map(v=>String(v).padStart(2,'0')).join(':')}}document.getElementById('city').addEventListener('change',tick);tick();setInterval(tick,1000);
+function tick(){const d=new Date(),s=document.getElementById('city'),o=s.options[s.selectedIndex];document.getElementById('clockCity').textContent=o.dataset.l;document.getElementById('tz').textContent=o.dataset.t;document.getElementById('clock').textContent=ft(d,s.value,true);zones.forEach(([id,t])=>document.getElementById(id).textContent=ft(d,t));if(window.CSA_PAST){const pt=window.CSA_PAST,ag=Math.max(0,d-pt),en=window.CSA_LANG&&CSA_LANG()==='en',mn=Math.floor(ag/6e4),hr=Math.floor(ag/36e5),dy=Math.floor(ag/864e5);document.getElementById('eventTime').textContent=fe(new Date(pt),s.value)+' '+o.dataset.t;document.getElementById('count').textContent=dy?(en?dy+'d ago':dy+'日前'):hr?(en?hr+'h ago':hr+'時間前'):(en?mn+'m ago':mn+'分前');return}if(!EVENT_AT){document.getElementById('eventTime').textContent='—';document.getElementById('count').textContent='—';return}document.getElementById('eventTime').textContent=fe(new Date(EVENT_AT),s.value)+' '+o.dataset.t;let x=new Date(EVENT_AT)-d;if(x<=0)document.getElementById('count').textContent='LIVE';else{let dd=Math.floor(x/864e5);x%=864e5;let h=Math.floor(x/36e5),m=Math.floor(x%36e5/6e4),sec=Math.floor(x%6e4/1e3);document.getElementById('count').textContent=(dd?dd+(window.CSA_LANG&&CSA_LANG()==='en'?'d ':'日 '):'')+[h,m,sec].map(v=>String(v).padStart(2,'0')).join(':')}}document.getElementById('city').addEventListener('change',tick);tick();setInterval(tick,1000);
 </script>
 <script id="v20-i18n">
 /* 言語切り替え(2026-10-06): 固定の文言は「完全一致」だけ置き換える(部分置換で崩さない)。
@@ -2344,6 +2344,7 @@ function pickFromChart(g){
   const keys=new Set(impList().map(x=>x.k)),e=[g.rep,...g.items].find(e=>e.l==='macro'&&keys.has(IMPKEY(e)));
   const tip=document.createElement('div');tip.className='pick-tip';wrap.appendChild(tip);setTimeout(()=>tip.remove(),2200);
   if(!e){tip.textContent=TL('この予定は、過去の記録がある指標ではありません','This event has no recorded indicator');return}
+  window.CSA_PICK=g.ts<Date.now()?e:null;   /* v90: 過去のカードを押した時は、その発表を上の欄に出す */
   IMPSEL=IMPKEY(e);IMPHL=0;impSave(IMPSEL);impCard();draw();hero();
   tip.textContent=TL('選択中の指標: ','Selected: ')+evS(e);
   ['impCard','indInfo'].forEach(id=>{const c=$(id);if(c){c.classList.remove('pick-flash');void c.offsetWidth;c.classList.add('pick-flash')}});
@@ -2380,6 +2381,16 @@ function hero(){
   const now=Date.now(),sk=(typeof IMPSEL!=='undefined'&&IMPSEL!=='auto')?IMPSEL:null;
   const nx=sk?E.filter(e=>e.l==='macro'&&e.ts>now&&IMPKEY(e)===sk).sort((a,b)=>a.ts-b.ts)[0]:nextKey();
   const ref=nx||(sk?E.filter(e=>e.l==='macro'&&IMPKEY(e)===sk).sort((a,b)=>b.ts-a.ts)[0]:null);
+  const dl=[...document.querySelectorAll('.hero .dialin small')],pk=window.CSA_PICK;
+  if(pk&&sk&&IMPKEY(pk)===sk&&pk.ts<now){   /* v90: チャートで過去の発表を押した時は、その発表を出す(カウントダウンではなく経過時間) */
+    const kq=$('heroKicker');if(kq)kq.textContent=TL('選択中の指標 · 過去の発表','SELECTED INDICATOR · PAST RELEASE');
+    [h,...h.querySelectorAll('*')].forEach(n=>{if(n.dataset)delete n.dataset.csaI18n});
+    h.innerHTML=esc(evT(pk))+'<span class="pill" style="white-space:nowrap;display:inline-block">'+TL('発表済み','RELEASED')+'</span>';EVENT_AT=null;window.CSA_PAST=pk.ts;
+    if(dl.length>=2){dl[0].textContent=TL('発表済み','RELEASED');dl[1].textContent=TL('経過','ELAPSED')}
+    indInfo(pk,nx);evData(pk);const qb=[...document.querySelectorAll('.hero .q .qrow b')];if(qb[3])qb[3].textContent=TL('発表済み','RELEASED');impName();
+    const ds=document.querySelector('.hero .desc');if(ds)ds.textContent=TL('チャートで選んだ過去の発表です。次回の発表日は下の「次回」にあります。','A past release picked on the chart. The next release date is under "Next release" below.');
+    if(typeof tick==='function')tick();return}
+  window.CSA_PAST=null;if(dl.length>=2){dl[0].textContent='NEXT EVENT';dl[1].textContent='COUNTDOWN'}
   const kk=$('heroKicker');if(kk)kk.textContent=sk?TL('選択中の指標 · 次回の発表','SELECTED INDICATOR · NEXT RELEASE'):TL('次のイベント · 重要度 高','NEXT EVENT · HIGH IMPACT');
   indInfo(ref,nx);
   if(!nx&&ref){h.innerHTML=esc(evT(ref))+'<span class="pill">'+TL('次回未定','NEXT TBA')+'</span>';EVENT_AT=null;evData(null);impName();
@@ -2544,7 +2555,7 @@ function impChart(body,ref,px){
 addEventListener('resize',()=>{clearTimeout(impChart._t);impChart._t=setTimeout(()=>{impChart._d&&impChart._d()},120)});
 function impName(){impCard()}
 function impWire(){const sel=$('impSel');if(!sel||sel._w)return;sel._w=1;
-  sel.addEventListener('change',()=>{IMPSEL=sel.value||'auto';IMPHL=0;impSave(IMPSEL);sel.blur();impCard();draw();hero()});
+  sel.addEventListener('change',()=>{window.CSA_PICK=null;IMPSEL=sel.value||'auto';IMPHL=0;impSave(IMPSEL);sel.blur();impCard();draw();hero()});
   sel.addEventListener('blur',()=>impCard())}
 
 /* チャートの下: チェーンの記録(ETH 出口待ち・入口待ち・ステーク量 / SOL・BNB のステーク量) */
