@@ -298,7 +298,8 @@
   - 送った記録は KV `x:sent`(`/api/admin/rx-put?name=xs`・`/api/admin/rx-one?name=xs`。合言葉つき)。40日で消える
 - **設定**: スマホに ntfy アプリを入れ、推測されにくい購読名(例: csa-x-ランダムな英数字)を購読する。同じ購読名を GitHub の Secrets に `NTFY_TOPIC` として入れる(チャットや画面に出さない)。`.github/workflows/rx_runner.yml` は手で貼り替える
 
-## v73〜v83: X投稿の管理(/posts.html)
+## v73〜v84: X投稿の管理(/posts.html)
+- v84: 画面でも、土曜で予定の無い下書きはすぐ隠す(自動実行での削除を待たない)。
 - v83: 土曜の「今日・今週の予定」は作らない(9:30以降に予定がある土曜だけ作る)。
 - v82: 「Xを開く」は普段の投稿画面(x.com/compose/post?text=)を開く。共有用の画面(intent)では予約投稿が効かなかったため。
 - **v81: カレンダー方式**。
