@@ -117,11 +117,11 @@ function postAt(p) {
 // 何の投稿かを一言で
 function what(p) {
   const im = p.img || {};
-  const md = (t, utc) => { const d = new Date(t + (utc ? 0 : 9 * 36e5)); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
-  if (p.sr === 'daily') return `${md(im.day || p.at)}の予定 ${(im.today || []).length}件・${im.next ? '来週' : '今週'} ${(im.week || []).length}件`;
+  const md = (t) => { const d = new Date(t + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+  if (p.sr === 'daily') return `${md(im.day || p.at)}の予定 ${(im.today || []).length}件(このあと)・${im.next ? '来週' : '今週'} ${(im.week || []).length}件`;
   if (p.sr === 'arch') return `${im.ja || ''}(${md(im.t)} ${fmtHM(im.t)}発表)`;
-  if (p.sr === 'otd') return `${new Date(im.t).getUTCFullYear()}年${md(im.t, true)} ${im.ja || ''}`;
-  if (p.sr === 'week') return `${md(im.ws, true)}〜${md(im.we - 864e5, true)} BTC・ETH`;
+  if (p.sr === 'otd') return `${new Date(im.t + 9 * 36e5).getUTCFullYear()}年${md(im.t)} ${im.ja || ''}`;
+  if (p.sr === 'week') return `${md(im.ws)}〜${md(im.we - 864e5)} BTC・ETH`;
   return '';
 }
 const fmtHM = (t) => { const d = new Date(t + 9 * 36e5); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
@@ -161,12 +161,12 @@ const W = 1200, Hh = 675, C = { bg: '#0a0e16', grid: 'rgba(140,160,190,0.07)', t
 const SANS = '"IBM Plex Sans","Noto Sans JP",sans-serif', MONO = '"IBM Plex Mono","Noto Sans JP",monospace';
 const P2 = (n) => String(n).padStart(2, '0');
 const WE = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'], ME = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'], WJ = ['日', '月', '火', '水', '木', '金', '土'];
-const D = (t, lg) => new Date(t + (lg === 'ja' ? 9 * 36e5 : 0));
+const D = (t) => new Date(t + 9 * 36e5);   // v74: 画像の日時は英語も日本語も日本時間(JST)
 const hm = (t, lg) => { const d = D(t, lg); return P2(d.getUTCHours()) + ':' + P2(d.getUTCMinutes()); };
 const dayEn = (t) => { const d = D(t, 'en'); return `${WE[d.getUTCDay()]} ${ME[d.getUTCMonth()]} ${d.getUTCDate()}`; };
 const dateEn = (t) => { const d = D(t, 'en'); return `${ME[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`; };
-const dayJa = (t, utc) => { const d = D(t, utc ? 'en' : 'ja'); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WJ[d.getUTCDay()]})`; };
-const dateJa = (t, utc) => { const d = D(t, utc ? 'en' : 'ja'); return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; };
+const dayJa = (t) => { const d = D(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${WJ[d.getUTCDay()]})`; };
+const dateJa = (t) => { const d = D(t); return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; };
 const usd = (v, dp = 0) => '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 const pctTxt = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
 
@@ -205,17 +205,16 @@ function spark(g, vals, x, y, w, h, opt = {}) {
 
 function drawDaily(g, im, lg) {
   const en = lg === 'en';
-  frame(g, im.next && !im.today.length ? (en ? 'DAILY TIMELINE' : 'DAILY TIMELINE') : 'DAILY TIMELINE', en ? 'Times in UTC · source: CSA calendar' : '時刻は日本時間 · CSAカレンダーより');
+  frame(g, im.next && !im.today.length ? (en ? 'DAILY TIMELINE' : 'DAILY TIMELINE') : 'DAILY TIMELINE', en ? 'Times in JST (UTC+9) · source: CSA calendar' : '時刻は日本時間 · CSAカレンダーより');
   txt(g, en ? `TODAY · ${dateEn(im.day)}` : `今日のイベント  ${dayJa(im.day)}`, 56, 150, { size: 44, w: 600, col: C.tx, max: 1088 });
   // 左: 今日(縦のタイムライン)
-  txt(g, en ? "TODAY'S EVENTS" : '今日', 56, 210, { size: 16, w: 600, fam: MONO, col: C.cyan, ls: 2 });
+  txt(g, en ? 'UPCOMING TODAY' : '今日このあと', 56, 210, { size: 16, w: 600, fam: MONO, col: C.cyan, ls: 2 });
   const T = im.today.slice(0, 6), top = 250, step = T.length > 4 ? 58 : 70;
   g.fillStyle = C.cyan; g.globalAlpha = 0.6; g.fillRect(74, top - 10, 1.5, Math.max(1, (T.length - 1) * step + 20)); g.globalAlpha = 1;
   if (!T.length) txt(g, en ? 'No scheduled events' : '予定なし', 100, top + 10, { size: 26, col: C.mut });
   T.forEach((e, i) => {
     const y = top + i * step; g.fillStyle = C.gold; g.beginPath(); g.arc(75, y, 6, 0, 7); g.fill();
-    const nx = !en && new Date(e.t + 9 * 36e5).getUTCDate() !== new Date(im.day + 9 * 36e5).getUTCDate() ? '翌' : '';
-    txt(g, nx + hm(e.t, lg), 100, y + 9, { size: 24, w: 600, fam: MONO, col: C.gold });
+    txt(g, hm(e.t, lg), 100, y + 9, { size: 24, w: 600, fam: MONO, col: C.gold });
     txt(g, e[lg], 210, y + 9, { size: 24, w: 600, col: C.tx, max: 400 });
   });
   if (im.today.length > 6) txt(g, (en ? `+${im.today.length - 6} more` : `ほか${im.today.length - 6}件`), 100, top + 6 * step, { size: 18, col: C.mut });
@@ -235,12 +234,12 @@ function drawEvent(g, im, lg, otd) {
   const en = lg === 'en', up = im.chg >= 0, col = im.chg > 0 ? C.up : im.chg < 0 ? C.dn : C.tx;
   frame(g, otd ? 'ON THIS DATE' : 'ARCHIVED', en ? 'BTCUSDT · Binance spot · before = 5m open at release · after = 5m close at +1h' : 'BTCUSDT・Binance現物 / 前 = 発表時刻の5分足の始値 / 後 = 1時間後の5分足の終値');
   if (otd) {
-    txt(g, en ? dateEn(im.t) : dateJa(im.t, true), 56, 150, { size: 46, w: 600, col: C.gold, max: 1088 });
+    txt(g, en ? dateEn(im.t) : dateJa(im.t), 56, 150, { size: 46, w: 600, col: C.gold, max: 1088 });
     txt(g, im[lg], 56, 200, { size: 30, w: 600, col: C.tx, max: 860 });
-    txt(g, hm(im.t, 'en') + ' UTC', 56 + 1088, 200, { size: 22, fam: MONO, col: C.mut, align: 'right' });
+    txt(g, hm(im.t, 'en') + (en ? ' JST' : '(日本時間)'), 56 + 1088, 200, { size: 22, fam: MONO, col: C.mut, align: 'right' });
   } else {
     txt(g, im[lg], 56, 150, { size: 42, w: 600, col: C.tx, max: 1088 });
-    txt(g, en ? `${dateEn(im.t)} · ${hm(im.t, 'en')} UTC` : `${dateJa(im.t)} ${hm(im.t, 'ja')}(日本時間)`, 56, 196, { size: 22, fam: MONO, col: C.mut });
+    txt(g, en ? `${dateEn(im.t)} · ${hm(im.t, 'en')} JST` : `${dateJa(im.t)} ${hm(im.t, 'ja')}(日本時間)`, 56, 196, { size: 22, fam: MONO, col: C.mut });
   }
   spark(g, im.spark, 56, 240, 640, 300, {
     extra: [im.before, im.after],
@@ -258,8 +257,8 @@ function drawEvent(g, im, lg, otd) {
 }
 function drawWeek(g, im, lg) {
   const en = lg === 'en';
-  frame(g, 'WEEK IN CRYPTO', en ? 'Binance spot · week = Mon 00:00 → Mon 00:00 UTC · daily open → daily close' : 'Binance現物 / 週 = 月曜0時〜次の月曜0時(UTC) / 月曜の日足始値 → 日曜の日足終値');
-  txt(g, en ? `${dayEn(im.ws)} — ${dayEn(im.we - 864e5)}, ${new Date(im.ws).getUTCFullYear()}` : `${dayJa(im.ws, true)} 〜 ${dayJa(im.we - 864e5, true)}(UTC基準)`, 56, 150, { size: 40, w: 600, col: C.tx, max: 1088 });
+  frame(g, 'WEEK IN CRYPTO', en ? 'Binance spot · week = Mon 00:00 → Mon 00:00 JST · 1h open → 1h close' : 'Binance現物 / 週 = 月曜0時〜次の月曜0時(日本時間) / 最初の1時間足の始値 → 最後の1時間足の終値');
+  txt(g, en ? `${dayEn(im.ws)} — ${dayEn(im.we - 864e5)}, ${D(im.ws).getUTCFullYear()} (JST)` : `${dayJa(im.ws)} 〜 ${dayJa(im.we - 864e5)}`, 56, 150, { size: 40, w: 600, col: C.tx, max: 1088 });
   [['BTC', im.btc], ['ETH', im.eth]].forEach(([sym, o], k) => {
     const y = 200 + k * 200, col = o.chg > 0 ? C.up : o.chg < 0 ? C.dn : C.tx;
     txt(g, sym, 56, y + 30, { size: 22, w: 600, fam: MONO, col: C.gold, ls: 3 });
@@ -271,7 +270,7 @@ function drawWeek(g, im, lg) {
   txt(g, en ? 'EVENTS' : 'イベント', rx, 214, { size: 16, w: 600, fam: MONO, col: C.cyan, ls: 2 });
   const E = im.ev.slice(0, 8);
   if (!E.length) txt(g, en ? 'None' : 'なし', rx, 258, { size: 22, col: C.mut });
-  E.forEach((e, i) => { const y = 258 + i * 42; txt(g, en ? dayEn(e.t) : dayJa(e.t, true), rx, y, { size: 17, w: 600, fam: MONO, col: C.gold }); txt(g, e[lg], rx + 150, y, { size: 19, col: C.tx, max: 340 }); });
+  E.forEach((e, i) => { const y = 258 + i * 42; txt(g, en ? dayEn(e.t) : dayJa(e.t), rx, y, { size: 17, w: 600, fam: MONO, col: C.gold }); txt(g, e[lg], rx + 150, y, { size: 19, col: C.tx, max: 340 }); });
   if (im.ev.length > 8) txt(g, en ? `+${im.ev.length - 8} more` : `ほか${im.ev.length - 8}件`, rx, 258 + 8 * 42, { size: 16, col: C.mut });
 }
 
