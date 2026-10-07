@@ -1,6 +1,7 @@
 name: RX runner
 # 過去の反応(EVENT IMPACT)の計算。Cloudflare の Worker からは Binance に断られる(403)ので、GitHub 側で計算してサイトへ書き戻す。
 # 手で動かす: Actions → 「RX runner」→ Run workflow(最初の1回は手で動かすと、過去分がまとめて入る)
+# v72: 最後に X 投稿のお知らせ(tools/x_notify.mjs)も動かす。NTFY_TOPIC が無ければ何もしない。
 on:
   schedule:
     - cron: '23 * * * *'
@@ -22,3 +23,10 @@ jobs:
         env:
           SITE_URL: ${{ secrets.SITE_URL }}
           RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+      - name: X notify
+        if: always()
+        run: node tools/x_notify.mjs
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
