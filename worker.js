@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-07-v82';
+const VERSION = '2026-10-07-v83';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1400,14 +1400,16 @@ async function postsApi(request, env) {
     if (o.done && (o.done.en || o.done.ja)) { if (!o.upd || o.upd.h !== c.h) { o.upd = c; flagged++; } }
     else { Object.assign(o, c); delete o.upd; changed++; }
   }
+  let removed = 0;                                                    // v83: remove: 済みの印が無い下書きだけ消す
+  if (Array.isArray(q.remove) && q.remove.length) { const rm = new Set(q.remove.filter((id) => { const o = have.get(id); return o && !(o.done && (o.done.en || o.done.ja)); })); if (rm.size) { doc.posts = doc.posts.filter((p) => !rm.has(p.id)); removed = rm.size; } }
   if (q.accept && have.has(q.accept)) { const o = have.get(q.accept); if (o.upd) { Object.assign(o, o.upd); delete o.upd; changed++; } }
   const m = q.mark;                                                   // 印を付ける/外す {id, lang:'en'|'ja', v:true|false}
   if (m && have.has(m.id) && (m.lang === 'en' || m.lang === 'ja')) { const p = have.get(m.id); p.done = p.done || {}; p.done[m.lang] = m.v ? Date.now() : 0; changed++; }
-  if (!added && !changed && !flagged) return json({ ok: true, added, changed, flagged });
+  if (!added && !changed && !flagged && !removed) return json({ ok: true, added, changed, flagged, removed });
   const now = Date.now(), keyT = (p) => Math.max(p.due || 0, p.at || 0);
   doc.posts = doc.posts.filter((p) => now - keyT(p) < POSTS_KEEP).sort((a, b) => keyT(b) - keyT(a)).slice(0, POSTS_MAX);
   try { await env.CAL.put(POSTS_KEY, JSON.stringify(doc)); } catch (e) { return json({ error: String((e && e.message) || e) }, 503); }
-  return json({ ok: true, added, changed, flagged, total: doc.posts.length });
+  return json({ ok: true, added, changed, flagged, removed, total: doc.posts.length });
 }
 
 // 画面向け。無料: 件数(total)だけ / 有効期限内のウォレットでログイン済み: 全期間の中身(rows)。

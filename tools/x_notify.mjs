@@ -3,7 +3,7 @@
 // 作った下書きはサイトの下書き置き場(/api/admin/posts)に置き、/posts.html のカレンダーから投稿・予約する。X の API は使わない。
 //   今日・今週の予定(daily)  : 今日から30日先まで、1日1本ずつ先に作る(まとめて X で予約できるように)。投稿 = その日 9:30。
 //                              中身 = その日 9:30 以降の指標(前回の発表から1時間のBTC変動つき)+ 翌日〜日曜の予定(日曜は来週)。
-//                              予定が変わったら作り直す。予約済みの印が付いたものは中身を置き換えず、新しい中身を upd に添える(画面が警告を出す)。
+//                              土曜は、9:30以降に予定がある時だけ作る(v83)。予定が変わったら作り直す。予約済みの印が付いたものは中身を置き換えず、新しい中身を upd に添える(画面が警告を出す)。
 //   発表後の値動き(arch)     : 主要指標の発表65分後。ふだんは /posts.html がその時刻にブラウザで作る。ここは予備(タブを閉じていた時用)。
 //   先週のまとめ(week)       : 月曜 7時以降に1本。投稿 = 月曜 10:00。BTC の週の始値 → 終値。
 // 文面の作り方は public/xpost-lib.js(画面と共通)。
@@ -95,9 +95,11 @@ function dailyPost(day) {
   return { id: 'daily:' + isoDay(day), sr: 'daily', due, en, ja, h: hashStr(en + ja),
     img: { day, next, today: tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: prev[i] ? prev[i].chg : null })), week: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) } };
 }
+const drop = [];                                                            // v83: 作らない日(土曜で今日の予定が無い日)の古い下書きは消す(済みの印が無いものだけ)
 for (let i = 0; i <= AHEAD; i++) {
   const day = today + i * DAY, p = dailyPost(day);
   if (p.due < NOW && byId.has(p.id)) continue;                              // 投稿時刻を過ぎた分は作り直さない(今日の分が無ければ作る)
+  if (J(day).getUTCDay() === 6 && !p.img.today.length) { if (byId.has(p.id)) drop.push(p.id); continue; }   // 土曜は市場の発表がほぼ無いので作らない(予定がある土曜だけ作る)
   put(p);
 }
 
@@ -129,7 +131,7 @@ if (J(NOW).getUTCDay() === 1 && J(NOW).getUTCHours() >= 7) {
 // ---- 保存・通知 ----
 for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) console.log(`[x] 注意: ${p.id} ${lg} が280を超えています(${xlen(p[lg])})`);
 let res = {};
-if (out.length) res = await (await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ upsert: out }) })).json();
+if (out.length || drop.length) res = await (await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ upsert: out, remove: drop }) })).json();
 const fresh = out.filter((p) => !byId.has(p.id) && p.sr !== 'daily');       // 通知は「すぐ投稿するもの」が新しくできた時だけ
 if (TOPIC && fresh.length) {
   const r = await fetch(NTFY, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(20000),
