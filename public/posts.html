@@ -130,7 +130,8 @@ const MOBILE = matchMedia('(pointer:coarse)').matches;
 const SITE = location.origin;
 const BASES = ['https://data-api.binance.vision', 'https://api.binance.com', 'https://api1.binance.com'];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const intent = (t) => 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(t);
+// v82: 共有用の投稿画面(intent)では予約投稿が効かないので、普段の投稿画面を本文入りで開く
+const intent = (t) => 'https://x.com/compose/post?text=' + encodeURIComponent(t);
 function toast(t, ms = 2800) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), ms); }
 const WJA = ['日', '月', '火', '水', '木', '金', '土'];
 const jd = (t) => new Date(t + L.JST);
