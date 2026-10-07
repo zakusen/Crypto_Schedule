@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// X 投稿の下書きづくり(v76: すべて日本時間 JST 基準)。RX runner のワークフローの最後に1時間ごとに動く。
+// X 投稿の下書きづくり(v79: すべて日本時間 JST 基準)。RX runner のワークフローの最後に1時間ごとに動く。
 // 仕様書(crypto_signal_archive_x_spec.md)の4シリーズを作り、サイトの下書き置き場(/api/admin/posts)へ足す。
 // あなたは /posts.html を開き、ボタンで投稿する(画像つき)。X の API は使わない。
 //   DAILY TIMELINE : 毎日 日本時間7時以降の最初の実行で1本。投稿は9:30の想定なので、9:30より後の予定だけ載せる(今日の残り+明日〜日曜。日曜は来週)
-//   ON THIS DATE   : 毎日 日本時間7時以降の最初の実行で1本(過去の同じ月日の指標から1つ)
+//   (v79: ON THIS DATE は廃止。代わりに DAILY の今日の指標に「前回発表から1時間のBTC変動」を付ける)
 //   ARCHIVED       : 対象イベントの発表から65分たった後の最初の実行で1本(48時間を過ぎたら作らない)
 //   WEEK IN CRYPTO : 月曜 日本時間7時以降の最初の実行で1本(前の週 月曜0時〜次の月曜0時 JST)
 // 数値の決まり(全シリーズ共通・変えない):
@@ -121,7 +121,21 @@ if (dailyTime && !have.has('daily:' + isoDay(today))) {
   let wa = today + DAY, wb = weekStart(today) + 7 * DAY, next = false;
   if (wb - wa <= 0) { wb = wa + 7 * DAY; next = true; }                                       // 日曜は来週を出す
   const wk = between(wa, wb);
-  const todayL = { en: tg.map((g) => enHM(g[0].ts) + ' — ' + groupLine(g, 'en')), ja: tg.map((g) => jaHM(g[0].ts) + ' — ' + groupLine(g, 'ja')) };
+  // 今日の指標には「前回の発表から1時間のBTC変動」を付ける(EVENT IMPACT の記録から。同時刻の発表は記録が一番新しいもの)
+  const dump = tg.length ? await (await site('/api/admin/rx-get')).json() : { shards: {} };
+  const recs = new Map();
+  for (const doc of Object.values(dump.shards || {})) for (const r of (doc && doc.ev) || []) {
+    const a = r.r && r.r.BTC; if (!Array.isArray(a) || a[3] == null) continue;
+    const l = recs.get(r.k) || []; l.push({ t: r.t, chg: a[3] }); recs.set(r.k, l);
+  }
+  const prevOf = (g) => {
+    let best = null;
+    for (const e of g) if (e.l === 'macro') for (const r of recs.get((e.s || e.t) + '|' + e.c) || []) if (r.t < g[0].ts - H && (!best || r.t > best.t)) best = r;
+    return best;
+  };
+  const prev = tg.map(prevOf);
+  const pv = (i, lang) => prev[i] ? (lang === 'en' ? ` (prev 1h: ${pctTxt(prev[i].chg)})` : `(前回1h: ${pctTxt(prev[i].chg)})`) : '';
+  const todayL = { en: tg.map((g, i) => enHM(g[0].ts) + ' — ' + groupLine(g, 'en') + pv(i, 'en')), ja: tg.map((g, i) => jaHM(g[0].ts) + ' — ' + groupLine(g, 'ja') + pv(i, 'ja')) };
   const weekL = { en: wk.map((g) => `${enDay(g[0].ts)} ${enHM(g[0].ts)} — ` + groupLine(g, 'en')), ja: wk.map((g) => `${jaDay(g[0].ts)} ${jaHM(g[0].ts)} — ` + groupLine(g, 'ja')) };
   const daily = (lang) => {
     const en = lang === 'en';
@@ -140,7 +154,7 @@ if (dailyTime && !have.has('daily:' + isoDay(today))) {
   add({
     id: 'daily:' + isoDay(today), sr: 'daily',
     en: daily('en'), ja: daily('ja'),
-    img: { day: today, next, today: tg.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })), week: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) },
+    img: { day: today, next, today: tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: prev[i] ? prev[i].chg : null, pt: prev[i] ? prev[i].t : null })), week: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) },
   });
 }
 
@@ -172,35 +186,6 @@ for (const g of groups(events.filter((e) => NOW - e.ts >= ARCH_WAIT && NOW - e.t
   });
 }
 
-// ---- 3) ON THIS DATE ----
-const PRIO = [/FOMC/, /CPI/, /雇用統計|非農業/, /PCE/, /GDP/, /PPI/, /日銀/, /ECB/, /小売/, /ISM/, /失業率/];
-if (dailyTime && !have.has('otd:' + isoDay(today))) {
-  const dump = await (await site('/api/admin/rx-get')).json();
-  const md = isoDay(today).slice(5), cand = [], seen = new Set();
-  for (const doc of Object.values(dump.shards || {})) for (const e of (doc && doc.ev) || []) {
-    const a = e.r && e.r.BTC, c = String(e.k || '').split('|').pop();
-    if (!Array.isArray(a) || !(a[0] > 0) || !REGIONS.includes(c) || isoDay(e.t).slice(5) !== md || e.t > today - 300 * DAY) continue;
-    const key = e.k + ':' + e.t; if (seen.has(key)) continue; seen.add(key);
-    const ja = String(e.k).split('|')[0], pr = PRIO.findIndex((re) => re.test(ja));
-    cand.push({ e, c, ja, pr: pr < 0 ? 99 : pr });
-  }
-  cand.sort((x, y) => x.pr - y.pr || y.e.t - x.e.t);                                          // 決まった順(主要な指標 → 新しい年)
-  let made = false;
-  for (const { e, c, ja } of cand.slice(0, 3)) {
-    const ba = await beforeAfter(e.t);
-    if (!ba) continue;
-    const enN = (REGION_EN[c] ? REGION_EN[c] + ' ' : '') + (e.se || ja), jaN = /^(FOMC|日銀|ECB)$/.test(ja) ? ja + ' ' + (e.se || '') : ja, tg = tags(enN + ' ' + ja);
-    add({
-      id: 'otd:' + isoDay(today), sr: 'otd',
-      en: ['ON THIS DATE', '', enDate(e.t), '', 'EVENT', `${enN} · ${enHM(e.t)} JST`, '', 'BTC (before → +1h)', `${usd(ba.before)} → ${usd(ba.after)}`, '', 'CHANGE', pctTxt(ba.chg), '', tg.en].join('\n'),
-      ja: ['今日は何があった？', '', jaDate(e.t), '', 'イベント', `${jaN} ${jaHM(e.t)}(日本時間)`, '', 'BTC(発表時 → 1時間後)', `${usd(ba.before)} → ${usd(ba.after)}`, '', '変動', pctTxt(ba.chg), '', tg.ja].join('\n'),
-      img: { t: e.t, en: enN, ja: jaN, ...ba },
-    });
-    made = true; break;
-  }
-  if (!made) console.log('[x] ON THIS DATE: 過去の同じ日付に記録がない/価格が取れない', md);
-}
-
 // ---- 4) WEEK IN CRYPTO ----
 if (dailyTime && J(NOW).getUTCDay() === 1) {
   const we = weekStart(NOW), ws = we - 7 * DAY, id = 'week:' + isoDay(ws);
@@ -228,7 +213,7 @@ for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) conso
 if (out.length) {
   await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ add: out }) });
   if (TOPIC) {
-    const label = { daily: 'DAILY', arch: 'ARCHIVED', otd: 'ON THIS DATE', week: 'WEEK' };
+    const label = { daily: 'DAILY', arch: 'ARCHIVED', week: 'WEEK' };
     const r = await fetch(NTFY, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(20000),
       body: JSON.stringify({ topic: TOPIC, title: `投稿の下書き ${out.length}件`, message: out.map((p) => label[p.sr] + ' ' + p.en.split('\n')[p.sr === 'arch' ? 2 : 0]).join('\n'), tags: ['bird'], click: SITE + '/posts.html' }) });
     if (!r.ok) console.log('[x] ntfy HTTP ' + r.status);
