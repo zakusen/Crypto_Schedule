@@ -3102,14 +3102,13 @@ function drawLiq(){
   const card=$('liqCard'),body=$('liqBody');if(!card||!body)return;
   $('liqTitle').textContent=sym+TL(' · 清算額（ロング／ショート）',' · LIQUIDATIONS (LONG / SHORT)');$('liqSrc').textContent=TL('Binance・Bybit・OKXの合算（USD）','Binance + Bybit + OKX (USD)');
   const D=LQ[sym+'|'+LQSTEP[tf]];if(!D){body.innerHTML='<div class="cs-msg">'+TL('読み込み中…','Loading…')+'</div>';return}
-  if(D.error){body.innerHTML='<div class="cs-msg">'+TL('取得できませんでした（','Unavailable (')+esc(D.error)+TL('）',')')+'</div>';return}
-  const B=D.buckets||[],srcs=Object.entries(D.sources||{}),live=srcs.filter(q=>q[1].live).length;
+  const B=D.error?[]:(D.buckets||[]);
   const fdS=t=>new Intl.DateTimeFormat(LOC(),{timeZone:tz(),month:EN()?'short':'numeric',day:'numeric'}).format(t);
-  const h=D.h24||{long:0,short:0},mx=D.max24;
+  const h=D.h24||{long:0,short:0},mx=D.error?null:D.max24;
   let head='<div class="cs-head"><span>'+TL('直近24時間のロング清算','Long liquidated (24h)')+' <b style="color:#e07a7a">'+usdS(h.long)+'</b></span><span>'+TL('ショート清算','Short liquidated (24h)')+' <b style="color:#7fc99a">'+usdS(h.short)+'</b></span>'+
     (mx?'<span>'+TL('最大1件','Largest')+' <b>'+usdS(mx.usd)+'</b>'+(mx.side==='long'?TL('ロング','long'):TL('ショート','short'))+' · '+agoTxt(mx.ts)+'</span>':'')+
-    '<span>'+TL('接続 ','Feeds ')+live+'/'+(srcs.length||3)+(D.since?' · '+TL('記録: '+fdS(D.since)+' から','since '+fdS(D.since)):'')+'</span></div>';
-  if(!B.length){body.innerHTML=head+'<div class="cs-msg">'+TL('記録がまだありません。受信を始めた時点から貯まります。','No records yet. Data accumulates from when the collector started.')+'</div>'+liqNote(srcs);return}
+    (D.since?'<span>'+TL('記録: '+fdS(D.since)+' から','Since '+fdS(D.since))+'</span>':'')+'</div>';
+  if(!B.length){body.innerHTML=head+'<div class="cs-msg">'+TL('集計中…','Collecting…')+'</div>'+liqNote();return}
   const W=Math.max(320,body.clientWidth||600),H=170,L=50,R=10,T=8,Bt=20,step=D.step*1000;
   const t1=Math.max(Date.now(),B[B.length-1][0]+step),t0=Math.min(B[0][0],t1-step*Math.min(60,Math.max(B.length,24)));
   const bars=B.filter(q=>q[0]>=t0),mxL=Math.max(1,...bars.map(q=>q[1])),mxS=Math.max(1,...bars.map(q=>q[2])),top=Math.max(mxL,mxS);
@@ -3120,10 +3119,8 @@ function drawLiq(){
     if(l>0)g+='<rect x="'+xx+'" y="'+(mid-l).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+l.toFixed(1)+'" fill="#e07a7a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ロング','long')+' '+usdS(q[1])+'</title></rect>';
     if(s>0)g+='<rect x="'+xx+'" y="'+mid+'" width="'+bw.toFixed(1)+'" height="'+s.toFixed(1)+'" fill="#7fc99a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ショート','short')+' '+usdS(q[2])+'</title></rect>'});
   const n=Math.min(6,Math.max(1,Math.round((t1-t0)/864e5)));for(let k=0;k<=n;k++){const t=t0+(t1-t0)*k/n;g+='<text x="'+x(t).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+(step>=864e5||(t1-t0)>2*864e5?fdS(t):new Intl.DateTimeFormat(LOC(),{timeZone:tz(),hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(t))+'</text>'}
-  body.innerHTML=head+g+'</svg>'+liqNote(srcs)}
-function liqNote(srcs){const bad=srcs.filter(q=>!q[1].live);
-  return '<div class="cs-msg" style="padding:6px 0 0">'+TL('ロング清算=買いポジションの強制決済。取引所の公開ストリームの合算で、全市場の清算ではありません（足は上の価格チャートに合わせて切り替わります）。','Long liquidation = forced close of a buy position. Sum of public exchange streams, not the whole market. Bar size follows the price chart timeframe.')+
-    (bad.length?' <span style="color:#d9a3a3">'+TL('未接続: ','Offline: ')+bad.map(q=>q[0]+(q[1].err?'（'+esc(q[1].err)+'）':'')).join(' / ')+'</span>':'')+'</div>'}
+  body.innerHTML=head+g+'</svg>'+liqNote()}
+function liqNote(){return '<div class="cs-msg" style="padding:6px 0 0">'+TL('ロング清算=買いポジションの強制決済。取引所の公開ストリームの合算で、全市場の清算ではありません。棒の幅は上の価格チャートの足に合わせて切り替わります。','Long liquidation = forced close of a buy position. Sum of public exchange streams, not the whole market. Bar size follows the price chart timeframe.')+'</div>'}
 
 /* チャートの下: イベント一覧(これから / 直近) */
 let EVTAB='up';

@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v150';
+const VERSION = '2026-10-09-v151';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1538,7 +1538,7 @@ async function rxPut(request, url, env) {
 
 // ---------- 清算額(v150): Durable Object が取引所の清算ストリームを常時受信して5分足に集計 ----------
 // ロング清算 = 買いポジションの強制決済(売り注文で約定)。ショート清算はその逆。金額はUSD建て(数量×価格)。
-// 取引所: Binance(!forceOrder@arr)・Bybit(allLiquidation)・OKX(liquidation-orders)の合算。どれかが落ちても他は続く。
+// 取引所: Bybit(allLiquidation)・OKX(liquidation-orders)が主、Binance(!forceOrder@arr)は補助(Binanceは1銘柄1秒に最新1件しか流れず、荒れた相場では少なく出る。公式の仕様)。合算で、どれかが落ちても他は続く。
 // 保存: DOのstorageに日ごと('d:BTC:2026-10-09')。5分刻み(0〜287)→[ロング,ショート]。2週間(PAST_KEEP)より古い日は捨てる。
 const LIQ_STEP = 300000;
 const LIQ_FLUSH = 30000;
