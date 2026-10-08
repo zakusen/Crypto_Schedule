@@ -134,8 +134,9 @@ export function weekPost(wk, site) {
 // ---- S&P500 との相関・急変動(v95) ----
 // 価格は Pacifica の無期限先物(SP500 = S&P 500 の先物。BTC・ETH・SOL・BNB も Pacifica)。
 // 相関 = 1時間足の終値の変化率(対数)どうしのピアソン相関係数。直近30日・7日。24時間すべての足で計算(米国市場の時間外も含む)。
-// 急変動 = 4銘柄のどれかが直近1時間で ±3% 以上(5分足の終値どうし)。
-export const SPIKE_PCT = 3;
+// 急変動(v98) = BTC が直近60分で ±3% 以上(5分足の終値どうし。時計の区切りには合わせない)。投稿には同じ1時間の ETH・SOL・BNB・S&P500 も載せる。
+// v98: 急変動の投稿だけサイトの URL を付ける(X API は URL付き 1本 $0.20)。直近30日で SPIKE_LINK_MAX 回まで、超えたら URL なし。
+export const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_LINK_MAX = 10;
 export const CORR_DAYS = [30, 7];
 export function pearson(x, y) {
   const n = x.length; if (n < 3) return null;
@@ -168,7 +169,8 @@ export function usOpen(t) {
 }
 // 急変動の1時間の値動き。B = 5分足(Pacifica)。T = Worker が見つけた時刻。
 // T の前後(T−10分〜T+5分)に閉じた5分足のうち、きっかけの銘柄の1時間の変動が一番大きい足を終わりにする。±3% に届かなければ null
-export function spikeMoves(B, T, hit, now) {
+export function spikeMoves(B, T, now) {
+  const hit = [SPIKE_COIN];
   const map = {}; for (const k of Object.keys(B)) map[k] = new Map((B[k] || []).map((b) => [b[0], b[4]]));
   const ch = (k, e) => { const a = map[k] && map[k].get(e - 12 * M5), b = map[k] && map[k].get(e); return a > 0 && b > 0 ? pct(a, b) : null; };
   let best = null;
@@ -180,7 +182,7 @@ export function spikeMoves(B, T, hit, now) {
   if (!best || best.v < SPIKE_PCT) return null;
   const coins = {}; for (const [c] of COINS) { const v = ch(c, best.e); if (v != null) coins[c] = v; }
   const t1 = best.e + M5, t0 = t1 - H;
-  return { t0, t1, coins, spx: ch('SP500', best.e), open: usOpen(t0) || usOpen(t1) || usOpen(t0 + H / 2), hit: COINS.map(([c]) => c).filter((c) => coins[c] != null && Math.abs(coins[c]) >= SPIKE_PCT) };
+  return { t0, t1, coins, spx: ch('SP500', best.e), open: usOpen(t0) || usOpen(t1) || usOpen(t0 + H / 2), hit };
 }
 // v96: 相関係数は「0.65」の形(逆向きだけ −)。強さの目安を言葉で添える(よく使う区分: 0.7以上 強い / 0.4〜 中程度 / 0.2〜 弱い / 0.2未満 ほぼ無関係)
 export const rTxt = (v) => v == null ? '—' : (v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
@@ -192,23 +194,27 @@ export function corrLabel(v, lang) {
   return en ? ['strong', 'moderate', 'weak'][k] + (inv ? ' inverse' : '') : ['強い', '中程度の', '弱い'][k] + (inv ? '逆連動' : '連動');
 }
 // sp = spikeMoves の結果 + id + corr(corrCalc の結果)
-export function spikePost(sp, corr) {
-  const d = J(sp.t1), md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, all4 = sp.hit.length === COINS.length;
+export function spikePost(sp, corr, link) {   // link = サイトの URL(付けない時は null)
+  const d = J(sp.t1), md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, btc = sp.coins[SPIKE_COIN];
   const rv = (d0, c) => corr && corr.w && corr.w[d0] && corr.w[d0][c] ? corr.w[d0][c].r : null;
-  const cr = (c, lang) => { const v = rv(30, c); return v == null ? '—' : rTxt(v) + ' ' + corrLabel(v, lang); };
-  const mv = (v, dot) => v == null ? '—' : (dot ? (v > 0 ? '🟢 ' : v < 0 ? '🔴 ' : '⚪ ') : '') + (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
-  // 1行 = 銘柄・同じ1時間の変化・S&P500 との相関(30日。7日は画像とサイト)。入らない時は 区切り線 → 色の丸 → タグ → 時刻の行(画像にはある) の順に外す
+  const cr = (c, lang, lab) => { const v = rv(30, c); return v == null ? '—' : rTxt(v) + (lab ? ' ' + corrLabel(v, lang) : ''); };
+  const sg = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  const mv = (v, dot) => v == null ? '—' : (dot ? (v > 0 ? '🟢 ' : v < 0 ? '🔴 ' : '⚪ ') : '') + sg(v);
+  // 1行 = 銘柄・同じ1時間の変化・S&P500 との相関(30日。7日は画像とサイト)。URL は必ず残す。
+  // 入らない時は 区切り線 → 色の丸 → タグ → 時間外の注記 → 時刻の行(画像にはある) → 相関の目安の言葉 の順に外す
   const build = (lang, o) => {
     const en = lang === 'en';
-    return [en ? `⚡ 1H MOVE ≥3% · ${all4 ? 'ALL 4' : sp.hit.join(' · ')}` : `⚡ 1時間で3%以上 · ${all4 ? '4銘柄すべて' : sp.hit.join(' · ')}`, ...(o.rule ? ['━━━━━━━━━━━━━━'] : []), ...(o.nodate ? [] : [en ? `${ME[d.getUTCMonth()]} ${d.getUTCDate()} · ${hm(sp.t0)}→${hm(sp.t1)} JST` : `${md} ${hm(sp.t0)}→${hm(sp.t1)}(日本時間)`]), '',
+    return [en ? `⚡ BTC ${sg(btc)} IN 1H` : `⚡ BTC 1時間で ${sg(btc)}`, ...(o.rule ? ['━━━━━━━━━━━━━━'] : []), ...(o.nodate ? [] : [en ? `${ME[d.getUTCMonth()]} ${d.getUTCDate()} · ${hm(sp.t0)}→${hm(sp.t1)} JST` : `${md} ${hm(sp.t0)}→${hm(sp.t1)}(日本時間)`]), '',
       en ? '1H change | corr w/ S&P500 (30D)' : '1時間の変化 | S&P500との相関(30日)',
-      ...COINS.filter(([c]) => sp.coins[c] != null).map(([c, , s]) => `${s} ${c} ${mv(sp.coins[c], o.dot)} | ${cr(c, lang)}`),
-      `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`,
-      ...(o.tag ? ['', en ? '#Bitcoin #SP500' : '#ビットコイン #SP500'] : [])].join('\n');
+      ...COINS.filter(([c]) => sp.coins[c] != null).map(([c, , s]) => `${s} ${c} ${mv(sp.coins[c], o.dot)} | ${cr(c, lang, !o.nolab)}`),
+      `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open || o.noclosed ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`,
+      ...(link ? ['', '🔗 ' + link] : []),
+      ...(o.tag ? [(link ? '' : '\n') + (en ? '#Bitcoin #SP500' : '#ビットコイン #SP500')] : [])].join('\n');
   };
-  const fitS = (lang) => { for (const o of [{ rule: 1, dot: 1, tag: 1 }, { dot: 1, tag: 1 }, { dot: 1 }, { tag: 1 }, {}, { nodate: 1 }]) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, { nodate: 1 }); };
+  const LV = [{ rule: 1, dot: 1, tag: 1 }, { dot: 1, tag: 1 }, { dot: 1 }, { dot: 1, noclosed: 1 }, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];
+  const fitS = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitS('en'), ja = fitS('ja');
-  return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 1, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
+  return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 1, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
 }
 
 // ---- 自動投稿(v94) ----

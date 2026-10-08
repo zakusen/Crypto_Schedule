@@ -7,7 +7,7 @@
 //   発表後の値動き(arch)     : 主要指標の発表65分後。BTC・ETH・SOL・BNB の1時間後の変化(v91)。ふだんは /posts.html がその時刻にブラウザで作る。ここは予備(タブを閉じていた時用)。
 //   週間記録(week)           : 土曜 7時以降に1本。投稿 = 土曜 10:00(v92)。4銘柄の週の変化 + 重要度「高」の指標ごとの BTC +1h(重要度順。v93)。
 //   S&P500 相関(v95)        : 6時間ごとに Pacifica の1時間足で計算し、サイトの表示用に保存(corr:v1)。
-//   急変動(spike, v95)       : Worker が見つけた急変動(x:spk)ごとに1本。すぐ投稿。
+//   急変動(spike, v95/v98)   : Worker が見つけた BTC の急変動(x:spk)ごとに1本。すぐ投稿。URL付き(直近30日で10回まで)。
 // 文面の作り方は public/xpost-lib.js(画面と共通)。
 // 必要: RX_ADMIN_KEY。任意: NTFY_TOPIC(新しい下書きができたらスマホに通知)。
 import fs from 'node:fs';
@@ -148,7 +148,7 @@ if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
 
 // ---- 4) S&P500 との相関(サイトに常時表示)と急変動の投稿(v95) ----
 // 相関: 前回から6時間以上たっていたら計算し直す(RX runner の1日3回で更新される)。急変動の投稿を作る時は必ず最新で計算する。
-// 急変動: Worker が5分ごとに見張り、4銘柄のどれかが直近1時間で ±3% 以上なら記録(x:spk)して「X post」を起こす。ここで下書きを作り、x_post.mjs がすぐ投稿する。
+// 急変動: Worker が5分ごとに見張り、BTC が直近60分で ±3% 以上なら記録(x:spk)して「X post」を起こす。ここで下書きを作り、x_post.mjs がすぐ投稿する。
 const PAC = 'https://api.pacifica.fi/api/v1';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function pac(sym, iv, start, end) {                                     // Pacifica の足(1回200本ずつ)。[開始ms, 始, 高, 安, 終]
@@ -178,9 +178,13 @@ try {
   }
   for (const ev of pend) {
     const B = {}; for (const s of SYM5) B[s] = await pac(s, '5m', ev.t - 2 * H, Math.min(NOW, ev.t + 15 * 60000));
-    const mv = L.spikeMoves(B, ev.t, Object.keys(ev.hit || {}), NOW);
-    if (!mv) { console.log('[x] 急変動: Pacifica の5分足では ±3% に届かないので出しません', ev.id, JSON.stringify(ev.hit)); continue; }
-    put(L.spikePost({ ...mv, id: ev.id, due: ev.t }, corr && corr.w ? corr : null));
+    const mv = L.spikeMoves(B, ev.t, NOW);
+    if (!mv) { console.log('[x] 急変動: Pacifica の5分足では BTC が ±3% に届かないので出しません', ev.id, JSON.stringify(ev.hit)); continue; }
+    // v98: URL を付けるのは直近30日で SPIKE_LINK_MAX 回まで(URL付きは1本 $0.20)
+    const linked = [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.img && p.img.link && NOW - (p.due || 0) < 30 * DAY).length;
+    const link = linked < L.SPIKE_LINK_MAX ? SITE : null;
+    if (!link) console.log(`[x] 急変動: 直近30日の URL付きが ${linked} 回に達したので URL なしで出します`);
+    put(L.spikePost({ ...mv, id: ev.id, due: ev.t }, corr && corr.w ? corr : null, link));
   }
 } catch (e) { console.log('[x] S&P500 相関・急変動でエラー(ほかの下書きは続けます):', e.message); }
 

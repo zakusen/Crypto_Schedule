@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-08-v97';
+const VERSION = '2026-10-08-v98';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1419,28 +1419,23 @@ async function postsApi(request, env) {
 async function ghDispatch(env, payload) {
   return fetch(`https://api.github.com/repos/${env.GH_REPO}/dispatches`, { method: 'POST', headers: { authorization: 'Bearer ' + env.GH_DISPATCH_TOKEN, accept: 'application/vnd.github+json', 'user-agent': 'signal-archive-worker', 'content-type': 'application/json' }, body: JSON.stringify({ event_type: 'x-post', client_payload: payload }) });
 }
-// === v95: 急変動の見張り。5分ごとの価格取得のすぐ後に、保存済みの5分足(BTC・ETH・SOL・BNB)で直近1時間の変動を見る。
-//   ±3% 以上の銘柄があれば x:spk に記録して「X post」を起こす(下書きは tools/x_notify.mjs が Pacifica の足で作り直す)。
-//   同じ銘柄は6時間に1回まで・どの銘柄でも前の急変動から1時間は出さない(1本の投稿に4銘柄とも載るため)。ふだん(急変動なし)は KV の読み書きをしない。
-const SPIKE_PCT = 3, SPIKE_COOL = 6 * 36e5, SPIKE_GAP = 36e5;
+// === v95 / v98: 急変動の見張り。5分ごとの価格取得のすぐ後に、保存済みの5分足で BTC の直近60分の変動を見る(v98: BTC だけ)。
+//   ±3% 以上なら x:spk に記録して「X post」を起こす(下書きは tools/x_notify.mjs が Pacifica の足で作り直し、ETH・SOL・BNB・S&P500 も載せる)。
+//   一度出したら6時間は出さない。ふだん(急変動なし)は KV の読み書きをしない。
+const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_COOL = 6 * 36e5;
 async function spikeCheck(env) {
   if (!env.CAL) return null;
-  const store = await readPx(env), now = Date.now(), hit = {};
-  for (const sym of SYMS) {
-    const e = store && store.tfs && store.tfs[sym] && store.tfs[sym]['5m'];
-    if (!e || !e.bars || e.bars.length < 13 || now - e.at > 10 * 60e3) continue;
-    const last = e.bars[e.bars.length - 1], base = e.bars.find((b) => b[0] === last[0] - 3600);
-    if (!base || !(base[1] > 0) || !(last[4] > 0)) continue;
-    const chg = (last[4] / base[1] - 1) * 100;
-    if (Math.abs(chg) >= SPIKE_PCT) hit[sym] = Math.round(chg * 100) / 100;
-  }
-  if (!Object.keys(hit).length) return null;
+  const store = await readPx(env), now = Date.now();
+  const e = store && store.tfs && store.tfs[SPIKE_COIN] && store.tfs[SPIKE_COIN]['5m'];
+  if (!e || !e.bars || e.bars.length < 13 || now - e.at > 10 * 60e3) return null;
+  const last = e.bars[e.bars.length - 1], base = e.bars.find((b) => b[0] === last[0] - 3600);
+  if (!base || !(base[1] > 0) || !(last[4] > 0)) return null;
+  const chg = Math.round((last[4] / base[1] - 1) * 1e4) / 100;
+  if (Math.abs(chg) < SPIKE_PCT) return null;
   const doc = (await env.CAL.get('x:spk', { type: 'json' })) || {};
   const recent = (doc.ev || []).filter((x) => now - x.t < 24 * 36e5);
-  if (recent.some((x) => now - x.t < SPIKE_GAP)) return { cooling: hit };
-  const fresh = {}; for (const [s, v] of Object.entries(hit)) if (!recent.some((x) => x.hit && x.hit[s] != null && now - x.t < SPIKE_COOL)) fresh[s] = v;
-  if (!Object.keys(fresh).length) return { cooling: hit };
-  const ev = { id: 'spike:' + now, t: now, hit: fresh };
+  if (recent.some((x) => now - x.t < SPIKE_COOL)) return { cooling: chg };
+  const ev = { id: 'spike:' + now, t: now, hit: { [SPIKE_COIN]: chg } };
   await env.CAL.put('x:spk', JSON.stringify({ ev: [...recent, ev].slice(-10) }));
   if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO) return { ev, dispatched: 'GH の鍵が未設定' };
   const r = await ghDispatch(env, { spike: ev.id });
