@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v151';
+const VERSION = '2026-10-09-v152';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1370,9 +1370,9 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|cr)$/;   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
+const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr)$/;   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
 //   v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'cr' ? 'corr:v1' : 'rx:s:' + n.slice(1);
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : 'rx:s:' + n.slice(1);
 
 // === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
 //   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
@@ -1542,6 +1542,12 @@ async function rxPut(request, url, env) {
 // 保存: DOのstorageに日ごと('d:BTC:2026-10-09')。5分刻み(0〜287)→[ロング,ショート]。2週間(PAST_KEEP)より古い日は捨てる。
 const LIQ_STEP = 300000;
 const LIQ_FLUSH = 30000;
+// v152: 巨額清算の「事象」の判定(直近1時間の、ロング清算かショート清算の大きい方が、銘柄ごとの閾値以上)。
+//   始まり = どれかの銘柄が閾値以上 / 終わり = 全銘柄が閾値の半分を下回った時(または始まりから6時間)。終わった時に総括を1本投稿する。
+//   終わった後に再び閾値を超えたら別の事象。1日(日本時間)の投稿は LIQ_DAILY_CAP 本まで。閾値は推定の初期値(実測で見直す)。
+const LIQ_TH = { BTC: 30e6, ETH: 25e6, SOL: 8e6, BNB: 3e6 };
+const LIQ_QUIET = 0.5, LIQ_MAXWAIT = 6 * 36e5, LIQ_DAILY_CAP = 5;
+const jstDay = (t) => liqDay(t + 9 * 36e5);
 const LIQ_OKX_CT = { BTC: 0.01, ETH: 0.1, SOL: 1, BNB: 0.01 };   // OKXの1枚あたりの数量(取れない時の既定値。起動時に公式の値で上書き)
 const liqDay = (t) => new Date(t).toISOString().slice(0, 10);
 
@@ -1557,6 +1563,7 @@ export class LiqHub {
       const all = await this.state.storage.list({ prefix: 'd:' });
       for (const [k, v] of all) this.days[k.slice(2)] = v;
       const mx = await this.state.storage.get('max'); if (mx) this.max = mx;
+      this.ev = (await this.state.storage.get('ev')) || { open: null, log: [] };
     });
   }
 
@@ -1566,9 +1573,67 @@ export class LiqHub {
     const d = this.days[key] || (this.days[key] = {});
     const c = d[slot] || (d[slot] = [0, 0]);
     c[side === 'long' ? 0 : 1] += usd;
+    if (!(usd <= (c[2] || 0))) { c[2] = usd; c[3] = side === 'long' ? 1 : 0; }   // この5分の最大1件(総括の「最大の1件」に使う)
     this.dirty.add(key);
     const m = this.max[sym];
     if (!m || Date.now() - m[2] > DAY || usd > m[0]) this.max[sym] = [usd, side, ts, src];
+  }
+
+  maxOne(from, to) {   // [from, to) の最大の1件 → {usd, coin, side, ts}
+    let best = null;
+    for (const c of SYMS) for (let d = Math.floor(from / DAY) * DAY; d < to; d += DAY) {
+      const day = this.days[c + ':' + liqDay(d)]; if (!day) continue;
+      for (const [slot, v] of Object.entries(day)) { const t = d + Number(slot) * LIQ_STEP; if (t >= from && t < to && v[2] && (!best || v[2] > best.usd)) best = { usd: Math.round(v[2]), coin: c, side: v[3] ? 'long' : 'short', ts: t }; }
+    }
+    return best;
+  }
+
+  sum(sym, from, to) {   // [from, to) のロング・ショート合計(5分刻みの集計から)
+    let l = 0, s = 0;
+    for (let d = Math.floor(from / DAY) * DAY; d < to; d += DAY) {
+      const day = this.days[sym + ':' + liqDay(d)]; if (!day) continue;
+      for (const [slot, v] of Object.entries(day)) { const t = d + Number(slot) * LIQ_STEP; if (t >= from && t < to) { l += v[0]; s += v[1]; } }
+    }
+    return [l, s];
+  }
+
+  async detect() {
+    const now = Date.now(), ev = this.ev;
+    let over = false, quiet = true; const cur = {};
+    for (const c of SYMS) {
+      const [l, s] = this.sum(c, now - 36e5, now + 1), v = Math.max(l, s);
+      cur[c] = [v, l >= s ? 'long' : 'short'];
+      if (v >= LIQ_TH[c]) over = true;
+      if (v >= LIQ_TH[c] * LIQ_QUIET) quiet = false;
+    }
+    if (!ev.open && over) {
+      ev.open = { id: 'liq:' + now, t0: now, start: Math.floor((now - 36e5) / LIQ_STEP) * LIQ_STEP, peak: {} };
+      this.evDirty = true;
+    }
+    const o = ev.open;
+    if (!o) return;
+    for (const c of SYMS) { const p = o.peak[c]; if (!p || cur[c][0] > p[0]) { o.peak[c] = [Math.round(cur[c][0]), cur[c][1], now]; this.evDirty = true; } }
+    if (!quiet && now - o.t0 < LIQ_MAXWAIT) return;
+    // ---- 終わり: 総括を作って記録し、X post を起こす ----
+    const end = now, coins = {}, ser = new Map();
+    for (const c of SYMS) {
+      const [l, s] = this.sum(c, o.start, end);
+      coins[c] = { long: Math.round(l), short: Math.round(s), peak: o.peak[c] || null };
+      for (let t = o.start; t < end; t += LIQ_STEP) { const [a, b] = this.sum(c, t, t + LIQ_STEP); if (a || b) { const q = ser.get(t) || [0, 0]; q[0] += a; q[1] += b; ser.set(t, q); } }
+    }
+    const rec = { id: o.id, t0: o.t0, start: o.start, end, capped: !quiet, coins, maxOne: this.maxOne(o.start, end),
+      ser: [...ser.entries()].sort((x, y) => x[0] - y[0]).slice(-120).map(([t, v]) => [t, Math.round(v[0]), Math.round(v[1])]), th: LIQ_TH };
+    if (this.env.LIQ_POST === 'off') rec.man = 1;                       // 自動投稿を止める設定 = 下書きだけ作る
+    const sent = ev.log.filter((e) => e.sent && jstDay(e.end) === jstDay(end)).length;
+    if (sent >= LIQ_DAILY_CAP) rec.skipped = 'cap';
+    ev.log = [...ev.log, { id: rec.id, end, sent: !rec.skipped }].filter((e) => end - e.end < 2 * DAY).slice(-30);
+    ev.open = null; this.evDirty = true;
+    if (rec.skipped || !this.env.CAL) return;
+    try {
+      const old = (await this.env.CAL.get('x:liq', { type: 'json' })) || {};
+      await this.env.CAL.put('x:liq', JSON.stringify({ ev: [...(old.ev || []).filter((x) => end - x.end < DAY), rec].slice(-10) }));
+      if (this.env.GH_DISPATCH_TOKEN && this.env.GH_REPO) await ghDispatch(this.env, { liq: rec.id });
+    } catch (_) {}
   }
 
   async flush() {
@@ -1660,6 +1725,8 @@ export class LiqHub {
   async alarm() {
     await this.ready;
     this.ensure();
+    try { await this.detect(); } catch (_) {}
+    if (this.evDirty) { this.evDirty = false; try { await this.state.storage.put('ev', this.ev); } catch (_) {} }
     await this.flush();
     await this.state.storage.setAlarm(Date.now() + LIQ_FLUSH);
   }
@@ -1695,7 +1762,7 @@ export class LiqHub {
     const m = this.max[sym];
     const sources = {};
     for (const [n, s] of Object.entries(this.src)) sources[n] = { live: !!s.ws, last: s.at || null, n: s.n, err: s.err || null };
-    return json({ step: step / 1000, buckets, since: first || null, h24: { long: Math.round(l24), short: Math.round(s24) }, max24: m && now - m[2] <= DAY ? { usd: Math.round(m[0]), side: m[1], ts: m[2], src: m[3] } : null, sources });
+    return json({ step: step / 1000, buckets, since: first || null, h24: { long: Math.round(l24), short: Math.round(s24) }, max24: m && now - m[2] <= DAY ? { usd: Math.round(m[0]), side: m[1], ts: m[2], src: m[3] } : null, sources, th: LIQ_TH, open: !!(this.ev && this.ev.open) });
   }
 }
 
@@ -1706,6 +1773,17 @@ async function liqApi(env, url) {
     const stub = env.LIQ.get(env.LIQ.idFromName('hub'));
     return await stub.fetch('https://liq/data?sym=' + encodeURIComponent(sym || '') + '&step=' + encodeURIComponent(url.searchParams.get('step') || '3600'));
   } catch (e) { return json({ error: String((e && e.message) || e), buckets: [] }, 502); }
+}
+// v152: 毎朝のまとめ(日本時間 9:00)の合図。9:00〜9:19 の5分ごとの実行のうち最初の1回だけ「X post」を起こす(下書きは tools/x_notify.mjs が作る)
+async function liqDayKick(env) {
+  if (!env.CAL || !env.GH_DISPATCH_TOKEN || !env.GH_REPO) return null;
+  const j = new Date(Date.now() + 9 * 36e5);
+  if (j.getUTCHours() !== 9 || j.getUTCMinutes() >= 20) return null;
+  const day = j.toISOString().slice(0, 10);
+  if ((await env.CAL.get('x:liqday:kick')) === day) return null;
+  await env.CAL.put('x:liqday:kick', day, { expirationTtl: 86400 });
+  const r = await ghDispatch(env, { liqday: day });
+  return { day, dispatched: r.status };
 }
 async function liqPing(env) {   // 定時実行から呼び、DOが眠っていたら起こす(接続の張り直し)
   if (!env.LIQ) return null;
@@ -1758,6 +1836,7 @@ export default {
       try { console.log('price refresh', JSON.stringify(await runPrices(env))); }
       catch (e) { console.log('price refresh FAILED', String((e && e.stack) || e)); }
       try { const r = await liqPing(env); if (r) console.log('liq', JSON.stringify(r)); } catch (e) { console.log('liq FAILED', String((e && e.message) || e)); }
+      try { const r = await liqDayKick(env); if (r) console.log('liqday', JSON.stringify(r)); } catch (e) { console.log('liqday FAILED', String((e && e.message) || e)); }
       try { const r = await spikeCheck(env); if (r) console.log('spike', JSON.stringify(r)); } catch (e) { console.log('spike FAILED', String((e && e.message) || e)); }
       try { const r = await xDispatch(env); if (r) console.log('x dispatch', JSON.stringify(r)); } catch (e) { console.log('x dispatch FAILED', String((e && e.message) || e)); }
       return;

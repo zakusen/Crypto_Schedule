@@ -176,8 +176,8 @@ async function load() {
 }
 
 // 予定(下書き)と、まだ下書きの無い「発表後の値動き」をひとつの並びにする
-const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録', spike: '急変動(S&P500相関)' };   // v95: spike
-const ICON = { daily: '🗓', arch: '📈', week: '📊', spike: '⚡' };
+const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録', spike: '急変動(S&P500相関)', liq: '巨額清算の総括', liqday: '清算(毎朝)' };   // v95: spike
+const ICON = { daily: '🗓', arch: '📈', week: '📊', spike: '⚡', liq: '🔥', liqday: '🧹' };
 const dueOf = (p) => p.due || (p.sr === 'daily' ? L.dayStart(p.at) + L.DAILY_AT : p.at);
 function build() {
   // v85: その日にもその週の残りにも予定が無い「今日・今週の予定」は出さない(自動作成側も作らないが、作成済みの古い下書きをすぐ隠す)
@@ -204,7 +204,7 @@ function stateOf(it, now = Date.now()) {
 const AUTO = (it) => L.isAuto({ sr: it.sr, due: it.due, man: it.post && it.post.man });   // v101: man = 手で作った下書き(自動投稿しない)   // v94: X API で自動投稿されるもの
 const STXT = { done: (sr) => sr === 'daily' ? '✔ 予約済' : '✔ 済', warn: () => '⚠ 要修正', ready: () => '● 今', todo: (sr) => sr === 'daily' ? '未予約' : '待ち', wait: () => '発表待ち', missed: () => '時刻過ぎ' };
 const stxt = (it, s) => AUTO(it) && s !== 'done' && s !== 'missed' ? '🤖 自動' : STXT[s](it.sr);
-const shortName = (it) => it.sr === 'daily' ? '予定' : it.sr === 'week' ? '週間記録' : it.sr === 'spike' ? '急変動 ' + ((it.post && it.post.img && it.post.img.hit) || []).join('・') : (it.post ? (it.post.img && it.post.img.ja) : L.groupLine(it.g, 'ja'));
+const shortName = (it) => it.sr === 'daily' ? '予定' : it.sr === 'week' ? '週間記録' : it.sr === 'liq' ? '巨額清算' : it.sr === 'liqday' ? '清算 24時間' : it.sr === 'spike' ? '急変動 ' + ((it.post && it.post.img && it.post.img.hit) || []).join('・') : (it.post ? (it.post.img && it.post.img.ja) : L.groupLine(it.g, 'ja'));
 
 // ---------- 画面 ----------
 function render() {

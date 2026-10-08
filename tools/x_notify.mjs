@@ -231,6 +231,28 @@ try {
   }
 } catch (e) { console.log('[x] S&P500 相関・急変動でエラー(ほかの下書きは続けます):', e.message); }
 
+
+// ---- 5) 清算(v152) ----
+//   巨額清算の総括: Worker(LiqHub)が収まった時に x:liq へ記録した事象ごとに1本。6時間以内で、まだ下書きが無いものだけ作る。
+//   毎朝のまとめ: 日本時間 9:00 以降に、その日の分を1本(直近24時間 = 前日 9:00 〜 今日 9:00)。サイトの /api/liq の1時間ごとの集計から作る。
+try {
+  const lq = await (await site('/api/admin/rx-one?name=xl')).json();
+  for (const ev of (lq.ev || [])) { if (byId.has(ev.id) || NOW - ev.end > 6 * H) continue; put(L.liqPost(ev)); console.log('[x] 巨額清算の総括:', ev.id); }
+  const day = dayStart(NOW), lid = 'liqday:' + isoDay(day);
+  if (NOW >= day + L.LIQ_DAY_AT && !byId.has(lid)) {
+    const end = day + L.LIQ_DAY_AT, start = end - DAY, coins = {}, hrs = new Map(); let from = null, ok = true, total = 0;
+    for (const [c] of COINS) {
+      const r = await fetch(SITE + '/api/liq?sym=' + c + '&step=3600', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(30000) });
+      if (!r.ok) { ok = false; console.log('[x] 清算(毎朝): /api/liq HTTP ' + r.status + ' なので次回'); break; }
+      const j = await r.json(); let l = 0, s = 0;
+      for (const q of j.buckets || []) if (q[0] >= start && q[0] < end) { l += q[1]; s += q[2]; const h = hrs.get(q[0]) || [q[0], 0, 0]; h[1] += q[1]; h[2] += q[2]; hrs.set(q[0], h); }
+      coins[c] = { long: l, short: s }; total += l + s; if (j.since && (from == null || j.since > from)) from = j.since;
+    }
+    if (ok && total > 0) put(L.liqDayPost(day, coins, [...hrs.values()].sort((a, b) => a[0] - b[0]), from));
+    else if (ok) console.log('[x] 清算(毎朝): 記録が0なので出しません(LiqHub が動いているか /api/liq を確認)');
+  }
+} catch (e) { console.log('[x] 清算でエラー(ほかの下書きは続けます):', e.message); }
+
 // ---- 保存・通知 ----
 for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) console.log(`[x] 注意: ${p.id} ${lg} が280を超えています(${xlen(p[lg])})`);
 let res = {};
@@ -240,7 +262,7 @@ try {
   const merged = new Map((store.posts || []).map((p) => [p.id, p])); for (const p of out) merged.set(p.id, { ...(merged.get(p.id) || {}), ...p, done: (merged.get(p.id) || {}).done });
   await site('/api/admin/rx-put?name=xd', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(dueList([...merged.values()].filter((p) => !drop.includes(p.id)), events, Date.now())) });
 } catch (e) { console.log('[x] x:due を書けませんでした:', e.message); }
-const fresh = out.filter((p) => !byId.has(p.id) && p.sr !== 'daily');       // 通知は「すぐ投稿するもの」が新しくできた時だけ
+const fresh = out.filter((p) => !byId.has(p.id) && p.sr !== 'daily' && p.sr !== 'liqday');       // 通知は「すぐ投稿するもの」が新しくできた時だけ
 if (TOPIC && fresh.length) {
   const r = await fetch(NTFY, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(20000),
     body: JSON.stringify({ topic: TOPIC, title: `投稿できる下書き ${fresh.length}件`, message: fresh.map((p) => p.ja.split('\n')[2] || p.id).join('\n'), tags: ['bird'], click: SITE + '/posts.html' }) });

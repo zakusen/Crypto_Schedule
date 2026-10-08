@@ -244,14 +244,67 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
   return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, win: W, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
 }
 
+
+// ---- v152: 清算(ロング清算 = 買いポジションの強制決済。Bybit・OKX・Binance の合算) ----
+//   liq    = 巨額清算の総括(収まった時に1本。Worker の LiqHub が事象を記録 → x:liq)
+//   liqday = 毎朝のまとめ(日本時間 9:00 に、直近24時間)
+export const LIQ_DAY_AT = 9 * H;
+export const usdS = (v) => { v = Math.abs(+v || 0); return v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e7 ? '$' + Math.round(v / 1e6) + 'M' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + Math.round(v / 1e3) + 'K' : '$' + Math.round(v); };
+const liqRows = (coins) => COINS.filter(([c]) => coins[c] && (coins[c].long || coins[c].short)).map(([c, , s]) => `${s} ${c} 🔴${usdS(coins[c].long)} 🟢${usdS(coins[c].short)}`);   // 🔴 = ロング清算 / 🟢 = ショート清算(合計の行で説明)
+const liqTot = (coins) => { let l = 0, sh = 0; for (const c of Object.keys(coins || {})) { l += coins[c].long || 0; sh += coins[c].short || 0; } return { l, s: sh, share: l + sh > 0 ? Math.round(l / (l + sh) * 100) : null }; };
+const rangeTxt = (a, b, lang) => lang === 'en'
+  ? (dEnU(a) === dEnU(b) ? `${dEnU(a)} · ${uhm(a)}→${uhm(b)} UTC` : `${dEnU(a, false)} ${uhm(a)} → ${dEnU(b, false)} ${uhm(b)} UTC`)
+  : (dJaL(a) === dJaL(b) ? `${dJaL(a)} · ${hm(a)}→${hm(b)} · 日本時間` : `${dJaL(a)} ${hm(a)} → ${dJaL(b)} ${hm(b)} · 日本時間`);
+// ev = Worker が記録した事象 {id, start, end, capped, coins:{BTC:{long,short,peak}}, maxOne:{usd,coin,side,ts}, ser:[[t,long,short]], man?}
+export function liqPost(ev) {
+  const tot = liqTot(ev.coins), mo = ev.maxOne;
+  const build = (lang, o) => {
+    const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
+    return [...(o.brand ? [BRAND[lang], ''] : []),
+      en ? '🔥 LIQUIDATION WAVE' : '🔥 巨額清算', ...(o.nodate ? [] : [rangeTxt(ev.start, ev.end, lang)]), rule,
+      ...liqRows(ev.coins), rule,
+      en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}`,
+      ...(mo && !o.nomax ? [en ? `💥 Largest: ${usdS(mo.usd)} ${mo.coin} ${mo.side}` : `💥 最大の1件: ${usdS(mo.usd)} ${mo.coin}の${mo.side === 'long' ? 'ロング' : 'ショート'}`] : []),
+      ...(o.src ? [en ? 'Bybit + OKX + Binance' : 'Bybit・OKX・Binance合算'] : []),
+      ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
+  };
+  const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nomax: 1 }, { nomax: 1, nodate: 1 }];
+  const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
+  const en = fitL('en'), ja = fitL('ja');
+  return { id: ev.id, sr: 'liq', due: ev.end, en, ja, h: hashStr(en + ja), ...(ev.man ? { man: 1 } : {}),
+    img: { v: 1, kind: 'wave', start: ev.start, end: ev.end, capped: !!ev.capped, coins: ev.coins, maxOne: mo || null, ser: ev.ser || [] } };
+}
+// 毎朝のまとめ: day = 日本時間の0時(ms)。直近24時間 = (day+9h-24h) 〜 (day+9h)。coins = {BTC:{long,short}}, hours = [[t,long,short]](24本まで)、from = 記録の始まり(24時間に満たない時)
+export function liqDayPost(day, coins, hours, from) {
+  const end = day + LIQ_DAY_AT, start = end - DAY, tot = liqTot(coins);
+  let pk = null; for (const h of hours || []) if (!pk || h[1] + h[2] > pk[1] + pk[2]) pk = h;
+  const part = from && from > start + 36e5;
+  const build = (lang, o) => {
+    const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
+    return [...(o.brand ? [BRAND[lang], ''] : []),
+      en ? '📊 LIQUIDATIONS · LAST 24H' : '📊 清算額 · 直近24時間',
+      ...(o.nodate ? [] : [en ? `to ${dEnU(end)} · ${uhm(end)} UTC${part ? ' (partial)' : ''}` : `${dJaL(end)} ${hm(end)} まで${part ? '（記録は途中から）' : ''}`]), rule,
+      ...liqRows(coins), rule,
+      en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}${tot.share != null ? ` (${tot.share}% long)` : ''}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}${tot.share != null ? `（ロング${tot.share}%）` : ''}`,
+      ...(pk && !o.nopeak ? [en ? `⏱ Peak hour ${uhm(pk[0])} UTC · ${usdS(pk[1] + pk[2])}` : `⏱ ピーク ${hm(pk[0])} · ${usdS(pk[1] + pk[2])}`] : []),
+      ...(o.src ? [en ? 'Bybit + OKX + Binance' : 'Bybit・OKX・Binance合算'] : []),
+      ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
+  };
+  const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nopeak: 1 }, { nopeak: 1, nodate: 1 }];
+  const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
+  const en = fitL('en'), ja = fitL('ja');
+  return { id: 'liqday:' + isoDay(day), sr: 'liqday', due: end, en, ja, h: hashStr(en + ja),
+    img: { v: 1, kind: 'day', start, end, coins, hours: hours || [], partial: !!part } };
+}
+
 // ---- 自動投稿(v94) ----
 // 自動で投稿する種類: 発表後の値動き・週間記録はいつも、毎朝の予定は AUTO_DAILY_FROM 以降(それまでは X で手で予約済み)
 export const AUTO_DAILY_FROM = '2026-10-09';   // v104: 10/9 から自動(X の手の予約は消してもらう)
 export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
 export const SPIKE_WINDOW = 6 * H;  // v147: 急変動は見つけてから6時間まで
-export const winOf = (p) => (p && (p.sr === 'spike' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;
+export const winOf = (p) => (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'week' || p.sr === 'spike' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'liq' || p.sr === 'liqday' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
