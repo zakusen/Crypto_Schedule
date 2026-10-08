@@ -102,7 +102,7 @@ export function archPost(g, mv, site) {
     const en = lang === 'en';
     const L = [`${k.icon} ${en ? nE : nJ}`, '━━━━━━━━━━━━━━', en ? '📊 +1H RECORD (vs release)' : '📊 発表1時間後の記録(発表時点比)', '', ...rows];
     if (opt.marks) L.push('', en ? '⏱️ +5M ✓  ⏱️ +15M ✓  ⏱️ +1H ✓' : '⏱️ +5分 ✓  ⏱️ +15分 ✓  ⏱️ +1時間 ✓');
-    L.push('', en ? `🗂️ Historical ${k.short[0] ? k.short[0] + ' ' : ''}records` : `🗂️ 過去の${k.short[1] || 'この指標'}の記録`, site);
+    L.push('', en ? `🗂️ Historical ${k.short[0] ? k.short[0] + ' ' : ''}records: link in bio` : `🗂️ 過去の${k.short[1] || 'この指標'}の記録はプロフィールのリンクから`);   // v94: URLなし(URL付きは X API で1本 $0.20)
     if (opt.tags) L.push(en ? (opt.tags > 1 ? tagE : '#Bitcoin') : (opt.tags > 1 ? tagJ : '#ビットコイン'));
     return L.join('\n');
   };
@@ -114,7 +114,7 @@ export function archPost(g, mv, site) {
 }
 
 // ---- 週間記録(v92: 土曜 10:00 投稿。期間 = 前の土曜0時〜金曜24時 JST) ----
-// wk = {ws, we, coins:{BTC:{s,e,chg,spark}, …}, ev:[{t, icon, en, ja, btc}]}  btc = その指標の BTC +1h(%)。null は「—」
+// wk = {ws, we, coins:{BTC:{s,e,chg,spark}, …}, ev:[{t, icon, sen, sja, btc}]}  ev は重要度順(主要指標 → 過去のBTC +1hの変動幅が大きい順)。btc = BTC +1h(%)。null は「—」
 export function weekPost(wk, site) {
   const d = (t) => { const x = J(t); return `${x.getUTCMonth() + 1}/${x.getUTCDate()}`; };
   const range = `${d(wk.ws)} — ${d(wk.we - DAY)} (JST)`;
@@ -123,10 +123,23 @@ export function weekPost(wk, site) {
   const build = (lang, n, tag) => {
     const en = lang === 'en', E = ev(lang), more = E.length - n;
     return [en ? '🗓️ WEEKLY RECORD' : '🗓️ 週間記録', '━━━━━━━━━━', range, '', ...rows, '',
-      en ? '📌 Key releases (BTC +1h)' : '📌 今週の主要指標(BTC +1h)', ...(E.length ? E.slice(0, n) : [en ? 'None' : 'なし']), ...(more > 0 ? [en ? `+${more} more` : `ほか${more}件`] : []),
-      '', '🗂️ ' + site, ...(tag ? [en ? '#Bitcoin' : '#ビットコイン'] : [])].join('\n');
+      en ? '📌 Releases (BTC +1h)' : '📌 今週の指標(BTC +1h)', ...(E.length ? E.slice(0, n) : [en ? 'None' : 'なし']), ...(more > 0 ? [en ? `+${more} more` : `ほか${more}件`] : []),
+      '', en ? '🗂️ Archive: link in bio' : '🗂️ アーカイブはプロフィールのリンクから', ...(tag ? [en ? '#Bitcoin' : '#ビットコイン'] : [])].join('\n');
   };
   const fitW = (lang) => { const N = wk.ev.length; for (const tag of [1, 0]) for (let n = N; n >= 0; n--) { const t = build(lang, n, tag); if (xlen(t) <= 280) return t; } return build(lang, 0, 0); };
   const en = fitW('en'), ja = fitW('ja');
   return { id: 'week:' + isoDay(wk.ws), sr: 'week', due: wk.we + WEEK_AT, en, ja, h: hashStr(en + ja), img: { v: 2, ws: wk.ws, we: wk.we, coins: wk.coins, ev: wk.ev } };
+}
+
+// ---- 自動投稿(v94) ----
+// 自動で投稿する種類: 発表後の値動き・週間記録はいつも、毎朝の予定は AUTO_DAILY_FROM 以降(それまでは X で手で予約済み)
+export const AUTO_DAILY_FROM = '2026-11-02';
+export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
+export const isAuto = (p) => p.sr === 'arch' || p.sr === 'week' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM);
+// Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
+export function dueList(posts, events, now) {
+  const items = [], seen = new Set();
+  for (const p of posts || []) { seen.add(p.id); if (isAuto(p) && p.due && !(p.done && p.done.en && p.done.ja) && p.due > now - AUTO_WINDOW && p.due < now + 8 * DAY) items.push({ id: p.id, due: p.due }); }
+  for (const g of groups((events || []).filter(MAJOR))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<title>CSA render</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#0a0e16;color:#e6e9ef;font:14px "IBM Plex Sans","Noto Sans JP",sans-serif}</style>
+</head>
+<body>
+<p>CSA image renderer (used by the auto poster)</p>
+<script type="module">
+// v94: 自動投稿(GitHub Actions)が投稿の画像を作るためのページ。画面の /posts.html と同じ描き方(xpost-draw.js)。データは呼び出し側が渡す(このページは何も読まない)
+import { drawPost } from './xpost-draw.js';
+window.renderPost = async (post, lang) => { const cv = await drawPost(post, lang); return cv ? cv.toDataURL('image/png') : null; };
+window.renderReady = true;
+</script>
+</body>
+</html>

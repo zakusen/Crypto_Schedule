@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-08-v92';
+const VERSION = '2026-10-08-v94';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1369,8 +1369,8 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run|xs)$/;   // v72: xs = X投稿のお知らせの送信記録(tools/x_notify.mjs)
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : 'rx:s:' + n.slice(1);
+const RX_NAME = /^(s\d\d|idx|run|xs|xd)$/;   // v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : 'rx:s:' + n.slice(1);
 
 // === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
 //   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
@@ -1410,6 +1410,21 @@ async function postsApi(request, env) {
   doc.posts = doc.posts.filter((p) => now - keyT(p) < POSTS_KEEP).sort((a, b) => keyT(b) - keyT(a)).slice(0, POSTS_MAX);
   try { await env.CAL.put(POSTS_KEY, JSON.stringify(doc)); } catch (e) { return json({ error: String((e && e.message) || e) }, 503); }
   return json({ ok: true, added, changed, flagged, removed, total: doc.posts.length });
+}
+
+// === v94: X の自動投稿の合図。5分ごとに小さな予定(x:due。tools/x_post.mjs / x_notify.mjs が書く)を見て、
+//   投稿時刻を過ぎた(3時間以内の)ものがあれば GitHub Actions「X post」を起こす。同じ合図は20分に1回まで。
+//   必要: Cloudflare の Secret GH_DISPATCH_TOKEN(GitHub の細かい権限の鍵。Actions: Read and write)と Secret GH_REPO(例: owner/Crypto_Schedule。デプロイで消えないよう Secret にする)
+async function xDispatch(env) {
+  if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO || !env.CAL) return null;
+  const now = Date.now(), due = await env.CAL.get('x:due', { type: 'json' });
+  const hit = ((due && due.items) || []).filter((x) => x.due <= now && now - x.due < 3 * 3600e3);
+  if (!hit.length) return null;
+  const last = Number(await env.CAL.get('x:disp')) || 0;
+  if (now - last < 20 * 60e3) return { wait: true, n: hit.length };
+  await env.CAL.put('x:disp', String(now), { expirationTtl: 86400 });
+  const r = await fetch(`https://api.github.com/repos/${env.GH_REPO}/dispatches`, { method: 'POST', headers: { authorization: 'Bearer ' + env.GH_DISPATCH_TOKEN, accept: 'application/vnd.github+json', 'user-agent': 'signal-archive-worker', 'content-type': 'application/json' }, body: JSON.stringify({ event_type: 'x-post', client_payload: { ids: hit.map((x) => x.id).slice(0, 10) } }) });
+  return { dispatched: r.status, ids: hit.map((x) => x.id) };
 }
 
 // 画面向け。無料: 件数(total)だけ / 有効期限内のウォレットでログイン済み: 全期間の中身(rows)。
@@ -1500,6 +1515,7 @@ export default {
     if (event.cron === PX_CRON) {
       try { console.log('price refresh', JSON.stringify(await runPrices(env))); }
       catch (e) { console.log('price refresh FAILED', String((e && e.stack) || e)); }
+      try { const r = await xDispatch(env); if (r) console.log('x dispatch', JSON.stringify(r)); } catch (e) { console.log('x dispatch FAILED', String((e && e.message) || e)); }
       return;
     }
     const log = (name) => (r) => console.log(name, JSON.stringify(r));

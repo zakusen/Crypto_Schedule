@@ -5,7 +5,7 @@
 //                              中身 = その日 9:30 以降の指標(前回の発表から1時間のBTC変動つき)+ 翌日〜日曜の予定(日曜は来週)。
 //                              その日(9:30以降)にも翌日〜日曜にも予定が無い日は作らない(v85)。予定が変わったら作り直す。予約済みの印が付いたものは中身を置き換えず、新しい中身を upd に添える(画面が警告を出す)。
 //   発表後の値動き(arch)     : 主要指標の発表65分後。BTC・ETH・SOL・BNB の1時間後の変化(v91)。ふだんは /posts.html がその時刻にブラウザで作る。ここは予備(タブを閉じていた時用)。
-//   週間記録(week)           : 土曜 7時以降に1本。投稿 = 土曜 10:00(v92)。4銘柄の週の変化 + 主要指標ごとの BTC +1h。
+//   週間記録(week)           : 土曜 7時以降に1本。投稿 = 土曜 10:00(v92)。4銘柄の週の変化 + 重要度「高」の指標ごとの BTC +1h(重要度順。v93)。
 // 文面の作り方は public/xpost-lib.js(画面と共通)。
 // 必要: RX_ADMIN_KEY。任意: NTFY_TOPIC(新しい下書きができたらスマホに通知)。
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
 const { H, DAY, DAILY_AT, ARCH_WAIT, WEEK_AT, J, xlen, enDay, enDate, hm, jaDay, pct, pctTxt, usd, dayStart, weekStart, isoDay, hashStr,
-  pickEvents, groups, MAJOR, archId, groupLine, tags, siteLine, moves, COINS, barsStart, klinesUrl, archPost, kindOf, weekPost } = L;
+  pickEvents, groups, MAJOR, archId, groupLine, tags, siteLine, moves, COINS, barsStart, klinesUrl, archPost, kindOf, weekPost, dueList } = L;
 
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
 const KEY = process.env.RX_ADMIN_KEY || '';
@@ -127,13 +127,18 @@ if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
       if (k && k.length === 168 && +k[0][0] === ws && +k[167][0] === we - H) coins[c] = { s: +k[0][1], e: +k[167][4], chg: pct(+k[0][1], +k[167][4]), spark: [+k[0][1], ...[23, 47, 71, 95, 119, 143, 167].map((i) => +k[i][4])] };
     }
     if (coins.BTC) {
+      // v93: その週の重要度「高」の指標を全部。並び = 主要指標(決まった順) → 残りは過去の BTC +1h の変動幅(絶対値)の平均が大きい順
+      const ORDER = [/^FOMC$/, /^日銀$/, /^ECB$/, /CPI/, /雇用統計/, /PCE/];
+      const rank = (g) => { const i = ORDER.findIndex((re) => g.some((e) => MAJOR(e) && re.test(e.s || ''))); return i < 0 ? 99 : i; };
+      const avgAbs = (g) => Math.max(0, ...g.map((e) => { const l = recs.get((e.s || e.t) + '|' + e.c) || []; return l.length ? l.reduce((a, r) => a + Math.abs(r.chg), 0) / l.length : 0; }));
       const ev = [];
-      for (const g of groups(events.filter((e) => MAJOR(e) && e.ts >= ws && e.ts < we))) {   // 主要指標ごとの BTC +1h(保存済みの「発表後の値動き」があればそれを使う)
+      for (const g of groups(events.filter((e) => e.l === 'macro' && e.ts >= ws && e.ts < we))) {
         const p = byId.get(archId(g)); let btc = p && p.img && p.img.coins && p.img.coins.BTC ? p.img.coins.BTC.c60 : p && p.img && p.img.chg != null ? p.img.chg : null;
         if (btc == null) { const bars = await klines('BTCUSDT', '5m', barsStart(g[0].ts), 25); const m = bars && moves(bars, g[0].ts); btc = m ? m.c60 : null; }
-        const k = kindOf(g);
-        ev.push({ t: g[0].ts, icon: k.icon, sen: k.short[0] || groupLine(g, 'en'), sja: k.short[1] || groupLine(g, 'ja'), en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), btc });
+        const k = kindOf(g), e0 = g[0];
+        ev.push({ t: e0.ts, icon: k.icon, sen: k.short[0] || (e0.se || e0.te || e0.s), sja: k.short[1] || (e0.s || e0.t), en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), btc, r: rank(g), a: avgAbs(g), major: g.some(MAJOR) });
       }
+      ev.sort((x, y) => x.r - y.r || y.a - x.a || x.t - y.t);
       put(weekPost({ ws, we, coins, ev }, SITE));
     } else console.log('[x] 週間記録: 1時間足が揃わないので次回');
   }
@@ -143,6 +148,11 @@ if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
 for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) console.log(`[x] 注意: ${p.id} ${lg} が280を超えています(${xlen(p[lg])})`);
 let res = {};
 if (out.length || drop.length) res = await (await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ upsert: out, remove: drop }) })).json();
+// v94: Worker が見張る自動投稿の予定(x:due)を書き直す
+try {
+  const merged = new Map((store.posts || []).map((p) => [p.id, p])); for (const p of out) merged.set(p.id, { ...(merged.get(p.id) || {}), ...p, done: (merged.get(p.id) || {}).done });
+  await site('/api/admin/rx-put?name=xd', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(dueList([...merged.values()].filter((p) => !drop.includes(p.id)), events, Date.now())) });
+} catch (e) { console.log('[x] x:due を書けませんでした:', e.message); }
 const fresh = out.filter((p) => !byId.has(p.id) && p.sr !== 'daily');       // 通知は「すぐ投稿するもの」が新しくできた時だけ
 if (TOPIC && fresh.length) {
   const r = await fetch(NTFY, { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(20000),
