@@ -189,9 +189,11 @@ async function pac(sym, iv, start, end) {                                     //
   const step = iv === '1h' ? H : 5 * 60000, rows = new Map();
   for (let a = start; a < end; a += 200 * step) {
     const b = Math.min(end, a + 200 * step); let j = null;
-    for (let k = 0; k < 3 && !j; k++) {
-      try { const r = await fetch(`${PAC}/kline?symbol=${sym}&interval=${iv}&start_time=${a}&end_time=${b}`, { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(15000) }); if (r.ok) j = await r.json(); else await sleep(2000); } catch (_) { await sleep(2000); }
+    for (let k = 0; k < 4 && !j; k++) {   // v148: 断られたら 1.5 → 3 → 6秒待って取り直す。1回ごとに少し間をあける
+      if (k) await sleep(1500 * 2 ** (k - 1));
+      try { const r = await fetch(`${PAC}/kline?symbol=${sym}&interval=${iv}&start_time=${a}&end_time=${b}`, { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(15000) }); if (r.ok) j = await r.json(); } catch (_) {}
     }
+    await sleep(250);
     if (!j) throw new Error(`Pacifica ${sym} ${iv} が取れません`);
     for (const x of (Array.isArray(j) ? j : j.data || [])) rows.set(+x.t, [+x.t, +x.o, +x.h, +x.l, +x.c]);
   }
@@ -211,7 +213,14 @@ try {
     if (c) { corr = c; await site('/api/admin/rx-put?name=cr', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(c) }); console.log('[x] S&P500 相関を更新:', JSON.stringify(c.w)); }
   }
   for (const ev of pend) {
-    const B = {}; for (const s of SYM5) B[s] = await pac(s, '5m', ev.t - ((ev.win || 1) > 6 ? 49 : (ev.win || 1) > 1 ? 13 : 7) * H, Math.min(NOW, ev.t + 15 * 60000));   // v109: 画像に直近6時間を描く
+    // v148: 線を描く BTC と S&P500 だけ長く取る。ETH・SOL・BNB は始まりと終わりの前後だけ(取得の回数を減らす)。BTC 以外は取れなくても続ける
+    const W = ev.win || 1, end = Math.min(NOW, ev.t + 15 * 60000), from = ev.t - (W > 6 ? 49 : W > 1 ? 13 : 7) * H, B = {};
+    B.BTC = await pac('BTC', '5m', from, end);
+    try { B.SP500 = await pac('SP500', '5m', from, end); } catch (e) { console.log('[x] 急変動:', e.message, '(S&P500 なしで続けます)'); B.SP500 = []; }
+    for (const [c] of COINS) if (c !== 'BTC') {
+      try { const s0 = ev.t - W * H; B[c] = [...await pac(c, '5m', s0 - 40 * 60000, s0 + 20 * 60000), ...await pac(c, '5m', ev.t - 40 * 60000, end)]; }
+      catch (e) { console.log('[x] 急変動:', e.message, `(${c} なしで続けます)`); B[c] = []; }
+    }
     const mv = L.spikeMoves(B, ev.t, NOW, ev.win || 1);
     if (!mv) { console.log('[x] 急変動: Pacifica の5分足では BTC が ±3% に届かないので出しません', ev.id, JSON.stringify(ev.hit)); continue; }
     // v98: URL を付けるのは直近30日で SPIKE_LINK_MAX 回まで(URL付きは1本 $0.20)
