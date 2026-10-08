@@ -227,6 +227,8 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
   <div class="historyList" id="historyList"></div>
 </div>
 
+<div class="u-card" id="corrCard" style="padding:0 0 10px"><style>#corrCard .crow{display:grid;grid-template-columns:1fr 88px 88px;align-items:center;padding:6px 0;border-bottom:1px solid #1a232e;font-size:11px}#corrCard .crow span{text-align:right;font-variant-numeric:tabular-nums}#corrCard .crow em{display:block;position:relative;height:3px;margin-top:4px;background:#1f2a3d}#corrCard .crow b{font-weight:600;color:#c99a45}#corrCard .clab{display:block;font-size:8.5px;color:var(--muted);margin-top:1px;white-space:nowrap}#corrCard .clab.on{color:#69c7d6}#corrCard .chd{font-size:9px;color:var(--muted);letter-spacing:.12em}#corrCard .csub{font-size:8.5px;color:var(--muted);margin-top:8px;line-height:1.6}#corrCard #corrBody{padding:4px 14px 0}</style><div class="u-head"><div><b id="corrT">S&amp;P500 CORRELATION</b><div class="sub">Pacifica · 1H · 30D / 7D</div></div></div><div id="corrBody"></div></div>
+
 <div class="note" id="noteMain">統計は過去データの観測値であり、売買判断や因果関係を示しません。取得済みの足（5分足は約8時間、1時間足は約2.5日、日足は約60日）の範囲で測れた発表だけで計算し、足の中の位置は始値から終値への直線で近似しています。「上方向・下方向の最大」は、発表時点の価格から1時間以内に最高値・最安値まで何%動いたかです。有料の集計は2017年以降の発表を5分足から計算した記録で、「上方向・下方向の最大」は1時間以内のみ、ほかの時間は終値の変化率です。</div>
 <div class="note" style="margin-top:2px"><a href="/?pc" style="color:var(--muted)">PC版を開く</a></div>
 
@@ -947,5 +949,23 @@ hit.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '||e.ke
 root.querySelector('.csa-pk-bg').addEventListener('click',close);root.querySelector('.csa-pk-x').addEventListener('click',close);
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&root.classList.contains('open'))close()});
 })();
+</script>
+<script id="v95-corr">
+/* v95: S&P500 との相関(/api/corr。tools/x_notify.mjs が1日3回計算して保存) */
+(()=>{const box=document.getElementById('corrBody');if(!box)return;let D=null;
+const EN=()=>!window.CSA_LANG||CSA_LANG()==='en',TL=(j,e)=>EN()?e:j;
+const C=[['BTC','₿'],['ETH','◆'],['SOL','◎'],['BNB','◇']];
+const f=v=>v==null?'—':(v<0?'−':'')+Math.abs(v).toFixed(2);
+const lab=v=>{if(v==null)return'';const a=Math.abs(v),inv=v<0;if(a<0.2)return TL('ほぼ無関係','little link');const k=a>=0.7?0:a>=0.4?1:2;return EN()?['strong','moderate','weak'][k]+(inv?' inverse':''):['強い','中程度の','弱い'][k]+(inv?'逆連動':'連動')};
+const bar=v=>{if(v==null)return'';const w=Math.min(1,Math.abs(v))*50;return'<i style="position:absolute;top:0;height:3px;background:#69c7d6;'+(v>=0?'left:50%':'right:50%')+';width:'+w+'%"></i>'};
+const when=t=>new Intl.DateTimeFormat(EN()?'en-US':'ja-JP',{timeZone:'Asia/Tokyo',month:EN()?'short':'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(t));
+function draw(){const T=document.getElementById('corrT');if(T)T.textContent=TL('S&P500との相関','S&P500 CORRELATION');
+  if(!D||!D.w){box.innerHTML='<div class="csub">'+TL('準備中(1日3回更新)','Preparing (updated 3x/day)')+'</div>';return}
+  let h='<div class="crow chd"><span></span><span>'+TL('30日','30D')+'</span><span>'+TL('7日','7D')+'</span></div>';
+  for(const[c,s]of C){h+='<div class="crow"><b>'+s+' '+c+'</b>';for(const d of[30,7]){const o=D.w[d]&&D.w[d][c],v=o?o.r:null;h+='<span>'+f(v)+'<small class="clab'+(v!=null&&Math.abs(v)>=0.4?' on':'')+'">'+lab(v)+'</small><em>'+bar(v)+'</em></span>'}h+='</div>'}
+  h+='<div class="csub">'+TL('1時間足の変化率どうしのピアソン相関係数(Pacifica の先物・24時間)。1 = いつも同じ向き、0 = 関係なし、−1 = いつも逆向き。目安: 0.7以上 強い / 0.4〜 中程度 / 0.2〜 弱い / 0.2未満 ほぼ無関係。過去の観測値で、予測ではありません。','Pearson correlation of 1h returns (Pacifica perps, all hours). 1 = same direction, 0 = none, −1 = opposite. Guide: ≥0.7 strong / ≥0.4 moderate / ≥0.2 weak / <0.2 little link. Past observation, not a forecast.')+'<br>'+TL('更新 ','Updated ')+when(D.at)+(EN()?' JST':'')+'</div>';
+  box.innerHTML=h}
+fetch('/api/corr').then(r=>r.json()).then(j=>{D=j;draw()}).catch(()=>draw());
+window.addEventListener('csa-lang',draw);draw()})();
 </script>
 </body></html>

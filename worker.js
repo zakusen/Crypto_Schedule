@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-08-v94';
+const VERSION = '2026-10-08-v96';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1369,8 +1369,9 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run|xs|xd)$/;   // v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : 'rx:s:' + n.slice(1);
+const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|cr)$/;   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
+//   v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'cr' ? 'corr:v1' : 'rx:s:' + n.slice(1);
 
 // === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
 //   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
@@ -1415,6 +1416,37 @@ async function postsApi(request, env) {
 // === v94: X の自動投稿の合図。5分ごとに小さな予定(x:due。tools/x_post.mjs / x_notify.mjs が書く)を見て、
 //   投稿時刻を過ぎた(3時間以内の)ものがあれば GitHub Actions「X post」を起こす。同じ合図は20分に1回まで。
 //   必要: Cloudflare の Secret GH_DISPATCH_TOKEN(GitHub の細かい権限の鍵。Actions: Read and write)と Secret GH_REPO(例: owner/Crypto_Schedule。デプロイで消えないよう Secret にする)
+async function ghDispatch(env, payload) {
+  return fetch(`https://api.github.com/repos/${env.GH_REPO}/dispatches`, { method: 'POST', headers: { authorization: 'Bearer ' + env.GH_DISPATCH_TOKEN, accept: 'application/vnd.github+json', 'user-agent': 'signal-archive-worker', 'content-type': 'application/json' }, body: JSON.stringify({ event_type: 'x-post', client_payload: payload }) });
+}
+// === v95: 急変動の見張り。5分ごとの価格取得のすぐ後に、保存済みの5分足(BTC・ETH・SOL・BNB)で直近1時間の変動を見る。
+//   ±3% 以上の銘柄があれば x:spk に記録して「X post」を起こす(下書きは tools/x_notify.mjs が Pacifica の足で作り直す)。
+//   同じ銘柄は6時間に1回まで・どの銘柄でも前の急変動から1時間は出さない(1本の投稿に4銘柄とも載るため)。ふだん(急変動なし)は KV の読み書きをしない。
+const SPIKE_PCT = 3, SPIKE_COOL = 6 * 36e5, SPIKE_GAP = 36e5;
+async function spikeCheck(env) {
+  if (!env.CAL) return null;
+  const store = await readPx(env), now = Date.now(), hit = {};
+  for (const sym of SYMS) {
+    const e = store && store.tfs && store.tfs[sym] && store.tfs[sym]['5m'];
+    if (!e || !e.bars || e.bars.length < 13 || now - e.at > 10 * 60e3) continue;
+    const last = e.bars[e.bars.length - 1], base = e.bars.find((b) => b[0] === last[0] - 3600);
+    if (!base || !(base[1] > 0) || !(last[4] > 0)) continue;
+    const chg = (last[4] / base[1] - 1) * 100;
+    if (Math.abs(chg) >= SPIKE_PCT) hit[sym] = Math.round(chg * 100) / 100;
+  }
+  if (!Object.keys(hit).length) return null;
+  const doc = (await env.CAL.get('x:spk', { type: 'json' })) || {};
+  const recent = (doc.ev || []).filter((x) => now - x.t < 24 * 36e5);
+  if (recent.some((x) => now - x.t < SPIKE_GAP)) return { cooling: hit };
+  const fresh = {}; for (const [s, v] of Object.entries(hit)) if (!recent.some((x) => x.hit && x.hit[s] != null && now - x.t < SPIKE_COOL)) fresh[s] = v;
+  if (!Object.keys(fresh).length) return { cooling: hit };
+  const ev = { id: 'spike:' + now, t: now, hit: fresh };
+  await env.CAL.put('x:spk', JSON.stringify({ ev: [...recent, ev].slice(-10) }));
+  if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO) return { ev, dispatched: 'GH の鍵が未設定' };
+  const r = await ghDispatch(env, { spike: ev.id });
+  return { ev, dispatched: r.status };
+}
+
 async function xDispatch(env) {
   if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO || !env.CAL) return null;
   const now = Date.now(), due = await env.CAL.get('x:due', { type: 'json' });
@@ -1423,7 +1455,7 @@ async function xDispatch(env) {
   const last = Number(await env.CAL.get('x:disp')) || 0;
   if (now - last < 20 * 60e3) return { wait: true, n: hit.length };
   await env.CAL.put('x:disp', String(now), { expirationTtl: 86400 });
-  const r = await fetch(`https://api.github.com/repos/${env.GH_REPO}/dispatches`, { method: 'POST', headers: { authorization: 'Bearer ' + env.GH_DISPATCH_TOKEN, accept: 'application/vnd.github+json', 'user-agent': 'signal-archive-worker', 'content-type': 'application/json' }, body: JSON.stringify({ event_type: 'x-post', client_payload: { ids: hit.map((x) => x.id).slice(0, 10) } }) });
+  const r = await ghDispatch(env, { ids: hit.map((x) => x.id).slice(0, 10) });
   return { dispatched: r.status, ids: hit.map((x) => x.id) };
 }
 
@@ -1484,6 +1516,7 @@ export default {
     if (url.pathname === '/api/events' || url.pathname === '/api/cal') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
+    if (url.pathname === '/api/corr') return cached(ctx, request, 300, async () => { const t = env.CAL ? await env.CAL.get('corr:v1') : null; return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8' } }); });   // v95: S&P500 との相関(保存を返すだけ)
     if (url.pathname === '/api/px-run') { const r = await pxRun(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/admin/rx' && request.method === 'POST') { const r = await rxAdmin(request, env); r.headers.set('cache-control', 'no-store'); return r; }
@@ -1515,6 +1548,7 @@ export default {
     if (event.cron === PX_CRON) {
       try { console.log('price refresh', JSON.stringify(await runPrices(env))); }
       catch (e) { console.log('price refresh FAILED', String((e && e.stack) || e)); }
+      try { const r = await spikeCheck(env); if (r) console.log('spike', JSON.stringify(r)); } catch (e) { console.log('spike FAILED', String((e && e.message) || e)); }
       try { const r = await xDispatch(env); if (r) console.log('x dispatch', JSON.stringify(r)); } catch (e) { console.log('x dispatch FAILED', String((e && e.message) || e)); }
       return;
     }

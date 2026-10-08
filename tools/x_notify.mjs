@@ -6,6 +6,8 @@
 //                              その日(9:30以降)にも翌日〜日曜にも予定が無い日は作らない(v85)。予定が変わったら作り直す。予約済みの印が付いたものは中身を置き換えず、新しい中身を upd に添える(画面が警告を出す)。
 //   発表後の値動き(arch)     : 主要指標の発表65分後。BTC・ETH・SOL・BNB の1時間後の変化(v91)。ふだんは /posts.html がその時刻にブラウザで作る。ここは予備(タブを閉じていた時用)。
 //   週間記録(week)           : 土曜 7時以降に1本。投稿 = 土曜 10:00(v92)。4銘柄の週の変化 + 重要度「高」の指標ごとの BTC +1h(重要度順。v93)。
+//   S&P500 相関(v95)        : 6時間ごとに Pacifica の1時間足で計算し、サイトの表示用に保存(corr:v1)。
+//   急変動(spike, v95)       : Worker が見つけた急変動(x:spk)ごとに1本。すぐ投稿。
 // 文面の作り方は public/xpost-lib.js(画面と共通)。
 // 必要: RX_ADMIN_KEY。任意: NTFY_TOPIC(新しい下書きができたらスマホに通知)。
 import fs from 'node:fs';
@@ -143,6 +145,44 @@ if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
     } else console.log('[x] 週間記録: 1時間足が揃わないので次回');
   }
 }
+
+// ---- 4) S&P500 との相関(サイトに常時表示)と急変動の投稿(v95) ----
+// 相関: 前回から6時間以上たっていたら計算し直す(RX runner の1日3回で更新される)。急変動の投稿を作る時は必ず最新で計算する。
+// 急変動: Worker が5分ごとに見張り、4銘柄のどれかが直近1時間で ±3% 以上なら記録(x:spk)して「X post」を起こす。ここで下書きを作り、x_post.mjs がすぐ投稿する。
+const PAC = 'https://api.pacifica.fi/api/v1';
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function pac(sym, iv, start, end) {                                     // Pacifica の足(1回200本ずつ)。[開始ms, 始, 高, 安, 終]
+  const step = iv === '1h' ? H : 5 * 60000, rows = new Map();
+  for (let a = start; a < end; a += 200 * step) {
+    const b = Math.min(end, a + 200 * step); let j = null;
+    for (let k = 0; k < 3 && !j; k++) {
+      try { const r = await fetch(`${PAC}/kline?symbol=${sym}&interval=${iv}&start_time=${a}&end_time=${b}`, { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(15000) }); if (r.ok) j = await r.json(); else await sleep(2000); } catch (_) { await sleep(2000); }
+    }
+    if (!j) throw new Error(`Pacifica ${sym} ${iv} が取れません`);
+    for (const x of (Array.isArray(j) ? j : j.data || [])) rows.set(+x.t, [+x.t, +x.o, +x.h, +x.l, +x.c]);
+  }
+  return [...rows.values()].sort((x, y) => x[0] - y[0]);
+}
+const SYM5 = ['SP500', ...COINS.map(([c]) => c)];
+async function corrNow() {
+  const B = {}; for (const s of SYM5) B[s] = await pac(s, '1h', NOW - (Math.max(...L.CORR_DAYS) + 2) * DAY, NOW);
+  return L.corrCalc(B, NOW);
+}
+try {
+  const spk = await (await site('/api/admin/rx-one?name=xk')).json();
+  const pend = (spk.ev || []).filter((x) => NOW - x.t < L.AUTO_WINDOW && !byId.has(x.id));
+  let corr = await (await site('/api/admin/rx-one?name=cr')).json();
+  if (pend.length || !corr.at || NOW - corr.at > 6 * H) {
+    const c = await corrNow();
+    if (c) { corr = c; await site('/api/admin/rx-put?name=cr', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(c) }); console.log('[x] S&P500 相関を更新:', JSON.stringify(c.w)); }
+  }
+  for (const ev of pend) {
+    const B = {}; for (const s of SYM5) B[s] = await pac(s, '5m', ev.t - 2 * H, Math.min(NOW, ev.t + 15 * 60000));
+    const mv = L.spikeMoves(B, ev.t, Object.keys(ev.hit || {}), NOW);
+    if (!mv) { console.log('[x] 急変動: Pacifica の5分足では ±3% に届かないので出しません', ev.id, JSON.stringify(ev.hit)); continue; }
+    put(L.spikePost({ ...mv, id: ev.id, due: ev.t }, corr && corr.w ? corr : null));
+  }
+} catch (e) { console.log('[x] S&P500 相関・急変動でエラー(ほかの下書きは続けます):', e.message); }
 
 // ---- 保存・通知 ----
 for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) console.log(`[x] 注意: ${p.id} ${lg} が280を超えています(${xlen(p[lg])})`);
