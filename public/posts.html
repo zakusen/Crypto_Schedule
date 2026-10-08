@@ -272,7 +272,34 @@ function drawEvent(g, im, lg, otd) {
   txt(g, pctTxt(im.chg), rx, 540, { size: 60, w: 600, fam: MONO, col, max: 384 });
   void up;
 }
+// v92: 週間記録(4銘柄の週の変化 + 主要指標ごとの BTC +1h)。バーの端 = ±10%
+function drawWeek2(g, im, lg) {
+  const en = lg === 'en', d = (t) => { const x = D(t); return `${x.getUTCMonth() + 1}/${x.getUTCDate()}`; };
+  frame(g, 'WEEKLY RECORD', en ? 'Binance spot · week = Sat 00:00 → Sat 00:00 JST · first 1h open → last 1h close · bar = ±10%' : 'Binance現物 / 週 = 土曜0時〜次の土曜0時(日本時間) / 最初の1時間足の始値 → 最後の1時間足の終値 / バーの端 = ±10%');
+  txt(g, `🗓️ ${d(im.ws)} — ${d(im.we - 864e5)} (JST)`, 56, 146, { size: 40, w: 600, col: C.tx, max: 1088 });
+  txt(g, en ? 'WEEK CHANGE' : '週の変化', 56, 204, { size: 15, w: 600, fam: MONO, col: C.cyan, ls: 2 });
+  const COIN = [['BTC', '₿'], ['ETH', '◆'], ['SOL', '◎'], ['BNB', '◇']].filter(([c]) => im.coins && im.coins[c]);
+  COIN.forEach(([c, sym], r) => {
+    const y = 256 + r * 74, o = im.coins[c], v = o.chg, col = v > 0 ? C.up : v < 0 ? C.dn : C.tx;
+    txt(g, sym + ' ' + c, 56, y, { size: 26, w: 600, fam: MONO, col: C.gold });
+    txt(g, (v > 0 ? '▲ +' : v < 0 ? '▼ −' : '± ') + Math.abs(v).toFixed(2) + '%', 380, y, { size: 28, w: 600, fam: MONO, col, align: 'right' });
+    const cx = 500, bw = 90, f = Math.max(-1, Math.min(1, v / 10));
+    g.fillStyle = C.line; g.fillRect(cx - bw, y - 9, bw * 2, 5); g.fillStyle = col; g.fillRect(f >= 0 ? cx : cx + f * bw, y - 9, Math.abs(f) * bw, 5); g.fillStyle = C.mut; g.fillRect(cx - 1, y - 14, 2, 15);
+  });
+  const rx = 660; g.fillStyle = C.line; g.fillRect(rx - 28, 190, 1, 400);
+  txt(g, en ? 'KEY RELEASES · BTC +1H' : '主要指標 · BTC +1時間', rx, 204, { size: 15, w: 600, fam: MONO, col: C.cyan, ls: 2 });
+  const E = (im.ev || []).slice(0, 7);
+  if (!E.length) txt(g, en ? 'None' : 'なし', rx, 256, { size: 22, col: C.mut });
+  E.forEach((e, i) => {
+    const y = 256 + i * 50, v = e.btc, col = v == null ? C.mut : v > 0 ? C.up : v < 0 ? C.dn : C.tx;
+    txt(g, d(e.t), rx, y, { size: 18, w: 600, fam: MONO, col: C.gold });
+    txt(g, (e.icon || '') + ' ' + (en ? e.sen || e.en : e.sja || e.ja), rx + 80, y, { size: 20, col: C.tx, max: 240 });
+    txt(g, v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', 1144, y, { size: 20, w: 600, fam: MONO, col, align: 'right' });
+  });
+  if ((im.ev || []).length > 7) txt(g, en ? `+${im.ev.length - 7} more` : `ほか${im.ev.length - 7}件`, rx, 256 + 7 * 50, { size: 16, col: C.mut });
+}
 function drawWeek(g, im, lg) {
+  if (im && im.v === 2) return drawWeek2(g, im, lg);
   const en = lg === 'en';
   frame(g, 'WEEK IN CRYPTO', en ? 'Binance spot · week = Mon 00:00 → Mon 00:00 JST · 1h open → 1h close' : 'Binance現物 / 週 = 月曜0時〜次の月曜0時(日本時間) / 最初の1時間足の始値 → 最後の1時間足の終値');
   txt(g, en ? `${dayEn(im.ws)} — ${dayEn(im.we - 864e5)}, ${D(im.ws).getUTCFullYear()} (JST)` : `${dayJa(im.ws)} 〜 ${dayJa(im.we - 864e5)}`, 56, 150, { size: 40, w: 600, col: C.tx, max: 1088 });
@@ -342,7 +369,7 @@ async function load() {
 }
 
 // 予定(下書き)と、まだ下書きの無い「発表後の値動き」をひとつの並びにする
-const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '先週のまとめ' };
+const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録' };
 const ICON = { daily: '🗓', arch: '📈', week: '📊' };
 const dueOf = (p) => p.due || (p.sr === 'daily' ? L.dayStart(p.at) + L.DAILY_AT : p.at);
 function build() {
@@ -368,7 +395,7 @@ function stateOf(it, now = Date.now()) {
   return it.due <= now ? 'ready' : 'todo';
 }
 const STXT = { done: (sr) => sr === 'daily' ? '✔ 予約済' : '✔ 済', warn: () => '⚠ 要修正', ready: () => '● 今', todo: (sr) => sr === 'daily' ? '未予約' : '待ち', wait: () => '発表待ち', missed: () => '時刻過ぎ' };
-const shortName = (it) => it.sr === 'daily' ? '予定' : it.sr === 'week' ? '先週まとめ' : (it.post ? (it.post.img && it.post.img.ja) : L.groupLine(it.g, 'ja'));
+const shortName = (it) => it.sr === 'daily' ? '予定' : it.sr === 'week' ? '週間記録' : (it.post ? (it.post.img && it.post.img.ja) : L.groupLine(it.g, 'ja'));
 
 // ---------- 画面 ----------
 function render() {
@@ -399,7 +426,7 @@ function render() {
   $('#main').innerHTML = `
     <h2>✅ 今やること</h2><div id="todo">${T.map((t) => `<div class="task ${t.cls}" ${t.id ? `data-open="${esc(t.id)}"` : ''}><span class="ic">${t.ic}</span><div><div class="tt">${esc(t.tt)}</div>${t.sub ? `<div class="sub">${esc(t.sub)}</div>` : ''}</div>${t.go ? `<button class="btn ${t.cls === 'now' ? 'cy' : 'main'} go">${t.go} →</button>` : ''}</div>`).join('')}</div>
     <div class="calbar"><h2 style="margin:0">📅 カレンダー</h2><button class="chip" data-mv="-1">‹ 前の月</button><span class="ym">${VIEW.y}年${VIEW.m + 1}月</span><button class="chip" data-mv="1">次の月 ›</button><button class="chip" data-mv="0">今月</button>
-      <div class="legend"><span><i style="background:var(--gold)"></i>未予約・待ち</span><span><i style="background:var(--cyan)"></i>今投稿できる</span><span><i style="background:var(--up)"></i>済み</span><span><i style="background:var(--dn)"></i>要修正</span><span>🗓 今日・今週の予定(9:30)</span><span>📈 発表後の値動き(発表65分後)</span><span>📊 先週のまとめ(月曜10:00)</span></div></div>
+      <div class="legend"><span><i style="background:var(--gold)"></i>未予約・待ち</span><span><i style="background:var(--cyan)"></i>今投稿できる</span><span><i style="background:var(--up)"></i>済み</span><span><i style="background:var(--dn)"></i>要修正</span><span>🗓 今日・今週の予定(9:30)</span><span>📈 発表後の値動き(発表65分後)</span><span>📊 週間記録(土曜10:00)</span></div></div>
     <div class="cal">${cells}</div>
     <p class="sub" style="color:var(--mut);font-size:12px;margin-top:10px">時刻はすべて日本時間。予定をクリックすると、画像と本文と投稿ボタンが開きます。<span class="kbd">←</span><span class="kbd">→</span> で前後の予定へ、<span class="kbd">Esc</span> で閉じる。</p>`;
   if (OPEN) modal(OPEN, true);

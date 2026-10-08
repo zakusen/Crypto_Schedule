@@ -85,7 +85,7 @@ export function moves(bars, ts) {
 export const beforeAfter = moves;   // 古い呼び名
 export const klinesUrl = (base, sym, interval, startTime, limit) => `${base}/api/v3/klines?symbol=${sym}&interval=${interval}&startTime=${startTime}&limit=${limit}`;
 // 指標の種類ごとの印と短い名前
-function kindOf(g) {
+export function kindOf(g) {
   const s = g.map((e) => (e.s || '') + ' ' + (e.te || '')).join(' ');
   const cb = /FOMC|日銀|ECB|BoJ|Fed\b/.test(s);
   const short = /FOMC/.test(s) ? ['FOMC', 'FOMC'] : /日銀|BoJ/.test(s) ? ['BOJ', '日銀'] : /ECB/.test(s) ? ['ECB', 'ECB'] : /PCE/.test(s) ? ['PCE', 'PCE'] : /CPI/.test(s) ? ['CPI', 'CPI'] : /雇用統計|Payroll|Non Farm/i.test(s) ? ['NFP', '雇用統計'] : ['', ''];
@@ -111,4 +111,22 @@ export function archPost(g, mv, site) {
   const coins = {}; for (const [c] of COINS) if (mv[c]) coins[c] = { c5: mv[c].c5, c15: mv[c].c15, c60: mv[c].c60, before: mv[c].before, after: mv[c].after };
   const b = mv.BTC;
   return { id: archId(g), sr: 'arch', due: ts + ARCH_WAIT, en, ja, h: hashStr(en + ja), img: { v: 2, t: ts, en: nE, ja: nJ, icon: k.icon, coins, spark: b.spark, before: b.before, after: b.after, chg: b.chg, t0: b.t0 } };
+}
+
+// ---- 週間記録(v92: 土曜 10:00 投稿。期間 = 前の土曜0時〜金曜24時 JST) ----
+// wk = {ws, we, coins:{BTC:{s,e,chg,spark}, …}, ev:[{t, icon, en, ja, btc}]}  btc = その指標の BTC +1h(%)。null は「—」
+export function weekPost(wk, site) {
+  const d = (t) => { const x = J(t); return `${x.getUTCMonth() + 1}/${x.getUTCDate()}`; };
+  const range = `${d(wk.ws)} — ${d(wk.we - DAY)} (JST)`;
+  const rows = COINS.filter(([c]) => wk.coins[c]).map(([c, , sym]) => `${sym} ${c}  ${arrow(wk.coins[c].chg)}`);
+  const ev = (lang) => wk.ev.map((e) => `${d(e.t)} ${e.icon} ${lang === 'en' ? e.sen : e.sja}  ${e.btc == null ? '—' : (e.btc > 0 ? '🟢 +' : e.btc < 0 ? '🔴 −' : '⚪ ±') + Math.abs(e.btc).toFixed(2) + '%'}`);
+  const build = (lang, n, tag) => {
+    const en = lang === 'en', E = ev(lang), more = E.length - n;
+    return [en ? '🗓️ WEEKLY RECORD' : '🗓️ 週間記録', '━━━━━━━━━━', range, '', ...rows, '',
+      en ? '📌 Key releases (BTC +1h)' : '📌 今週の主要指標(BTC +1h)', ...(E.length ? E.slice(0, n) : [en ? 'None' : 'なし']), ...(more > 0 ? [en ? `+${more} more` : `ほか${more}件`] : []),
+      '', '🗂️ ' + site, ...(tag ? [en ? '#Bitcoin' : '#ビットコイン'] : [])].join('\n');
+  };
+  const fitW = (lang) => { const N = wk.ev.length; for (const tag of [1, 0]) for (let n = N; n >= 0; n--) { const t = build(lang, n, tag); if (xlen(t) <= 280) return t; } return build(lang, 0, 0); };
+  const en = fitW('en'), ja = fitW('ja');
+  return { id: 'week:' + isoDay(wk.ws), sr: 'week', due: wk.we + WEEK_AT, en, ja, h: hashStr(en + ja), img: { v: 2, ws: wk.ws, we: wk.we, coins: wk.coins, ev: wk.ev } };
 }
