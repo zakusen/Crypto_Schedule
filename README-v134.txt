@@ -1,0 +1,1 @@
+v134 — reference-faithful faceted crystal. Rebuilt the core crystal geometry to match the supplied target: broad triangular crown, layered cut-glass facets, recessed inner crystal, directional reflections, and dimensional dark-blue/black glass. index.html and classic.html share the same crystal SVG.

@@ -1,0 +1,32 @@
+from pathlib import Path
+import re, zipfile
+root=Path('/mnt/data/v135work/public')
+files=[root/'index.html', root/'classic.html']
+
+css='''\n<style id="v135-physical-orbit">\n/* V135 — physical glass + atmospheric orbital system */\n.archive-core,.csa-crystal-logo{filter:\n drop-shadow(0 0 4px rgba(224,248,255,.34))\n drop-shadow(0 0 13px rgba(65,178,255,.34))\n drop-shadow(0 0 30px rgba(23,111,205,.22)) !important;}\n.csk-logo-v122 .csk-o.a circle:nth-child(1){stroke:#79caff!important;stroke-opacity:.12!important;stroke-width:.7!important;}\n.csk-logo-v122 .csk-o.a circle:nth-child(2){stroke:#4db6ff!important;stroke-opacity:.24!important;stroke-width:.7!important;}\n.csk-logo-v122 .csk-o.a circle:nth-child(3){stroke:#55baff!important;stroke-opacity:.13!important;}\n.csk-logo-v122 .csk-o.b path{stroke:#7fcfff!important;stroke-opacity:.38!important;}\n.csk-logo-v122 .csk-o.c{filter:drop-shadow(0 0 2px rgba(157,221,255,.45));}\n.csk-logo-v122 .csa-atmo-ring{animation:csaAtmoSpin 38s linear infinite;transform-origin:60px 60px;}\n.csk-logo-v122 .csa-atmo-ring.r2{animation-duration:52s;animation-direction:reverse;}\n.csk-logo-v122 .csa-atmo-ring.r3{animation-duration:70s;}\n.csk-logo-v122 .csa-atmo-breathe{animation:csaAtmoBreathe 4.8s ease-in-out infinite;transform-origin:60px 60px;}\n.csk-logo-v122 .csa-env-sweep{animation:csaEnvSweep 8s ease-in-out infinite;}\n@keyframes csaAtmoSpin{to{transform:rotate(360deg)}}\n@keyframes csaAtmoBreathe{0%,100%{opacity:.48;transform:scale(.965)}50%{opacity:.82;transform:scale(1.02)}}\n@keyframes csaEnvSweep{0%,100%{opacity:.05;transform:translateX(-10px)}48%{opacity:.20}60%{opacity:.08;transform:translateX(8px)}}\n.csa-hero134 .csa-specular134{mix-blend-mode:screen;}\n.csa-hero134 .csa-crown134 polygon:nth-child(2),.csa-hero134 .csa-crown134 polygon:nth-child(5){filter:drop-shadow(0 0 1.5px rgba(205,242,255,.32));}\n@media(max-width:820px){.archive-core,.csa-crystal-logo{filter:drop-shadow(0 0 3px rgba(224,248,255,.32)) drop-shadow(0 0 10px rgba(65,178,255,.32)) drop-shadow(0 0 22px rgba(23,111,205,.18)) !important;}}\n</style>\n'''
+
+# new atmospheric group placed immediately after halo circle, before mechanical rings
+insert='''\n<!-- V135: atmospheric glass field — softer, larger and more physical than HUD rings -->\n<g class="csa-atmosphere135" pointer-events="none">\n  <circle class="csa-atmo-breathe" cx="60" cy="60" r="50" fill="url(#v135-atmoGlow)"/>\n  <ellipse cx="60" cy="60" rx="52" ry="48" fill="none" stroke="url(#v135-ringFade)" stroke-width="2.2" opacity=".55"/>\n  <ellipse class="csa-atmo-ring r2" cx="60" cy="60" rx="55" ry="51" fill="none" stroke="url(#v135-ringSoft)" stroke-width=".55" stroke-dasharray="22 9 2 7" opacity=".60"/>\n  <ellipse class="csa-atmo-ring r3" cx="60" cy="60" rx="48" ry="45" fill="none" stroke="url(#v135-ringSoft2)" stroke-width=".42" stroke-dasharray="1 4.8" opacity=".52"/>\n  <path d="M13 60C13 34 34 13 60 13S107 34 107 60" fill="none" stroke="url(#v135-arc)" stroke-width=".9" stroke-linecap="round" opacity=".52"/>\n  <path d="M18 82C26 98 42 107 60 107S94 98 102 82" fill="none" stroke="url(#v135-arc2)" stroke-width=".65" stroke-linecap="round" opacity=".38"/>\n  <g class="csa-env-sweep" fill="none" stroke-linecap="round">\n    <path d="M22 35C31 22 44 16 60 16" stroke="#c9efff" stroke-opacity=".14" stroke-width=".8"/>\n    <path d="M98 44C94 31 84 22 72 18" stroke="#58baff" stroke-opacity=".10" stroke-width=".55"/>\n  </g>\n  <g fill="#bfeaff">\n    <circle cx="20" cy="37" r=".9" opacity=".60"/><circle cx="100" cy="38" r=".85" opacity=".48"/>\n    <circle cx="24" cy="82" r=".72" opacity=".38"/><circle cx="96" cy="84" r=".72" opacity=".34"/>\n  </g>\n</g>\n'''
+
+def patch(p):
+    s=p.read_text()
+    if 'id="v135-physical-orbit"' not in s:
+        s=s.replace('</head>', css+'</head>',1)
+    if 'class="csa-atmosphere135"' not in s:
+        s=s.replace('<circle cx="60" cy="60" r="57" fill="url(#v122-halo)"/>', '<circle cx="60" cy="60" r="57" fill="url(#v122-halo)"/>\n'+insert,1)
+    # add defs to each svg before closing defs, once
+    defs='''\n <radialGradient id="v135-atmoGlow" cx="50%" cy="50%" r="52%">\n  <stop offset="0" stop-color="#4db7ff" stop-opacity=".13"/><stop offset=".32" stop-color="#174d79" stop-opacity=".07"/><stop offset=".72" stop-color="#061321" stop-opacity=".018"/><stop offset="1" stop-color="#000000" stop-opacity="0"/>\n </radialGradient>\n <linearGradient id="v135-ringFade" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#79ccff" stop-opacity=".02"/><stop offset=".25" stop-color="#dff8ff" stop-opacity=".26"/><stop offset=".5" stop-color="#329eff" stop-opacity=".10"/><stop offset=".75" stop-color="#dff8ff" stop-opacity=".22"/><stop offset="1" stop-color="#4aaeff" stop-opacity=".02"/></linearGradient>\n <linearGradient id="v135-ringSoft" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#168fe8" stop-opacity=".06"/><stop offset=".5" stop-color="#a8e2ff" stop-opacity=".34"/><stop offset="1" stop-color="#168fe8" stop-opacity=".05"/></linearGradient>\n <linearGradient id="v135-ringSoft2" x1="1" y1="0" x2="0" y2="1"><stop stop-color="#8dd8ff" stop-opacity=".02"/><stop offset=".5" stop-color="#42b4ff" stop-opacity=".28"/><stop offset="1" stop-color="#8dd8ff" stop-opacity=".02"/></linearGradient>\n <linearGradient id="v135-arc" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#3dafff" stop-opacity=".04"/><stop offset=".5" stop-color="#dff7ff" stop-opacity=".52"/><stop offset="1" stop-color="#3dafff" stop-opacity=".04"/></linearGradient>\n <linearGradient id="v135-arc2" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#3dafff" stop-opacity=".02"/><stop offset=".5" stop-color="#5abaff" stop-opacity=".32"/><stop offset="1" stop-color="#3dafff" stop-opacity=".02"/></linearGradient>\n'''
+    if 'id="v135-atmoGlow"' not in s:
+        s=s.replace('</defs>', defs+'</defs>',1)
+    p.write_text(s)
+
+for p in files: patch(p)
+
+# update README and zip
+(Path('/mnt/data/v135work/README-v135.txt')).write_text('V135 — physical glass crystal + atmospheric orbital field.\nIndex/classic use the same crystal and surrounding light language.\nThe surrounding rings are softer and more spatial; crystal remains faceted black-blue glass with directional specular highlights.\n')
+out=Path('/mnt/data/crypto-schedule-v135-physical-orbit.zip')
+with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as z:
+    for p in Path('/mnt/data/v135work').rglob('*'):
+        if p.is_file() and p.name != out.name:
+            z.write(p,p.relative_to('/mnt/data/v135work'))
+print(out, out.stat().st_size)

@@ -1,0 +1,1 @@
+V131: physical black-glass prism. index.html and classic.html share the exact same Crystal Core SVG. Rear shell offset, optical sidewalls, recessed front pane, narrow moving specular reflections. PC/mobile responsive sizes preserved.
