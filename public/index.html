@@ -2419,8 +2419,8 @@ function pastHtml(key,n){
   if(typeof RXI!=='undefined'&&RXI&&!(RXI[key]>0))return'<div class="ii-msg">'+TL('この指標は、記録がまだないか、発表が20回未満のため集計していません。','No records yet, or fewer than 20 releases, so this indicator is not aggregated.')+'</div>';
   const X=tok()?rxGet(key):null;
   if(!X||(X.st==='ok'&&X.locked)){const act=!!(window.CSA&&CSA.active());
-    return'<div class="ii-msg">🔒 '+TL('過去の発表日時・予想/前回/結果・発表後の値動きは有料機能です','Past release times, forecast / previous / actual and post-release moves are a paid feature')+
-      (n?'<br>'+TL('2017年からの記録 '+n+'回分',n+' releases on record since 2017'):'')+'<br><button type="button" id="iiUnlock">'+(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続して開く / 購入','Connect wallet to unlock / buy'))+'</button></div>'}
+    return'<div class="ii-msg">🔒 '+TL('過去の発表日時・予想/前回/結果・発表後の値動きは、アーカイブで見られます(1 USDC / 365日)','Past release times, forecast / previous / actual and post-release moves are in the archive (1 USDC / 365 days)')+
+      (n?'<br>'+TL('2017年からの記録 '+n+'回分',n+' releases on record since 2017'):'')+'<br><button type="button" id="iiUnlock">'+(act?TL('署名して見る','Sign to view'):TL('ウォレットをつないで見る','Connect wallet to view'))+'</button></div>'}
   if(X.st==='loading')return'<div class="ii-msg">'+TL('2017年からの記録を読み込み中…','Loading records since 2017…')+'</div>';
   if(X.st!=='ok')return'<div class="ii-msg">'+TL('記録を取得できませんでした。少し待って ↻ 更新 を押してください。','Could not load records. Wait a moment and press Refresh.')+'</div>';
   const rows=X.rows.slice().sort((a,b)=>b.t-a.t);if(!rows.length)return'<div class="ii-msg">'+TL('記録がありません','No records')+'</div>';
@@ -2506,9 +2506,9 @@ function impCard(){const c=$('impCard'),sel=$('impSel'),body=$('impBody');if(!c|
   const ub=body.querySelector('#impUnlock');if(ub)ub.onclick=()=>{if(window.CSA)CSA.unlock()};
   impChart(body,ref,px)}
 function lockHtml(ref){const X=RXC[rxK(ref)],tot=X&&X.st==='ok'?X.total:((RXI&&RXI[rxK(ref)])||0),act=!!(window.CSA&&CSA.active());
-  return'<div style="text-align:center;padding:16px 8px;color:var(--muted);font-size:12px;line-height:1.7"><div style="font-size:22px">🔒</div><div><b>'+esc(evS(ref))+'</b>'+esc(TL(' の発表後の動きは有料機能です',' – post-release moves are a paid feature'))+'</div>'+
+  return'<div style="text-align:center;padding:16px 8px;color:var(--muted);font-size:12px;line-height:1.7"><div style="font-size:22px">🔒</div><div><b>'+esc(evS(ref))+'</b>'+esc(TL(' の発表後の動きは、アーカイブで見られます',': post-release moves are in the archive'))+'</div>'+
     (tot?'<div>'+esc(TL('2017年からの記録 '+tot+'回分',tot+' releases on record since 2017'))+'</div>':'')+
-    '<button type="button" id="impUnlock"'+(act?' data-a="1"':'')+' style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer">'+esc(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続して開く / 購入','Connect wallet to unlock / buy'))+'</button>'+(act?'':'<div style="margin-top:6px;font-size:10px">'+esc(TL('支払い済みの方は、接続して署名するだけで開きます','Already paid? Connect and sign to unlock'))+'</div>')+'</div>'}
+    '<div style="margin-top:8px;font-size:15px;font-weight:700;color:#d9c084">1 USDC <span style="font-size:11px;font-weight:400;color:var(--muted)">'+esc(TL('/ 365日','/ 365 days'))+'</span></div><div style="font-size:11px">'+esc(TL('2017年からのすべての記録が見られます','Every record since 2017'))+'</div>'+'<button type="button" id="impUnlock"'+(act?' data-a="1"':'')+' style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer">'+esc(act?TL('署名して見る','Sign to view'):TL('ウォレットをつないで見る','Connect wallet to view'))+'</button>'+(act?'':'<div style="margin-top:6px;font-size:10px">'+esc(TL('お支払い済みの方は、つないで署名するだけで開きます','Already paid? Just connect and sign'))+'</div>')+'</div>'}
 /* v49: 発表価格からの変動率のグラフ(スマホ版と同じ。発表時点=0%、薄線=各回、金線=平均) */
 var IMPHL=0;
 function impChart(body,ref,px){
@@ -2989,7 +2989,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&root.classL
 .improw{padding-left:6px;padding-right:6px;border-radius:4px}
 @media(min-width:1200px){
  .layout{grid-template-columns:190px minmax(0,1fr) 480px}
- .right{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow-y:auto;padding-right:2px;scrollbar-width:thin;scrollbar-color:rgba(228,185,106,.4) transparent}
+ .right{align-self:start}   /* v111: 右の列は枠の中でスクロールさせない(ページ全体で見る) */
  .right .impact{border-color:rgba(228,185,106,.45);box-shadow:0 0 0 1px rgba(228,185,106,.1),0 0 30px rgba(228,185,106,.1)}
  .impchart canvas{height:270px}
 }

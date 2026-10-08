@@ -418,15 +418,15 @@ function renderImpact(ref,auto,px){
   if(RXI&&!(RXI[key]>0))return clear(TL('この指標は、記録がまだありません','No records for this indicator yet'));   // 記録が無い指標で有料を勧めない
   if(!paid||(X.st==='ok'&&X.locked)){   /* 無料: 変動率まわりはすべて有料。件数だけ見せる */
     clear('');const nm0=evS(ref),tot=X.st==='ok'?X.total:((RXI&&RXI[key])||0),act=!!(window.CSA&&CSA.active());
-    msg.innerHTML='<div><div style="font-size:20px;margin-bottom:4px">🔒</div><div><b>'+esc(nm0)+'</b>'+esc(TL(' の発表後の動きは有料機能です',' – post-release moves are a paid feature'))+'</div>'+
+    msg.innerHTML='<div><div style="font-size:20px;margin-bottom:4px">🔒</div><div><b>'+esc(nm0)+'</b>'+esc(TL(' の発表後の動きは、アーカイブで見られます',': post-release moves are in the archive'))+'</div>'+
       (tot?'<div style="margin-top:2px">'+esc(TL('2017年からの記録 '+tot+'回分',tot+' releases on record since 2017'))+'</div>':'')+
-      '<button type="button" id="impUnlock" style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer">'+
-      esc(act?TL('署名して開く','Sign to unlock'):TL('ウォレット接続して開く / 購入','Connect wallet to unlock / buy'))+'</button>'+(act?'':'<div style="margin-top:6px;font-size:10px">'+esc(TL('支払い済みの方は、接続して署名するだけで開きます','Already paid? Connect and sign to unlock'))+'</div>')+'</div>';
+      '<div style="margin-top:8px;font-size:15px;font-weight:700;color:#d9c084">1 USDC <span style="font-size:11px;font-weight:400;color:var(--muted)">'+esc(TL('/ 365日','/ 365 days'))+'</span></div><div style="font-size:11px">'+esc(TL('2017年からのすべての記録が見られます','Every record since 2017'))+'</div>'+'<button type="button" id="impUnlock" style="margin-top:10px;padding:8px 14px;border-radius:8px;border:1px solid rgba(205,168,95,.6);background:rgba(205,168,95,.12);color:#d9c084;font:inherit;font-weight:700;cursor:pointer">'+
+      esc(act?TL('署名して見る','Sign to view'):TL('ウォレットをつないで見る','Connect wallet to view'))+'</button>'+(act?'':'<div style="margin-top:6px;font-size:10px">'+esc(TL('お支払い済みの方は、つないで署名するだけで開きます','Already paid? Just connect and sign'))+'</div>')+'</div>';
     msg.style.display='flex';
     const ub=$('impUnlock');if(ub)ub.onclick=()=>{if(window.CSA)CSA.unlock()};
     ['maxUp','maxDown','avgVal','lastVal'].forEach(i=>$(i).textContent='🔒');
     ['maxUpDate','maxDownDate'].forEach(i=>$(i).textContent=TL('有料','Paid'));
-    $('historyList').innerHTML='<div class="hmsg">🔒 '+esc(TL('過去の発表の一覧は有料です','The release history is a paid feature'))+'</div>';
+    $('historyList').innerHTML='<div class="hmsg">🔒 '+esc(TL('過去の発表の一覧は、アーカイブで見られます(1 USDC / 365日)','The release history is in the archive (1 USDC / 365 days)'))+'</div>';
     $('metaCount').textContent=tot?TL(tot+'回',tot+(tot===1?' time':' times')):'—';
     return}
   if(X.st==='loading')return clear(TL('2017年からの記録を読み込み中…','Loading records since 2017…'));
