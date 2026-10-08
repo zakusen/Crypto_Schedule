@@ -2044,6 +2044,17 @@ html.lang-switching [data-csa-i18n]{
 const sync=function(){const a=document.querySelector('.pay-choice.active');const k=a?a.getAttribute('data-coin'):'';bs.forEach(function(b){const on=b.getAttribute('data-ax')===k;b.classList.toggle('is-sel',on);b.setAttribute('aria-pressed',on?'true':'false')})};
 try{document.querySelectorAll('.pay-choice').forEach(function(c){new MutationObserver(sync).observe(c,{attributes:true,attributeFilter:['class']})})}catch(e){}
 bs.forEach(function(b){b.addEventListener('click',function(){setTimeout(sync,0)})});sync()})();
+/* v118: 支払い済み(#accState に有効期限が出ている)の時だけ、カードを「アクセス有効」表示にする */
+(function(){function init(){const card=document.querySelector('.access.ax'),acc=document.getElementById('accState');if(!card||!acc||!card.contains(acc))return;
+const left=card.querySelector('.ax-top>div');if(!left)return;
+const bd=document.createElement('div');bd.className='ax-badge';bd.innerHTML='<b></b><span></span>';left.appendChild(bd);
+const upd=function(){const paid=acc.textContent.trim()!=='';card.classList.toggle('ax-paid',paid);if(!paid)return;
+const pt=card.querySelector('.ptitle'),ja=/[\u3040-\u30ff\u4e00-\u9fff]/.test(pt?pt.textContent:'');
+bd.firstChild.textContent=ja?'✓ アクセス有効':'✓ ACCESS ACTIVE';
+bd.lastChild.textContent=ja?'過去の発表日時・予想/前回/結果・発表後の値動きを、すべて見られます':'All past release times, forecast / previous / actual and post-release moves are unlocked'};
+try{new MutationObserver(upd).observe(acc,{childList:true,characterData:true,subtree:true})}catch(e){}upd()}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init()})();
+
 </script>
 <div class="small" id="accState" data-dyn style="margin-top:8px;color:#d9c084"></div><button id="walletBtn" type="button" data-dyn>CONNECT WALLET</button></div>
 <style id="v112-access">
@@ -2086,6 +2097,14 @@ bs.forEach(function(b){b.addEventListener('click',function(){setTimeout(sync,0)}
 .ax-coins button.is-sel .k-ring{stroke-opacity:.6}
 .ax-coins button.is-sel .k-core{opacity:1}
 .ax-coins button.is-sel .k-glyph{color:#f4fbff}
+/* v118: 支払い済みの時は、手順とコイン列をたたみ、「アクセス有効」を大きく出す */
+.ax-badge{display:none;margin-top:6px}
+.access.ax.ax-paid .ax-badge{display:block}
+.ax-badge b{display:block;font:700 18px Georgia,"Noto Serif JP",serif;color:#e4b96a;letter-spacing:.06em}
+.ax-badge span{display:block;margin-top:5px;font-size:11px;line-height:1.6;color:#c9d3db}
+.access.ax.ax-paid .ax-steps,.access.ax.ax-paid .ax-coins,.access.ax.ax-paid .axk-defs{display:none!important}
+.access.ax.ax-paid #accState{margin-top:12px!important;padding:9px 12px;border:1px solid rgba(228,185,106,.35);border-radius:10px;background:rgba(228,185,106,.06);font-size:12px;letter-spacing:.04em}
+.access.ax.ax-paid .ax-top{margin-bottom:2px}
 @media(prefers-reduced-motion:reduce){.ax-coins button,.ax-coins button i,.ax-coins svg *{transition:none!important}}
 </style>
 <script>/* v112: コインを押すと、そのコインを選んだ状態で支払い画面を開く */
