@@ -69,7 +69,7 @@ export function tags(name) {
 }
 export const siteLine = (site) => ({ en: `ETH / SOL / BNB and 5m–24h moves: ${site}`, ja: `ETH・SOL・BNBや5分〜24時間の値動きはサイトで\n${site}` });
 
-// ---- 発表後の値動き(v91: 4銘柄・1時間後) ----
+// ---- 発表後の値動き(v91: 4銘柄・1時間後。v102: 2行目に発表日時) ----
 // 数値の決まり: Binance 現物。基準 = 発表時刻を含む5分足の始値。+5分/+15分/+1時間 = それぞれの時刻に閉じる5分足の終値。変化率は小数2桁。
 export const COINS = [['BTC', 'BTCUSDT', '₿'], ['ETH', 'ETHUSDT', '◆'], ['SOL', 'SOLUSDT', '◎'], ['BNB', 'BNBUSDT', '◇']];
 export const barsStart = (ts) => Math.floor(ts / M5) * M5 - 12 * M5;      // 発表の1時間前から25本
@@ -100,13 +100,13 @@ export function archPost(g, mv, site) {
   const rows = COINS.filter(([c]) => mv[c]).map(([c, , sym]) => `${sym} ${c}  ${arrow(mv[c].c60)}`);
   const build = (lang, opt) => {
     const en = lang === 'en';
-    const L = [`${k.icon} ${en ? nE : nJ}`, '━━━━━━━━━━━━━━', en ? '📊 +1H RECORD (vs release)' : '📊 発表1時間後の記録(発表時点比)', '', ...rows];
+    const L = [`${k.icon} ${en ? nE : nJ}`, en ? `${enDay(ts)} · ${hm(ts)} JST` : `${jaDay(ts)} ${hm(ts)} 発表(日本時間)`, ...(opt.norule ? [] : ['━━━━━━━━━━━━━━']), en ? '📊 +1H RECORD (vs release)' : '📊 発表1時間後の記録(発表時点比)', '', ...rows];
     if (opt.marks) L.push('', en ? '⏱️ +5M ✓  ⏱️ +15M ✓  ⏱️ +1H ✓' : '⏱️ +5分 ✓  ⏱️ +15分 ✓  ⏱️ +1時間 ✓');
     L.push('', en ? `🗂️ Historical ${k.short[0] ? k.short[0] + ' ' : ''}records: link in bio` : `🗂️ 過去の${k.short[1] || 'この指標'}の記録はプロフィールのリンクから`);   // v94: URLなし(URL付きは X API で1本 $0.20)
     if (opt.tags) L.push(en ? (opt.tags > 1 ? tagE : '#Bitcoin') : (opt.tags > 1 ? tagJ : '#ビットコイン'));
     return L.join('\n');
   };
-  const fitText = (lang) => { for (const o of [{ marks: 1, tags: 2 }, { marks: 1, tags: 1 }, { marks: 0, tags: 2 }, { marks: 0, tags: 1 }, { marks: 0, tags: 0 }]) { const t = build(lang, o); if (xlen(t.replace(/️/g, '')) <= 280) return t; } return build(lang, { marks: 0, tags: 0 }); };
+  const fitText = (lang) => { for (const o of [{ marks: 1, tags: 2 }, { marks: 1, tags: 1 }, { marks: 0, tags: 2 }, { marks: 0, tags: 1 }, { marks: 0, tags: 0 }, { marks: 0, tags: 0, norule: 1 }]) { const t = build(lang, o); if (xlen(t.replace(/️/g, '')) <= 280) return t; } return build(lang, { marks: 0, tags: 0, norule: 1 }); };
   const en = fitText('en'), ja = fitText('ja');
   const coins = {}; for (const [c] of COINS) if (mv[c]) coins[c] = { c5: mv[c].c5, c15: mv[c].c15, c60: mv[c].c60, before: mv[c].before, after: mv[c].after };
   const b = mv.BTC;
