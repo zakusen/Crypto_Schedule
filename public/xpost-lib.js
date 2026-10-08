@@ -96,23 +96,35 @@ export function kindOf(g) {
   const short = /FOMC/.test(s) ? ['FOMC', 'FOMC'] : /日銀|BoJ/.test(s) ? ['BOJ', '日銀'] : /ECB/.test(s) ? ['ECB', 'ECB'] : /PCE/.test(s) ? ['PCE', 'PCE'] : /CPI/.test(s) ? ['CPI', 'CPI'] : /雇用統計|Payroll|Non Farm/i.test(s) ? ['NFP', '雇用統計'] : ['', ''];
   return { icon: cb ? '🏛️' : g[0].c === 'US' ? '🇺🇸' : g[0].c === 'JP' ? '🇯🇵' : g[0].c === 'EU' ? '🇪🇺' : '📅', short };
 }
+// ---- v108: 投稿本文の共通の形(毎朝の予定と同じ見た目: ブランド行・🟢見出し・━線・🟡項目) ----
+export const BRAND = { en: '🔹 CRYPTO SIGNAL ARCHIVE', ja: '🔹 暗号資産シグナル・アーカイブ' };
+const ME3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'], WJ3 = ['日', '月', '火', '水', '木', '金', '土'];
+export const dEnU = (t, year = true) => { const d = new Date(t); return `${String(d.getUTCDate()).padStart(2, '0')} ${ME3[d.getUTCMonth()]}${year ? ' ' + d.getUTCFullYear() : ''}`; };   // 09 OCT 2026(UTC)
+export const dJaL = (t) => { const d = J(t); return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日（${WJ3[d.getUTCDay()]}）`; };                                          // 10月9日（金）(日本時間)
+const sgn = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+const dot = (v) => v == null ? '⚪' : v > 0 ? '🟢' : v < 0 ? '🔴' : '⚪';
+const coinRow = (c, s, v, o = {}) => `${s} ${c} ${o.dot === false ? '' : dot(v) + ' '}${sgn(v)}`;
+const icon2 = (g) => kindOf(g).icon === '🏛️' ? '🏦' : kindOf(g).icon;   // 本文は金融政策 = 🏦(毎朝の予定と同じ)
+// 入る形を探す: opts を順に試し、280 以内の最初を返す
+const fit280 = (build, opts) => { for (const o of opts) { const t = build(o); if (xlen(t) <= 280) return t; } return build(opts[opts.length - 1]); };
 const arrow = (v) => v > 0 ? '🟢 ▲ +' + v.toFixed(2) + '%' : v < 0 ? '🔴 ▼ −' + Math.abs(v).toFixed(2) + '%' : '⚪ ± 0.00%';
 // mv = {BTC: moves|null, ETH: …}。BTC は必須
 export function archPost(g, mv, site) {
   if (mv && mv.before != null) mv = { BTC: mv };                       // 古い呼び方(BTCだけ)
   const ts = g[0].ts, nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), k = kindOf(g), tg = tags(nE + ' ' + nJ);
   const tagE = tg.en.split(' ').slice(0, 1).concat('#Bitcoin').join(' '), tagJ = tg.ja.split(' ').slice(0, 1).concat('#ビットコイン').join(' ');
-  const rows = COINS.filter(([c]) => mv[c]).map(([c, , sym]) => `${sym} ${c}  ${arrow(mv[c].c60)}`);
-  const build = (lang, opt) => {
-    const en = lang === 'en';
-    const L = [`${k.icon} ${en ? nE : nJ}`, en ? `${uDay(ts)} · ${uhm(ts)} UTC` : `${jaDay(ts)} ${hm(ts)} 発表(日本時間)`, ...(opt.norule ? [] : ['━━━━━━━━━━━━━━']), en ? '📊 +1H RECORD (vs release)' : '📊 発表1時間後の記録(発表時点比)', '', ...rows];
-    if (opt.marks) L.push('', en ? '⏱️ +5M ✓  ⏱️ +15M ✓  ⏱️ +1H ✓' : '⏱️ +5分 ✓  ⏱️ +15分 ✓  ⏱️ +1時間 ✓');
-    L.push('', en ? `🗂️ Historical ${k.short[0] ? k.short[0] + ' ' : ''}records: link in bio` : `🗂️ 過去の${k.short[1] || 'この指標'}の記録はプロフィールのリンクから`);   // v94: URLなし(URL付きは X API で1本 $0.20)
-    if (opt.tags) L.push(en ? (opt.tags > 1 ? tagE : '#Bitcoin') : (opt.tags > 1 ? tagJ : '#ビットコイン'));
-    return L.join('\n');
+  // v108: 毎朝の予定と同じ形。⏱️ の行はやめた。値は発表時点(5分足の始値)から1時間後(5分足の終値)まで
+  const build = (lang) => (o) => {
+    const en = lang === 'en', rule = '━'.repeat(o.rule);
+    return [...(o.brand ? [BRAND[lang], ''] : []),
+      en ? `🟢 +1H AFTER RELEASE · ${dEnU(ts)} · ${uhm(ts)} UTC` : `🟢 発表から1時間 · ${dJaL(ts)} · ${hm(ts)}発表`, rule,
+      `🟡 ${icon2(g)} ${en ? nE.toUpperCase() : nJ}`, '',
+      ...COINS.filter(([c]) => mv[c]).map(([c, , s]) => coinRow(c, s, mv[c].c60)), rule,
+      ...(o.cta ? ['', en ? `🗂️ Past ${k.short[0] ? k.short[0] + ' ' : ''}records: link in bio` : `🗂️ 過去の${k.short[1] || 'この指標'}の記録はプロフィールのリンクから`] : []),
+      ...(o.tag ? [en ? tagE : tagJ] : [])].join('\n');
   };
-  const fitText = (lang) => { for (const o of [{ marks: 1, tags: 2 }, { marks: 1, tags: 1 }, { marks: 0, tags: 2 }, { marks: 0, tags: 1 }, { marks: 0, tags: 0 }, { marks: 0, tags: 0, norule: 1 }]) { const t = build(lang, o); if (xlen(t.replace(/️/g, '')) <= 280) return t; } return build(lang, { marks: 0, tags: 0, norule: 1 }); };
-  const en = fitText('en'), ja = fitText('ja');
+  const OPT = [{ brand: 1, rule: 18, cta: 1, tag: 1 }, { brand: 1, rule: 10, cta: 1, tag: 1 }, { rule: 10, cta: 1, tag: 1 }, { rule: 10, cta: 1 }, { rule: 10 }];
+  const en = fit280(build('en'), OPT), ja = fit280(build('ja'), OPT);
   const coins = {}; for (const [c] of COINS) if (mv[c]) coins[c] = { c5: mv[c].c5, c15: mv[c].c15, c60: mv[c].c60, before: mv[c].before, after: mv[c].after };
   const b = mv.BTC;
   return { id: archId(g), sr: 'arch', due: ts + ARCH_WAIT, en, ja, h: hashStr(en + ja), img: { v: 2, t: ts, en: nE, ja: nJ, icon: k.icon, coins, spark: b.spark, before: b.before, after: b.after, chg: b.chg, t0: b.t0 } };
@@ -121,17 +133,24 @@ export function archPost(g, mv, site) {
 // ---- 週間記録(v92: 土曜 10:00 投稿。期間 = 前の土曜0時〜金曜24時 JST) ----
 // wk = {ws, we, coins:{BTC:{s,e,chg,spark}, …}, ev:[{t, icon, sen, sja, btc}]}  ev は重要度順(主要指標 → 過去のBTC +1hの変動幅が大きい順)。btc = BTC +1h(%)。null は「—」
 export function weekPost(wk, site) {
+  // v108: 毎朝の予定と同じ形。指標をできるだけ多く載せる(入らない時は 線を短く → ブランド行 → 案内の行 → タグ の順に外し、それでも入らなければ件数を減らす)
   const d = (t) => { const x = J(t); return `${x.getUTCMonth() + 1}/${x.getUTCDate()}`; };
-  const range = (lang) => lang === 'en' ? `${uMD(wk.ws)} ${uhm(wk.ws)} → ${uMD(wk.we)} ${uhm(wk.we)} UTC` : `${d(wk.ws)} — ${d(wk.we - DAY)}(日本時間)`;   // v103: 英語は UTC
-  const rows = COINS.filter(([c]) => wk.coins[c]).map(([c, , sym]) => `${sym} ${c}  ${arrow(wk.coins[c].chg)}`);
-  const ev = (lang) => wk.ev.map((e) => `${lang === 'en' ? uMD(e.t) : d(e.t)} ${e.icon} ${lang === 'en' ? e.sen : e.sja}  ${e.btc == null ? '—' : (e.btc > 0 ? '🟢 +' : e.btc < 0 ? '🔴 −' : '⚪ ±') + Math.abs(e.btc).toFixed(2) + '%'}`);
-  const build = (lang, n, tag) => {
-    const en = lang === 'en', E = ev(lang), more = E.length - n;
-    return [en ? '🗓️ WEEKLY RECORD' : '🗓️ 週間記録', '━━━━━━━━━━', range(lang), '', ...rows, '',
-      en ? '📌 Releases (BTC +1h)' : '📌 今週の指標(BTC +1h)', ...(E.length ? E.slice(0, n) : [en ? 'None' : 'なし']), ...(more > 0 ? [en ? `+${more} more` : `ほか${more}件`] : []),
-      '', en ? '🗂️ Archive: link in bio' : '🗂️ アーカイブはプロフィールのリンクから', ...(tag ? [en ? '#Bitcoin' : '#ビットコイン'] : [])].join('\n');
+  const rows = (nd) => { const cs = COINS.filter(([c]) => wk.coins[c]).map(([c, , s]) => `${s} ${c} ${nd ? '' : dot(wk.coins[c].chg) + ' '}${sgn(wk.coins[c].chg)}`); return [cs.slice(0, 2).join('  '), cs.slice(2).join('  ')].filter(Boolean); };   // 4銘柄を2行に(指標を多く載せるため)
+  const ev = (lang) => wk.ev.map((e) => `${lang === 'en' ? dEnU(e.t, false) : d(e.t)} ${lang === 'en' ? e.sen : e.sja} ${sgn(e.btc)}`);
+  const build = (lang) => (o) => {
+    const en = lang === 'en', E = ev(lang), more = E.length - o.n, rule = '━'.repeat(o.rule);
+    return [...(o.brand ? [BRAND[lang], ''] : []),
+      en ? `🟢 WEEK · ${dEnU(wk.ws, false)} ${uhm(wk.ws)} → ${dEnU(wk.we, false)} ${uhm(wk.we)} UTC` : `🟢 週間記録 · ${d(wk.ws)}〜${d(wk.we - DAY)} · 日本時間`, rule,
+      ...rows(o.nodot), rule,
+      en ? '🟡 RELEASES · BTC +1H' : '🟡 指標 · BTC +1時間', ...(E.length ? E.slice(0, o.n) : [en ? 'None' : 'なし']), ...(more > 0 ? [en ? `+${more} more` : `ほか${more}件`] : []),
+      ...(o.cta ? ['', en ? '🗂️ Archive: link in bio' : '🗂️ アーカイブはプロフィールのリンクから'] : []),
+      ...(o.tag ? [en ? '#Bitcoin' : '#ビットコイン'] : [])].join('\n');
   };
-  const fitW = (lang) => { const N = wk.ev.length; for (const tag of [1, 0]) for (let n = N; n >= 0; n--) { const t = build(lang, n, tag); if (xlen(t) <= 280) return t; } return build(lang, 0, 0); };
+  const fitW = (lang) => {
+    const N = wk.ev.length, B = [{ brand: 1, rule: 18, cta: 1, tag: 1 }, { brand: 1, rule: 10, cta: 1, tag: 1 }, { rule: 10, cta: 1, tag: 1 }, { rule: 10, tag: 1 }, { rule: 10 }, { rule: 10, nodot: 1 }];
+    for (let n = N; n >= 0; n--) for (const o of B) { const t = build(lang)({ ...o, n }); if (xlen(t) <= 280) return t; }
+    return build(lang)({ rule: 10, n: 0 });
+  };
   const en = fitW('en'), ja = fitW('ja');
   return { id: 'week:' + isoDay(wk.ws), sr: 'week', due: wk.we + WEEK_AT, en, ja, h: hashStr(en + ja), img: { v: 2, ws: wk.ws, we: wk.we, coins: wk.coins, ev: wk.ev } };
 }
@@ -200,23 +219,25 @@ export function corrLabel(v, lang) {
 }
 // sp = spikeMoves の結果 + id + corr(corrCalc の結果)
 export function spikePost(sp, corr, link) {   // link = サイトの URL(付けない時は null)
-  const d = J(sp.t1), md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, btc = sp.coins[SPIKE_COIN];
+  const d = J(sp.t0), md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, btc = sp.coins[SPIKE_COIN];
   const rv = (d0, c) => corr && corr.w && corr.w[d0] && corr.w[d0][c] ? corr.w[d0][c].r : null;
   const cr = (c, lang, lab) => { const v = rv(30, c); return v == null ? '—' : rTxt(v) + (lab ? ' ' + corrLabel(v, lang) : ''); };
   const sg = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
   const mv = (v, dot) => v == null ? '—' : (dot ? (v > 0 ? '🟢 ' : v < 0 ? '🔴 ' : '⚪ ') : '') + sg(v);
   // 1行 = 銘柄・同じ1時間の変化・S&P500 との相関(30日。7日は画像とサイト)。URL は必ず残す。
   // 入らない時は 区切り線 → 色の丸 → タグ → 時間外の注記 → 時刻の行(画像にはある) → 相関の目安の言葉 の順に外す
+  // v108: 毎朝の予定と同じ形
   const build = (lang, o) => {
-    const en = lang === 'en';
-    return [en ? `⚡ BTC ${sg(btc)} IN 1H` : `⚡ BTC 1時間で ${sg(btc)}`, ...(o.rule ? ['━━━━━━━━━━━━━━'] : []), ...(o.nodate ? [] : [en ? `${uMD(sp.t1)} · ${uhm(sp.t0)}→${uhm(sp.t1)} UTC` : `${md} ${hm(sp.t0)}→${hm(sp.t1)}(日本時間)`]), '',
-      en ? '1H change | corr w/ S&P500 (30D)' : '1時間の変化 | S&P500との相関(30日)',
+    const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
+    return [...(o.brand ? [BRAND[lang], ''] : []),
+      en ? `⚡ BTC ${sg(btc)} IN 1H` : `⚡ BTC 1時間で ${sg(btc)}`, ...(o.nodate ? [] : [en ? `${dEnU(sp.t0)} · ${uhm(sp.t0)}→${uhm(sp.t1)} UTC` : `${dJaL(sp.t0)} · ${hm(sp.t0)}→${hm(sp.t1)} · 日本時間`]), rule,
+      en ? '🟡 1H CHANGE | CORR W/ S&P500 (30D)' : '🟡 1時間の変化 | S&P500との相関(30日)',
       ...COINS.filter(([c]) => sp.coins[c] != null).map(([c, , s]) => `${s} ${c} ${mv(sp.coins[c], o.dot)} | ${cr(c, lang, !o.nolab)}`),
-      `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open || o.noclosed ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`,
-      ...(link ? ['', '🔗 ' + link] : []),
-      ...(o.tag ? [(link ? '' : '\n') + (en ? '#Bitcoin #SP500' : '#ビットコイン #SP500')] : [])].join('\n');
+      `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open || o.noclosed ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`, rule,
+      ...(link ? ['🔗 ' + link] : []),
+      ...(o.tag ? [en ? '#Bitcoin #SP500' : '#ビットコイン #SP500'] : [])].join('\n');
   };
-  const LV = [{ rule: 1, dot: 1, tag: 1 }, { dot: 1, tag: 1 }, { dot: 1 }, { dot: 1, noclosed: 1 }, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];
+  const LV = [{ brand: 1, rule: 18, dot: 1, tag: 1 }, { brand: 1, dot: 1, tag: 1 }, { dot: 1, tag: 1 }, { dot: 1 }, {}, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];   // 相関の目安の言葉は最後まで残す(時刻は画像にもある・投稿はすぐ出る)
   const fitS = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitS('en'), ja = fitS('ja');
   return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 1, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
