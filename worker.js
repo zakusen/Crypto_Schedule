@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v144';
+const VERSION = '2026-10-09-v145';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1424,6 +1424,27 @@ async function ghDispatch(env, payload) {
 //   一度出したら6時間は出さない。ふだん(急変動なし)は KV の読み書きをしない。
 //   v121: 直近60分に加えて直近6時間でも見る(どちらも ±3%。60分を優先)。win = 1 / 6(時間)
 const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_COOL = 6 * 36e5, SPIKE_WINS = [1, 6, 24];   // v144: 24時間も(±3%)。短い期間を優先
+// v145: 今の判定に使う値(60分・6時間・24時間の変化)を計算する。spikeCheck と /api/spike(確認用)で共通
+function spikeNow(store, now) {
+  const e = store && store.tfs && store.tfs[SPIKE_COIN] && store.tfs[SPIKE_COIN]['5m'];
+  if (!e || !e.bars || e.bars.length < 13) return { error: '5分足がまだありません' };
+  const last = e.bars[e.bars.length - 1], out = { price: last[4], bar: new Date(last[0] * 1000).toISOString(), data_at: new Date(e.at).toISOString(), stale: now - e.at > 10 * 60e3, src: e.src || null, wins: {} };
+  for (const w of SPIKE_WINS) {
+    let base = e.bars.find((b) => b[0] === last[0] - w * 3600);
+    if (w > 6) { const h = store.tfs[SPIKE_COIN]['1h']; const t = Math.floor((last[0] - w * 3600) / 3600) * 3600; base = h && h.bars && h.bars.find((b) => b[0] === t); }
+    out.wins[w + 'h'] = base && base[1] > 0 && last[4] > 0 ? { from: new Date(base[0] * 1000).toISOString(), base: base[1], chg: Math.round((last[4] / base[1] - 1) * 1e4) / 100 } : null;
+  }
+  return out;
+}
+async function spikeStatus(env) {
+  const now = Date.now(), store = await readPx(env), cur = spikeNow(store, now);
+  let doc = null; try { doc = env.CAL ? await env.CAL.get('x:spk', { type: 'json' }) : null; } catch (_) {}
+  const last = doc && doc.ev && doc.ev.length ? doc.ev[doc.ev.length - 1] : null;
+  const hit = Object.entries(cur.wins || {}).find(([, o]) => o && Math.abs(o.chg) >= SPIKE_PCT);
+  return json({ now: new Date(now).toISOString(), threshold_pct: SPIKE_PCT, ...cur, would_trigger: hit ? hit[0] : null,
+    last_spike: last ? { at: new Date(last.t).toISOString(), win: last.win || 1, chg: last.hit && last.hit[SPIKE_COIN] } : null,
+    cooling_until: last && now - last.t < SPIKE_COOL ? new Date(last.t + SPIKE_COOL).toISOString() : null });
+}
 async function spikeCheck(env) {
   if (!env.CAL) return null;
   const store = await readPx(env), now = Date.now();
@@ -1519,6 +1540,7 @@ export default {
     if (url.pathname === '/api/events' || url.pathname === '/api/cal') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
+    if (url.pathname === '/api/spike') { const r = await spikeStatus(env); r.headers.set('cache-control', 'no-store'); return r; }   // v145: 急変動の判定の今の値(見るだけ。投稿はしない)
     if (url.pathname === '/api/corr') return cached(ctx, request, 300, async () => { const t = env.CAL ? await env.CAL.get('corr:v1') : null; return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8' } }); });   // v95: S&P500 との相関(保存を返すだけ)
     if (url.pathname === '/api/px-run') { const r = await pxRun(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
