@@ -62,6 +62,10 @@ const SITE_RE = /\n(Full calendar & past BTC moves|予定と過去の値動き):
 const sameButLink = (o, p) => o && o.done && (o.done.en || o.done.ja) && o.en.replace(SITE_RE, '') + o.ja.replace(SITE_RE, '') === p.en.replace(SITE_RE, '') + p.ja.replace(SITE_RE, '');
 const put = (p) => { const o = byId.get(p.id); if (o && (o.h === p.h || (o.upd && o.upd.h === p.h) || sameButLink(o, p))) return; out.push({ at: NOW, ...p }); };
 const today = dayStart(NOW);
+// v110: 前の形の画像の下書き(まだ投稿していないもの)は作り直す(発表後の値動き = 画像 v3 / 週間記録 = v3 より前)
+const oldImg = (p) => p && !(p.done && (p.done.en || p.done.ja)) && ((p.sr === 'arch' && !(p.img && p.img.v >= 3)) || (p.sr === 'week' && !(p.img && p.img.v >= 3)));
+const redo = [...byId.values()].filter(oldImg).map((p) => p.id);
+for (const id of redo) { byId.delete(id); console.log('[x] 前の形の画像なので作り直します', id); }
 // v104: 自動投稿になった日の「毎朝の予定」は、手で予約した時の「予約済み」の印を外して作り直す(X の予約は手で消してもらう)。
 //   投稿時刻がまだ先のものだけ(X API で出したものは投稿時刻を過ぎているので触らない)
 for (const o of byId.values()) {
@@ -132,7 +136,7 @@ function dailyPost(day) {
   return { id: 'daily:' + isoDay(day), sr: 'daily', due, en, ja, h: hashStr(en + ja),
     img: { day, next: WN.ja.next, ...lists(WN.ja), ...(utc ? { utc: 1, enl: { next: WN.en.next, ...lists(WN.en) } } : {}) } };   // enl = 英語の画像用(UTC の区切り)
 }
-const drop = [];                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
+const drop = [...redo];                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
 for (let i = 0; i <= AHEAD; i++) {
   const day = today + i * DAY, p = dailyPost(day);
   if (p.due < NOW && byId.has(p.id)) continue;                              // 投稿時刻を過ぎた分は作り直さない(今日の分が無ければ作る)
@@ -153,10 +157,10 @@ for (const g of groups(events.filter((e) => MAJOR(e) && NOW - e.ts >= ARCH_WAIT 
 if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
   const we = dayStart(NOW), ws = we - 7 * DAY, id = 'week:' + isoDay(ws);
   if (!byId.has(id)) {
-    const coins = {};
+    const coins = {}; let btc = null;
     for (const [c, sym] of COINS) {                                          // 日本時間の区切りなので1時間足で(始値 = 最初の足の始値、終値 = 最後の足の終値)
       const k = await klines(sym, '1h', ws, 168);
-      if (k && k.length === 168 && +k[0][0] === ws && +k[167][0] === we - H) coins[c] = { s: +k[0][1], e: +k[167][4], chg: pct(+k[0][1], +k[167][4]), spark: [+k[0][1], ...[23, 47, 71, 95, 119, 143, 167].map((i) => +k[i][4])] };
+      if (k && k.length === 168 && +k[0][0] === ws && +k[167][0] === we - H) { coins[c] = { s: +k[0][1], e: +k[167][4], chg: pct(+k[0][1], +k[167][4]), spark: [+k[0][1], ...[23, 47, 71, 95, 119, 143, 167].map((i) => +k[i][4])] }; if (c === 'BTC') btc = [+k[0][1], ...k.map((x) => +x[4])]; }   // v109: BTC の1時間足(画像の線)
     }
     if (coins.BTC) {
       // v93: その週の重要度「高」の指標を全部。並び = 主要指標(決まった順) → 残りは過去の BTC +1h の変動幅(絶対値)の平均が大きい順
@@ -171,7 +175,7 @@ if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
         ev.push({ t: e0.ts, icon: k.icon, sen: k.short[0] || (e0.se || e0.te || e0.s), sja: k.short[1] || (e0.s || e0.t), en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), btc, r: rank(g), a: avgAbs(g), major: g.some(MAJOR) });
       }
       ev.sort((x, y) => x.r - y.r || y.a - x.a || x.t - y.t);
-      put(weekPost({ ws, we, coins, ev }, SITE));
+      put(weekPost({ ws, we, coins, ev, btc }, SITE));
     } else console.log('[x] 週間記録: 1時間足が揃わないので次回');
   }
 }
@@ -207,7 +211,7 @@ try {
     if (c) { corr = c; await site('/api/admin/rx-put?name=cr', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(c) }); console.log('[x] S&P500 相関を更新:', JSON.stringify(c.w)); }
   }
   for (const ev of pend) {
-    const B = {}; for (const s of SYM5) B[s] = await pac(s, '5m', ev.t - 2 * H, Math.min(NOW, ev.t + 15 * 60000));
+    const B = {}; for (const s of SYM5) B[s] = await pac(s, '5m', ev.t - 7 * H, Math.min(NOW, ev.t + 15 * 60000));   // v109: 画像に直近6時間を描く
     const mv = L.spikeMoves(B, ev.t, NOW);
     if (!mv) { console.log('[x] 急変動: Pacifica の5分足では BTC が ±3% に届かないので出しません', ev.id, JSON.stringify(ev.hit)); continue; }
     // v98: URL を付けるのは直近30日で SPIKE_LINK_MAX 回まで(URL付きは1本 $0.20)
@@ -221,7 +225,7 @@ try {
 // ---- 保存・通知 ----
 for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) console.log(`[x] 注意: ${p.id} ${lg} が280を超えています(${xlen(p[lg])})`);
 let res = {};
-if (out.length || drop.length) res = await (await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ upsert: out, remove: drop }) })).json();
+if (out.length || drop.length) res = await (await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ upsert: out, remove: drop.filter((id) => !out.some((p) => p.id === id)) }) })).json();
 // v94: Worker が見張る自動投稿の予定(x:due)を書き直す
 try {
   const merged = new Map((store.posts || []).map((p) => [p.id, p])); for (const p of out) merged.set(p.id, { ...(merged.get(p.id) || {}), ...p, done: (merged.get(p.id) || {}).done });

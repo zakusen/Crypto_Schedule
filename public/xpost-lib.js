@@ -125,9 +125,9 @@ export function archPost(g, mv, site) {
   };
   const OPT = [{ brand: 1, rule: 18, cta: 1, tag: 1 }, { brand: 1, rule: 10, cta: 1, tag: 1 }, { rule: 10, cta: 1, tag: 1 }, { rule: 10, cta: 1 }, { rule: 10 }];
   const en = fit280(build('en'), OPT), ja = fit280(build('ja'), OPT);
-  const coins = {}; for (const [c] of COINS) if (mv[c]) coins[c] = { c5: mv[c].c5, c15: mv[c].c15, c60: mv[c].c60, before: mv[c].before, after: mv[c].after };
+  const coins = {}; for (const [c] of COINS) if (mv[c]) coins[c] = { c5: mv[c].c5, c15: mv[c].c15, c60: mv[c].c60, before: mv[c].before, after: mv[c].after, sp: mv[c].spark };   // v109: sp = 5分足の終値(発表1時間前〜1時間後)
   const b = mv.BTC;
-  return { id: archId(g), sr: 'arch', due: ts + ARCH_WAIT, en, ja, h: hashStr(en + ja), img: { v: 2, t: ts, en: nE, ja: nJ, icon: k.icon, coins, spark: b.spark, before: b.before, after: b.after, chg: b.chg, t0: b.t0 } };
+  return { id: archId(g), sr: 'arch', due: ts + ARCH_WAIT, en, ja, h: hashStr(en + ja), img: { v: 3, t: ts, en: nE, ja: nJ, icon: k.icon, coins, spark: b.spark, before: b.before, after: b.after, chg: b.chg, t0: b.t0 } };
 }
 
 // ---- 週間記録(v92: 土曜 10:00 投稿。期間 = 前の土曜0時〜金曜24時 JST) ----
@@ -152,7 +152,7 @@ export function weekPost(wk, site) {
     return build(lang)({ rule: 10, n: 0 });
   };
   const en = fitW('en'), ja = fitW('ja');
-  return { id: 'week:' + isoDay(wk.ws), sr: 'week', due: wk.we + WEEK_AT, en, ja, h: hashStr(en + ja), img: { v: 2, ws: wk.ws, we: wk.we, coins: wk.coins, ev: wk.ev } };
+  return { id: 'week:' + isoDay(wk.ws), sr: 'week', due: wk.we + WEEK_AT, en, ja, h: hashStr(en + ja), img: { v: 3, ws: wk.ws, we: wk.we, coins: wk.coins, ev: wk.ev, btc: wk.btc || null } };   // v109: btc = 1時間足の終値(週の168本)
 }
 
 // ---- S&P500 との相関・急変動(v95) ----
@@ -206,7 +206,8 @@ export function spikeMoves(B, T, now) {
   if (!best || best.v < SPIKE_PCT) return null;
   const coins = {}; for (const [c] of COINS) { const v = ch(c, best.e); if (v != null) coins[c] = v; }
   const t1 = best.e + M5, t0 = t1 - H;
-  return { t0, t1, coins, spx: ch('SP500', best.e), open: usOpen(t0) || usOpen(t1) || usOpen(t0 + H / 2), hit };
+  const ser = (k) => { const a = []; for (let e = best.e - 71 * M5; e <= best.e; e += M5) { const v = map[k] && map[k].get(e); a.push(v > 0 ? v : null); } return a; };   // v109: 直近6時間の5分足の終値(画像用)
+  return { t0, t1, coins, ser: { btc: ser('BTC'), spx: ser('SP500') }, spx: ch('SP500', best.e), open: usOpen(t0) || usOpen(t1) || usOpen(t0 + H / 2), hit };
 }
 // v96: 相関係数は「0.65」の形(逆向きだけ −)。強さの目安を言葉で添える(よく使う区分: 0.7以上 強い / 0.4〜 中程度 / 0.2〜 弱い / 0.2未満 ほぼ無関係)
 export const rTxt = (v) => v == null ? '—' : (v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
@@ -240,7 +241,7 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
   const LV = [{ brand: 1, rule: 18, dot: 1, tag: 1 }, { brand: 1, dot: 1, tag: 1 }, { dot: 1, tag: 1 }, { dot: 1 }, {}, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];   // 相関の目安の言葉は最後まで残す(時刻は画像にもある・投稿はすぐ出る)
   const fitS = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitS('en'), ja = fitS('ja');
-  return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 1, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
+  return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
 }
 
 // ---- 自動投稿(v94) ----
