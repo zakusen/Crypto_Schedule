@@ -487,3 +487,8 @@
 ## v153: 清算の閾値を実測で決める(`tools/liq_th.mjs`)
 - 見るだけのスクリプト(何も書き込まない)。`node tools/liq_th.mjs https://サイトのURL` で、`/api/liq` の5分刻みから「直近1時間のロング or ショートの大きい方」(判定と同じ計算)を出し、銘柄ごとに中央値・p90・p99・最大・今の閾値で事象になった回数・提案(p99)を表示する。
 - 記録が3日未満なら「まだ決めない」と出る。決めたら `worker.js` の `LIQ_TH` を書き換える(終わりの条件は閾値の半分で連動)。
+
+## v154: 清算の Durable Object の設定を自動で足す(`tools/add_liq_config.mjs`)
+- `/api/liq` が「Durable Object(LIQ)が未接続です」(503)を返す時は、`wrangler.jsonc` に LiqHub の2つの設定が無い。プロジェクトの直下で `node tools/add_liq_config.mjs` を実行すると、今の設定にその2つを足す(コメント・KVのIDなどはそのまま。元は `.bak` に残す)。そのあと `npx wrangler deploy`。
+- 何度実行しても二重には入らない。既に `durable_objects` か `migrations` がある設定は壊さないよう自動では触らず、足す内容を表示するだけ。`wrangler.json`・`wrangler.toml` にも対応。
+- 直ったかは `/api/liq?sym=BTC&step=3600` の `error` が消え、数分後に `sources` の `live`・`n` が出ているかで見る。
