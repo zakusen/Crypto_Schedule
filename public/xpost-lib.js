@@ -248,12 +248,14 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
 // 自動で投稿する種類: 発表後の値動き・週間記録はいつも、毎朝の予定は AUTO_DAILY_FROM 以降(それまでは X で手で予約済み)
 export const AUTO_DAILY_FROM = '2026-10-09';   // v104: 10/9 から自動(X の手の予約は消してもらう)
 export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
+export const SPIKE_WINDOW = 6 * H;  // v147: 急変動は見つけてから6時間まで
+export const winOf = (p) => (p && (p.sr === 'spike' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'week' || p.sr === 'spike' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
-  for (const p of posts || []) { seen.add(p.id); if (isAuto(p) && p.due && !(p.done && p.done.en && p.done.ja) && p.due > now - AUTO_WINDOW && p.due < now + 8 * DAY) items.push({ id: p.id, due: p.due }); }
+  for (const p of posts || []) { seen.add(p.id); if (isAuto(p) && p.due && !(p.done && p.done.en && p.done.ja) && p.due > now - winOf(p) && p.due < now + 8 * DAY) items.push({ id: p.id, due: p.due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }

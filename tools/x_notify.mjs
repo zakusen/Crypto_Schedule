@@ -204,7 +204,7 @@ async function corrNow() {
 }
 try {
   const spk = await (await site('/api/admin/rx-one?name=xk')).json();
-  const pend = (spk.ev || []).filter((x) => NOW - x.t < L.AUTO_WINDOW && !byId.has(x.id));
+  const pend = (spk.ev || []).filter((x) => NOW - x.t < L.SPIKE_WINDOW && !byId.has(x.id));
   let corr = await (await site('/api/admin/rx-one?name=cr')).json();
   if (pend.length || !corr.at || NOW - corr.at > 6 * H) {
     const c = await corrNow();

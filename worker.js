@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v146';
+const VERSION = '2026-10-09-v147';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1480,7 +1480,7 @@ async function spikeCheck(env) {
 async function xDispatch(env) {
   if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO || !env.CAL) return null;
   const now = Date.now(), due = await env.CAL.get('x:due', { type: 'json' });
-  const hit = ((due && due.items) || []).filter((x) => x.due <= now && now - x.due < 3 * 3600e3);
+  const hit = ((due && due.items) || []).filter((x) => x.due <= now && now - x.due < (String(x.id).startsWith('spike:') ? 6 : 3) * 3600e3);   // v147: 急変動は6時間まで
   if (!hit.length) return null;
   const last = Number(await env.CAL.get('x:disp')) || 0;
   if (now - last < 20 * 60e3) return { wait: true, n: hit.length };
