@@ -1,0 +1,60 @@
+name: X post
+# v94: X への自動投稿。Cloudflare の Worker が投稿時刻に合図(repository_dispatch: x-post)を送ると動く。
+#   1) 下書きを最新にする(tools/x_notify.mjs) 2) 投稿するものがあればブラウザと文字を用意 3) 投稿(tools/x_post.mjs)
+# 手で動かす: Actions → 「X post」→ Run workflow。dry を 1 にすると投稿せず、文面と画像を成果物(x_out)に出すだけ。
+on:
+  repository_dispatch:
+    types: [x-post]
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: '1 = 投稿しない(試し)、0 = 本当に投稿する'
+        default: '1'
+concurrency:
+  group: x-post
+  cancel-in-progress: false
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Make drafts
+        run: node tools/x_notify.mjs
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+      - name: Check
+        id: chk
+        run: node tools/x_post.mjs --check
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+          X_DRY: ${{ github.event.inputs.dry || '0' }}
+      - name: Install browser and fonts
+        if: steps.chk.outputs.need == 'true'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-color-emoji fonts-noto-cjk
+          npm i --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Post
+        if: steps.chk.outputs.need == 'true'
+        run: node tools/x_post.mjs
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          X_DRY: ${{ github.event.inputs.dry || '0' }}
+      - name: Save dry-run output
+        if: steps.chk.outputs.need == 'true' && github.event.inputs.dry == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: x_out
+          path: x_out/
