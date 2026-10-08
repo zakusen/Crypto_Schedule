@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-08-v98';
+const VERSION = '2026-10-08-v101';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1392,7 +1392,7 @@ async function postsApi(request, env) {
   let doc; try { doc = (await env.CAL.get(POSTS_KEY, { type: 'json' })) || { v: 1, posts: [] }; } catch (_) { return json({ error: 'kv' }, 503); }
   const have = new Map(doc.posts.map((p) => [p.id, p]));
   let added = 0, changed = 0, flagged = 0;
-  const clean = (p) => ({ sr: String(p.sr || ''), due: +p.due || 0, en: String(p.en || ''), ja: String(p.ja || ''), h: String(p.h || ''), img: p.img || null });
+  const clean = (p) => ({ sr: String(p.sr || ''), due: +p.due || 0, en: String(p.en || ''), ja: String(p.ja || ''), h: String(p.h || ''), img: p.img || null, ...(p.man ? { man: 1 } : {}) });   // v101: man = 手で作った下書き(自動投稿しない)
   for (const p of [].concat(Array.isArray(q.add) ? q.add : [], Array.isArray(q.upsert) ? q.upsert : [])) {
     if (!p || typeof p.id !== 'string') continue;
     const o = have.get(p.id), c = clean(p);

@@ -221,7 +221,8 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
 // 自動で投稿する種類: 発表後の値動き・週間記録はいつも、毎朝の予定は AUTO_DAILY_FROM 以降(それまでは X で手で予約済み)
 export const AUTO_DAILY_FROM = '2026-11-02';
 export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
-export const isAuto = (p) => p.sr === 'arch' || p.sr === 'week' || p.sr === 'spike' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM);
+// v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
+export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'week' || p.sr === 'spike' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();

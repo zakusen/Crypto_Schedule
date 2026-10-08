@@ -113,6 +113,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <h1>CSA POSTS</h1>
   <span class="sp"></span>
   <button class="chip" id="bell">🔔 通知をオンにする</button>
+  <button class="chip" id="pastBtn" title="発表済みの指標の「発表後の値動き」を今つくる(手で投稿)">＋ 過去の発表から作る</button>
   <button class="chip" id="reload">↻ 更新</button>
   <button class="chip" id="keyBtn">鍵</button>
 </header>
@@ -151,7 +152,7 @@ async function image(p, lg) {
 }
 
 // ---------- データ ----------
-let POSTS = [], EVENTS = [], ITEMS = [], VIEW = null, OPEN = null, OPENUPD = false, READY = false;
+let RAWCAL = { events: [] }, POSTS = [], EVENTS = [], ITEMS = [], VIEW = null, OPEN = null, OPENUPD = false, READY = false;
 async function api(body) {
   const r = await fetch('/api/admin/posts', { method: body ? 'POST' : 'GET', headers: { 'x-admin-key': getKey(), ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
   if (r.status === 401) throw new Error('401');
@@ -169,7 +170,7 @@ async function load() {
   if (!getKey()) return keyForm();
   try {
     const [p, c] = await Promise.all([api(), fetch('/api/cal', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ events: [] }))]);
-    POSTS = p.posts || []; EVENTS = L.pickEvents(c);
+    POSTS = p.posts || []; RAWCAL = c; EVENTS = L.pickEvents(c);
   } catch (e) { return e.message === '401' ? keyForm('管理キーが違います。入れ直してください。') : ($('#main').innerHTML = `<div class="empty">読み込めませんでした(${esc(e.message)})</div>`); }
   READY = true; build(); render(); tick();
 }
@@ -200,7 +201,7 @@ function stateOf(it, now = Date.now()) {
   if (!p) return it.due <= now ? (now - it.due < 48 * L.H ? 'ready' : 'missed') : 'wait';
   return it.due <= now ? 'ready' : 'todo';
 }
-const AUTO = (it) => L.isAuto({ sr: it.sr, due: it.due });   // v94: X API で自動投稿されるもの
+const AUTO = (it) => L.isAuto({ sr: it.sr, due: it.due, man: it.post && it.post.man });   // v101: man = 手で作った下書き(自動投稿しない)   // v94: X API で自動投稿されるもの
 const STXT = { done: (sr) => sr === 'daily' ? '✔ 予約済' : '✔ 済', warn: () => '⚠ 要修正', ready: () => '● 今', todo: (sr) => sr === 'daily' ? '未予約' : '待ち', wait: () => '発表待ち', missed: () => '時刻過ぎ' };
 const stxt = (it, s) => AUTO(it) && s !== 'done' && s !== 'missed' ? '🤖 自動' : STXT[s](it.sr);
 const shortName = (it) => it.sr === 'daily' ? '予定' : it.sr === 'week' ? '週間記録' : it.sr === 'spike' ? '急変動 ' + ((it.post && it.post.img && it.post.img.hit) || []).join('・') : (it.post ? (it.post.img && it.post.img.ja) : L.groupLine(it.g, 'ja'));
@@ -363,6 +364,34 @@ async function tick() {
   for (const it of ITEMS) if (stateOf(it, now) === 'ready' && it.post) notify(`投稿の時間です: ${LABEL[it.sr]}`, it.sr === 'arch' ? shortName(it) : fmtDT(it.due), it.id);
   if (!OPEN) render(); else { const n = ITEMS.filter((x) => ['ready', 'warn'].includes(stateOf(x, now))).length; document.title = (n ? `(${n}) ` : '') + 'CSA POSTS'; }
 }
+// ---------- v101: 過去の発表から「発表後の値動き」を作る(手で投稿。自動投稿はしない) ----------
+// 直近7日の日米欧の指標(重要度に関係なく。高を先に)から選ぶ → Binance の5分足で4銘柄の1時間後を作り、下書きに足す
+function pastGroups() {
+  const now = Date.now(), have = new Set(POSTS.map((p) => p.id));
+  const ev = (RAWCAL.events || []).map((e) => ({ ...e, ts: Date.parse(e.at) })).filter((e) => e.l === 'macro' && L.REGIONS.includes(e.c) && isFinite(e.ts) && e.ts + L.ARCH_WAIT <= now && now - e.ts < 7 * L.DAY);
+  return L.groups(ev).filter((g) => !have.has(L.archId(g))).sort((a, b) => (b.some((e) => e.im === 'high') - a.some((e) => e.im === 'high')) || b[0].ts - a[0].ts);
+}
+function pickPast() {
+  const G = pastGroups();
+  OPEN = '__past'; $('#ov').classList.add('on');
+  $('#md').innerHTML = `<div class="mh"><span style="font-size:22px">📈</span><span class="k">過去の発表から作る</span><span class="w">直近7日・発表済み</span><div class="x"><button class="chip" id="pastClose">✕ 閉じる</button></div></div>
+    <p style="color:var(--mut);margin:8px 0 14px">選ぶと、発表時点から1時間後までの4銘柄の値動き(Binance 現物)で下書きを作ります。<b>自動投稿はされません</b>。作ったあと、いつもどおり画像をコピーして手で投稿してください。</p>
+    ${G.length ? G.map((g, i) => `<button class="task" data-pg="${i}" style="width:100%;text-align:left;cursor:pointer;color:var(--tx);font:inherit;margin-bottom:8px"><span class="ic">${g.some((e) => e.im === 'high') ? '🔴' : '⚪'}</span><div><div class="tt">${esc(L.groupLine(g, 'ja'))}</div><div class="sub">${esc(fmtDT(g[0].ts))}${g.some(L.MAJOR) ? ' · 主要指標' : ''}</div></div></button>`).join('') : '<div class="empty">作れる発表がありません(直近7日の発表は、すべて下書きがあります)</div>'}`;
+  $('#pastClose').onclick = closeModal;
+  $('#md').querySelectorAll('[data-pg]').forEach((b) => { b.onclick = async () => {
+    const g = G[+b.dataset.pg]; b.disabled = true; toast('価格を取得しています…');
+    try {
+      const mv = {};
+      await Promise.all(L.COINS.map(async ([c, sym]) => { const bars = await klines(sym, '5m', L.barsStart(g[0].ts), 25); mv[c] = bars && L.moves(bars, g[0].ts); }));
+      if (!mv.BTC) { toast('Binance から価格が取れませんでした。少しして試してください'); b.disabled = false; return; }
+      const post = { at: Date.now(), ...L.archPost(g, mv, SITE), man: 1 };
+      await api({ add: [post] });
+      POSTS.push({ ...post, done: { en: 0, ja: 0 } }); closeModal(); build(); render(); modal(post.id);
+    } catch (e) { toast('作れませんでした: ' + e.message); b.disabled = false; }
+  }; });
+}
+$('#pastBtn').onclick = () => { if (READY) pickPast(); };
+
 load(); setInterval(tick, 30000);
 setInterval(() => { if (!OPEN && getKey()) load(); }, 10 * 60000);   // 10分ごとに下書きを読み直す
 </script>
