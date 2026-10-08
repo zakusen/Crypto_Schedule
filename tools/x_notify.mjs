@@ -84,33 +84,53 @@ const prevOf = (g) => {                                                     // �
   return best;
 };
 function dailyPost(day) {
-  const utc = isoDay(day) >= AUTO_DAILY_FROM, eh = utc ? uhm : hm, ed = utc ? uDay : enDay;   // v103
-  const due = day + DAILY_AT;
-  const tg = between(due, day + DAY);                                       // 投稿(9:30)より後の予定だけ
-  let wa = day + DAY, wb = weekStart(day) + 7 * DAY, next = false;
-  if (wb - wa <= 0) { wb = wa + 7 * DAY; next = true; }                     // 日曜は来週を出す
-  const wk = between(wa, wb), prev = tg.map(prevOf);
-  const pv = (i, lang) => prev[i] ? (lang === 'en' ? ` (prev 1h: ${pctTxt(prev[i].chg)})` : `(前回1h: ${pctTxt(prev[i].chg)})`) : '';
-  const T = { en: tg.map((g, i) => eh(g[0].ts) + ' — ' + groupLine(g, 'en') + pv(i, 'en')), ja: tg.map((g, i) => hm(g[0].ts) + ' — ' + groupLine(g, 'ja') + pv(i, 'ja')) };
-  const W = { en: wk.map((g) => `${ed(g[0].ts)} ${eh(g[0].ts)} — ` + groupLine(g, 'en')), ja: wk.map((g) => `${jaDay(g[0].ts)} ${hm(g[0].ts)} — ` + groupLine(g, 'ja')) };
+  // v104: 英語(UTC)は「今日」= 投稿時刻〜UTC の 24:00、「今週」= UTC の翌日〜月曜 0:00(UTC)。日本語は日本時間の今日・今週のまま
+  const utc = isoDay(day) >= AUTO_DAILY_FROM, eh = utc ? uhm : hm, ed = utc ? uDay : enDay;
+  const due = day + DAILY_AT, J9 = 9 * H;                                   // day = 日本時間の0時。+9時間 = 同じ日付の UTC 0時
+  const win = (lang) => {
+    const u = lang === 'en' && utc, dEnd = u ? day + J9 + DAY : day + DAY;   // 「今日」の終わり
+    let wa = dEnd, wb = weekStart(day) + 7 * DAY + (u ? J9 : 0), next = false;
+    if (wb - wa <= 0) { wb = wa + 7 * DAY; next = true; }                     // 日曜は来週を出す
+    const tg = between(due, dEnd);
+    return { tg, wk: between(wa, wb), next, prev: tg.map(prevOf) };
+  };
+  const WN = { en: win('en'), ja: win('ja') };
+  const pv = (p, lang) => p ? (lang === 'en' ? ` (prev 1h: ${pctTxt(p.chg)})` : `(前回1h: ${pctTxt(p.chg)})`) : '';
+  const T = { en: WN.en.tg.map((g, i) => eh(g[0].ts) + ' — ' + groupLine(g, 'en') + pv(WN.en.prev[i], 'en')), ja: WN.ja.tg.map((g, i) => hm(g[0].ts) + ' — ' + groupLine(g, 'ja') + pv(WN.ja.prev[i], 'ja')) };
+  const W = { en: WN.en.wk.map((g) => `${ed(g[0].ts)} ${eh(g[0].ts)} — ` + groupLine(g, 'en')), ja: WN.ja.wk.map((g) => `${jaDay(g[0].ts)} ${hm(g[0].ts)} — ` + groupLine(g, 'ja')) };
+  // v106: ユーザー指定の形(ブランド行・今日の予定を1件3行・次の予定1件)。英語 = UTC、日本語 = 日本時間
+  const ME3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'], WJ = ['日', '月', '火', '水', '木', '金', '土'];
+  const REG = { US: ['🇺🇸', '米国'], JP: ['🇯🇵', '日本'], EU: ['🇪🇺', 'ユーロ圏'] };
+  const isCB = (g) => g.some((e) => /FOMC|日銀|ECB|政策金利|BoJ|BOJ|Fed\b|総裁|議長/.test((e.s || '') + ' ' + (e.se || '') + ' ' + (e.t || '')));
+  const dEn = (t) => { const d = new Date(utc ? t : t + J9); return `${String(d.getUTCDate()).padStart(2, '0')} ${ME3[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+  const dJa = (t) => { const d = new Date(t + J9); return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日（${WJ[d.getUTCDay()]}）`; };
+  const nextOf = (lang) => { const end = lang === 'en' && utc ? day + J9 + DAY : day + DAY; return groups(events.filter((e) => e.ts >= end && e.ts < end + 14 * DAY))[0] || null; };
   const text = (lang) => {
-    const en = lang === 'en';
-    const head = en ? [`TODAY · ${enDate(day)}`, '', `UPCOMING TODAY (${utc ? 'UTC' : 'JST'})`] : [`今日のイベント ${jaDay(day)}`, '(このあとの予定・日本時間)'];
-    const wTitle = en ? (next ? 'NEXT WEEK' : 'THIS WEEK') : (next ? '来週のイベント' : '今週のイベント');
-    const none = en ? 'No scheduled events' : '予定なし', tag = en ? tags('Macro').en : tags('経済指標').ja;
-    const link = (en ? 'Full calendar & past BTC moves: ' : '予定と過去の値動き: ') + SITE;   // v86: サイトへの誘導(X は URL を23文字と数える)
-    const more = (r) => r > 0 ? (en ? `+${r} more` : `ほか${r}件`) : null;
-    const t = T[lang], w = W[lang];
-    const mk = (tn, wn) => [...head, ...(t.length ? t.slice(0, tn) : [none]), ...(more(t.length - tn) ? [more(t.length - tn)] : []), '', wTitle,
-      ...(w.length ? w.slice(0, wn) : [none]), ...(more(w.length - wn) ? [more(w.length - wn)] : []), '', ...(DAILY_LINK ? [link] : []), tag].join('\n');
-    let tn = t.length, wn = 0;                                              // 今日を優先し、残りに今週を入るだけ
-    while (tn > 0 && xlen(mk(tn, 0)) > 280) tn--;
-    while (wn < w.length && xlen(mk(tn, wn + 1)) <= 280) wn++;
-    return mk(tn, wn);
+    const en = lang === 'en', tg = WN[lang].tg, nx = nextOf(lang);
+    const ev = (g, cat) => {
+      const cb = isCB(g), r = REG[g[0].c] || ['📅', ''];
+      const name = en ? groupLine(g, 'en').toUpperCase() : groupLine(g, 'ja');
+      const c = en ? (cb ? 'MONETARY POLICY' : 'MACRO DATA') : `${r[1]}・${cb ? '金融政策' : '経済指標'}`;
+      return [`🔴 ${en ? eh(g[0].ts) : hm(g[0].ts)}`, `🟡 ${cb ? '🏦' : r[0]} ${name}`, ...(cat ? ['   ' + c] : [])];
+    };
+    const tag = en ? '#Macro #Bitcoin #Crypto' : '#経済指標 #ビットコイン #仮想通貨';
+    const mk = (tn, o) => {
+      const rule = '━'.repeat(o.rule), rest = tg.length - tn;
+      const body = tg.length ? tg.slice(0, tn).flatMap((g, i) => [...(i ? [''] : []), ...ev(g, o.cat)]) : [en ? 'No scheduled events' : '予定なし'];
+      return [...(o.brand ? [en ? '🔹 CRYPTO SIGNAL ARCHIVE' : '🔹 暗号資産シグナル・アーカイブ', ''] : []),
+        en ? `🟢 TODAY · ${dEn(due)} · ${utc ? 'UTC' : 'JST'}` : `🟢 本日 · ${dJa(due)} · 日本時間`, rule, '',
+        ...body, ...(rest > 0 ? ['', en ? `+${rest} more` : `ほか${rest}件`] : []), '', rule,
+        ...(nx ? ['', en ? `🟢 NEXT SIGNAL · ${dEn(nx[0].ts)} · ${eh(nx[0].ts)}` : `🟢 次の予定 · ${dJa(nx[0].ts)} · ${hm(nx[0].ts)}`, `🟡 ${isCB(nx) ? '🏦' : (REG[nx[0].c] || ['📅'])[0]} ${en ? groupLine(nx, 'en').toUpperCase() : groupLine(nx, 'ja')}`] : []),
+        '', tag].join('\n');
+    };
+    const OPT = [{ brand: 1, cat: 1, rule: 18 }, { brand: 1, cat: 1, rule: 10 }, { cat: 1, rule: 10 }, { rule: 10 }];
+    for (let tn = tg.length; tn >= 0; tn--) for (const o of OPT) { const t = mk(tn, o); if (xlen(t) <= 280) return t; }
+    return mk(0, OPT[OPT.length - 1]);
   };
   const en = text('en'), ja = text('ja');
+  const lists = (w) => ({ today: w.tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: w.prev[i] ? w.prev[i].chg : null })), week: w.wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) });
   return { id: 'daily:' + isoDay(day), sr: 'daily', due, en, ja, h: hashStr(en + ja),
-    img: { day, next, ...(utc ? { utc: 1 } : {}), today: tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: prev[i] ? prev[i].chg : null })), week: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) } };
+    img: { day, next: WN.ja.next, ...lists(WN.ja), ...(utc ? { utc: 1, enl: { next: WN.en.next, ...lists(WN.en) } } : {}) } };   // enl = 英語の画像用(UTC の区切り)
 }
 const drop = [];                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
 for (let i = 0; i <= AHEAD; i++) {
