@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /posts.html
+Disallow: /render.html
+Disallow: /backfill.html
+Disallow: /classic-legacy.html
+
+Sitemap: https://crypto-schedule.signalarchive.workers.dev/sitemap.xml
