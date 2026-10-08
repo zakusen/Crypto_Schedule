@@ -216,7 +216,38 @@ function drawDaily(g, im, lg) {
   });
   if (im.week.length > WN) txt(g, en ? `+${im.week.length - WN} more` : `ほか${im.week.length - WN}件`, rx, 254 + WN * 44, { size: 16, col: C.mut });
 }
+// v91: 発表後の値動き(4銘柄 × +5分/+15分/+1時間)。バーは ±2% で端まで(超える分は端で止める)
+function drawArch2(g, im, lg) {
+  const en = lg === 'en', T = ['#5b8def', '#a77bdb', '#d9b45a', '#e08a4f'];   // 発表・5分・15分・1時間の色
+  frame(g, 'POST-RELEASE RECORD', en ? 'Binance spot · base = 5m open at release · +5m/+15m/+1h = 5m close · bar = ±2%' : 'Binance現物 / 基準 = 発表時刻の5分足の始値 / 各時点 = 5分足の終値 / バーの端 = ±2%');
+  txt(g, (im.icon ? im.icon + ' ' : '') + im[lg], 56, 146, { size: 40, w: 600, col: C.tx, max: 1088 });
+  txt(g, en ? `${dateEn(im.t)} · ${hm(im.t, 'en')} JST` : `${dateJa(im.t)} ${hm(im.t, 'ja')}(日本時間)`, 56, 188, { size: 20, fam: MONO, col: C.mut });
+  // 時間の流れ
+  const steps = [[en ? 'RELEASE' : '発表', 0], ['+5M', 1], ['+15M', 2], ['+1H', 3]], tx0 = 300, tw = 260;
+  const ly = 262, rx0 = 196;   // 時間の線(発表 → +5M → +15M → +1H)。点の下の列が各時点の値
+  g.strokeStyle = C.line; g.lineWidth = 2; g.beginPath(); g.moveTo(rx0, ly); g.lineTo(tx0 + tw * 2 + 120, ly); g.stroke();
+  steps.forEach(([l, i]) => { const x = i ? tx0 + tw * (i - 1) + 120 : rx0; g.fillStyle = T[i]; g.beginPath(); g.arc(x, ly, 7, 0, 7); g.fill(); txt(g, l, x, ly - 16, { size: 15, w: 600, fam: MONO, col: T[i], align: 'center' }); });
+  // 表
+  const COIN = [['BTC', '₿'], ['ETH', '◆'], ['SOL', '◎'], ['BNB', '◇']].filter(([c]) => im.coins && im.coins[c]);
+  const cols = [['c5', 1], ['c15', 2], ['c60', 3]];
+  COIN.forEach(([c, sym], r) => {
+    const y = 336 + r * 66, o = im.coins[c];
+    g.fillStyle = 'rgba(255,255,255,0.025)'; if (r % 2 === 0) g.fillRect(56, y - 34, 1088, 60);
+    txt(g, sym + ' ' + c, 72, y + 4, { size: 26, w: 600, fam: MONO, col: C.gold });
+    cols.forEach(([k, i], j) => {
+      const v = o[k], cx = tx0 + tw * j + 120;
+      if (v == null) { txt(g, '—', cx, y + 2, { size: 26, fam: MONO, col: C.mut, align: 'center' }); return; }
+      const col = v > 0 ? C.up : v < 0 ? C.dn : C.tx;
+      txt(g, (v > 0 ? '▲ +' : v < 0 ? '▼ −' : '± ') + Math.abs(v).toFixed(2) + '%', cx, y + 2, { size: 26, w: 600, fam: MONO, col, align: 'center' });
+      const bw = 100, f = Math.max(-1, Math.min(1, v / 2));
+      g.fillStyle = C.line; g.fillRect(cx - bw, y + 14, bw * 2, 4);
+      g.fillStyle = col; g.fillRect(f >= 0 ? cx : cx + f * bw, y + 14, Math.abs(f) * bw, 4);
+      g.fillStyle = C.mut; g.fillRect(cx - 1, y + 10, 2, 12);
+    });
+  });
+}
 function drawEvent(g, im, lg, otd) {
+  if (im && im.v === 2) return drawArch2(g, im, lg);
   const en = lg === 'en', up = im.chg >= 0, col = im.chg > 0 ? C.up : im.chg < 0 ? C.dn : C.tx;
   frame(g, otd ? 'ON THIS DATE' : 'ARCHIVED', en ? 'BTCUSDT · Binance spot · before = 5m open at release · after = 5m close at +1h' : 'BTCUSDT・Binance現物 / 前 = 発表時刻の5分足の始値 / 後 = 1時間後の5分足の終値');
   if (otd) {
@@ -483,10 +514,10 @@ async function tick() {
     if (it.sr !== 'arch' || it.post || busy.has(it.id) || it.due > now || now - it.due > 48 * L.H) continue;
     busy.add(it.id);
     try {
-      const bars = await klines('BTCUSDT', '5m', Math.floor(it.g[0].ts / L.M5) * L.M5 - 12 * L.M5, 25);
-      const ba = bars && L.beforeAfter(bars, it.g[0].ts);
-      if (ba) {
-        const post = { at: now, ...L.archPost(it.g, ba, SITE) };
+      const mv = {};   // v91: 4銘柄の1時間後(BTCは必須)
+      await Promise.all(L.COINS.map(async ([c, sym]) => { const bars = await klines(sym, '5m', L.barsStart(it.g[0].ts), 25); mv[c] = bars && L.moves(bars, it.g[0].ts); }));
+      if (mv.BTC) {
+        const post = { at: now, ...L.archPost(it.g, mv, SITE) };
         await api({ add: [post] });
         POSTS.push({ ...post, done: { en: 0, ja: 0 } }); build(); render();
       }

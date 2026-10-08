@@ -4,7 +4,7 @@
 //   今日・今週の予定(daily)  : 今日から30日先まで、1日1本ずつ先に作る(まとめて X で予約できるように)。投稿 = その日 9:30。
 //                              中身 = その日 9:30 以降の指標(前回の発表から1時間のBTC変動つき)+ 翌日〜日曜の予定(日曜は来週)。
 //                              その日(9:30以降)にも翌日〜日曜にも予定が無い日は作らない(v85)。予定が変わったら作り直す。予約済みの印が付いたものは中身を置き換えず、新しい中身を upd に添える(画面が警告を出す)。
-//   発表後の値動き(arch)     : 主要指標の発表65分後。ふだんは /posts.html がその時刻にブラウザで作る。ここは予備(タブを閉じていた時用)。
+//   発表後の値動き(arch)     : 主要指標の発表65分後。BTC・ETH・SOL・BNB の1時間後の変化(v91)。ふだんは /posts.html がその時刻にブラウザで作る。ここは予備(タブを閉じていた時用)。
 //   先週のまとめ(week)       : 月曜 7時以降に1本。投稿 = 月曜 10:00。BTC の週の始値 → 終値。
 // 文面の作り方は public/xpost-lib.js(画面と共通)。
 // 必要: RX_ADMIN_KEY。任意: NTFY_TOPIC(新しい下書きができたらスマホに通知)。
@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
 const { H, DAY, DAILY_AT, ARCH_WAIT, WEEK_AT, J, xlen, enDay, enDate, hm, jaDay, pct, pctTxt, usd, dayStart, weekStart, isoDay, hashStr,
-  pickEvents, groups, MAJOR, archId, groupLine, tags, siteLine, beforeAfter, klinesUrl, archPost } = L;
+  pickEvents, groups, MAJOR, archId, groupLine, tags, siteLine, moves, COINS, barsStart, klinesUrl, archPost } = L;
 
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
 const KEY = process.env.RX_ADMIN_KEY || '';
@@ -111,10 +111,10 @@ for (let i = 0; i <= AHEAD; i++) {
 // ---- 2) 発表後の値動き(予備) ----
 for (const g of groups(events.filter((e) => MAJOR(e) && NOW - e.ts >= ARCH_WAIT && NOW - e.ts < ARCH_MAX))) {
   if (byId.has(archId(g))) continue;
-  const bars = await klines('BTCUSDT', '5m', Math.floor(g[0].ts / 3e5) * 3e5 - 12 * 3e5, 25);
-  const ba = bars && beforeAfter(bars, g[0].ts);
-  if (!ba) { console.log('[x] 価格が取れないので次回:', archId(g)); continue; }
-  put(archPost(g, ba, SITE));
+  const mv = {};                                                             // v91: BTC・ETH・SOL・BNB の1時間後(BTCは必須)
+  for (const [c, sym] of COINS) { const bars = await klines(sym, '5m', barsStart(g[0].ts), 25); mv[c] = bars && moves(bars, g[0].ts); }
+  if (!mv.BTC) { console.log('[x] 価格が取れないので次回:', archId(g)); continue; }
+  put(archPost(g, mv, SITE));
 }
 
 // ---- 3) 先週のまとめ(月曜 7時以降) ----

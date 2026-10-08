@@ -9,7 +9,8 @@ export const REGION_EN = { US: 'US', JP: 'Japan', EU: 'Euro area' };
 export const DAILY_AT = 9.5 * H, ARCH_WAIT = 65 * 60000, WEEK_AT = 10 * H;
 
 // ---- 文字の数え方(X: 日本語などは2、URLは23。上限280) ----
-export const xlen = (t) => { let n = 0; t = String(t).replace(/https?:\/\/\S+/g, 'x'.repeat(23)); for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
+// 絵文字は1つで2と数える(異体字セレクタは数えない・国旗は2文字で1つ)
+export const xlen = (t) => { let n = 0; t = String(t).replace(/https?:\/\/\S+/g, 'x'.repeat(23)).replace(/[\uFE0F\u200D]/g, '').replace(/[\u{1F1E6}-\u{1F1FF}]{2}/gu, '\u{1F1E6}'); for (const ch of t) { const o = ch.codePointAt(0); n += (o <= 0x10FF || (o >= 0x2000 && o <= 0x200D) || (o >= 0x2010 && o <= 0x201F) || (o >= 0x2032 && o <= 0x2037)) ? 1 : 2; } return n; };
 
 // ---- 日時・数字の書き方(日本時間) ----
 const WJ = ['日', '月', '火', '水', '木', '金', '土'], WE = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], ME = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -68,21 +69,46 @@ export function tags(name) {
 }
 export const siteLine = (site) => ({ en: `ETH / SOL / BNB and 5m–24h moves: ${site}`, ja: `ETH・SOL・BNBや5分〜24時間の値動きはサイトで\n${site}` });
 
-// ---- 発表後の値動き ----
-// 数値の決まり: Binance 現物 BTCUSDT。前 = 発表時刻を含む5分足の始値、後 = 発表から1時間後に閉じる5分足の終値。
-// bars = 発表の1時間前から25本の5分足 [開始, 始, 高, 安, 終]。そろっていなければ null
-export function beforeAfter(bars, ts) {
+// ---- 発表後の値動き(v91: 4銘柄・1時間後) ----
+// 数値の決まり: Binance 現物。基準 = 発表時刻を含む5分足の始値。+5分/+15分/+1時間 = それぞれの時刻に閉じる5分足の終値。変化率は小数2桁。
+export const COINS = [['BTC', 'BTCUSDT', '₿'], ['ETH', 'ETHUSDT', '◆'], ['SOL', 'SOLUSDT', '◎'], ['BNB', 'BNBUSDT', '◇']];
+export const barsStart = (ts) => Math.floor(ts / M5) * M5 - 12 * M5;      // 発表の1時間前から25本
+// bars = 5分足 [開始, 始, 高, 安, 終]。基準と1時間後がそろっていなければ null
+export function moves(bars, ts) {
   const t0 = Math.floor(ts / M5) * M5, m = new Map(bars.map((b) => [+b[0], b.map(Number)]));
   const f = m.get(t0), l = m.get(t0 + 11 * M5);
   if (!f || !l) return null;
-  const before = f[1], after = l[4];
+  const before = f[1], at = (i) => { const b = m.get(t0 + i * M5); return b ? pct(before, b[4]) : null; };
   const spark = []; for (let i = -12; i <= 12; i++) { const b = m.get(t0 + i * M5); spark.push(b ? b[4] : null); }
-  return { before, after, chg: pct(before, after), spark, t0 };
+  return { before, after: l[4], chg: pct(before, l[4]), c5: at(0), c15: at(2), c60: at(11), spark, t0 };
 }
+export const beforeAfter = moves;   // 古い呼び名
 export const klinesUrl = (base, sym, interval, startTime, limit) => `${base}/api/v3/klines?symbol=${sym}&interval=${interval}&startTime=${startTime}&limit=${limit}`;
-export function archPost(g, ba, site) {
-  const ts = g[0].ts, nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), tg = tags(nE + ' ' + nJ), sl = siteLine(site);
-  const en = ['ARCHIVED', '', nE, `${enDate(ts)} · ${hm(ts)} JST`, '', 'BEFORE', `BTC: ${usd(ba.before)}`, '', 'AFTER (+1h)', `BTC: ${usd(ba.after)}`, '', 'CHANGE', pctTxt(ba.chg), '', sl.en, tg.en].join('\n');
-  const ja = ['アーカイブ', '', nJ, `${jaDate(ts)} ${hm(ts)}(日本時間)`, '', 'イベント前', `BTC: ${usd(ba.before)}`, '', 'イベント後(1時間後)', `BTC: ${usd(ba.after)}`, '', '変動', pctTxt(ba.chg), '', sl.ja, tg.ja].join('\n');
-  return { id: archId(g), sr: 'arch', due: ts + ARCH_WAIT, en, ja, h: hashStr(en + ja), img: { t: ts, en: nE, ja: nJ, ...ba } };
+// 指標の種類ごとの印と短い名前
+function kindOf(g) {
+  const s = g.map((e) => (e.s || '') + ' ' + (e.te || '')).join(' ');
+  const cb = /FOMC|日銀|ECB|BoJ|Fed\b/.test(s);
+  const short = /FOMC/.test(s) ? ['FOMC', 'FOMC'] : /日銀|BoJ/.test(s) ? ['BOJ', '日銀'] : /ECB/.test(s) ? ['ECB', 'ECB'] : /PCE/.test(s) ? ['PCE', 'PCE'] : /CPI/.test(s) ? ['CPI', 'CPI'] : /雇用統計|Payroll|Non Farm/i.test(s) ? ['NFP', '雇用統計'] : ['', ''];
+  return { icon: cb ? '🏛️' : g[0].c === 'US' ? '🇺🇸' : g[0].c === 'JP' ? '🇯🇵' : g[0].c === 'EU' ? '🇪🇺' : '📅', short };
+}
+const arrow = (v) => v > 0 ? '🟢 ▲ +' + v.toFixed(2) + '%' : v < 0 ? '🔴 ▼ −' + Math.abs(v).toFixed(2) + '%' : '⚪ ± 0.00%';
+// mv = {BTC: moves|null, ETH: …}。BTC は必須
+export function archPost(g, mv, site) {
+  if (mv && mv.before != null) mv = { BTC: mv };                       // 古い呼び方(BTCだけ)
+  const ts = g[0].ts, nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), k = kindOf(g), tg = tags(nE + ' ' + nJ);
+  const tagE = tg.en.split(' ').slice(0, 1).concat('#Bitcoin').join(' '), tagJ = tg.ja.split(' ').slice(0, 1).concat('#ビットコイン').join(' ');
+  const rows = COINS.filter(([c]) => mv[c]).map(([c, , sym]) => `${sym} ${c}  ${arrow(mv[c].c60)}`);
+  const build = (lang, opt) => {
+    const en = lang === 'en';
+    const L = [`${k.icon} ${en ? nE : nJ}`, '━━━━━━━━━━━━━━', en ? '📊 +1H RECORD (vs release)' : '📊 発表1時間後の記録(発表時点比)', '', ...rows];
+    if (opt.marks) L.push('', en ? '⏱️ +5M ✓  ⏱️ +15M ✓  ⏱️ +1H ✓' : '⏱️ +5分 ✓  ⏱️ +15分 ✓  ⏱️ +1時間 ✓');
+    L.push('', en ? `🗂️ Historical ${k.short[0] ? k.short[0] + ' ' : ''}records` : `🗂️ 過去の${k.short[1] || 'この指標'}の記録`, site);
+    if (opt.tags) L.push(en ? (opt.tags > 1 ? tagE : '#Bitcoin') : (opt.tags > 1 ? tagJ : '#ビットコイン'));
+    return L.join('\n');
+  };
+  const fitText = (lang) => { for (const o of [{ marks: 1, tags: 2 }, { marks: 1, tags: 1 }, { marks: 0, tags: 2 }, { marks: 0, tags: 1 }, { marks: 0, tags: 0 }]) { const t = build(lang, o); if (xlen(t.replace(/️/g, '')) <= 280) return t; } return build(lang, { marks: 0, tags: 0 }); };
+  const en = fitText('en'), ja = fitText('ja');
+  const coins = {}; for (const [c] of COINS) if (mv[c]) coins[c] = { c5: mv[c].c5, c15: mv[c].c15, c60: mv[c].c60, before: mv[c].before, after: mv[c].after };
+  const b = mv.BTC;
+  return { id: archId(g), sr: 'arch', due: ts + ARCH_WAIT, en, ja, h: hashStr(en + ja), img: { v: 2, t: ts, en: nE, ja: nJ, icon: k.icon, coins, spark: b.spark, before: b.before, after: b.after, chg: b.chg, t0: b.t0 } };
 }
