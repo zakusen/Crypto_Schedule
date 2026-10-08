@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
+const { uDay, uhm, AUTO_DAILY_FROM } = L;   // v103: 英語は UTC(毎朝の予定は自動投稿になる日から。手で予約済みの分は作り直さない)
 const { H, DAY, DAILY_AT, ARCH_WAIT, WEEK_AT, J, xlen, enDay, enDate, hm, jaDay, pct, pctTxt, usd, dayStart, weekStart, isoDay, hashStr,
   pickEvents, groups, MAJOR, archId, groupLine, tags, siteLine, moves, COINS, barsStart, klinesUrl, archPost, kindOf, weekPost, dueList } = L;
 
@@ -61,6 +62,14 @@ const SITE_RE = /\n(Full calendar & past BTC moves|予定と過去の値動き):
 const sameButLink = (o, p) => o && o.done && (o.done.en || o.done.ja) && o.en.replace(SITE_RE, '') + o.ja.replace(SITE_RE, '') === p.en.replace(SITE_RE, '') + p.ja.replace(SITE_RE, '');
 const put = (p) => { const o = byId.get(p.id); if (o && (o.h === p.h || (o.upd && o.upd.h === p.h) || sameButLink(o, p))) return; out.push({ at: NOW, ...p }); };
 const today = dayStart(NOW);
+// v104: 自動投稿になった日の「毎朝の予定」は、手で予約した時の「予約済み」の印を外して作り直す(X の予約は手で消してもらう)。
+//   投稿時刻がまだ先のものだけ(X API で出したものは投稿時刻を過ぎているので触らない)
+for (const o of byId.values()) {
+  if (o.sr !== 'daily' || !L.isAuto(o) || !(o.due > NOW) || !(o.done && (o.done.en || o.done.ja))) continue;
+  for (const lang of ['en', 'ja']) if (o.done[lang]) await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: o.id, lang, v: false } }) });
+  o.done = { en: 0, ja: 0 }; delete o.upd; o.h = '';                         // 下で必ず作り直す
+  console.log('[x] 自動投稿に切り替え: 予約済みの印を外しました', o.id);
+}
 
 // ---- 1) 今日・今週の予定(30日先まで) ----
 const dump = await (await site('/api/admin/rx-get')).json();
@@ -75,17 +84,18 @@ const prevOf = (g) => {                                                     // �
   return best;
 };
 function dailyPost(day) {
+  const utc = isoDay(day) >= AUTO_DAILY_FROM, eh = utc ? uhm : hm, ed = utc ? uDay : enDay;   // v103
   const due = day + DAILY_AT;
   const tg = between(due, day + DAY);                                       // 投稿(9:30)より後の予定だけ
   let wa = day + DAY, wb = weekStart(day) + 7 * DAY, next = false;
   if (wb - wa <= 0) { wb = wa + 7 * DAY; next = true; }                     // 日曜は来週を出す
   const wk = between(wa, wb), prev = tg.map(prevOf);
   const pv = (i, lang) => prev[i] ? (lang === 'en' ? ` (prev 1h: ${pctTxt(prev[i].chg)})` : `(前回1h: ${pctTxt(prev[i].chg)})`) : '';
-  const T = { en: tg.map((g, i) => hm(g[0].ts) + ' — ' + groupLine(g, 'en') + pv(i, 'en')), ja: tg.map((g, i) => hm(g[0].ts) + ' — ' + groupLine(g, 'ja') + pv(i, 'ja')) };
-  const W = { en: wk.map((g) => `${enDay(g[0].ts)} ${hm(g[0].ts)} — ` + groupLine(g, 'en')), ja: wk.map((g) => `${jaDay(g[0].ts)} ${hm(g[0].ts)} — ` + groupLine(g, 'ja')) };
+  const T = { en: tg.map((g, i) => eh(g[0].ts) + ' — ' + groupLine(g, 'en') + pv(i, 'en')), ja: tg.map((g, i) => hm(g[0].ts) + ' — ' + groupLine(g, 'ja') + pv(i, 'ja')) };
+  const W = { en: wk.map((g) => `${ed(g[0].ts)} ${eh(g[0].ts)} — ` + groupLine(g, 'en')), ja: wk.map((g) => `${jaDay(g[0].ts)} ${hm(g[0].ts)} — ` + groupLine(g, 'ja')) };
   const text = (lang) => {
     const en = lang === 'en';
-    const head = en ? [`TODAY · ${enDate(day)}`, '', 'UPCOMING TODAY (JST)'] : [`今日のイベント ${jaDay(day)}`, '(このあとの予定・日本時間)'];
+    const head = en ? [`TODAY · ${enDate(day)}`, '', `UPCOMING TODAY (${utc ? 'UTC' : 'JST'})`] : [`今日のイベント ${jaDay(day)}`, '(このあとの予定・日本時間)'];
     const wTitle = en ? (next ? 'NEXT WEEK' : 'THIS WEEK') : (next ? '来週のイベント' : '今週のイベント');
     const none = en ? 'No scheduled events' : '予定なし', tag = en ? tags('Macro').en : tags('経済指標').ja;
     const link = (en ? 'Full calendar & past BTC moves: ' : '予定と過去の値動き: ') + SITE;   // v86: サイトへの誘導(X は URL を23文字と数える)
@@ -100,7 +110,7 @@ function dailyPost(day) {
   };
   const en = text('en'), ja = text('ja');
   return { id: 'daily:' + isoDay(day), sr: 'daily', due, en, ja, h: hashStr(en + ja),
-    img: { day, next, today: tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: prev[i] ? prev[i].chg : null })), week: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) } };
+    img: { day, next, ...(utc ? { utc: 1 } : {}), today: tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: prev[i] ? prev[i].chg : null })), week: wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) } };
 }
 const drop = [];                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
 for (let i = 0; i <= AHEAD; i++) {
