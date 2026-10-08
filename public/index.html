@@ -1967,6 +1967,9 @@ html.lang-switching [data-csa-i18n]{
 @keyframes cskSpinR{to{transform:rotate(-360deg)}}
 @keyframes cskPulse{0%,100%{opacity:.7}50%{opacity:1}}
 @keyframes cskGlint{0%,68%{opacity:0}76%{opacity:.6}88%,100%{opacity:0}}
+/* v120: PC版のタイトルロゴを大きく */
+.archive-core{width:64px!important;height:64px!important}
+@media(max-width:820px){.archive-core{width:52px!important;height:52px!important}}
 .csa-crystal-logo:after{display:none!important}
 .csa-crystal-logo svg.csk-logo{animation:none!important}
 @media(prefers-reduced-motion:reduce){.csk-logo *,.csk-wal *{animation:none!important}}
