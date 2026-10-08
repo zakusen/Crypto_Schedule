@@ -211,8 +211,8 @@ try {
     if (c) { corr = c; await site('/api/admin/rx-put?name=cr', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(c) }); console.log('[x] S&P500 相関を更新:', JSON.stringify(c.w)); }
   }
   for (const ev of pend) {
-    const B = {}; for (const s of SYM5) B[s] = await pac(s, '5m', ev.t - 7 * H, Math.min(NOW, ev.t + 15 * 60000));   // v109: 画像に直近6時間を描く
-    const mv = L.spikeMoves(B, ev.t, NOW);
+    const B = {}; for (const s of SYM5) B[s] = await pac(s, '5m', ev.t - ((ev.win || 1) > 6 ? 49 : (ev.win || 1) > 1 ? 13 : 7) * H, Math.min(NOW, ev.t + 15 * 60000));   // v109: 画像に直近6時間を描く
+    const mv = L.spikeMoves(B, ev.t, NOW, ev.win || 1);
     if (!mv) { console.log('[x] 急変動: Pacifica の5分足では BTC が ±3% に届かないので出しません', ev.id, JSON.stringify(ev.hit)); continue; }
     // v98: URL を付けるのは直近30日で SPIKE_LINK_MAX 回まで(URL付きは1本 $0.20)
     const linked = [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.img && p.img.link && NOW - (p.due || 0) < 30 * DAY).length;

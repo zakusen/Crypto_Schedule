@@ -410,323 +410,190 @@ body{
 .csa-hero134 .csa-crown134 polygon:nth-child(2),.csa-hero134 .csa-crown134 polygon:nth-child(5){filter:drop-shadow(0 0 1.5px rgba(205,242,255,.32));}
 @media(max-width:820px){.archive-core,.csa-crystal-logo{filter:drop-shadow(0 0 3px rgba(224,248,255,.32)) drop-shadow(0 0 10px rgba(65,178,255,.32)) drop-shadow(0 0 22px rgba(23,111,205,.18)) !important;}}
 </style>
+<style id="v136-deep-faceted-crystal">
+/* V136 — Deep faceted physical crystal. Shape and optical depth are intentionally bold. */
+.csa-crystal-v136{overflow:visible;filter:drop-shadow(0 0 5px rgba(211,247,255,.38)) drop-shadow(0 0 17px rgba(47,169,255,.34)) drop-shadow(0 0 34px rgba(17,89,180,.22));}
+.csa-gem136{transform-origin:60px 56px;animation:csaGemFloat136 8.5s ease-in-out infinite;}
+.csa-rear136{transform-origin:60px 60px;animation:csaRearFloat136 11s ease-in-out infinite;}
+.csa-inner136{transform-origin:60px 56px;animation:csaInnerBreath136 4.7s ease-in-out infinite;}
+.csa-core-bloom-strong{transform-origin:60px 56px;animation:csaCore136 2.25s cubic-bezier(.35,0,.2,1) infinite;}
+.csa-core-flare{transform-origin:60px 56px;animation:csaFlare136 2.25s ease-in-out infinite;}
+.csa-core-beams{transform-origin:60px 56px;animation:csaBeam136 3.1s ease-in-out infinite;}
+.csa-core-flash{transform-origin:60px 56px;animation:csaFlash136 2.25s ease-in-out infinite;}
+.csa-specular136{transform-origin:60px 56px;animation:csaSpec136 6.8s ease-in-out infinite;}
+.csa-specular136.s2{animation-delay:-2.1s}.csa-specular136.s3{animation-delay:-3.5s}.csa-specular136.s4{animation-delay:-5.1s}
+.csa-glint136 path:first-child{animation:csaGlint136a 6.4s ease-in-out infinite}.csa-glint136 path:last-child{animation:csaGlint136b 7.3s ease-in-out infinite 1.8s}
+.csa-atmosphere136{animation:csaAtmos136 10s ease-in-out infinite;transform-origin:60px 60px}
+.csa-orbit-markers136{animation:csaMarker136 9s linear infinite;transform-origin:60px 60px}
+@keyframes csaGemFloat136{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-.7px) rotate(.55deg)}}
+@keyframes csaRearFloat136{0%,100%{transform:translate(0,0)}50%{transform:translate(-.7px,.45px)}}
+@keyframes csaInnerBreath136{0%,100%{transform:scale(.985);opacity:.82}50%{transform:scale(1.025);opacity:1}}
+@keyframes csaCore136{0%,100%{opacity:.38;transform:scale(.82)}45%{opacity:.88;transform:scale(1.18)}58%{opacity:.56;transform:scale(1.02)}}
+@keyframes csaFlare136{0%,100%{opacity:.35;transform:scale(.76)}44%{opacity:.92;transform:scale(1.28)}58%{opacity:.52;transform:scale(1)}}
+@keyframes csaBeam136{0%,100%{opacity:.35;transform:scale(.94)}50%{opacity:1;transform:scale(1.08)}}
+@keyframes csaFlash136{0%,100%{opacity:.55;transform:scale(.72)}45%{opacity:1;transform:scale(1.55)}57%{opacity:.76;transform:scale(1)}}
+@keyframes csaSpec136{0%,72%,100%{opacity:.15}78%{opacity:.75}84%{opacity:.22}}
+@keyframes csaGlint136a{0%,58%{opacity:0;transform:translate(-5px,4px)}68%{opacity:.55}76%{opacity:0;transform:translate(10px,-8px)}}
+@keyframes csaGlint136b{0%,62%{opacity:0;transform:translate(5px,-4px)}72%{opacity:.48}80%{opacity:0;transform:translate(-10px,8px)}}
+@keyframes csaAtmos136{0%,100%{opacity:.72;transform:scale(.99)}50%{opacity:1;transform:scale(1.015)}}
+@keyframes csaMarker136{to{transform:rotate(360deg)}}
+@media(max-width:820px){.csa-crystal-v136{filter:drop-shadow(0 0 4px rgba(211,247,255,.34)) drop-shadow(0 0 13px rgba(47,169,255,.30)) drop-shadow(0 0 24px rgba(17,89,180,.18))}.csa-gem136{animation-duration:9s}}
+@media(prefers-reduced-motion:reduce){.csa-crystal-v136 *{animation:none!important}.csa-gem136,.csa-rear136,.csa-inner136{animation:none!important}}
+</style>
+
+<style id="v140-four-layer-crystal">
+/* V140 — four-layer optical crystal: stronger electric blue, deeper glass facets, real spatial layering. */
+.csa-crystal-v139{overflow:visible;filter:drop-shadow(0 0 5px rgba(35,178,255,.62)) drop-shadow(0 0 16px rgba(0,126,255,.38)) drop-shadow(0 0 34px rgba(0,82,220,.22));}
+.csa-crystal-v139 .csa-orbit139{transform-box:view-box;transform-origin:60px 60px;animation:orbit140 30s linear infinite}
+.csa-crystal-v139 .orbitDots139{transform-box:view-box;transform-origin:60px 60px;animation:orbitDots140 11s linear infinite}
+.csa-crystal-v139 .squareFrame139{transform-box:view-box;transform-origin:60px 60px;animation:frame140 10s ease-in-out infinite}
+.csa-crystal-v139 .frameSweep139{animation:sweep140 5.2s ease-in-out infinite}
+.csa-crystal-v139 .outerGem139{transform-box:view-box;transform-origin:60px 60px;animation:gemBreath140 5.8s ease-in-out infinite}
+.csa-crystal-v139 .mirror139{animation:mirror140 6.2s ease-in-out infinite}
+.csa-crystal-v139 .mirrorR{animation-delay:-3.1s}
+.csa-crystal-v139 .whiteCore139{transform-box:view-box;transform-origin:60px 60px;animation:corePulse140 2.7s ease-in-out infinite}
+.csa-crystal-v139 .coreBeams139{animation:beamPulse140 2.45s ease-in-out infinite}
+.csa-crystal-v139 .anchorCrystals139{animation:anchorPulse140 2.2s ease-in-out infinite}
+.csa-crystal-v139 .crystalFlash140{animation:crystalFlash140 4.8s ease-in-out infinite}
+@keyframes orbit140{to{transform:rotate(360deg)}}
+@keyframes orbitDots140{to{transform:rotate(-360deg)}}
+@keyframes frame140{0%,100%{opacity:.72;transform:scale(.992)}50%{opacity:1;transform:scale(1.008)}}
+@keyframes sweep140{0%,100%{opacity:0;transform:translateX(-14px)}38%{opacity:1}64%{opacity:.25;transform:translateX(20px)}78%{opacity:0;transform:translateX(45px)}}
+@keyframes gemBreath140{0%,100%{transform:scale(.988)}50%{transform:scale(1.014)}}
+@keyframes mirror140{0%,100%{opacity:.10;transform:translateX(-5px) skewX(-1deg)}42%{opacity:.62;transform:translateX(1px) skewX(0)}70%{opacity:.12;transform:translateX(6px) skewX(1deg)}}
+@keyframes corePulse140{0%,100%{transform:scale(.94);opacity:.78}42%{transform:scale(1.06);opacity:1}55%{transform:scale(1.0);opacity:.9}}
+@keyframes beamPulse140{0%,100%{opacity:.60}42%{opacity:1}60%{opacity:.78}}
+@keyframes anchorPulse140{0%,100%{opacity:.42}50%{opacity:1}}
+@keyframes crystalFlash140{0%,58%{opacity:0;transform:translateX(-22px)}68%{opacity:.18}75%{opacity:.72;transform:translateX(0)}83%{opacity:0;transform:translateX(24px)}100%{opacity:0}}
+@media(max-width:820px){.csa-crystal-v139{filter:drop-shadow(0 0 4px rgba(35,178,255,.54)) drop-shadow(0 0 13px rgba(0,126,255,.30))}.csa-crystal-v139 .csa-orbit139{animation-duration:34s}.csa-crystal-v139 .outerGem139{animation-duration:6.4s}}
+@media(prefers-reduced-motion:reduce){.csa-crystal-v139 *{animation:none!important}}
+</style>
+
+
+<style id="v142-crystal-final">
+/* V142 FINAL — slow, restrained crystal motion + stronger optical facets */
+.csa-crystal-v139{filter:drop-shadow(0 0 4px rgba(221,249,255,.46)) drop-shadow(0 0 14px rgba(34,170,255,.50)) drop-shadow(0 0 34px rgba(0,102,230,.28)) !important;}
+.csa-crystal-v139 .outerGem139{animation:csaGemSlow142 17s cubic-bezier(.45,0,.2,1) infinite;}
+.csa-crystal-v139 .coreGem139{animation:csaCoreTilt142 17s cubic-bezier(.45,0,.2,1) infinite;transform-box:view-box;transform-origin:60px 60px;}
+.csa-crystal-v139 .whiteCore139{animation:corePulse142 5.8s ease-in-out infinite;}
+.csa-crystal-v139 .coreBeams139{animation:beamPulse142 6.2s ease-in-out infinite;}
+.csa-crystal-v139 .mirror139{animation:mirror142 9.5s ease-in-out infinite;}
+.csa-crystal-v139 .mirrorR{animation-delay:-4.7s;}
+.csa-crystal-v139 .anchorCrystals139{animation:anchorPulse142 5.5s ease-in-out infinite;}
+.csa-crystal-v139 .squareFrame139{animation:frame142 12s ease-in-out infinite;}
+.csa-crystal-v139 .csa-orbit139{animation:orbit142 54s linear infinite;}
+.csa-crystal-v139 .orbitDots139{animation:orbitDots142 19s linear infinite;}
+@keyframes csaGemSlow142{0%,100%{transform:rotate(-1.2deg) scale(.996)}50%{transform:rotate(1.2deg) scale(1.004)}}
+@keyframes csaCoreTilt142{0%,100%{transform:rotate(-.7deg)}50%{transform:rotate(.7deg)}}
+@keyframes corePulse142{0%,100%{transform:scale(.94);opacity:.72}48%{transform:scale(1.055);opacity:1}62%{transform:scale(1);opacity:.86}}
+@keyframes beamPulse142{0%,100%{opacity:.48}48%{opacity:.98}64%{opacity:.66}}
+@keyframes mirror142{0%,100%{opacity:.08;transform:translateX(-7px)}46%{opacity:.72;transform:translateX(0)}64%{opacity:.12;transform:translateX(8px)}}
+@keyframes anchorPulse142{0%,100%{opacity:.34}50%{opacity:.9}}
+@keyframes frame142{0%,100%{opacity:.64}50%{opacity:.94}}
+@keyframes orbit142{to{transform:rotate(360deg)}}
+@keyframes orbitDots142{to{transform:rotate(-360deg)}}
+/* More crystalline, less neon: keep faces dark, let only edges and reflections carry blue. */
+.csa-crystal-v139 .outerGem139 > path:first-child{fill:#01040a !important;stroke:#168fd8 !important;stroke-opacity:.72 !important;}
+.csa-crystal-v139 .outerGem139 polygon{shape-rendering:geometricPrecision;}
+.csa-crystal-v139 .outerGem139 .mirror139{filter:drop-shadow(0 0 2px rgba(117,211,255,.45));}
+.csa-crystal-v139 .whiteCore139 circle:first-child{filter:url(#v140-wide);}
+@media(max-width:820px){.csa-crystal-v139{filter:drop-shadow(0 0 3px rgba(221,249,255,.42)) drop-shadow(0 0 11px rgba(34,170,255,.44)) drop-shadow(0 0 24px rgba(0,102,230,.22)) !important;}.csa-crystal-v139 .csa-orbit139{animation-duration:62s}.csa-crystal-v139 .orbitDots139{animation-duration:22s}}
+@media(prefers-reduced-motion:reduce){.csa-crystal-v139 .outerGem139,.csa-crystal-v139 .coreGem139,.csa-crystal-v139 .whiteCore139,.csa-crystal-v139 .coreBeams139,.csa-crystal-v139 .mirror139,.csa-crystal-v139 .anchorCrystals139,.csa-crystal-v139 .squareFrame139,.csa-crystal-v139 .csa-orbit139,.csa-crystal-v139 .orbitDots139{animation:none!important}}
+</style>
+
 </head><body>
-<div class="top"><div class="logo csa-crystal-logo" aria-hidden="true"><svg class="csk-logo csk-logo-v122" viewBox="0 0 120 120" role="img" aria-label="Archive Crystal Core">
+<div class="top"><div class="logo csa-crystal-logo" aria-hidden="true"><svg class="csk-logo csk-logo-v122 csa-crystal-v139" viewBox="0 0 120 120" role="img" aria-label="Archive Crystal Core">
 <defs>
- <linearGradient id="v122-edge" x1="18" y1="12" x2="102" y2="108"><stop stop-color="#071522"/><stop offset=".24" stop-color="#0b3155"/><stop offset=".55" stop-color="#168fe8"/><stop offset=".78" stop-color="#36aaff"/><stop offset="1" stop-color="#0b4778"/></linearGradient>
- <linearGradient id="v122-face1" x1="18" y1="18" x2="82" y2="82"><stop stop-color="#05080d"/><stop offset=".58" stop-color="#07111b"/><stop offset="1" stop-color="#0b2840"/></linearGradient>
- <linearGradient id="v122-face2" x1="100" y1="20" x2="22" y2="92"><stop stop-color="#03070c"/><stop offset=".52" stop-color="#06101a"/><stop offset="1" stop-color="#0b3150"/></linearGradient>
- <linearGradient id="v122-face3" x1="60" y1="8" x2="60" y2="112"><stop stop-color="#02060a"/><stop offset=".5" stop-color="#050d15"/><stop offset="1" stop-color="#0a2740"/></linearGradient>
- <radialGradient id="v122-core"><stop stop-color="#ffffff"/><stop offset=".14" stop-color="#d9f5ff" stop-opacity=".98"/><stop offset=".38" stop-color="#35a5ff" stop-opacity=".62"/><stop offset="1" stop-color="#0078ff" stop-opacity="0"/></radialGradient>
- <radialGradient id="v122-halo"><stop stop-color="#0b9cff" stop-opacity=".28"/><stop offset=".48" stop-color="#0879ff" stop-opacity=".10"/><stop offset="1" stop-color="#00152e" stop-opacity="0"/></radialGradient>
- <filter id="v122-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
- <filter id="v122-soft" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="5"/></filter>
-<!-- V133: environmental glass gradients — not black silhouette, but deep optical blue-black glass. -->
-<linearGradient id="v133-face-top" x1="60" y1="18" x2="60" y2="60">
- <stop offset="0" stop-color="#24445c"/><stop offset=".28" stop-color="#11283a"/><stop offset=".68" stop-color="#06111b"/><stop offset="1" stop-color="#01050a"/>
-</linearGradient>
-<linearGradient id="v133-face-left" x1="32" y1="60" x2="60" y2="60">
- <stop offset="0" stop-color="#0d2536"/><stop offset=".34" stop-color="#081824"/><stop offset=".72" stop-color="#02080e"/><stop offset="1" stop-color="#000306"/>
-</linearGradient>
-<linearGradient id="v133-face-right" x1="88" y1="60" x2="60" y2="60">
- <stop offset="0" stop-color="#16344a"/><stop offset=".28" stop-color="#0b1d2b"/><stop offset=".7" stop-color="#02080e"/><stop offset="1" stop-color="#000306"/>
-</linearGradient>
-<linearGradient id="v133-face-bottom" x1="60" y1="60" x2="60" y2="102">
- <stop offset="0" stop-color="#07131e"/><stop offset=".4" stop-color="#030a11"/><stop offset="1" stop-color="#000204"/>
-</linearGradient>
-<radialGradient id="v133-environment" cx="50%" cy="50%" r="65%">
- <stop offset="0" stop-color="#7fcfff" stop-opacity=".13"/><stop offset=".25" stop-color="#2c91d8" stop-opacity=".075"/><stop offset=".58" stop-color="#071827" stop-opacity=".03"/><stop offset="1" stop-color="#000000" stop-opacity="0"/>
-</radialGradient>
-<linearGradient id="v133-edge-white" x1="0" y1="0" x2="1" y2="1">
- <stop offset="0" stop-color="#ffffff" stop-opacity=".75"/><stop offset=".18" stop-color="#dff5ff" stop-opacity=".32"/><stop offset=".5" stop-color="#54baff" stop-opacity=".10"/><stop offset="1" stop-color="#ffffff" stop-opacity=".02"/>
-</linearGradient>
-
-
-<linearGradient id="v130-glass-top" x1="0" y1="0" x2="1" y2="1">
- <stop offset="0" stop-color="#ffffff" stop-opacity=".30"/><stop offset=".18" stop-color="#dff5ff" stop-opacity=".14"/><stop offset=".48" stop-color="#5bbcff" stop-opacity=".05"/><stop offset="1" stop-color="#000000" stop-opacity="0"/>
-</linearGradient>
-<linearGradient id="v130-glass-left" x1="0" y1="0" x2="1" y2="0">
- <stop offset="0" stop-color="#9bdcff" stop-opacity=".20"/><stop offset=".32" stop-color="#4eb5ff" stop-opacity=".07"/><stop offset="1" stop-color="#000000" stop-opacity="0"/>
-</linearGradient>
-<linearGradient id="v130-glass-right" x1="1" y1="0" x2="0" y2="1">
- <stop offset="0" stop-color="#ffffff" stop-opacity=".22"/><stop offset=".22" stop-color="#8ed5ff" stop-opacity=".08"/><stop offset="1" stop-color="#000000" stop-opacity="0"/>
-</linearGradient>
-<linearGradient id="v130-glass-bottom" x1="1" y1="1" x2="0" y2="0">
- <stop offset="0" stop-color="#4aaeff" stop-opacity=".14"/><stop offset=".38" stop-color="#247fc4" stop-opacity=".045"/><stop offset="1" stop-color="#000000" stop-opacity="0"/>
-</linearGradient>
-<linearGradient id="v130-knife" x1="0" y1="0" x2="1" y2="0">
- <stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset=".48" stop-color="#ffffff" stop-opacity=".72"/><stop offset=".56" stop-color="#9bdcff" stop-opacity=".38"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-</linearGradient>
-<linearGradient id="v134-darkleft" x1="20" y1="35" x2="60" y2="70">
- <stop offset="0" stop-color="#102b43"/><stop offset=".38" stop-color="#071725"/><stop offset=".78" stop-color="#02070d"/><stop offset="1" stop-color="#000204"/>
-</linearGradient>
-<linearGradient id="v134-darkright" x1="100" y1="35" x2="60" y2="70">
- <stop offset="0" stop-color="#173b59"/><stop offset=".34" stop-color="#091b2c"/><stop offset=".78" stop-color="#02070d"/><stop offset="1" stop-color="#000204"/>
-</linearGradient>
-<linearGradient id="v134-silverleft" x1="48" y1="22" x2="60" y2="58">
- <stop offset="0" stop-color="#dff7ff" stop-opacity=".52"/><stop offset=".28" stop-color="#78c8ff" stop-opacity=".26"/><stop offset=".72" stop-color="#0d3e65" stop-opacity=".18"/><stop offset="1" stop-color="#000204" stop-opacity=".05"/>
-</linearGradient>
-<linearGradient id="v134-silverright" x1="72" y1="22" x2="60" y2="58">
- <stop offset="0" stop-color="#f3fbff" stop-opacity=".60"/><stop offset=".30" stop-color="#75c7ff" stop-opacity=".28"/><stop offset=".72" stop-color="#0c3b61" stop-opacity=".18"/><stop offset="1" stop-color="#000204" stop-opacity=".05"/>
-</linearGradient>
-<linearGradient id="v134-lowerleft" x1="35" y1="60" x2="60" y2="103">
- <stop offset="0" stop-color="#0c263b"/><stop offset=".30" stop-color="#071725"/><stop offset=".70" stop-color="#02070d"/><stop offset="1" stop-color="#000204"/>
-</linearGradient>
-<linearGradient id="v134-lowerright" x1="85" y1="60" x2="60" y2="103">
- <stop offset="0" stop-color="#10314b"/><stop offset=".30" stop-color="#081a29"/><stop offset=".70" stop-color="#02070d"/><stop offset="1" stop-color="#000204"/>
-</linearGradient>
-<linearGradient id="v134-innerTop" x1="60" y1="31" x2="60" y2="60">
- <stop offset="0" stop-color="#6bbfff" stop-opacity=".26"/><stop offset=".42" stop-color="#0c3554" stop-opacity=".24"/><stop offset="1" stop-color="#000204" stop-opacity=".10"/>
-</linearGradient>
-
- <radialGradient id="v135-atmoGlow" cx="50%" cy="50%" r="52%">
-  <stop offset="0" stop-color="#4db7ff" stop-opacity=".13"/><stop offset=".32" stop-color="#174d79" stop-opacity=".07"/><stop offset=".72" stop-color="#061321" stop-opacity=".018"/><stop offset="1" stop-color="#000000" stop-opacity="0"/>
- </radialGradient>
- <linearGradient id="v135-ringFade" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#79ccff" stop-opacity=".02"/><stop offset=".25" stop-color="#dff8ff" stop-opacity=".26"/><stop offset=".5" stop-color="#329eff" stop-opacity=".10"/><stop offset=".75" stop-color="#dff8ff" stop-opacity=".22"/><stop offset="1" stop-color="#4aaeff" stop-opacity=".02"/></linearGradient>
- <linearGradient id="v135-ringSoft" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#168fe8" stop-opacity=".06"/><stop offset=".5" stop-color="#a8e2ff" stop-opacity=".34"/><stop offset="1" stop-color="#168fe8" stop-opacity=".05"/></linearGradient>
- <linearGradient id="v135-ringSoft2" x1="1" y1="0" x2="0" y2="1"><stop stop-color="#8dd8ff" stop-opacity=".02"/><stop offset=".5" stop-color="#42b4ff" stop-opacity=".28"/><stop offset="1" stop-color="#8dd8ff" stop-opacity=".02"/></linearGradient>
- <linearGradient id="v135-arc" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#3dafff" stop-opacity=".04"/><stop offset=".5" stop-color="#dff7ff" stop-opacity=".52"/><stop offset="1" stop-color="#3dafff" stop-opacity=".04"/></linearGradient>
- <linearGradient id="v135-arc2" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#3dafff" stop-opacity=".02"/><stop offset=".5" stop-color="#5abaff" stop-opacity=".32"/><stop offset="1" stop-color="#3dafff" stop-opacity=".02"/></linearGradient>
+  <radialGradient id="v140-atmo" cx="50%" cy="50%" r="60%"><stop offset="0" stop-color="#087cff" stop-opacity=".34"/><stop offset=".34" stop-color="#0758b8" stop-opacity=".18"/><stop offset=".68" stop-color="#062c58" stop-opacity=".08"/><stop offset="1" stop-color="#00040b" stop-opacity="0"/></radialGradient>
+  <linearGradient id="v140-deepA" x1="12" y1="16" x2="104" y2="104"><stop stop-color="#123e62"/><stop offset=".25" stop-color="#06182c"/><stop offset=".55" stop-color="#01050b"/><stop offset=".78" stop-color="#07345d"/><stop offset="1" stop-color="#19a7ff" stop-opacity=".55"/></linearGradient>
+  <linearGradient id="v140-deepB" x1="105" y1="18" x2="15" y2="100"><stop stop-color="#1a5b87"/><stop offset=".22" stop-color="#061a30"/><stop offset=".62" stop-color="#00040a"/><stop offset=".88" stop-color="#0b4c7e"/><stop offset="1" stop-color="#39baff" stop-opacity=".45"/></linearGradient>
+  <linearGradient id="v140-blueFacet" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#69d4ff" stop-opacity=".72"/><stop offset=".18" stop-color="#0d72c5" stop-opacity=".35"/><stop offset=".58" stop-color="#010812" stop-opacity=".86"/><stop offset=".84" stop-color="#064d91" stop-opacity=".45"/><stop offset="1" stop-color="#32baff" stop-opacity=".72"/></linearGradient>
+  <linearGradient id="v140-silverBlue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffffff"/><stop offset=".12" stop-color="#d8f6ff" stop-opacity=".94"/><stop offset=".34" stop-color="#55c8ff" stop-opacity=".82"/><stop offset=".58" stop-color="#0b83df" stop-opacity=".46"/><stop offset=".78" stop-color="#bceeff" stop-opacity=".9"/><stop offset="1" stop-color="#ffffff" stop-opacity=".24"/></linearGradient>
+  <radialGradient id="v140-core" cx="50%" cy="50%" r="55%"><stop offset="0" stop-color="#ffffff"/><stop offset=".045" stop-color="#ffffff"/><stop offset=".11" stop-color="#e9fbff"/><stop offset=".22" stop-color="#9ce5ff" stop-opacity="1"/><stop offset=".38" stop-color="#22aaff" stop-opacity=".92"/><stop offset=".62" stop-color="#0077ff" stop-opacity=".45"/><stop offset="1" stop-color="#006cff" stop-opacity="0"/></radialGradient>
+  <radialGradient id="v140-dot"><stop offset="0" stop-color="#ffffff"/><stop offset=".16" stop-color="#dff8ff"/><stop offset=".42" stop-color="#42c3ff" stop-opacity=".98"/><stop offset="1" stop-color="#087dff" stop-opacity="0"/></radialGradient>
+  <filter id="v140-glow" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="1.55" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="v140-soft" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="4.8"/></filter>
+  <filter id="v140-wide" x="-180%" y="-180%" width="460%" height="460%"><feGaussianBlur stdDeviation="9"/></filter>
 </defs>
-<circle cx="60" cy="60" r="57" fill="url(#v122-halo)"/>
-
-<!-- V135: atmospheric glass field — softer, larger and more physical than HUD rings -->
-<g class="csa-atmosphere135" pointer-events="none">
-  <circle class="csa-atmo-breathe" cx="60" cy="60" r="50" fill="url(#v135-atmoGlow)"/>
-  <ellipse cx="60" cy="60" rx="52" ry="48" fill="none" stroke="url(#v135-ringFade)" stroke-width="2.2" opacity=".55"/>
-  <ellipse class="csa-atmo-ring r2" cx="60" cy="60" rx="55" ry="51" fill="none" stroke="url(#v135-ringSoft)" stroke-width=".55" stroke-dasharray="22 9 2 7" opacity=".60"/>
-  <ellipse class="csa-atmo-ring r3" cx="60" cy="60" rx="48" ry="45" fill="none" stroke="url(#v135-ringSoft2)" stroke-width=".42" stroke-dasharray="1 4.8" opacity=".52"/>
-  <path d="M13 60C13 34 34 13 60 13S107 34 107 60" fill="none" stroke="url(#v135-arc)" stroke-width=".9" stroke-linecap="round" opacity=".52"/>
-  <path d="M18 82C26 98 42 107 60 107S94 98 102 82" fill="none" stroke="url(#v135-arc2)" stroke-width=".65" stroke-linecap="round" opacity=".38"/>
-  <g class="csa-env-sweep" fill="none" stroke-linecap="round">
-    <path d="M22 35C31 22 44 16 60 16" stroke="#c9efff" stroke-opacity=".14" stroke-width=".8"/>
-    <path d="M98 44C94 31 84 22 72 18" stroke="#58baff" stroke-opacity=".10" stroke-width=".55"/>
+<!-- 4: circular blue light field -->
+<circle cx="60" cy="60" r="59" fill="url(#v140-atmo)"/>
+<g class="csa-orbit139">
+  <circle cx="60" cy="60" r="49" fill="none" stroke="#159eff" stroke-opacity=".22" stroke-width=".65" stroke-dasharray=".5 3.0"/>
+  <circle cx="60" cy="60" r="46" fill="none" stroke="#58caff" stroke-opacity=".16" stroke-width=".45" stroke-dasharray="12 5 1.2 7"/>
+  <circle cx="60" cy="60" r="42" fill="none" stroke="#078cff" stroke-opacity=".18" stroke-width=".42"/>
+  <circle cx="60" cy="60" r="37" fill="none" stroke="#80dcff" stroke-opacity=".10" stroke-width=".35" stroke-dasharray="3 9"/>
+  <g class="orbitDots139">
+    <circle cx="60" cy="10" r="2.6" fill="url(#v140-dot)" filter="url(#v140-glow)"/><circle cx="60" cy="10" r=".72" fill="#fff"/>
+    <circle cx="95" cy="25" r="1.65" fill="url(#v140-dot)"/><circle cx="108" cy="60" r="2.5" fill="url(#v140-dot)" filter="url(#v140-glow)"/>
+    <circle cx="95" cy="95" r="1.65" fill="url(#v140-dot)"/><circle cx="60" cy="110" r="2.5" fill="url(#v140-dot)" filter="url(#v140-glow)"/>
+    <circle cx="25" cy="95" r="1.65" fill="url(#v140-dot)"/><circle cx="10" cy="60" r="2.5" fill="url(#v140-dot)" filter="url(#v140-glow)"/>
+    <circle cx="25" cy="25" r="1.65" fill="url(#v140-dot)"/>
   </g>
-  <g fill="#bfeaff">
-    <circle cx="20" cy="37" r=".9" opacity=".60"/><circle cx="100" cy="38" r=".85" opacity=".48"/>
-    <circle cx="24" cy="82" r=".72" opacity=".38"/><circle cx="96" cy="84" r=".72" opacity=".34"/>
-  </g>
-</g>
-
-<g class="csk-o a" fill="none" stroke-linecap="round">
- <circle cx="60" cy="60" r="54" stroke="#3da8ff" stroke-opacity=".20" stroke-width=".55" stroke-dasharray=".8 3.0"/>
- <circle cx="60" cy="60" r="49" stroke="#249fff" stroke-opacity=".34" stroke-width=".8" stroke-dasharray="24 4 7 4"/>
- <circle cx="60" cy="60" r="43" stroke="#229cff" stroke-opacity=".22" stroke-width=".5" stroke-dasharray="1 2.4"/>
-</g>
-<g class="csk-o b" fill="none" stroke-linecap="round">
- <path d="M60 1V18M119 60H102M60 119V102M1 60H18" stroke="#6fc5ff" stroke-opacity=".62" stroke-width=".65"/>
- <path d="M19 19L31 31M101 19L89 31M101 101L89 89M19 101L31 89" stroke="#7dcaff" stroke-opacity=".30" stroke-width=".45"/>
-</g>
-<g class="csk-o c" filter="url(#v122-glow)">
- <g fill="#dff7ff" stroke="#ffffff" stroke-width=".3">
-  <rect x="58.2" y="7" width="3.6" height="3.6" transform="rotate(45 60 8.8)"/>
-  <rect x="108.2" y="58.2" width="3.6" height="3.6" transform="rotate(45 110 60)"/>
-  <rect x="58.2" y="108.2" width="3.6" height="3.6" transform="rotate(45 60 110)"/>
-  <rect x="7" y="58.2" width="3.6" height="3.6" transform="rotate(45 8.8 60)"/>
- </g>
-</g>
-<!-- floating faceted satellites -->
-<g fill="url(#v122-face1)" stroke="#167dcc" stroke-opacity=".72" stroke-width=".6">
- <polygon points="60,13 66,20 60,27 54,20"/>
- <polygon points="107,60 100,66 93,60 100,54"/>
- <polygon points="60,107 54,100 60,93 66,100"/>
- <polygon points="13,60 20,54 27,60 20,66"/>
-</g>
-<g fill="none" stroke="#167dcc" stroke-opacity=".34" stroke-width=".45">
- <path d="M27 60L60 27L93 60L60 93Z"/>
- <path d="M20 60L60 20L100 60L60 100Z"/>
-</g>
-<!-- crystal bloom -->
-<circle cx="60" cy="60" r="30" fill="url(#v122-core)" opacity=".55" filter="url(#v122-soft)"/>
-<!-- V128 dimensional crystal: rear shell + thickness planes -->
-<g class="csa-depth-shell" pointer-events="none" fill="none" stroke-linejoin="round">
-  <polygon points="60,14 94,60 60,106 26,60" fill="#000206" fill-opacity=".96" stroke="#0b4d82" stroke-opacity=".46" stroke-width=".7"/>
-  <polygon points="60,16 92,60 60,104 28,60" fill="#010307" fill-opacity=".96" stroke="#126aa8" stroke-opacity=".30" stroke-width=".55"/>
-  <!-- rear-to-front thickness planes: intentionally almost black -->
-  <path d="M60 14L60 18L88 60L94 60Z" fill="#02050a" fill-opacity=".92" stroke="#126da8" stroke-opacity=".30" stroke-width=".45"/>
-  <path d="M94 60L88 60L60 102L60 106Z" fill="#010307" fill-opacity=".94" stroke="#126da8" stroke-opacity=".28" stroke-width=".45"/>
-  <path d="M60 106L60 102L32 60L26 60Z" fill="#02050a" fill-opacity=".94" stroke="#126da8" stroke-opacity=".32" stroke-width=".45"/>
-  <path d="M26 60L32 60L60 18L60 14Z" fill="#010307" fill-opacity=".94" stroke="#126da8" stroke-opacity=".26" stroke-width=".45"/>
-  <!-- perspective ribs reveal the thickness without brightening the faces -->
-  <path d="M60 14L60 18M94 60L88 60M60 106L60 102M26 60L32 60" stroke="#2396e5" stroke-opacity=".52" stroke-width=".6"/>
-  <path d="M60 22L82 60L60 98L38 60Z" stroke="#0c568b" stroke-opacity=".34" stroke-width=".45" stroke-dasharray="1.2 2.6"/>
-</g>
-<!-- inner cutaway: a second recessed chamber, not a flat outline -->
-<g class="csa-depth-inner" pointer-events="none" fill="none" stroke-linejoin="round">
-  <polygon points="60,27 82,60 60,93 38,60" fill="#000205" fill-opacity=".50" stroke="#1374b8" stroke-opacity=".48" stroke-width=".55"/>
-  <path d="M60 27L60 31M82 60L78 60M60 93L60 89M38 60L42 60" stroke="#42b1ff" stroke-opacity=".42" stroke-width=".5"/>
-  <path d="M60 31L78 60L60 89L42 60Z" stroke="#0e6aa8" stroke-opacity=".42" stroke-width=".45"/>
-</g>
-
-<!-- V129: deep-space rear crystal / physical thickness -->
-<g class="csa-depth-rear129" pointer-events="none" stroke-linejoin="round">
-  <polygon points="60,10 98,60 60,110 22,60" fill="#000205" stroke="#0b4c80" stroke-opacity=".42" stroke-width=".7"/>
-  <polygon points="60,13 95,60 60,107 25,60" fill="#010307" stroke="#126ca9" stroke-opacity=".25" stroke-width=".55"/>
-  <!-- thick side walls: almost black, blue only on the turning edge -->
-  <path d="M60 10L60 17L91 60L98 60Z" fill="#010205" stroke="#0f5d96" stroke-opacity=".34" stroke-width=".45"/>
-  <path d="M98 60L91 60L60 103L60 110Z" fill="#000204" stroke="#0f5d96" stroke-opacity=".30" stroke-width=".45"/>
-  <path d="M60 110L60 103L29 60L22 60Z" fill="#010205" stroke="#0f5d96" stroke-opacity=".34" stroke-width=".45"/>
-  <path d="M22 60L29 60L60 17L60 10Z" fill="#000204" stroke="#0f5d96" stroke-opacity=".28" stroke-width=".45"/>
-  <path d="M60 16L86 60L60 104L34 60Z" fill="none" stroke="#1a7fbe" stroke-opacity=".20" stroke-width=".45" stroke-dasharray="1 3.2"/>
-</g>
-<!-- V129: parallax seam / makes the black shell read as a solid object -->
-<g class="csa-depth-seam129" fill="none" stroke-linejoin="round" pointer-events="none">
-  <path d="M60 12L96 60L60 108L24 60Z" stroke="#39aaff" stroke-opacity=".12" stroke-width=".8"/>
-  <path d="M60 19L89 60L60 101L31 60Z" stroke="#0c6aa8" stroke-opacity=".26" stroke-width=".6"/>
-  <path d="M60 12V19M96 60H89M60 108V101M24 60H31" stroke="#5dbfff" stroke-opacity=".28" stroke-width=".75"/>
-</g>
-<!-- V131: physical black-glass prism. The rear crystal is deliberately offset so the front face has real visual thickness. -->
-<g class="csa-physical131" pointer-events="none" stroke-linejoin="round">
-  <!-- offset rear body: darker and slightly lifted, creating a visible back plane -->
-  <polygon class="glass-back131" points="64,14 100,56 64,98 28,56" stroke-width=".72"/>
-  <polygon points="64,18 96,56 64,94 32,56" fill="#000205" fill-opacity=".98" stroke="#0d5d93" stroke-opacity=".30" stroke-width=".48"/>
-
-  <!-- thick optical side walls between rear shell and front shell -->
-  <path class="glass-wall131" d="M64 14L60 18L88 60L100 56Z"/>
-  <path class="glass-wall131" d="M100 56L88 60L60 102L64 98Z"/>
-  <path class="glass-wall131" d="M64 98L60 102L32 60L28 56Z"/>
-  <path class="glass-wall131" d="M28 56L32 60L60 18L64 14Z"/>
-
-  <!-- blue reflected light trapped on the turning edges -->
-  <path class="glass-edge131" d="M64 14L100 56L64 98" fill="none" stroke="#49b5ff" stroke-width=".72" stroke-opacity=".58"/>
-  <path class="glass-edge131" d="M64 14L60 18M100 56L88 60M64 98L60 102M28 56L32 60" fill="none" stroke="#d9f5ff" stroke-width=".42" stroke-opacity=".38"/>
-
-  <!-- recessed front pane: smaller than the shell, making the crystal read as layered glass -->
-  <polygon class="glass-front131" points="60,25 84,60 60,95 36,60" stroke-width=".62"/>
-  <path d="M60 25L60 31M84 60L78 60M60 95L60 89M36 60L42 60" fill="none" stroke="#43b1ff" stroke-opacity=".42" stroke-width=".48"/>
-  <path d="M60 31L78 60L60 89L42 60Z" fill="none" stroke="#0e6aa8" stroke-opacity=".34" stroke-width=".42"/>
-
-  <!-- V133 environmental reflection: broad, dark-blue reflections that establish curved glass volume. -->
-  <path d="M64 16L89 55L83 57L58 21Z" fill="url(#v133-edge-white)" opacity=".22"/>
-  <path d="M98 57L84 78L79 73L92 55Z" fill="#62c2ff" fill-opacity=".06"/>
-  <path d="M27 57L43 77L38 79L23 59Z" fill="#1c79b2" fill-opacity=".07"/>
-  <path d="M63 99L45 79L51 77L68 95Z" fill="#8bd5ff" fill-opacity=".055"/>
-  <path d="M60 19L88 60L60 101L32 60Z" fill="none" stroke="#9fdcff" stroke-opacity=".11" stroke-width=".9"/>
-
-  <!-- narrow glass reflections: bright enough to reveal curvature, never enough to whiten the body -->
-  <g class="glass-reflect131">
-    <path d="M64 17L79 35L72 36L60 22Z" fill="#dff7ff" fill-opacity=".10"/>
-    <path d="M95 56L78 71L77 64L91 53Z" fill="#9bdcff" fill-opacity=".09"/>
-    <path d="M33 56L48 72L43 74L29 58Z" fill="#62c2ff" fill-opacity=".07"/>
-    <path d="M63 97L48 79L54 78L67 92Z" fill="#dff7ff" fill-opacity=".075"/>
-  </g>
-  <path class="glass-sweep131" d="M38 48L71 15" fill="none" stroke="url(#v130-knife)" stroke-width=".66" stroke-linecap="round" opacity="0"/>
-</g>
-<!-- V133 environmental volume: gives the crystal a surrounding atmosphere instead of a cutout silhouette. -->
-<ellipse cx="60" cy="60" rx="53" ry="49" fill="url(#v133-environment)" opacity=".78"/>
-<!-- V134: reference-faithful faceted crystal — broad crown, deep facets, glass-like dimensionality -->
-<g class="csa-hero134" stroke-linejoin="round" stroke-linecap="round" pointer-events="none">
-  <!-- deep rear body: gives the crystal a physical silhouette without a black cutout -->
-  <polygon points="60,16 91,60 60,105 29,60" fill="#02070d" fill-opacity=".92" stroke="#0b568d" stroke-opacity=".38" stroke-width=".62"/>
-  <polygon points="60,20 86,60 60,100 34,60" fill="#061321" fill-opacity=".54" stroke="#126da7" stroke-opacity=".22" stroke-width=".46"/>
-
-  <!-- main crown: split into real faceted planes rather than four flat triangles -->
-  <g class="csa-crown134">
-    <!-- upper left shoulder planes -->
-    <polygon points="60,18 48,39 32,60 60,60" fill="url(#v134-darkleft)" stroke="#3dafff" stroke-opacity=".72" stroke-width=".82"/>
-    <polygon points="60,18 48,39 60,60" fill="url(#v134-silverleft)" stroke="#dff7ff" stroke-opacity=".58" stroke-width=".54"/>
-    <polygon points="48,39 32,60 60,60" fill="#071827" fill-opacity=".88" stroke="#208ed3" stroke-opacity=".58" stroke-width=".50"/>
-    <!-- upper right shoulder planes -->
-    <polygon points="60,18 72,39 88,60 60,60" fill="url(#v134-darkright)" stroke="#3dafff" stroke-opacity=".72" stroke-width=".82"/>
-    <polygon points="60,18 72,39 60,60" fill="url(#v134-silverright)" stroke="#f0fbff" stroke-opacity=".66" stroke-width=".54"/>
-    <polygon points="72,39 88,60 60,60" fill="#081b2c" fill-opacity=".88" stroke="#208ed3" stroke-opacity=".58" stroke-width=".50"/>
-
-    <!-- lower left planes: longer and darker, creating depth -->
-    <polygon points="32,60 48,68 60,102 60,60" fill="url(#v134-lowerleft)" stroke="#178bd0" stroke-opacity=".66" stroke-width=".76"/>
-    <polygon points="48,68 60,60 60,102" fill="#06111c" fill-opacity=".94" stroke="#42b4ff" stroke-opacity=".46" stroke-width=".50"/>
-    <polygon points="32,60 48,68 60,60" fill="#0a2134" fill-opacity=".84" stroke="#bfeaff" stroke-opacity=".30" stroke-width=".42"/>
-    <!-- lower right planes -->
-    <polygon points="88,60 72,68 60,102 60,60" fill="url(#v134-lowerright)" stroke="#178bd0" stroke-opacity=".66" stroke-width=".76"/>
-    <polygon points="72,68 60,60 60,102" fill="#07131f" fill-opacity=".94" stroke="#42b4ff" stroke-opacity=".46" stroke-width=".50"/>
-    <polygon points="88,60 72,68 60,60" fill="#0a2134" fill-opacity=".82" stroke="#d7f4ff" stroke-opacity=".27" stroke-width=".42"/>
-  </g>
-
-  <!-- internal nested crystal: visibly recessed, like a second piece of glass inside -->
-  <g class="csa-inner134">
-    <polygon points="60,31 79,60 60,89 41,60" fill="#01050a" fill-opacity=".88" stroke="#168fe8" stroke-opacity=".62" stroke-width=".70"/>
-    <polygon points="60,31 70,46 60,60 50,46" fill="url(#v134-innerTop)" stroke="#bfeaff" stroke-opacity=".40" stroke-width=".42"/>
-    <polygon points="60,31 50,46 41,60 60,60" fill="#061321" fill-opacity=".72" stroke="#4db9ff" stroke-opacity=".34" stroke-width=".40"/>
-    <polygon points="60,31 70,46 79,60 60,60" fill="#0a1d30" fill-opacity=".70" stroke="#69c7ff" stroke-opacity=".38" stroke-width=".40"/>
-    <polygon points="41,60 50,67 60,89 60,60" fill="#030b13" stroke="#168fe8" stroke-opacity=".34" stroke-width=".42"/>
-    <polygon points="79,60 70,67 60,89 60,60" fill="#06111b" stroke="#168fe8" stroke-opacity=".34" stroke-width=".42"/>
-    <path d="M60 31V89M41 60H79M50 46L60 60L70 46M50 67L60 60L70 67" fill="none" stroke="#38aaff" stroke-opacity=".34" stroke-width=".42"/>
-  </g>
-
-  <!-- razor facets: the white/blue flashes that make the reference look like cut glass -->
-  <g class="csa-facets134" fill="none">
-    <path d="M60 18L48 39L60 60L72 39Z" stroke="#f1fbff" stroke-opacity=".66" stroke-width=".52"/>
-    <path d="M32 60L48 39L60 60L48 68Z" stroke="#dff7ff" stroke-opacity=".42" stroke-width=".42"/>
-    <path d="M88 60L72 39L60 60L72 68Z" stroke="#dff7ff" stroke-opacity=".46" stroke-width=".42"/>
-    <path d="M32 60L48 68L60 102" stroke="#58bcff" stroke-opacity=".54" stroke-width=".52"/>
-    <path d="M88 60L72 68L60 102" stroke="#58bcff" stroke-opacity=".54" stroke-width=".52"/>
-    <path d="M60 18L60 102" stroke="#dff7ff" stroke-opacity=".28" stroke-width=".42"/>
-  </g>
-
-  <!-- small angular reflections, deliberately asymmetrical so it reads as a physical object -->
-  <g class="csa-specular134">
-    <path d="M60 20L51 38L56 36L64 22Z" fill="#ffffff" fill-opacity=".16"/>
-    <path d="M35 59L48 45L45 55L38 63Z" fill="#aee4ff" fill-opacity=".10"/>
-    <path d="M85 58L72 43L76 54L82 63Z" fill="#e5f9ff" fill-opacity=".12"/>
-    <path d="M57 96L50 74L55 78L62 98Z" fill="#69c7ff" fill-opacity=".09"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M60 9A51 51 0 0 1 111 60" stroke="#9ee7ff" stroke-opacity=".38" stroke-width=".8" stroke-dasharray="9 12"/>
+    <path d="M60 111A51 51 0 0 1 9 60" stroke="#078cff" stroke-opacity=".30" stroke-width=".72" stroke-dasharray="6 14"/>
   </g>
 </g>
-<!-- V130: black mirror-glass facets — reflections are thin and directional; faces stay black -->
-<g class="csa-glass-specular130" pointer-events="none" stroke-linejoin="round">
-  <!-- broad, almost-black mirror reflections -->
-  <polygon points="60,18 88,60 60,60" fill="url(#v130-glass-top)" opacity=".42"/>
-  <polygon points="60,18 60,60 32,60" fill="url(#v130-glass-left)" opacity=".34"/>
-  <polygon points="32,60 60,60 60,102" fill="url(#v130-glass-bottom)" opacity=".28"/>
-  <polygon points="88,60 60,60 60,102" fill="url(#v130-glass-right)" opacity=".32"/>
-  <!-- razor-thin mirror edges: these sell the glass without turning the crystal white -->
-  <path d="M60 18L88 60L60 102" fill="none" stroke="#dff6ff" stroke-opacity=".34" stroke-width=".46"/>
-  <path d="M60 18L32 60L60 102" fill="none" stroke="#8fd7ff" stroke-opacity=".22" stroke-width=".40"/>
-  <path d="M60 30L80 60L60 90" fill="none" stroke="#c9eeff" stroke-opacity=".28" stroke-width=".34"/>
-  <path d="M60 30L40 60L60 90" fill="none" stroke="#5bbcff" stroke-opacity=".18" stroke-width=".30"/>
-  <!-- tiny cut facets -->
-  <path d="M60 18L73 38L60 34L47 38Z" fill="none" stroke="#ffffff" stroke-opacity=".20" stroke-width=".30"/>
-  <path d="M32 60L47 47L43 60L47 73Z" fill="none" stroke="#8fd7ff" stroke-opacity=".16" stroke-width=".28"/>
-  <!-- moving knife reflection -->
-  <path class="csa-glass-knife130" d="M42 39L57 22" fill="none" stroke="url(#v130-knife)" stroke-width=".72" stroke-linecap="round"/>
+<!-- 3: square optical frame -->
+<g class="squareFrame139" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="19" y="19" width="82" height="82" rx="1.5" stroke="#087fda" stroke-opacity=".18" stroke-width=".7"/>
+  <path d="M19 37V19H37 M83 19H101V37 M101 83V101H83 M37 101H19V83" stroke="url(#v140-silverBlue)" stroke-opacity=".95" stroke-width="1.35" filter="url(#v140-glow)"/>
+  <path d="M27 19H52 M68 19H93 M101 27V52 M101 68V93 M93 101H68 M52 101H27 M19 93V68 M19 52V27" stroke="#25adff" stroke-opacity=".44" stroke-width=".62"/>
+  <path class="frameSweep139" d="M19 19H51" stroke="#e8fbff" stroke-opacity=".98" stroke-width="1.3" filter="url(#v140-glow)"/>
 </g>
-<g class="csk-glint" filter="url(#v122-glow)" opacity="0">
- <path d="M32 59L60 18L88 59" fill="none" stroke="#fff" stroke-width="1.8"/>
- <path d="M32 61L60 102L88 61" fill="none" stroke="#79caff" stroke-width="1.1"/>
+<!-- 2: dimensional outer diamond — deep shell, side walls, front facets -->
+<g class="outerGem139" stroke-linejoin="round">
+  <path d="M60 17L103 60L60 103L17 60Z" fill="#01050c" stroke="#0d79bc" stroke-opacity=".62" stroke-width=".8"/>
+  <!-- rear bevels -->
+  <path d="M60 17L94 60L60 94L26 60Z" fill="url(#v140-deepA)" stroke="#159ff0" stroke-opacity=".28" stroke-width=".6"/>
+  <path d="M60 17L60 27L87 60L60 93L60 103L103 60Z" fill="url(#v140-deepB)" stroke="#0879bc" stroke-opacity=".42" stroke-width=".55"/>
+  <path d="M17 60L27 60L60 93L60 103Z" fill="#020913" stroke="#0c71ad" stroke-opacity=".42" stroke-width=".5"/>
+  <!-- broad front crystal shell -->
+  <polygon points="60,22 98,60 60,98 22,60" fill="none" stroke="url(#v140-silverBlue)" stroke-opacity=".72" stroke-width=".95"/>
+  <polygon points="60,29 91,60 60,91 29,60" fill="none" stroke="#1aa8ff" stroke-opacity=".42" stroke-width=".6"/>
+  <!-- four major facet planes -->
+  <path d="M60 22L60 60L29 60Z" fill="url(#v140-deepA)" stroke="#62cfff" stroke-opacity=".40" stroke-width=".5"/>
+  <path d="M60 22L91 60L60 60Z" fill="url(#v140-deepB)" stroke="#a7e9ff" stroke-opacity=".34" stroke-width=".5"/>
+  <path d="M29 60L60 60L60 91Z" fill="#010711" stroke="#118fe0" stroke-opacity=".42" stroke-width=".5"/>
+  <path d="M60 60L91 60L60 91Z" fill="url(#v140-blueFacet)" stroke="#5dcaff" stroke-opacity=".42" stroke-width=".5"/>
+  <!-- secondary cuts create jewel-like planes -->
+  <path d="M60 22L49 60L60 91M60 22L71 60L60 91M29 60L60 49L91 60M29 60L60 71L91 60" fill="none" stroke="#74d5ff" stroke-opacity=".28" stroke-width=".48"/>
+  <path d="M29 60L45 45L60 22M91 60L75 45L60 22M29 60L45 75L60 91M91 60L75 75L60 91" fill="none" stroke="#0e86d5" stroke-opacity=".42" stroke-width=".44"/>
+  <path class="mirror139" d="M33 57L56 27L50 55Z" fill="url(#v140-silverBlue)" opacity=".55" filter="url(#v140-glow)"/>
+  <path class="mirror139 mirrorR" d="M87 57L64 27L70 55Z" fill="url(#v140-silverBlue)" opacity=".44" filter="url(#v140-glow)"/>
+  <path class="crystalFlash140" d="M28 63L56 34L48 61Z" fill="#dff9ff" opacity="0" filter="url(#v140-soft)"/>
 </g>
-<g class="csa-core-beams" filter="url(#v122-glow)" pointer-events="none">
- <path d="M60 31V49M60 71V89M31 60H49M71 60H89" stroke="#dff7ff" stroke-opacity=".56" stroke-width=".55"/>
- <path d="M41 41L51 51M79 41L69 51M79 79L69 69M41 79L51 69" stroke="#8fd7ff" stroke-opacity=".34" stroke-width=".45"/>
+<!-- 1: central square diamond — the optical core -->
+<g class="coreGem139" stroke-linejoin="round">
+  <polygon points="60,37 83,60 60,83 37,60" fill="#01040a" stroke="#25b0ff" stroke-opacity=".82" stroke-width=".9"/>
+  <polygon points="60,42 78,60 60,78 42,60" fill="#020914" stroke="#0d8fe3" stroke-opacity=".60" stroke-width=".58"/>
+  <path d="M60 37L83 60L60 60Z" fill="url(#v140-deepB)" stroke="#9ee7ff" stroke-opacity=".44" stroke-width=".48"/>
+  <path d="M60 37L60 60L37 60Z" fill="url(#v140-deepA)" stroke="#70d4ff" stroke-opacity=".40" stroke-width=".48"/>
+  <path d="M37 60L60 60L60 83Z" fill="#010711" stroke="#0f8ee2" stroke-opacity=".44" stroke-width=".48"/>
+  <path d="M60 60L83 60L60 83Z" fill="url(#v140-blueFacet)" stroke="#55caff" stroke-opacity=".48" stroke-width=".48"/>
+  <polygon points="60,46 74,60 60,74 46,60" fill="#00050b" stroke="#7edbff" stroke-opacity=".48" stroke-width=".52"/>
+  <polygon points="60,51 69,60 60,69 51,60" fill="#010a15" stroke="#1fa9ff" stroke-opacity=".42" stroke-width=".42"/>
+  <path d="M60 46L53 60L60 74M60 46L67 60L60 74M46 60L60 53L74 60M46 60L60 67L74 60" fill="none" stroke="#a9ebff" stroke-opacity=".22" stroke-width=".38"/>
 </g>
-
-<!-- V129: white-core ignition layers -->
-<g class="csa-core-ignition129" pointer-events="none" filter="url(#v122-glow)">
-  <circle cx="60" cy="60" r="11" fill="#bfeaff" fill-opacity=".08"/>
-  <path d="M60 27V50M60 70V93M27 60H50M70 60H93" stroke="#ffffff" stroke-opacity=".34" stroke-width=".32"/>
-  <path d="M38 38L52 52M82 38L68 52M82 82L68 68M38 82L52 68" stroke="#dff7ff" stroke-opacity=".22" stroke-width=".28"/>
+<!-- white-core light + blue energy lines -->
+<g class="whiteCore139">
+  <circle cx="60" cy="60" r="19" fill="url(#v140-core)" opacity=".56" filter="url(#v140-soft)"/>
+  <circle cx="60" cy="60" r="10" fill="url(#v140-core)" opacity=".94"/>
+  <g class="coreBeams139" stroke-linecap="round">
+    <path d="M60 31V89M31 60H89" stroke="#ffffff" stroke-opacity=".88" stroke-width=".5" filter="url(#v140-glow)"/>
+    <path d="M40 40L80 80M80 40L40 80" stroke="#55c8ff" stroke-opacity=".58" stroke-width=".32" filter="url(#v140-glow)"/>
+    <path class="coreBeamHot139" d="M60 46V74M46 60H74" stroke="#ffffff" stroke-opacity="1" stroke-width="1.05" filter="url(#v140-glow)"/>
+  </g>
+  <circle cx="60" cy="60" r="3.2" fill="#ffffff" filter="url(#v140-glow)"/>
+  <circle cx="60" cy="60" r="1.05" fill="#ffffff"/>
 </g>
-<!-- white-core star: concentrated white energy, kept inside the black crystal -->
-<g class="csa-core-star" filter="url(#v122-glow)" pointer-events="none">
-  <path d="M60 35V85M35 60H85" stroke="#ffffff" stroke-opacity=".88" stroke-width=".38"/>
-  <path d="M43 43L77 77M77 43L43 77" stroke="#e9f9ff" stroke-opacity=".54" stroke-width=".30"/>
-  <path d="M60 48L63 57L72 60L63 63L60 72L57 63L48 60L57 57Z" fill="#ffffff" fill-opacity=".92" stroke="#ffffff" stroke-opacity=".9" stroke-width=".3"/>
-  <circle cx="60" cy="60" r="2.45" fill="#ffffff"/>
+<!-- optical anchor crystals -->
+<g class="anchorCrystals139" filter="url(#v140-glow)">
+  <polygon points="60,7 64,12 60,17 56,12" fill="#031321" stroke="#a8ebff" stroke-opacity=".90" stroke-width=".58"/>
+  <polygon points="113,60 108,64 103,60 108,56" fill="#031321" stroke="#5dceff" stroke-opacity=".86" stroke-width=".58"/>
+  <polygon points="60,113 64,108 60,103 56,108" fill="#031321" stroke="#5dceff" stroke-opacity=".86" stroke-width=".58"/>
+  <polygon points="7,60 12,64 17,60 12,56" fill="#031321" stroke="#5dceff" stroke-opacity=".86" stroke-width=".58"/>
 </g>
-<circle class="csa-core-bloom-strong" cx="60" cy="60" r="17" fill="url(#v122-core)" opacity=".72" filter="url(#v122-soft)"/>
-<circle cx="60" cy="60" r="8.5" fill="url(#v122-core)" filter="url(#v122-glow)"/>
-<g class="csa-prism-depth" pointer-events="none">
- <path d="M60 11L109 60L60 109L11 60Z" fill="none" stroke="#8dd7ff" stroke-opacity=".16" stroke-width=".55" stroke-dasharray="1 5"/>
- <path d="M60 15L105 60L60 105L15 60Z" fill="none" stroke="#167dcc" stroke-opacity=".24" stroke-width=".8" stroke-dasharray="14 7 2 7"/>
- <path d="M60 24L96 60L60 96L24 60Z" fill="none" stroke="#4bb1ff" stroke-opacity=".24" stroke-width=".55"/>
- <path d="M60 5L60 16M115 60L104 60M60 115L60 104M5 60L16 60" stroke="#168fe8" stroke-opacity=".46" stroke-width=".65"/>
- <path d="M21 21L30 30M99 21L90 30M99 99L90 90M21 99L30 90" stroke="#6fc7ff" stroke-opacity=".34" stroke-width=".55"/>
-</g>
-<g class="csa-prism-rays" pointer-events="none">
- <path d="M60 2V20M118 60H100M60 118V100M2 60H20" stroke="#58b9ff" stroke-opacity=".28" stroke-width=".7"/>
- <path d="M18 42L34 48M102 42L86 48M102 78L86 72M18 78L34 72" stroke="#bfeaff" stroke-opacity=".20" stroke-width=".5"/>
-</g>
-<circle class="csa-core-flare" cx="60" cy="60" r="13" fill="url(#v122-core)" opacity=".42" filter="url(#v122-glow)"/>
-<circle class="csa-core-flash" cx="60" cy="60" r="3.2" fill="#ffffff" filter="url(#v122-glow)"/>
-<circle cx="60" cy="60" r="1.25" fill="#ffffff"/><circle class="csa-core-hot129" cx="60" cy="60" r=".72" fill="#ffffff"/>
-<path d="M60 0V10M60 110V120M0 60H10M110 60H120" stroke="#38a7ff" stroke-opacity=".34" stroke-width=".55"/>
 </svg>
 </div><div class="brand"><b>暗号資産シグナル・アーカイブ</b><small>すべてのシグナルを、ひとつのタイムラインに。</small></div><button class="wallet-access" id="walletAccess" type="button" aria-expanded="false"><span class="wallet-icon">◈</span><span class="wallet-label"><b id="walletBtn">ウォレット接続</b><small>ARCHIVE ACCESS</small></span><span class="wallet-chevron">⌄</span></button></div>
 <div class="langbar"><div class="lang-switch" role="group" aria-label="Language / 言語"><span class="lang-switch-label">LANG</span><button type="button" data-lang="ja" aria-pressed="false">JP</button><button type="button" data-lang="en" aria-pressed="true">EN</button></div></div>

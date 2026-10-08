@@ -193,10 +193,10 @@ export function usOpen(t) {
 }
 // 急変動の1時間の値動き。B = 5分足(Pacifica)。T = Worker が見つけた時刻。
 // T の前後(T−10分〜T+5分)に閉じた5分足のうち、きっかけの銘柄の1時間の変動が一番大きい足を終わりにする。±3% に届かなければ null
-export function spikeMoves(B, T, now) {
-  const hit = [SPIKE_COIN];
+export function spikeMoves(B, T, now, win = 1) {   // v121: win = 1 / 6(時間)
+  const hit = [SPIKE_COIN], K = 12 * win;
   const map = {}; for (const k of Object.keys(B)) map[k] = new Map((B[k] || []).map((b) => [b[0], b[4]]));
-  const ch = (k, e) => { const a = map[k] && map[k].get(e - 12 * M5), b = map[k] && map[k].get(e); return a > 0 && b > 0 ? pct(a, b) : null; };
+  const ch = (k, e) => { const a = map[k] && map[k].get(e - K * M5), b = map[k] && map[k].get(e); return a > 0 && b > 0 ? pct(a, b) : null; };
   let best = null;
   for (let e = Math.floor((T - 10 * 60000) / M5) * M5 - M5; e <= T + 5 * 60000; e += M5) {
     if (e + M5 > now || e + M5 < T - 10 * 60000) continue;
@@ -205,9 +205,9 @@ export function spikeMoves(B, T, now) {
   }
   if (!best || best.v < SPIKE_PCT) return null;
   const coins = {}; for (const [c] of COINS) { const v = ch(c, best.e); if (v != null) coins[c] = v; }
-  const t1 = best.e + M5, t0 = t1 - H;
-  const ser = (k) => { const a = []; for (let e = best.e - 71 * M5; e <= best.e; e += M5) { const v = map[k] && map[k].get(e); a.push(v > 0 ? v : null); } return a; };   // v109: 直近6時間の5分足の終値(画像用)
-  return { t0, t1, coins, ser: { btc: ser('BTC'), spx: ser('SP500') }, spx: ch('SP500', best.e), open: usOpen(t0) || usOpen(t1) || usOpen(t0 + H / 2), hit };
+  const t1 = best.e + M5, t0 = t1 - win * H, span = win > 6 ? 576 : win > 1 ? 144 : 72, step = win > 6 ? 6 : 1;   // 画像: 1時間 = 直近6時間 / 6時間 = 直近12時間 / 24時間 = 直近48時間(30分おき)
+  const ser = (k) => { const a = []; for (let e = best.e - span * M5; e <= best.e; e += step * M5) { const v = map[k] && map[k].get(e); a.push(v > 0 ? v : null); } return a; };   // v109: 直近6時間の5分足の終値(画像用)
+  return { win, t0, t1, coins, ser: { btc: ser('BTC'), spx: ser('SP500'), step }, spx: ch('SP500', best.e), open: usOpen(t0) || usOpen(t1) || usOpen((t0 + t1) / 2), hit };
 }
 // v96: 相関係数は「0.65」の形(逆向きだけ −)。強さの目安を言葉で添える(よく使う区分: 0.7以上 強い / 0.4〜 中程度 / 0.2〜 弱い / 0.2未満 ほぼ無関係)
 export const rTxt = (v) => v == null ? '—' : (v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
@@ -220,7 +220,7 @@ export function corrLabel(v, lang) {
 }
 // sp = spikeMoves の結果 + id + corr(corrCalc の結果)
 export function spikePost(sp, corr, link) {   // link = サイトの URL(付けない時は null)
-  const d = J(sp.t0), md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, btc = sp.coins[SPIKE_COIN];
+  const W = sp.win || 1, d = J(sp.t0), md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, btc = sp.coins[SPIKE_COIN];
   const rv = (d0, c) => corr && corr.w && corr.w[d0] && corr.w[d0][c] ? corr.w[d0][c].r : null;
   const cr = (c, lang, lab) => { const v = rv(30, c); return v == null ? '—' : rTxt(v) + (lab ? ' ' + corrLabel(v, lang) : ''); };
   const sg = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
@@ -231,8 +231,8 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
   const build = (lang, o) => {
     const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
     return [...(o.brand ? [BRAND[lang], ''] : []),
-      en ? `⚡ BTC ${sg(btc)} IN 1H` : `⚡ BTC 1時間で ${sg(btc)}`, ...(o.nodate ? [] : [en ? `${dEnU(sp.t0)} · ${uhm(sp.t0)}→${uhm(sp.t1)} UTC` : `${dJaL(sp.t0)} · ${hm(sp.t0)}→${hm(sp.t1)} · 日本時間`]), rule,
-      en ? '🟡 1H CHANGE | CORR W/ S&P500 (30D)' : '🟡 1時間の変化 | S&P500との相関(30日)',
+      en ? `⚡ BTC ${sg(btc)} IN ${W}H` : `⚡ BTC ${W}時間で ${sg(btc)}`, ...(o.nodate ? [] : [en ? (dEnU(sp.t0) === dEnU(sp.t1) ? `${dEnU(sp.t0)} · ${uhm(sp.t0)}→${uhm(sp.t1)} UTC` : `${dEnU(sp.t0, false)} ${uhm(sp.t0)} → ${dEnU(sp.t1, false)} ${uhm(sp.t1)} UTC`) : (dJaL(sp.t0) === dJaL(sp.t1) ? `${dJaL(sp.t0)} · ${hm(sp.t0)}→${hm(sp.t1)} · 日本時間` : `${md} ${hm(sp.t0)} → ${J(sp.t1).getUTCMonth() + 1}/${J(sp.t1).getUTCDate()} ${hm(sp.t1)} · 日本時間`)]), rule,
+      en ? `🟡 ${W}H CHANGE | CORR W/ S&P500 (30D)` : `🟡 ${W}時間の変化 | S&P500との相関(30日)`,
       ...COINS.filter(([c]) => sp.coins[c] != null).map(([c, , s]) => `${s} ${c} ${mv(sp.coins[c], o.dot)} | ${cr(c, lang, !o.nolab)}`),
       `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open || o.noclosed ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`, rule,
       ...(link ? ['🔗 ' + link] : []),
@@ -241,7 +241,7 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
   const LV = [{ brand: 1, rule: 18, dot: 1, tag: 1 }, { brand: 1, dot: 1, tag: 1 }, { dot: 1, tag: 1 }, { dot: 1 }, {}, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];   // 相関の目安の言葉は最後まで残す(時刻は画像にもある・投稿はすぐ出る)
   const fitS = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitS('en'), ja = fitS('ja');
-  return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
+  return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, win: W, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
 }
 
 // ---- 自動投稿(v94) ----
