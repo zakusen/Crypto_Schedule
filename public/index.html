@@ -2037,7 +2037,29 @@ html.lang-switching [data-csa-i18n]{
 <div class="card r" id="corrCard"><style>#corrCard .ptitle{display:flex;justify-content:space-between}#corrCard .crow{display:grid;grid-template-columns:1fr 88px 88px;align-items:center;padding:6px 0;border-bottom:1px solid #1a232e;font-size:11px}#corrCard .crow span{text-align:right;font-variant-numeric:tabular-nums}#corrCard .crow em{display:block;position:relative;height:3px;margin-top:4px;background:#1f2a3d}#corrCard .crow b{font-weight:600;color:#c99a45}#corrCard .clab{display:block;font-size:8.5px;color:var(--muted);margin-top:1px;white-space:nowrap}#corrCard .clab.on{color:#69c7d6}#corrCard .chd{font-size:9px;color:var(--muted);letter-spacing:.12em}#corrCard .csub{font-size:8.5px;color:var(--muted);margin-top:8px;line-height:1.6}</style><div class="ptitle"><span id="corrT" data-dyn>S&amp;P500 CORRELATION</span><span>Pacifica · 1H</span></div><div id="corrBody" data-dyn></div></div>
 <div class="card r" data-dyn id="upCard"><div class="ptitle"><span>UPCOMING EVENTS</span></div><div class="event"><div class="etime">NEXT</div><b>米 消費者物価指数 (CPI)</b><div class="ekind">指標 · HIGH IMPACT</div></div><div class="event"><div class="etime">—</div><b>ETH Upgrade</b><div class="ekind">チェーン</div></div><div class="event"><div class="etime">—</div><b>オプション満期</b><div class="ekind">満期</div></div><div class="event"><div class="etime">—</div><b>Burn</b><div class="ekind">バーン</div></div></div>
 <div class="lock"><b>US Employment Report</b><br>Past reactions 🔒</div>
-<div class="access"><div class="ptitle">ARCHIVE ACCESS</div><div class="price">1 USDC <span class="small">/ 365 DAYS</span></div><div class="small">4 major assets · event history · EVENT IMPACT<br>No subscription.</div><div class="small" id="accState" data-dyn style="margin-top:8px;color:#d9c084"></div><button id="walletBtn" type="button" data-dyn>CONNECT WALLET</button></div>
+<div class="access ax"><div class="ax-top"><div><div class="ptitle">ARCHIVE ACCESS</div><div class="price">1 USDC <span class="small">/ 365 DAYS</span></div></div><svg class="ax-gem" viewBox="0 0 120 120" aria-hidden="true"><defs><radialGradient id="axg" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#9fd8ff" stop-opacity=".55"/><stop offset=".45" stop-color="#3d7fd6" stop-opacity=".18"/><stop offset="1" stop-color="#3d7fd6" stop-opacity="0"/></radialGradient><linearGradient id="axr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e4b96a"/><stop offset=".5" stop-color="#e4b96a" stop-opacity=".15"/><stop offset="1" stop-color="#7fc8ff"/></linearGradient></defs><circle cx="60" cy="60" r="56" fill="url(#axg)"/><circle cx="60" cy="60" r="50" fill="none" stroke="url(#axr)" stroke-width="1.2"/><circle cx="60" cy="60" r="41" fill="none" stroke="#e4b96a" stroke-opacity=".35" stroke-width=".8" stroke-dasharray="2 5"/><g class="ax-spin"><circle cx="60" cy="60" r="46" fill="none" stroke="#7fc8ff" stroke-opacity=".5" stroke-width=".8" stroke-dasharray="40 250"/></g><line x1="60" y1="2" x2="60" y2="118" stroke="#e4b96a" stroke-opacity=".35" stroke-width=".6"/><line x1="2" y1="60" x2="118" y2="60" stroke="#e4b96a" stroke-opacity=".25" stroke-width=".6"/><g fill="none" stroke="#cfeaff" stroke-width="1.1" stroke-linejoin="round"><polygon points="60,32 84,46 84,74 60,88 36,74 36,46" stroke-opacity=".9"/><polyline points="36,46 60,58 84,46" stroke-opacity=".8"/><line x1="60" y1="58" x2="60" y2="88" stroke-opacity=".8"/><polyline points="60,32 48,60 60,88 72,60 60,32" stroke-opacity=".45"/><line x1="36" y1="74" x2="48" y2="60"/><line x1="84" y1="74" x2="72" y2="60"/></g><circle cx="60" cy="58" r="3" fill="#fff"/><circle cx="60" cy="10" r="1.6" fill="#e4b96a"/><circle cx="110" cy="60" r="1.6" fill="#e4b96a"/></svg></div>
+<ol class="ax-steps"><li><b>01</b><span>Choose a coin</span></li><li><b>02</b><span>Connect wallet</span></li><li><b>03</b><span>All records for 365 days</span></li></ol>
+<div class="ax-coins"><button type="button" data-ax="USDC"><i>$</i>USDC</button><button type="button" data-ax="USDT"><i>₮</i>USDT</button><button type="button" data-ax="SOL"><i>≡</i>SOL</button><button type="button" data-ax="RAY"><i>R</i>RAY</button><button type="button" data-ax="PUMP"><i>P</i>PUMP</button></div>
+<div class="small" id="accState" data-dyn style="margin-top:8px;color:#d9c084"></div><button id="walletBtn" type="button" data-dyn>CONNECT WALLET</button></div>
+<style id="v112-access">
+/* v112: アーカイブアクセスの欄(結晶の絵・3つの手順・支払えるコイン)。文言は最小限 */
+.access.ax{position:relative;overflow:hidden;background:radial-gradient(260px 180px at 100% 0%,rgba(61,127,214,.16),transparent 70%),radial-gradient(220px 160px at 0% 100%,rgba(228,185,106,.08),transparent 70%),linear-gradient(180deg,rgba(14,20,30,.96),rgba(8,12,18,.96));border:1px solid rgba(228,185,106,.45);box-shadow:0 0 0 1px rgba(228,185,106,.08),0 0 32px rgba(61,127,214,.10)}
+.ax-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ax-gem{width:96px;height:96px;flex:none;filter:drop-shadow(0 0 10px rgba(127,200,255,.35))}
+.ax-spin{transform-origin:60px 60px;animation:axspin 14s linear infinite}@keyframes axspin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.ax-spin{animation:none}}
+.ax-steps{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:6px}
+.ax-steps li{display:flex;align-items:center;gap:10px;font-size:11px;color:#c9d3db}
+.ax-steps b{width:26px;height:26px;border-radius:50%;border:1px solid rgba(228,185,106,.55);display:grid;place-items:center;font:600 10px "IBM Plex Mono",monospace;color:#e4b96a;flex:none}
+.ax-coins{display:flex;gap:6px;flex-wrap:wrap}
+.ax-coins button{flex:1;min-width:46px;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px;border:1px solid rgba(133,198,244,.18);border-radius:8px;background:rgba(10,16,24,.6);color:#9fb3c2;font:600 9px "IBM Plex Mono",monospace;letter-spacing:.04em;cursor:pointer}
+.ax-coins button:hover{border-color:rgba(228,185,106,.6);color:#e6e9ef}
+.ax-coins i{font-style:normal;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;color:#cfeaff;background:radial-gradient(circle at 35% 30%,rgba(127,200,255,.45),rgba(61,127,214,.15));border:1px solid rgba(127,200,255,.4)}
+.access.ax #walletBtn{border-radius:999px;letter-spacing:.14em}
+</style>
+<script>/* v112: コインを押すと、そのコインを選んだ状態で支払い画面を開く */
+document.querySelectorAll('.ax-coins [data-ax]').forEach(b=>b.addEventListener('click',()=>{const c=document.querySelector('.pay-choice[data-coin="'+b.dataset.ax+'"]');if(c)c.click();const w=document.getElementById('walletBtn');if(w)w.click()}));</script>
+
 </aside></main>
 </div><script>
 let EVENT_AT=null;const zones=[['z0','Asia/Tokyo'],['z1','America/New_York'],['z2','Europe/London'],['z3','Asia/Singapore'],['z4','Asia/Hong_Kong'],['z5','Asia/Dubai'],['z6','Europe/Berlin'],['z7','Australia/Sydney']];
@@ -2062,7 +2084,7 @@ const PAIRS=[
 ['CHAIN DATA','チェーンデータ'],['EVENT ARCHIVE','イベント一覧'],['Upcoming','これから'],['Recent','直近'],['High impact only','重要度：高のみ'],
 ['UPCOMING EVENTS','今後のイベント'],['US Employment Report','米国 雇用統計'],['Past reactions 🔒','過去の反応 🔒'],
 ['/ 365 DAYS','/ 365日'],['4 major assets · event history · EVENT IMPACT','主要4銘柄・イベント履歴・イベント影響'],['No subscription.','サブスクリプション不要。'],
-['CONNECT WALLET','ウォレット接続'],
+['CONNECT WALLET','ウォレット接続'],['Choose a coin','コインを選ぶ'],['Connect wallet','ウォレットをつなぐ'],['All records for 365 days','365日、すべての記録'],
 ];
 const e2j={},j2e={};PAIRS.forEach(([e,j])=>{e2j[e]=j;j2e[j]=e});
 const norm=t=>t.replace(/\s+/g,' ').trim();
