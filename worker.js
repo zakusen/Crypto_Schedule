@@ -8,7 +8,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v145';
+const VERSION = '2026-10-09-v146';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1416,8 +1416,13 @@ async function postsApi(request, env) {
 // === v94: X の自動投稿の合図。5分ごとに小さな予定(x:due。tools/x_post.mjs / x_notify.mjs が書く)を見て、
 //   投稿時刻を過ぎた(3時間以内の)ものがあれば GitHub Actions「X post」を起こす。同じ合図は20分に1回まで。
 //   必要: Cloudflare の Secret GH_DISPATCH_TOKEN(GitHub の細かい権限の鍵。Actions: Read and write)と Secret GH_REPO(例: owner/Crypto_Schedule。デプロイで消えないよう Secret にする)
+// v146: 合図は「X post」ワークフローを直接起動する(workflow_dispatch)。鍵の権限は Actions: Read and write だけで足りる
+//   (それまでの repository_dispatch は Contents: write が必要で、Actions だけの鍵では断られていた)
 async function ghDispatch(env, payload) {
-  return fetch(`https://api.github.com/repos/${env.GH_REPO}/dispatches`, { method: 'POST', headers: { authorization: 'Bearer ' + env.GH_DISPATCH_TOKEN, accept: 'application/vnd.github+json', 'user-agent': 'signal-archive-worker', 'content-type': 'application/json' }, body: JSON.stringify({ event_type: 'x-post', client_payload: payload }) });
+  const r = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/x_post.yml/dispatches`, { method: 'POST', headers: { authorization: 'Bearer ' + env.GH_DISPATCH_TOKEN, accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28', 'user-agent': 'signal-archive-worker', 'content-type': 'application/json' }, body: JSON.stringify({ ref: env.GH_REF || 'main', inputs: { dry: '0' } }) });
+  let body = ''; if (r.status !== 204) { try { body = (await r.text()).slice(0, 200); } catch (_) {} }
+  try { await env.CAL.put('x:disp:last', JSON.stringify({ at: Date.now(), status: r.status, body, why: payload })); } catch (_) {}   // /api/spike で見られるように
+  return r;
 }
 // === v95 / v98: 急変動の見張り。5分ごとの価格取得のすぐ後に、保存済みの5分足で BTC の直近60分の変動を見る(v98: BTC だけ)。
 //   ±3% 以上なら x:spk に記録して「X post」を起こす(下書きは tools/x_notify.mjs が Pacifica の足で作り直し、ETH・SOL・BNB・S&P500 も載せる)。
@@ -1441,7 +1446,8 @@ async function spikeStatus(env) {
   let doc = null; try { doc = env.CAL ? await env.CAL.get('x:spk', { type: 'json' }) : null; } catch (_) {}
   const last = doc && doc.ev && doc.ev.length ? doc.ev[doc.ev.length - 1] : null;
   const hit = Object.entries(cur.wins || {}).find(([, o]) => o && Math.abs(o.chg) >= SPIKE_PCT);
-  return json({ now: new Date(now).toISOString(), threshold_pct: SPIKE_PCT, ...cur, would_trigger: hit ? hit[0] : null,
+  let disp = null; try { disp = env.CAL ? await env.CAL.get('x:disp:last', { type: 'json' }) : null; } catch (_) {}
+  return json({ now: new Date(now).toISOString(), threshold_pct: SPIKE_PCT, last_dispatch: disp ? { at: new Date(disp.at).toISOString(), status: disp.status, ok: disp.status === 204, body: disp.body || undefined, why: disp.why } : null, gh_repo: env.GH_REPO || null, gh_token_set: !!env.GH_DISPATCH_TOKEN, ...cur, would_trigger: hit ? hit[0] : null,
     last_spike: last ? { at: new Date(last.t).toISOString(), win: last.win || 1, chg: last.hit && last.hit[SPIKE_COIN] } : null,
     cooling_until: last && now - last.t < SPIKE_COOL ? new Date(last.t + SPIKE_COOL).toISOString() : null });
 }
