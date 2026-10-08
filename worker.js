@@ -4,11 +4,12 @@
 //   銘柄の予定は、チェーン直読み(BTC半減期・ETHフォーク)・満期の自動計算・BNBバーンの目安・手動登録だけ。出どころ不明の投稿型カレンダーは使わない。
 //   /api/ethqueue               … ETHの出口待ち・入口待ち・ステーク量(30分ごとに自前で記録)
 //   /api/stake?sym=SOL|BNB      … SOL・BNBのステーク量(30分ごとに自前で記録)
+//   /api/liq?sym=BTC&step=3600  … ロング/ショートの清算額(Durable Object LiqHub が Binance・Bybit・OKX のストリームを集計)
 // 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v149';
+const VERSION = '2026-10-09-v150';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1535,6 +1536,182 @@ async function rxPut(request, url, env) {
   return json({ ok: true, name, bytes: body.length });
 }
 
+// ---------- 清算額(v150): Durable Object が取引所の清算ストリームを常時受信して5分足に集計 ----------
+// ロング清算 = 買いポジションの強制決済(売り注文で約定)。ショート清算はその逆。金額はUSD建て(数量×価格)。
+// 取引所: Binance(!forceOrder@arr)・Bybit(allLiquidation)・OKX(liquidation-orders)の合算。どれかが落ちても他は続く。
+// 保存: DOのstorageに日ごと('d:BTC:2026-10-09')。5分刻み(0〜287)→[ロング,ショート]。2週間(PAST_KEEP)より古い日は捨てる。
+const LIQ_STEP = 300000;
+const LIQ_FLUSH = 30000;
+const LIQ_OKX_CT = { BTC: 0.01, ETH: 0.1, SOL: 1, BNB: 0.01 };   // OKXの1枚あたりの数量(取れない時の既定値。起動時に公式の値で上書き)
+const liqDay = (t) => new Date(t).toISOString().slice(0, 10);
+
+export class LiqHub {
+  constructor(state, env) {
+    this.state = state; this.env = env;
+    this.days = {};          // 'BTC:2026-10-09' -> { slot: [long, short] }
+    this.max = {};           // 'BTC' -> [usd, 'long'|'short', ts, src]  直近24時間の最大1件の目安
+    this.dirty = new Set();
+    this.src = {};           // 取引所ごとの状態 { at: 最後の受信, n: 受信数, err: 直近の失敗理由, ws }
+    this.ct = { ...LIQ_OKX_CT };
+    this.ready = this.state.blockConcurrencyWhile(async () => {
+      const all = await this.state.storage.list({ prefix: 'd:' });
+      for (const [k, v] of all) this.days[k.slice(2)] = v;
+      const mx = await this.state.storage.get('max'); if (mx) this.max = mx;
+    });
+  }
+
+  add(sym, side, usd, ts, src) {
+    if (!SYMS.includes(sym) || !(usd > 0) || !(ts > 0)) return;
+    const key = sym + ':' + liqDay(ts), slot = Math.floor((ts % DAY) / LIQ_STEP);
+    const d = this.days[key] || (this.days[key] = {});
+    const c = d[slot] || (d[slot] = [0, 0]);
+    c[side === 'long' ? 0 : 1] += usd;
+    this.dirty.add(key);
+    const m = this.max[sym];
+    if (!m || Date.now() - m[2] > DAY || usd > m[0]) this.max[sym] = [usd, side, ts, src];
+  }
+
+  async flush() {
+    const cut = Date.now() - PAST_KEEP;
+    const put = {};
+    for (const k of this.dirty) put['d:' + k] = this.days[k];
+    this.dirty.clear();
+    put.max = this.max;
+    try { await this.state.storage.put(put); } catch (_) {}
+    for (const k of Object.keys(this.days)) {
+      const t = Date.parse(k.split(':')[1] + 'T00:00:00Z');
+      if (t < cut - DAY) { delete this.days[k]; try { await this.state.storage.delete('d:' + k); } catch (_) {} }
+    }
+  }
+
+  note(name, f) { const s = this.src[name] || (this.src[name] = { n: 0 }); Object.assign(s, f); return s; }
+
+  connect(name, url, onOpen, onMsg) {
+    const s = this.note(name, {});
+    if (s.ws || s.connecting) return;
+    s.connecting = true;
+    fetch(url.replace(/^wss:/, 'https:'), { headers: { Upgrade: 'websocket' } }).then((res) => {
+      const ws = res.webSocket;
+      if (!ws) throw new Error('接続拒否 HTTP ' + res.status);
+      ws.accept();
+      s.ws = ws; s.connecting = false; s.err = null; s.opened = Date.now();
+      ws.addEventListener('message', (ev) => {
+        try { const j = JSON.parse(typeof ev.data === 'string' ? ev.data : ''); s.at = Date.now(); onMsg(j, s); } catch (_) {}
+      });
+      const gone = (why) => { if (s.ws === ws) { s.ws = null; s.err = why; } };
+      ws.addEventListener('close', () => gone('切断'));
+      ws.addEventListener('error', () => gone('通信エラー'));
+      try { onOpen(ws); } catch (_) {}
+    }).catch((e) => { s.connecting = false; s.ws = null; s.err = String((e && e.message) || e); });
+  }
+
+  ensure() {
+    const now = Date.now();
+    // 30分以上なにも届かず、開いてからも30分たつ接続は、静かに死んでいる可能性があるので閉じて張り直す
+    for (const s of Object.values(this.src)) {
+      if (s.ws && now - (s.at || 0) > 1800000 && now - (s.opened || 0) > 1800000) { try { s.ws.close(); } catch (_) {} s.ws = null; }
+    }
+    this.connect('binance', 'wss://fstream.binance.com/ws/!forceOrder@arr', () => {}, (j) => {
+      const o = j && j.o; if (!o || !/USDT$/.test(o.s)) return;
+      const sym = o.s.slice(0, -4);
+      // S=SELL … ロングが強制的に売られた(ロング清算)
+      this.add(sym, o.S === 'SELL' ? 'long' : 'short', Number(o.z) * Number(o.ap), Number(o.T) || Date.now(), 'binance');
+      this.src.binance.n++;
+    });
+    this.connect('bybit', 'wss://stream.bybit.com/v5/public/linear', (ws) => {
+      ws.send(JSON.stringify({ op: 'subscribe', args: SYMS.map((s) => 'allLiquidation.' + s + 'USDT') }));
+    }, (j) => {
+      if (!j || !/^allLiquidation\./.test(j.topic || '')) return;
+      for (const d of j.data || []) {
+        if (!/USDT$/.test(d.s)) continue;
+        // S=Buy … ロングポジションが清算された
+        this.add(d.s.slice(0, -4), d.S === 'Buy' ? 'long' : 'short', Number(d.v) * Number(d.p), Number(d.T) || Date.now(), 'bybit');
+        this.src.bybit.n++;
+      }
+    });
+    this.connect('okx', 'wss://ws.okx.com:8443/ws/v5/public', (ws) => {
+      ws.send(JSON.stringify({ op: 'subscribe', args: [{ channel: 'liquidation-orders', instType: 'SWAP' }] }));
+      this.okxCt();
+    }, (j) => {
+      if (!j || !j.arg || j.arg.channel !== 'liquidation-orders') return;
+      for (const d of j.data || []) {
+        const m = /^([A-Z]+)-USDT-SWAP$/.exec(d.instId || ''); if (!m || !this.ct[m[1]]) continue;
+        for (const x of d.details || []) {
+          // posSide=long … ロングの清算(netモードでは side=sell がロング清算)
+          const long = x.posSide === 'long' || (x.posSide !== 'short' && x.side === 'sell');
+          this.add(m[1], long ? 'long' : 'short', Number(x.sz) * this.ct[m[1]] * Number(x.bkPx), Number(x.ts) || Date.now(), 'okx');
+          this.src.okx.n++;
+        }
+      }
+    });
+  }
+
+  async okxCt() {
+    if (this.ctDone && Date.now() - this.ctDone < 6 * 3600000) return;
+    this.ctDone = Date.now();
+    try {
+      for (const s of SYMS) {
+        const j = await (await fetch('https://www.okx.com/api/v5/public/instruments?instType=SWAP&instId=' + s + '-USDT-SWAP')).json();
+        const v = Number(j && j.data && j.data[0] && j.data[0].ctVal); if (v > 0) this.ct[s] = v;
+      }
+    } catch (_) {}
+  }
+
+  async alarm() {
+    await this.ready;
+    this.ensure();
+    await this.flush();
+    await this.state.storage.setAlarm(Date.now() + LIQ_FLUSH);
+  }
+
+  async fetch(request) {
+    await this.ready;
+    this.ensure();
+    if (!(await this.state.storage.getAlarm())) await this.state.storage.setAlarm(Date.now() + LIQ_FLUSH);
+    const url = new URL(request.url);
+    const sym = url.searchParams.get('sym');
+    if (!SYMS.includes(sym)) return json({ error: 'bad params' }, 400);
+    const step = [300, 900, 3600, 14400, 86400].includes(Number(url.searchParams.get('step'))) ? Number(url.searchParams.get('step')) * 1000 : 3600000;
+    const now = Date.now(), from = now - PAST_KEEP;
+    const agg = new Map();
+    let first = 0;
+    for (const [k, d] of Object.entries(this.days)) {
+      const [s, day] = k.split(':'); if (s !== sym) continue;
+      const base = Date.parse(day + 'T00:00:00Z');
+      for (const [slot, v] of Object.entries(d)) {
+        const t = base + Number(slot) * LIQ_STEP; if (t < from) continue;
+        if (!first || t < first) first = t;
+        const b = Math.floor(t / step) * step, c = agg.get(b) || [0, 0];
+        c[0] += v[0]; c[1] += v[1]; agg.set(b, c);
+      }
+    }
+    const buckets = [...agg.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, Math.round(v[0]), Math.round(v[1])]);
+    let l24 = 0, s24 = 0;
+    for (const [k, d] of Object.entries(this.days)) {
+      const [s, day] = k.split(':'); if (s !== sym) continue;
+      const base = Date.parse(day + 'T00:00:00Z');
+      for (const [slot, v] of Object.entries(d)) { if (base + Number(slot) * LIQ_STEP >= now - DAY) { l24 += v[0]; s24 += v[1]; } }
+    }
+    const m = this.max[sym];
+    const sources = {};
+    for (const [n, s] of Object.entries(this.src)) sources[n] = { live: !!s.ws, last: s.at || null, n: s.n, err: s.err || null };
+    return json({ step: step / 1000, buckets, since: first || null, h24: { long: Math.round(l24), short: Math.round(s24) }, max24: m && now - m[2] <= DAY ? { usd: Math.round(m[0]), side: m[1], ts: m[2], src: m[3] } : null, sources });
+  }
+}
+
+async function liqApi(env, url) {
+  if (!env.LIQ) return json({ error: 'Durable Object(LIQ)が未接続です。wrangler.jsonc に LiqHub の設定を追加してください', buckets: [] }, 503);
+  const sym = url.searchParams.get('sym');
+  try {
+    const stub = env.LIQ.get(env.LIQ.idFromName('hub'));
+    return await stub.fetch('https://liq/data?sym=' + encodeURIComponent(sym || '') + '&step=' + encodeURIComponent(url.searchParams.get('step') || '3600'));
+  } catch (e) { return json({ error: String((e && e.message) || e), buckets: [] }, 502); }
+}
+async function liqPing(env) {   // 定時実行から呼び、DOが眠っていたら起こす(接続の張り直し)
+  if (!env.LIQ) return null;
+  try { const r = await env.LIQ.get(env.LIQ.idFromName('hub')).fetch('https://liq/data?sym=BTC&step=86400'); const j = await r.json(); return j.sources || j; } catch (e) { return { error: String((e && e.message) || e) }; }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1545,6 +1722,7 @@ export default {
     //   画面は /api/cal を使う。/api/events は確認用に残す。
     if (url.pathname === '/api/events' || url.pathname === '/api/cal') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
+    if (url.pathname === '/api/liq') return cached(ctx, request, 20, () => liqApi(env, url));   // v150: ロング/ショート清算額
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname === '/api/spike') { const r = await spikeStatus(env); r.headers.set('cache-control', 'no-store'); return r; }   // v145: 急変動の判定の今の値(見るだけ。投稿はしない)
     if (url.pathname === '/api/corr') return cached(ctx, request, 300, async () => { const t = env.CAL ? await env.CAL.get('corr:v1') : null; return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8' } }); });   // v95: S&P500 との相関(保存を返すだけ)
@@ -1579,6 +1757,7 @@ export default {
     if (event.cron === PX_CRON) {
       try { console.log('price refresh', JSON.stringify(await runPrices(env))); }
       catch (e) { console.log('price refresh FAILED', String((e && e.stack) || e)); }
+      try { const r = await liqPing(env); if (r) console.log('liq', JSON.stringify(r)); } catch (e) { console.log('liq FAILED', String((e && e.message) || e)); }
       try { const r = await spikeCheck(env); if (r) console.log('spike', JSON.stringify(r)); } catch (e) { console.log('spike FAILED', String((e && e.message) || e)); }
       try { const r = await xDispatch(env); if (r) console.log('x dispatch', JSON.stringify(r)); } catch (e) { console.log('x dispatch FAILED', String((e && e.message) || e)); }
       return;

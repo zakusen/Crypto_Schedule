@@ -2445,6 +2445,7 @@ body:after{box-shadow:0 0 180px rgba(55,145,215,.075),inset 0 0 150px rgba(110,1
 <div class="hero"><div><div class="kicker" id="heroKicker" data-dyn>NEXT EVENT · HIGH IMPACT</div><h1 data-dyn>米 消費者物価指数 (CPI)<span class="pill">重要</span></h1><div class="when" id="eventTime" data-dyn>—</div><p class="desc" data-dyn>未来のイベントを価格チャート上に配置。発表までの時間をリアルタイムで追跡します。</p></div><div><div class="dial"><div class="dialin"><small>NEXT EVENT</small><div class="count" id="count" data-dyn>--:--:--</div><small>COUNTDOWN</small></div></div></div><div class="q"><div class="ptitle">EVENT DATA</div><div class="qrow"><span>Forecast</span><b data-dyn>—</b></div><div class="qrow"><span>Previous</span><b data-dyn>—</b></div><div class="qrow"><span>Category</span><b data-dyn>指標</b></div><div class="qrow"><span>Status</span><b data-dyn>UPCOMING</b></div></div><div class="indinfo" id="indInfo" data-dyn></div></div>
 <div class="card chart"><div class="chead"><div class="asset" data-dyn><div class="badge">₿</div><b>BTC/USDT</b><span class="price"></span><span class="change"></span><span class="muted">—</span></div><div class="tf"><button>5M</button><button>15M</button><button>1H</button><button class="on">4H</button><button>1D</button><button>1W</button><button>1M</button></div></div><div class="canvaswrap"><canvas id="chart"></canvas><div class="nowtag">NOW</div></div><div class="eventsbar" data-dyn><span>● <b>CPI</b> 指標</span><span>● <b>FOMC</b> 指標</span><span>● <b>ETH Upgrade</b> チェーン</span><span>● <b>満期</b></span><span>● <b>Burn</b> バーン</span></div><div class="caption"><strong>MARKET TIMELINE</strong><span>EVENT · NOW · PRICE</span></div></div>
 <div class="card chainstat" id="chainCard"><div class="ptitle"><span id="chainTitle" data-dyn>CHAIN DATA</span><span id="chainSrc" data-dyn></span></div><div id="chainBody" data-dyn></div></div>
+<div class="card chainstat" id="liqCard"><div class="ptitle"><span id="liqTitle" data-dyn>LIQUIDATIONS</span><span id="liqSrc" data-dyn></span></div><div id="liqBody" data-dyn></div></div>
 <div class="card evlist" id="evCard"><div class="ptitle"><span>EVENT ARCHIVE</span><span class="evtabs"><button type="button" data-ev="up" class="on">Upcoming</button><button type="button" data-ev="past">Recent</button><label><input type="checkbox" id="evHigh"> <span>High impact only</span></label></span></div><div id="evBody" data-dyn><div class="cs-msg">Loading…</div></div></div>
 </section>
 <aside class="right">
@@ -2853,14 +2854,14 @@ function head(){
   const m=a.querySelector('.muted'),d=CD[sym+'|'+tf];
   m.textContent=d?(d.src||'')+(d.src&&d.src!=='Pacifica'?TL('(予備)',' (backup)'):'')+' · '+agoTxt(d.at)+(d.stale?TL(' · 古い値',' · stale'):''):(ST[sym+'|'+tf]==='error'?TL('取得できません','Unavailable'):TL('読み込み中…','Loading…'))}
 function tfBtns(){document.querySelectorAll('.chart .tf button').forEach(b=>{b.classList.toggle('on',TFM[b.textContent.trim()]===tf)})}
-document.querySelectorAll('.chart .tf button').forEach(b=>b.addEventListener('click',()=>{const t=TFM[b.textContent.trim()];if(!t||t===tf)return;tf=t;tfBtns();draw();head();legend();if(!CD[sym+'|'+tf])load(sym,tf);else load(sym,tf)}));
+document.querySelectorAll('.chart .tf button').forEach(b=>b.addEventListener('click',()=>{const t=TFM[b.textContent.trim()];if(!t||t===tf)return;tf=t;tfBtns();draw();head();legend();if(!CD[sym+'|'+tf])load(sym,tf);else load(sym,tf);drawLiq();loadLiq()}));
 function watch(){
   const coins=[...document.querySelectorAll('.left .coin')].filter(c=>SYMS.includes((c.querySelector('b')||{}).textContent));
   coins.forEach(c=>{const s=c.querySelector('b').textContent,d=CD[s+'|1d'],cv2=c.querySelector('.cv');if(!cv2)return;
     c.style.cursor='pointer';c.style.opacity=s===sym?1:.78;
     if(d&&d.bars.length){const n=d.bars.length,last=d.bars[n-1][4],prev=n>1?d.bars[n-2][4]:d.bars[n-1][1],ch=(last/prev-1)*100;
       cv2.innerHTML=fp(last)+'<div class="'+(ch>=0?'up':'dn')+'" style="'+(ch<0?'color:#d87878':'')+'">'+(ch>=0?'+':'')+ch.toFixed(2)+'%</div>'}
-    if(!c._w){c._w=1;c.addEventListener('click',()=>{if(s===sym)return;sym=s;draw();head();legend();upcoming();watch();evList();impCard();hero();load(sym,tf);ensureImp();loadChain()})}})}
+    if(!c._w){c._w=1;c.addEventListener('click',()=>{if(s===sym)return;sym=s;draw();head();legend();upcoming();watch();evList();impCard();hero();load(sym,tf);ensureImp();loadChain();drawLiq();loadLiq()})}})}
 
 /* 次の重要イベント(ヒーロー)と今後の一覧 */
 function hero(){
@@ -3089,6 +3090,41 @@ function drawChain(){
   body.innerHTML='<div class="cs-head"><span>'+TL('ステーク量','Staked')+' <b>'+TL('約','~')+(c[1]/1e6).toFixed(sym==='SOL'?1:2)+TL('百万'+sym,'M '+sym)+'</b>'+(sym==='SOL'&&c[2]?TL('（総供給の約'+(c[1]/c[2]*100).toFixed(1)+'%）','('+(c[1]/c[2]*100).toFixed(1)+'% of supply)'):'')+'</span><span>'+TL('記録: '+fdS(S[0][0]*1e3)+' から','Recorded since '+fdS(S[0][0]*1e3))+'</span></div>'+
     spark([{name:'stake',color:'#9fd1b0',fill:1,pts:S.map(q=>[q[0]*1e3,q[1]/1e6])}],{fmt:v=>v.toFixed(sym==='SOL'?1:2)+'M'})}
 
+/* チャートの下: 清算額(ロング=上・赤 / ショート=下・緑)。Binance・Bybit・OKXの合算 */
+let LQ={};
+const LQSTEP={'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400,'1w':86400,'1M':86400};
+const usdS=v=>{v=Math.abs(v);return v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(0)+'K':'$'+Math.round(v)};
+async function loadLiq(){const k=sym+'|'+LQSTEP[tf];
+  try{const r=await gf('/api/liq?sym='+sym+'&step='+LQSTEP[tf]);const j=await r.json();if(!r.ok)throw new Error(j.error||('HTTP '+r.status));LQ[k]=j}
+  catch(e){if(!LQ[k])LQ[k]={error:String(e.message||e),buckets:[]}}
+  drawLiq()}
+function drawLiq(){
+  const card=$('liqCard'),body=$('liqBody');if(!card||!body)return;
+  $('liqTitle').textContent=sym+TL(' · 清算額（ロング／ショート）',' · LIQUIDATIONS (LONG / SHORT)');$('liqSrc').textContent=TL('Binance・Bybit・OKXの合算（USD）','Binance + Bybit + OKX (USD)');
+  const D=LQ[sym+'|'+LQSTEP[tf]];if(!D){body.innerHTML='<div class="cs-msg">'+TL('読み込み中…','Loading…')+'</div>';return}
+  if(D.error){body.innerHTML='<div class="cs-msg">'+TL('取得できませんでした（','Unavailable (')+esc(D.error)+TL('）',')')+'</div>';return}
+  const B=D.buckets||[],srcs=Object.entries(D.sources||{}),live=srcs.filter(q=>q[1].live).length;
+  const fdS=t=>new Intl.DateTimeFormat(LOC(),{timeZone:tz(),month:EN()?'short':'numeric',day:'numeric'}).format(t);
+  const h=D.h24||{long:0,short:0},mx=D.max24;
+  let head='<div class="cs-head"><span>'+TL('直近24時間のロング清算','Long liquidated (24h)')+' <b style="color:#e07a7a">'+usdS(h.long)+'</b></span><span>'+TL('ショート清算','Short liquidated (24h)')+' <b style="color:#7fc99a">'+usdS(h.short)+'</b></span>'+
+    (mx?'<span>'+TL('最大1件','Largest')+' <b>'+usdS(mx.usd)+'</b>'+(mx.side==='long'?TL('ロング','long'):TL('ショート','short'))+' · '+agoTxt(mx.ts)+'</span>':'')+
+    '<span>'+TL('接続 ','Feeds ')+live+'/'+(srcs.length||3)+(D.since?' · '+TL('記録: '+fdS(D.since)+' から','since '+fdS(D.since)):'')+'</span></div>';
+  if(!B.length){body.innerHTML=head+'<div class="cs-msg">'+TL('記録がまだありません。受信を始めた時点から貯まります。','No records yet. Data accumulates from when the collector started.')+'</div>'+liqNote(srcs);return}
+  const W=Math.max(320,body.clientWidth||600),H=170,L=50,R=10,T=8,Bt=20,step=D.step*1000;
+  const t1=Math.max(Date.now(),B[B.length-1][0]+step),t0=Math.min(B[0][0],t1-step*Math.min(60,Math.max(B.length,24)));
+  const bars=B.filter(q=>q[0]>=t0),mxL=Math.max(1,...bars.map(q=>q[1])),mxS=Math.max(1,...bars.map(q=>q[2])),top=Math.max(mxL,mxS);
+  const mid=T+(H-T-Bt)/2,half=(H-T-Bt)/2,bw=Math.max(1,(W-L-R)/Math.max(1,(t1-t0)/step)-1),x=t=>L+(t-t0)/(t1-t0)*(W-L-R);
+  let g='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" preserveAspectRatio="none" role="img"><line x1="'+L+'" x2="'+(W-R)+'" y1="'+mid+'" y2="'+mid+'" stroke="rgba(180,205,230,.18)"/>'+
+    '<text x="'+(L-6)+'" y="'+(T+9)+'" text-anchor="end">'+usdS(top)+'</text><text x="'+(L-6)+'" y="'+(mid+3)+'" text-anchor="end">0</text><text x="'+(L-6)+'" y="'+(H-Bt-2)+'" text-anchor="end">'+usdS(top)+'</text>';
+  bars.forEach(q=>{const xx=x(q[0]).toFixed(1),l=q[1]/top*half,s=q[2]/top*half;
+    if(l>0)g+='<rect x="'+xx+'" y="'+(mid-l).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+l.toFixed(1)+'" fill="#e07a7a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ロング','long')+' '+usdS(q[1])+'</title></rect>';
+    if(s>0)g+='<rect x="'+xx+'" y="'+mid+'" width="'+bw.toFixed(1)+'" height="'+s.toFixed(1)+'" fill="#7fc99a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ショート','short')+' '+usdS(q[2])+'</title></rect>'});
+  const n=Math.min(6,Math.max(1,Math.round((t1-t0)/864e5)));for(let k=0;k<=n;k++){const t=t0+(t1-t0)*k/n;g+='<text x="'+x(t).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+(step>=864e5||(t1-t0)>2*864e5?fdS(t):new Intl.DateTimeFormat(LOC(),{timeZone:tz(),hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(t))+'</text>'}
+  body.innerHTML=head+g+'</svg>'+liqNote(srcs)}
+function liqNote(srcs){const bad=srcs.filter(q=>!q[1].live);
+  return '<div class="cs-msg" style="padding:6px 0 0">'+TL('ロング清算=買いポジションの強制決済。取引所の公開ストリームの合算で、全市場の清算ではありません（足は上の価格チャートに合わせて切り替わります）。','Long liquidation = forced close of a buy position. Sum of public exchange streams, not the whole market. Bar size follows the price chart timeframe.')+
+    (bad.length?' <span style="color:#d9a3a3">'+TL('未接続: ','Offline: ')+bad.map(q=>q[0]+(q[1].err?'（'+esc(q[1].err)+'）':'')).join(' / ')+'</span>':'')+'</div>'}
+
 /* チャートの下: イベント一覧(これから / 直近) */
 let EVTAB='up';
 function evList(){
@@ -3112,17 +3148,17 @@ function evToggles(){const keys=['macro','chain','exp','burn'];
 
 /* ↻ 更新: キャッシュを通さず取り直す */
 function refreshBtn(){const b=$('refreshBtn');if(!b)return;b.addEventListener('click',async()=>{if(b.disabled)return;b.disabled=true;NC=Date.now();
-  try{await Promise.all([load(sym,tf),loadE(),sym==='BTC'?null:loadChain()])}finally{NC=0;b.disabled=false;b.title=TL('更新しました ','Refreshed at ')+new Date().toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hourCycle:'h23'})}})}
+  try{await Promise.all([load(sym,tf),loadE(),sym==='BTC'?null:loadChain(),loadLiq()])}finally{NC=0;b.disabled=false;b.title=TL('更新しました ','Refreshed at ')+new Date().toLocaleTimeString(LOC(),{hour:'2-digit',minute:'2-digit',hourCycle:'h23'})}})}
 
 function init(){
   document.querySelectorAll('.coin').forEach(()=>{});
   const h=document.querySelector('.hero h1');if(h){[h,...h.querySelectorAll('*')].forEach(n=>{if(n.dataset)delete n.dataset.csaI18n});h.textContent=TL('読み込み中…','Loading…')}
   tfBtns();draw();head();
-  load(sym,tf).then(()=>{legend();ensureImp()});SYMS.forEach(s=>load(s,'1d'));loadE();evList();evToggles();refreshBtn();loadChain();impWire();impCard();
-  addEventListener('csa-lang',()=>{draw();head();hero();upcoming();legend();evList();drawChain();impCard();if(typeof tick==='function')tick();document.querySelectorAll('.left .coin.evt').forEach(c=>c.title=TL('クリックで表示/非表示','Click to show / hide'))});
-  setInterval(()=>{if(!document.hidden)load(sym,tf)},3e5);setInterval(()=>{if(!document.hidden&&sym!=='BTC')loadChain()},3e5);setInterval(loadE,18e5);setInterval(()=>{draw();head();hero()},30000);
-  addEventListener('resize',()=>{draw();legend();drawChain()});if(window.ResizeObserver)new ResizeObserver(()=>draw()).observe(wrap);
-  $('city')&&$('city').addEventListener('change',()=>{draw();upcoming();evList();drawChain();impCard()})}
+  load(sym,tf).then(()=>{legend();ensureImp()});SYMS.forEach(s=>load(s,'1d'));loadE();evList();evToggles();refreshBtn();loadChain();loadLiq();impWire();impCard();
+  addEventListener('csa-lang',()=>{draw();head();hero();upcoming();legend();evList();drawChain();drawLiq();impCard();if(typeof tick==='function')tick();document.querySelectorAll('.left .coin.evt').forEach(c=>c.title=TL('クリックで表示/非表示','Click to show / hide'))});
+  setInterval(()=>{if(!document.hidden)load(sym,tf)},3e5);setInterval(()=>{if(!document.hidden&&sym!=='BTC')loadChain()},3e5);setInterval(()=>{if(!document.hidden)loadLiq()},6e4);setInterval(loadE,18e5);setInterval(()=>{draw();head();hero()},30000);
+  addEventListener('resize',()=>{draw();legend();drawChain();drawLiq()});if(window.ResizeObserver)new ResizeObserver(()=>draw()).observe(wrap);
+  $('city')&&$('city').addEventListener('change',()=>{draw();upcoming();evList();drawChain();drawLiq();impCard()})}
 if(document.readyState==='complete')setTimeout(init,150);else addEventListener('load',()=>setTimeout(init,150));
 })();
 

@@ -7,7 +7,7 @@
 |---|---|
 | `public/index.html` | 画面（LUXE）。`/api/*` を呼ぶだけ |
 | `public/events_manual.json` | 任意の追加イベント用（今は空。マクロは全て自動取得） |
-| `worker.js` | `/api/candles`（Pacifica）、`/api/events`（日米欧のマクロ指標・チェーン直読みの予定など）、`/api/ethqueue`（ETH出口待ち・入口待ち・ステーク量）、`/api/stake`（SOL・BNBのステーク量）を返す。30分ごとの定時実行でマクロ指標をKVに保存する |
+| `worker.js`(v150〜: 清算額の Durable Object `LiqHub` を含む) | `/api/candles`（Pacifica）、`/api/events`（日米欧のマクロ指標・チェーン直読みの予定など）、`/api/ethqueue`（ETH出口待ち・入口待ち・ステーク量）、`/api/stake`（SOL・BNBのステーク量）を返す。30分ごとの定時実行でマクロ指標をKVに保存する |
 | `wrangler.jsonc` | Cloudflare Workersの設定（Worker名、KV `cal` の接続、30分ごとの定時実行） |
 | `tools/apply_update.py` | 更新zipを展開して反映する（zip自動展開の本体） |
 | `tools/check_site.py` | 公開中のAPIが正しい形で返るかを確認する |
@@ -459,3 +459,14 @@
 
 ## v120: PC版のタイトルロゴを大きく(40px → 64px。幅820px以下は52px)
 - 変えたのはロゴの大きさだけ。形・動き・文言・配置はそのまま。
+
+- 清算額(v150・`/api/liq?sym=BTC&step=3600`): Durable Object `LiqHub` が Binance(`!forceOrder@arr`)・Bybit(`allLiquidation`)・OKX(`liquidation-orders`)の公開WebSocketを常時受信し、5分刻みでロング清算・ショート清算(USD)を日ごとに保存(2週間分)。画面は価格の下に、価格チャートの足に合わせた棒グラフ(ロング=上・赤 / ショート=下・緑)と、24時間の合計・最大1件を出す。
+  - ロング清算 = 買いポジションの強制決済(Binance は S=SELL、Bybit は S=Buy、OKX は posSide=long)。OKXの数量は契約サイズ(ctVal)で換算(起動時に公式の値を取得)。
+  - 必要な設定: `wrangler.jsonc` に下の2つを足す(無料プランは SQLite 版の `new_sqlite_classes` が必須)。足したら `npx wrangler deploy`。
+    ```jsonc
+    "durable_objects": { "bindings": [ { "name": "LIQ", "class_name": "LiqHub" } ] },
+    "migrations": [ { "tag": "v150-liq", "new_sqlite_classes": ["LiqHub"] } ]
+    ```
+  - 常時接続のため、無料枠(1日 13,000 GB-秒)に対しDO1つを24時間動かすと約 11,000 GB-秒でぎりぎり収まる。足りなければ有料プラン($5/月)にするか、取引所を減らす。
+  - 接続は5分ごとの定時実行(と画面からの取得)で、切れていれば張り直す。取引所が Cloudflare のIPを断る(例: Binance が HTTP 451)と、その取引所だけ「未接続」と画面に出て、他の取引所の分だけで集計される。記録は導入日から貯まる(過去分は取れない)。
+  - 公開ストリームの合算で、全市場の清算ではない。
