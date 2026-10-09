@@ -30,6 +30,80 @@ a.cta.on{background:#14291f;border-color:#3f8f63;color:#a9e5c3}
 .live{font-size:9px;letter-spacing:.12em;color:#9fe9d0;white-space:nowrap}.live:before{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;background:#80e1bb;box-shadow:0 0 7px #80e1bb;margin:0 6px 1px 0}
 .chartframe .chart{position:relative}
 @media(max-width:560px){.chartframe{padding:11px 8px 6px}.charthead{flex-direction:column;align-items:flex-start;gap:4px}}
+/* v177: スマホ(560px以下)専用の画面。PC用の .wrap は隠し、下の #mx を出す(560px超は今までどおり)。クラスは mx- で始める */
+.mx{display:none}
+@media(max-width:560px){.wrap{display:none!important}.mx{display:block;padding-bottom:calc(24px + env(safe-area-inset-bottom))}}
+.mx button,.mx select{-webkit-tap-highlight-color:transparent}
+.mx-top{display:flex;align-items:center;gap:10px;padding:10px 12px;height:52px}
+.mx-back{width:40px;height:40px;display:grid;place-items:center;border:1px solid #6b5a33;border-radius:12px;color:var(--gold);text-decoration:none;font-size:18px;flex:none}
+.mx-title{flex:1;min-width:0}.mx-title b{display:block;font-size:16px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-title small{display:block;font-size:10px;color:var(--muted);letter-spacing:.08em;white-space:nowrap}
+.mx-lang{display:inline-flex;padding:3px;border:1px solid #263149;border-radius:10px;background:#050a12;flex:none}
+.mx-lang button{border:0;background:transparent;color:#8193a5;min-width:38px;height:32px;border-radius:7px;font-weight:700;font-size:11px}
+.mx-lang button.on{background:rgba(111,170,222,.2);color:#fff}
+.mx-ctl{position:sticky;top:0;z-index:20;padding:8px 12px 10px;background:rgba(5,7,14,.96);border-bottom:1px solid #131c2c;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.mx-sel{position:relative}
+.mx-sel select{appearance:none;-webkit-appearance:none;width:100%;height:46px;padding:0 42px 0 14px;background:#111c2c;color:var(--text);border:1px solid #33425c;border-radius:12px;font-size:15px;font-weight:600;text-overflow:ellipsis}
+.mx-sel:after{content:"";position:absolute;right:16px;top:50%;width:8px;height:8px;border-right:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:translateY(-70%) rotate(45deg);pointer-events:none}
+.mx-row2{display:flex;gap:8px;margin-top:8px}
+.mx-seg{display:flex;padding:3px;border:1px solid var(--line);border-radius:12px;background:#080d17;gap:2px}
+.mx-seg button{border:0;background:transparent;height:38px;border-radius:9px;color:var(--muted);font-weight:650;font-size:13px;padding:0 11px;min-width:44px;white-space:nowrap}
+.mx-seg button.on{background:#1b2a42;color:#fff;box-shadow:inset 0 0 0 1px #3b5679}
+.mx-assets{flex:1}.mx-assets button{flex:1;padding:0}
+.mx-tabs button{padding:0 12px}.mx-tabs b{color:var(--gold);margin-right:5px}
+.mx-band{margin:2px 12px 0;border:1px solid #2b3a52;border-radius:16px;background:linear-gradient(145deg,#111a2c,#0b111d);padding:13px 14px;box-shadow:0 14px 40px #0006,inset 0 1px #ffffff12}
+.mx-next{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.mx-next b{color:var(--text);font-weight:600}.mx-next>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mx-cd{font-family:ui-monospace,Menlo,monospace;color:var(--gold);font-size:13px;letter-spacing:.04em;white-space:nowrap}
+.mx-head{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:11px}
+.mx-big{border-radius:12px;padding:10px 12px 9px;background:#0a1019;border:1px solid var(--line);min-width:0}
+.mx-big small{display:block;font-size:10px;letter-spacing:.1em;color:var(--muted)}
+.mx-big strong{display:block;font-size:30px;line-height:1.15;font-weight:600;letter-spacing:-.02em;margin-top:2px}
+.mx-big.l strong{color:#ff9da0}.mx-big.s strong{color:#a0f0c4}
+.mx-big em{font-style:normal;font-size:11px;color:var(--muted)}
+.mx-sub{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:9px;font-size:11px;color:var(--muted)}
+.mx-sub b{color:#cfd9e8;font-weight:600}
+.mx-sec{margin:12px 12px 0;border:1px solid #243148;border-radius:16px;background:linear-gradient(140deg,#0d1a2cf0,#080f1cf5);padding:13px 12px 12px;box-shadow:0 14px 34px #0006,inset 0 1px #d7faff12}
+.mx-sh{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mx-sh h2{margin:0;font-size:14px;font-weight:650}
+.mx-info{width:30px;height:30px;border-radius:50%;border:1px solid #3a4b66;background:transparent;color:var(--muted);font-size:13px;font-weight:700;flex:none}
+.mx-desc{display:none;font-size:12px;line-height:1.75;color:#a9b8cb;margin:8px 0 0;padding:9px 11px;background:#0a1019;border:1px solid var(--line);border-radius:10px}
+.mx-desc.show{display:block}
+.mx-win{display:flex;gap:6px;margin:10px 0 8px}
+.mx-win button{flex:1;height:36px;border:1px solid var(--line);border-radius:10px;background:#0a1019;color:var(--muted);font-weight:650;font-size:12px}
+.mx-win button.on{border-color:#7a6535;color:var(--gold);background:#1a1710}
+.mx-read{height:44px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 11px;margin-bottom:6px;border-radius:10px;background:#0a1019;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.mx-read .t{color:var(--gold);font-weight:650;min-width:50px}
+.mx-read .v{display:flex;gap:12px;font-weight:650}.mx-read .l{color:#ff9da0}.mx-read .s{color:#a0f0c4}
+.mx-sec svg{display:block;width:100%;height:auto;user-select:none;-webkit-user-select:none;overflow:visible}
+.mx-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11px;color:var(--muted);margin-top:8px}
+.mx-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+.mx-chips-t{font-size:10px;letter-spacing:.14em;color:var(--muted);margin:14px 0 0}
+.mx-chips{display:flex;gap:7px;overflow-x:auto;margin:6px -12px 0;padding:2px 12px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.mx-chips::-webkit-scrollbar{display:none}
+.mx-chip{flex:none;height:36px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:#0a1019;color:#b9c6d8;font-size:12px;white-space:nowrap}
+.mx-chip.on{border-color:#c9a65c;color:#fff1cc;background:#241e10}
+.mx-medlg{display:flex;flex-wrap:wrap;gap:4px 12px;margin:10px 0 4px;font-size:11px;color:var(--muted)}
+.mx-medlg i{display:inline-block;width:12px;border-top:2px dashed #e9c47c;margin-right:6px;vertical-align:3px}
+.mx-r{display:grid;grid-template-columns:58px 1fr;gap:10px;align-items:center;width:100%;min-height:58px;padding:7px 8px;border:1px solid transparent;border-radius:12px;background:transparent;text-align:left;color:inherit}
+.mx-r.on{border-color:#c9a65c66;background:#17140d}
+.mx-r .d{font-size:12px;color:#cdd8e8;line-height:1.25}.mx-r .d small{display:block;color:var(--muted);font-size:10px}
+.mx-bars{display:grid;gap:5px}
+.mx-bar{position:relative;height:16px;border-radius:5px;background:#0a1019;overflow:hidden}
+.mx-bar>i{position:absolute;left:0;top:0;bottom:0;border-radius:5px}
+.mx-bar.l>i{background:linear-gradient(90deg,#ff9da033,#ff9da0cc)}.mx-bar.s>i{background:linear-gradient(90deg,#a0f0c433,#a0f0c4cc)}
+.mx-bar>u{position:absolute;top:0;bottom:0;border-left:1.5px dashed #e9c47ccc;text-decoration:none}
+.mx-bar>b{position:absolute;right:6px;top:0;font-size:10px;line-height:16px;font-weight:650;color:#fff;text-shadow:0 0 4px #000a}
+.mx-msg{font-size:12px;line-height:1.7;color:var(--muted);padding:14px 4px}
+.mx-lock{margin:10px 12px 0;display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #5a4a28;border-radius:12px;background:#17130b;font-size:12px;color:#d9c795}
+.mx-lock span{flex:1;line-height:1.45}.mx-lock a{flex:none;height:36px;padding:0 12px;border-radius:9px;background:#5a4a2a;color:#ffeab8;font-weight:700;text-decoration:none;display:grid;place-items:center;font-size:12px}
+.mx-note{margin:12px 12px 0}
+.mx-note details{border:1px solid var(--line);border-radius:12px;background:#0a1019;padding:0 12px}
+.mx-note summary{list-style:none;height:46px;display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#b9c6d8;cursor:pointer}
+.mx-note summary::-webkit-details-marker{display:none}
+.mx-note summary:after{content:"＋";color:var(--gold)}.mx-note details[open] summary:after{content:"−"}
+.mx-note p{font-size:12px;line-height:1.8;color:#9fb0c6;margin:0 0 12px}
+.mx-foot{margin:16px 14px 0;font-size:10px;letter-spacing:.1em;color:#5f6e84}
 </style>
 </head>
 <body>
@@ -73,6 +147,41 @@ a.cta.on{background:#14291f;border-color:#3f8f63;color:#a9e5c3}
  </aside>
 </div>
 <footer class="footer"><span>CRYPTO SIGNAL ARCHIVE · LIQUIDATION × MACRO EVENTS</span><span data-i="foot"></span></footer>
+</div>
+<div class="mx" id="mx">
+ <header class="mx-top"><a class="mx-back" href="/" id="mxBack" aria-label="Main page">←</a><div class="mx-title"><b id="mxTitle"></b><small>CRYPTO SIGNAL ARCHIVE</small></div><div class="mx-lang" id="mxLang" role="group" aria-label="Language / 言語"><button type="button" data-lang="ja">JP</button><button type="button" data-lang="en">EN</button></div></header>
+ <div class="mx-ctl">
+  <div class="mx-sel"><select id="mxType"></select></div>
+  <div class="mx-row2">
+   <div class="mx-seg mx-assets" id="mxAssets" role="group"><button type="button" data-a="BTC">BTC</button><button type="button" data-a="ETH">ETH</button><button type="button" data-a="SOL">SOL</button><button type="button" data-a="BNB">BNB</button></div>
+   <div class="mx-seg mx-tabs" id="mxTabs" role="tablist"><button type="button" role="tab" data-t="a" class="on"><b>A</b><span id="mxTabA"></span></button><button type="button" role="tab" data-t="b"><b>B</b><span id="mxTabB"></span></button></div>
+  </div>
+ </div>
+ <section class="mx-band">
+  <div class="mx-next"><span><span id="mxNextLbl"></span>　<b id="mxNextName">—</b></span><span class="mx-cd" id="mxCd">—</span></div>
+  <div class="mx-head"><div class="mx-big l"><small id="mxLLbl"></small><strong id="mxL">—</strong><em id="mxNL"></em></div><div class="mx-big s"><small id="mxSLbl"></small><strong id="mxS">—</strong><em id="mxNS"></em></div></div>
+  <div class="mx-sub"><span><span id="mxPvLbl"></span> <b id="mxPv">—</b></span><span><span id="mxLn"></span> <b style="color:#ff9da0" id="mxPvL">—</b> / <span id="mxSn"></span> <b style="color:#a0f0c4" id="mxPvS">—</b></span></div>
+ </section>
+ <section class="mx-sec" id="mxPaneA">
+  <div class="mx-sh"><h2 id="mxAH"></h2><button type="button" class="mx-info" id="mxInfoA" aria-label="?">?</button></div>
+  <p class="mx-desc" id="mxDescA"></p>
+  <div class="mx-win" id="mxWin"><button type="button" data-w="6">±6h</button><button type="button" data-w="12">±12h</button><button type="button" data-w="24">±24h</button></div>
+  <div class="mx-read" id="mxRead"></div>
+  <svg id="mxChartA" viewBox="0 0 360 310" role="img"></svg>
+  <div class="mx-msg hidden" id="mxMsgA"></div>
+  <div class="mx-legend" id="mxLegend"></div>
+  <div id="mxChipsWrap"><div class="mx-chips-t" id="mxChipsT"></div><div class="mx-chips" id="mxChips"></div></div>
+ </section>
+ <section class="mx-sec hidden" id="mxPaneB">
+  <div class="mx-sh"><h2 id="mxBH"></h2><button type="button" class="mx-info" id="mxInfoB" aria-label="?">?</button></div>
+  <p class="mx-desc" id="mxDescB"></p>
+  <div class="mx-medlg" id="mxMedLg"></div>
+  <div id="mxRows"></div>
+  <div class="mx-msg hidden" id="mxMsgB"></div>
+ </section>
+ <div class="mx-lock hidden" id="mxLock"><span id="mxLockT"></span><a href="/" id="mxLockA"></a></div>
+ <div class="mx-note"><details><summary id="mxNoteS"></summary><p id="mxNoteP"></p></details></div>
+ <div class="mx-foot">CRYPTO SIGNAL ARCHIVE · LIQUIDATION × MACRO EVENTS</div>
 </div>
 <script>
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -187,13 +296,13 @@ function renderA(evs,win){
   txt(svg,W-R,15,one?T('直近1回のみ','Latest release only'):T('n = '+evs.length+'回（中央値）','n = '+evs.length+' (median)'),{'text-anchor':'end','fill':CP.gold})}
 async function drawA(){
  const tok=++ATOK,svg=$('chartA'),note=$('noteA');
- if(!D||!D.n){clear(svg);note.textContent=ERR?T('取得できませんでした: ','Could not load: ')+ERR:T('この指標は、清算の記録と重なる回がありません。','No releases of this type overlap with the liquidation data.');return}
+ if(!D||!D.n){clear(svg);note.textContent=ERR?T('取得できませんでした: ','Could not load: ')+ERR:T('この指標は、清算の記録と重なる回がありません。','No releases of this type overlap with the liquidation data.');LASTA=null;mxA();return}
  const win=Number(document.querySelector('#windowButtons .active').dataset.window);
- let hr;try{hr=await loadHr($('assetB').value)}catch(e){if(tok===ATOK){clear(svg);note.textContent=T('取得できませんでした: ','Could not load: ')+e.message}return}
+ let hr;try{hr=await loadHr($('assetB').value)}catch(e){if(tok===ATOK){clear(svg);note.textContent=T('取得できませんでした: ','Could not load: ')+e.message;LASTA=null;mxA()}return}
  if(tok!==ATOK)return;
- const evs=alignEvents(D,hr,win);renderA(evs,win);
+ const evs=alignEvents(D,hr,win);renderA(evs,win);LASTA={evs,win};
  const base=T('発表を含む1時間を0として整列。1時間足のため、5分単位の細かい動きは見えません。線は過去の実績で、因果関係を示すものではありません。','Aligned so the hour containing the release = 0. Hourly bars only, so 5-minute detail is not shown. Lines are past records and do not show cause and effect.');
- note.textContent=(evs.length?'':T('1時間足の記録と重なる回がありません。','No releases overlap with the hourly record. '))+(D.locked?T('無料プレビュー: 直近1回のみ表示しています。','Free preview: only the latest release is shown. '):'')+base}
+ note.textContent=(evs.length?'':T('1時間足の記録と重なる回がありません。','No releases overlap with the hourly record. '))+(D.locked?T('無料プレビュー: 直近1回のみ表示しています。','Free preview: only the latest release is shown. '):'')+base;mxA()}
 function summary(d){
  const lk=!!d.locked,lockTxt='🔒';
  $('longMultiple').textContent=lk?lockTxt:fx(d.med.l);$('shortMultiple').textContent=lk?lockTxt:fx(d.med.s);
@@ -216,7 +325,7 @@ function nextEv(type){const now=Date.now(),e=CAL.filter(x=>x.s===type&&Date.pars
  $('eventCountry').textContent=(e.c||'')+(e.im==='high'?T(' · 高重要度',' · High impact'):e.im?T(' · 中重要度',' · Medium impact'):'');
  $('eventDate').textContent=new Date(ts).toLocaleString(T('ja-JP','en-US'),{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})+' JST';
  const tick=()=>{const s=Math.max(0,ts-Date.now())/1000,d=Math.floor(s/86400),h=Math.floor(s%86400/3600);$('countdown').textContent=T(d+'日 '+h+'時間',d+'d '+h+'h')};tick();TICK=setInterval(tick,60000)}
-async function pv(){const a=$('assetB').value;$('pvLabel').textContent='PREVIEW · '+a;try{const d=await j('/api/liq?sym='+a+'&step=300'),from=Date.now()-36e5;let l=0,sh=0;(d.buckets||[]).forEach(b=>{if(b[0]>=from){l+=b[1];sh+=b[2]}});$('pvTot').textContent=usd(l+sh);$('pvL').textContent=usd(l);$('pvS').textContent=usd(sh)}catch(e){$('pvTot').textContent='—'}}
+async function pv(){MXPV=null;mxPvShow();const a=$('assetB').value;$('pvLabel').textContent='PREVIEW · '+a;try{const d=await j('/api/liq?sym='+a+'&step=300'),from=Date.now()-36e5;let l=0,sh=0;(d.buckets||[]).forEach(b=>{if(b[0]>=from){l+=b[1];sh+=b[2]}});$('pvTot').textContent=usd(l+sh);$('pvL').textContent=usd(l);$('pvS').textContent=usd(sh);MXPV={t:l+sh,l,s:sh};mxPvShow()}catch(e){$('pvTot').textContent='—';MXPV=null;mxPvShow()}}
 function fillTypes(){const sel=$('typeB'),cur=sel.value||Q.get('type')||'';sel.innerHTML='';
  TY.forEach(t=>{const o=document.createElement('option');o.value=t.k;o.textContent=lab(t.k)+T('（'+t.n+'回）',' (n='+t.n+')');sel.appendChild(o)});
  if(cur&&TY.some(t=>t.k===cur))sel.value=cur}
@@ -239,7 +348,7 @@ function render(){
  $('tabC').querySelector('.soon').textContent=T('準備中','soon');
  const ok=!!(D&&D.access==='ok'),b=$('accessBtn');b.classList.toggle('on',ok);
  b.textContent=ok?T('アーカイブアクセス有効','Archive access active'):T('メインページでアクセスを確認 →','Check access on the main page →');
- $('noteB').textContent=noteText()}
+ $('noteB').textContent=noteText();mxRender()}
 function syncUrl(){try{history.replaceState(null,'','?sym='+encodeURIComponent($('assetB').value)+'&type='+encodeURIComponent($('typeB').value))}catch(_){}}
 async function show(){ERR=null;
  try{D=await j('/api/liqimpact?sym='+$('assetB').value+'&type='+encodeURIComponent($('typeB').value),true)}catch(e){D=null;ERR=e.message}
@@ -253,6 +362,96 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{if(
 document.querySelectorAll('#windowButtons button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#windowButtons button').forEach(t=>t.classList.toggle('active',t===b));drawA()}));
 $('assetB').addEventListener('change',show);$('typeB').addEventListener('change',show);
 document.querySelector('.lang-switch').addEventListener('click',e=>{const b=e.target.closest('button[data-lang]');if(!b)return;try{localStorage.setItem('csa-lang',b.dataset.lang)}catch(_){}render()});
+/* v177: スマホ(560px以下)専用の画面 #mx。状態(D・CAL・1時間足)はPC用と共通。ここは読んで描くだけで、操作はPC用の部品(typeB・assetB・windowButtons)を動かして反映する */
+let LASTA=null,MXTAB='a',MXSEL=null,MXPV=null;
+const mxMD=ts=>{const d=new Date(ts);return String(d.getUTCMonth()+1).padStart(2,'0')+'/'+String(d.getUTCDate()).padStart(2,'0')};
+function mxNextEv(){const type=$('typeB').value,now=Date.now();return CAL.filter(x=>x.s===type&&Date.parse(x.at)>now).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))[0]||null}
+function mxTick(){const e=mxNextEv(),c=$('mxCd');if(!e){c.textContent='—';return}
+ const s=Math.max(0,Math.floor((Date.parse(e.at)-Date.now())/1000)),d=Math.floor(s/86400),p=n=>String(n).padStart(2,'0');
+ c.textContent=(d?d+T('日 ','d '):'')+p(Math.floor(s%86400/3600))+':'+p(Math.floor(s%3600/60))+':'+p(s%60)}
+function mxPvShow(){const p=MXPV;$('mxPv').textContent=p?usd(p.t):'—';$('mxPvL').textContent=p?usd(p.l):'—';$('mxPvS').textContent=p?usd(p.s):'—'}
+function mxPanes(){$('mxTabs').querySelectorAll('button').forEach(b=>{const on=b.dataset.t===MXTAB;b.classList.toggle('on',on);b.setAttribute('aria-selected',on?'true':'false')});
+ $('mxPaneA').classList.toggle('hidden',MXTAB!=='a');$('mxPaneB').classList.toggle('hidden',MXTAB!=='b')}
+function mxRender(){
+ const ok=!!(D&&D.n),lk=ok&&!!D.locked;
+ $('mxTitle').textContent=T('清算 × 経済指標','Liquidations × Events');
+ $('mxBack').setAttribute('aria-label',T('メインページ','Main page'));
+ $('mxLang').querySelectorAll('button').forEach(b=>{const on=b.dataset.lang===L();b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false')});
+ const ps=$('typeB'),ms=$('mxType');ms.innerHTML='';[...ps.options].forEach(o=>{const n=document.createElement('option');n.value=o.value;n.textContent=o.textContent;ms.appendChild(n)});ms.value=ps.value;ms.setAttribute('aria-label',T('指標','Indicator'));
+ $('mxAssets').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.a===$('assetB').value));
+ $('mxTabA').textContent=T('反応','Event');$('mxTabB').textContent=T('平常比','Normal');
+ const w=document.querySelector('#windowButtons .active').dataset.window;$('mxWin').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.w===w));
+ mxPanes();
+ /* 結論の帯 */
+ const e=mxNextEv();$('mxNextLbl').textContent=T('次の発表','Next');$('mxNextName').textContent=e?e.t:(ps.value?lab(ps.value):'—');mxTick();
+ $('mxLLbl').textContent=T('ロング · 中央値','LONG · MEDIAN');$('mxSLbl').textContent=T('ショート · 中央値','SHORT · MEDIAN');
+ $('mxL').textContent=!ok?'—':lk?'🔒':fx(D.med.l);$('mxS').textContent=!ok?'—':lk?'🔒':fx(D.med.s);
+ $('mxNL').textContent=ok?T('平常日比 · '+D.n+'回','vs normal day · n='+D.n):'';$('mxNS').textContent=$('mxNL').textContent;
+ $('mxPvLbl').textContent=T('直近1時間の清算','Last 1h liquidations');$('mxLn').textContent=T('ロング','Long');$('mxSn').textContent=T('ショート','Short');mxPvShow();
+ /* 案A(文言。グラフ本体は mxA) */
+ $('mxAH').textContent=T('発表前後の清算の推移','Liquidations around the release');$('mxDescA').textContent=I.adesc[L()==='ja'?0:1];
+ $('mxLegend').innerHTML='<span><i style="background:#ff9da0"></i>'+T('ロング(上)','Long (up)')+'</span><span><i style="background:#a0f0c4"></i>'+T('ショート(下)','Short (down)')+'</span><span>'+I.lgT[L()==='ja'?0:1]+'</span>';
+ $('mxChipsT').textContent=T('過去の回を選ぶ（グラフで強調）','Pick a past release (highlighted)');
+ /* 案B: 回ごとの一覧 */
+ $('mxBH').textContent=T('過去の回ごとの平常比','Multiple of a normal day, by release');
+ $('mxDescB').textContent=T('発表日(UTC)の1日合計 ÷ 直前14日の中央値。4倍を超える回は右端に寄せて表示します。因果を示すものではありません。','Daily total on release day (UTC) ÷ median of the prior 14 days. Values above 4× are pinned to the right edge. This does not show cause and effect.');
+ $('mxMedLg').innerHTML=(ok&&!lk?'<span><i></i>'+T('全回の中央値','Median of all releases')+'</span>':'')+'<span>'+T('行をタップ → Aで強調','Tap a row → highlight in A')+'</span>';
+ const box=$('mxRows');box.innerHTML='';$('mxMsgB').classList.toggle('hidden',ok);$('mxMsgB').textContent=ok?'':noteText();
+ if(ok){const pos=v=>Math.min(v==null?0:v,4)/4*100+'%',mk=(v,m,c)=>'<div class="mx-bar '+c+'"><i style="width:'+pos(v)+'"></i>'+(m!=null&&!lk?'<u style="left:'+pos(m)+'"></u>':'')+'<b>'+fx(v)+'</b></div>';
+  D.events.slice(-12).reverse().forEach(x=>{const b=document.createElement('button');b.type='button';b.className='mx-r'+(x.ts===MXSEL?' on':'');
+   const dt=new Date(x.ts),wd=dt.toLocaleDateString(T('ja-JP','en-US'),{timeZone:'UTC',weekday:'short'});
+   b.innerHTML='<div class="d">'+mxMD(x.ts)+'<small>'+dt.getUTCFullYear()+' '+wd+'</small></div><div class="mx-bars">'+mk(x.lx,D.med&&D.med.l,'l')+mk(x.sx,D.med&&D.med.s,'s')+'</div>';
+   b.onclick=()=>{MXSEL=x.ts;MXTAB='a';mxPanes();mxRender();mxA();window.scrollTo({top:0,behavior:'smooth'})};box.appendChild(b)})}
+ /* 下 */
+ const lock=$('mxLock');lock.classList.toggle('hidden',!lk);
+ $('mxLockT').textContent=T('無料プレビュー: 直近1回のみ。全回の比較と中央値はアーカイブアクセスで。','Free preview: latest release only. Full history and median need Archive access.');$('mxLockA').textContent=T('確認 →','Check →');
+ $('mxNoteS').textContent=T('計算方法・データの出所','Method & data source');$('mxNoteP').textContent=noteText()+' '+I.foot[L()==='ja'?0:1]}
+function mxAChips(){const wrap=$('mxChipsWrap'),c=$('mxChips');c.innerHTML='';const evs=LASTA?LASTA.evs:[];wrap.classList.toggle('hidden',evs.length<2);if(evs.length<2)return;
+ const all=document.createElement('button');all.type='button';all.className='mx-chip'+(MXSEL==null?' on':'');all.textContent=T('中央値','Median');all.onclick=()=>{MXSEL=null;mxRender();mxA()};c.appendChild(all);
+ evs.slice(-12).reverse().forEach(e=>{const b=document.createElement('button');b.type='button';b.className='mx-chip'+(e.ts===MXSEL?' on':'');b.textContent=mxMD(e.ts);b.onclick=()=>{MXSEL=e.ts===MXSEL?null:e.ts;mxRender();mxA()};c.appendChild(b)})}
+function mxA(){
+ const svg=$('mxChartA'),msg=$('mxMsgA'),ro=$('mxRead');svg.innerHTML='';mxAChips();
+ const has=!!(LASTA&&LASTA.evs.length);msg.classList.toggle('hidden',has);svg.classList.toggle('hidden',!has);ro.classList.toggle('hidden',!has);$('mxLegend').classList.toggle('hidden',!has);
+ if(!has){msg.textContent=$('noteA').textContent;return}
+ const {evs,win}=LASTA,VW=360,VH=310,PL=40,PR=10,PT=14,PB=30,mid=(PT+VH-PB)/2,half=(VH-PT-PB)/2-4;
+ const ks=[];for(let k=-win;k<=win;k++)ks.push(k);
+ const at=(e,k,key)=>{const p=e.pts.find(q=>q.k===k);return p?p[key]:null};
+ const MLv=ks.map(k=>med(evs.map(e=>at(e,k,'l')))),MSv=ks.map(k=>med(evs.map(e=>at(e,k,'s'))));
+ const peak=Math.max(2,...MLv.map(v=>v||0),...MSv.map(v=>v||0)),max=Math.ceil(peak*1.3);
+ const x=k=>PL+(k+win)/(2*win)*(VW-PL-PR),yl=v=>mid-Math.min(v,max)/max*half,ys=v=>mid+Math.min(v,max)/max*half,fm=v=>v.toFixed(max>=10?0:1)+'×';
+ const sel=MXSEL!=null?evs.find(e=>e.ts===MXSEL):null;
+ defs(svg,'mxA',true);
+ [1,.5].forEach(f=>{const a=mid-f*half,b=mid+f*half;gl(svg,PL,a,VW-PR,a);gl(svg,PL,b,VW-PR,b);txt(svg,PL-6,a+4,fm(max*f),{'text-anchor':'end',fill:CP.axis,'font-size':10.5});txt(svg,PL-6,b+4,fm(max*f),{'text-anchor':'end',fill:CP.axis,'font-size':10.5})});
+ gl(svg,PL,mid,VW-PR,mid,.5,CP.zero,1.2);txt(svg,PL-6,mid+4,'0',{'text-anchor':'end',fill:CP.axis,'font-size':10.5});
+ [-win,-win/2,0,win/2,win].forEach((k,i)=>{gl(svg,x(k),PT,x(k),VH-PB,.1);txt(svg,x(k),VH-10,k===0?'T₀':(k>0?'+':'−')+Math.abs(k)+'h',{'text-anchor':i===0?'start':i===4?'end':'middle',fill:k===0?CP.gold:CP.axis,'font-size':10.5})});
+ const segs=(f,yf)=>{const out=[];let cur=[];ks.forEach(k=>{const v=f(k);if(v==null){if(cur.length>1)out.push(cur);cur=[]}else cur.push([x(k),yf(v)])});if(cur.length>1)out.push(cur);return out};
+ const mv=arr=>k=>arr[k+win];
+ segs(mv(MLv),yl).forEach(p=>area(svg,p,mid,'url(#mxALF)',.9));segs(mv(MSv),ys).forEach(p=>area(svg,p,mid,'url(#mxASF)',.9));
+ if(evs.length>1)evs.forEach(e=>{const on=sel&&e===sel,dim=sel&&!on,o=on?1:dim?.1:.14+(e.ts%4)*.04;
+  segs(k=>at(e,k,'l'),yl).forEach(p=>path(svg,p,on?'#ffd0d2':CP.lt,on?2:1.1,on?1:o));segs(k=>at(e,k,'s'),ys).forEach(p=>path(svg,p,on?'#d4ffe6':CP.st,on?2:1.1,on?1:o))});
+ segs(mv(MLv),yl).forEach(p=>path(svg,p,CP.lm,2.6,sel?.5:1,{filter:'url(#mxAG)'}));segs(mv(MSv),ys).forEach(p=>path(svg,p,CP.sm,2.6,sel?.5:1,{filter:'url(#mxAG)'}));
+ gl(svg,x(0),PT,x(0),VH-PB,1,CP.gold,1.5,{'stroke-dasharray':'4 5',filter:'url(#mxAG)'});
+ const cur=el('g',{opacity:0},svg),cl=el('line',{y1:PT,y2:VH-PB,stroke:'#fff','stroke-opacity':.7,'stroke-width':1},cur),cdL=el('circle',{r:4.5,fill:CP.lm,stroke:'#07090f','stroke-width':1.5},cur),cdS=el('circle',{r:4.5,fill:CP.sm,stroke:'#07090f','stroke-width':1.5},cur);
+ const rd=(t,l,s,r)=>{ro.innerHTML='<span class="t">'+t+'</span><span class="v"><span class="l">'+T('ロング ','Long ')+fx(l)+'</span><span class="s">'+T('ショート ','Short ')+fx(s)+'</span></span>'+(r?'<span style="font-size:10px">'+r+'</span>':'')};
+ const idle=()=>{cur.setAttribute('opacity',0);
+  if(sel){const d=(D.events||[]).find(e=>e.ts===sel.ts)||{};rd(mxMD(sel.ts),d.lx,d.sx,T('平常日比','vs normal'))}
+  else if(D&&D.med&&D.med.l!=null)rd(T('中央値','Median'),D.med.l,D.med.s,T('平常日比','vs normal'));
+  else ro.innerHTML='<span>'+T('グラフをなぞると値が出ます','Drag on the chart to read values')+'</span>'};
+ const show=k=>{const i=k+win,l=sel?at(sel,k,'l'):MLv[i],s=sel?at(sel,k,'s'):MSv[i];const px=x(k);cur.setAttribute('opacity',1);cl.setAttribute('x1',px);cl.setAttribute('x2',px);
+  cdL.setAttribute('opacity',l==null?0:1);cdS.setAttribute('opacity',s==null?0:1);cdL.setAttribute('cx',px);cdS.setAttribute('cx',px);if(l!=null)cdL.setAttribute('cy',yl(l));if(s!=null)cdS.setAttribute('cy',ys(s));
+  rd(k===0?T('発表','Release'):(k>0?'+':'−')+Math.abs(k)+'h',l,s,sel?mxMD(sel.ts):T('中央値','Median'))};
+ const hit=el('rect',{x:PL,y:PT,width:VW-PL-PR,height:VH-PT-PB,fill:'transparent'},svg);hit.style.touchAction='pan-y';   /* 横になぞると値、縦ならページのスクロール */
+ const mvp=ev=>{const r=svg.getBoundingClientRect(),px=(ev.clientX-r.left)/r.width*VW;show(Math.max(-win,Math.min(win,Math.round((px-PL)/(VW-PL-PR)*2*win-win))))};
+ hit.addEventListener('pointerdown',mvp);hit.addEventListener('pointermove',ev=>{if(ev.pointerType==='mouse'||ev.buttons)mvp(ev)});hit.addEventListener('pointerleave',ev=>{if(ev.pointerType==='mouse')idle()});
+ idle()}
+/* 操作はPC用の部品を動かして反映する */
+$('mxType').addEventListener('change',()=>{$('typeB').value=$('mxType').value;MXSEL=null;show()});
+$('mxAssets').addEventListener('click',e=>{const b=e.target.closest('button[data-a]');if(!b)return;$('assetB').value=b.dataset.a;MXSEL=null;show()});
+$('mxWin').addEventListener('click',e=>{const b=e.target.closest('button[data-w]');if(!b)return;const p=document.querySelector('#windowButtons [data-window="'+b.dataset.w+'"]');if(p)p.click();$('mxWin').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
+$('mxTabs').addEventListener('click',e=>{const b=e.target.closest('button[data-t]');if(!b)return;MXTAB=b.dataset.t;mxPanes()});
+$('mxLang').addEventListener('click',e=>{const b=e.target.closest('button[data-lang]');if(!b)return;try{localStorage.setItem('csa-lang',b.dataset.lang)}catch(_){}render()});
+$('mxInfoA').addEventListener('click',()=>$('mxDescA').classList.toggle('show'));$('mxInfoB').addEventListener('click',()=>$('mxDescB').classList.toggle('show'));
+setInterval(mxTick,1000);
 init();
 </script>
 </body>
