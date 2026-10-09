@@ -2602,7 +2602,7 @@ async function load(s,t){const k=s+'|'+t;ST[k]='loading';
     if(!j.bars||!j.bars.length)throw new Error('empty');
     CD[k]={bars:j.bars,src:j.source||'',at:j.at||Date.now(),stale:!!j.stale};ST[k]='ok'}
   catch(e){ST[k]=CD[k]?'ok':'error'}
-  if(s===sym){draw();head();impCard()}
+  if(s===sym){draw();head();impCard();if(typeof drawLiq==='function')drawLiq()}
   watch()}
 async function loadE(){
   try{const r=await gf('/api/cal');if(!r.ok)throw new Error(r.status);const j=await r.json();
@@ -2817,7 +2817,7 @@ function hov(e){
   if(!geo)return;const r=wrap.getBoundingClientRect(),px=e.clientX-r.left;
   if(px<geo.L||px>geo.L+geo.cw){off();return}
   const t=geo.d0+(px-geo.L)/geo.cw*(geo.d1-geo.d0),i=Math.round((t-geo.step/2-geo.d0)/geo.step);
-  let h='';cross.style.left=px+'px';
+  let h='';cross.style.left=px+'px';if(typeof liqCross==='function')liqCross(t);   /* v167: 清算グラフも同じ時刻に縦線 */
   if(i>=0&&i<geo.n){const b=geo.bs[i],ch=(b[4]/b[1]-1)*100;
     h='<b>'+esc(fdt(b[0]*1000))+'</b><br>'+TL('始 ','O ')+fp(b[1])+TL('　高 ','　H ')+fp(b[2])+'<br>'+TL('安 ','L ')+fp(b[3])+TL('　終 ','　C ')+fp(b[4])+'<br><span style="color:'+(ch>=0?'#4ade80':'#f87171')+'">'+(ch>=0?'+':'')+ch.toFixed(2)+'%</span>';
     dot.style.left=geo.xc(b[0]*1000)+'px';dot.style.top=geo.Y(b[4])+'px';dot.classList.add('show')}
@@ -2826,7 +2826,7 @@ function hov(e){
   if(near.length)showHover(near,px);else hideHover();
   read.innerHTML=h;read.style.left=Math.min(geo.W-190,Math.max(8,px+12))+'px';read.style.top=near.length?(58+hv.offsetHeight+8)+'px':'34px';
   cross.classList.add('show');read.classList.add('show')}
-function off(){cross.classList.remove('show');dot.classList.remove('show');read.classList.remove('show');hideHover()}
+function off(){if(typeof liqCross==='function')liqCross(null);cross.classList.remove('show');dot.classList.remove('show');read.classList.remove('show');hideHover()}
 wrap.addEventListener('pointermove',hov,{passive:true});wrap.addEventListener('pointerleave',off,{passive:true});
 /* v88: チャートのイベントカード(ガラスの窓)や縦線を押すと、その指標を「選択中の指標」にする(右のプルダウンと同じ動き) */
 function pickFromChart(g){
@@ -3109,9 +3109,9 @@ function drawLiq(){
     (mx?'<span>'+TL('最大1件','Largest')+' <b>'+usdS(mx.usd)+'</b>'+(mx.side==='long'?TL('ロング','long'):TL('ショート','short'))+' · '+agoTxt(mx.ts)+'</span>':'')+
     (D.since?'<span>'+TL('記録: '+fdS(D.since)+' から','Since '+fdS(D.since))+'</span>':'')+'</div>';
   if(!B.length){body.innerHTML=head+'<div class="cs-msg">'+TL('集計中…','Collecting…')+'</div>'+liqNote()+liqBf();return}
-  const W=Math.max(320,body.clientWidth||600),H=170,L=50,R=48,T=8,Bt=20,step=D.step*1000;
-  const t1=Math.max(Date.now(),B[B.length-1][0]+step),t0=Math.min(B[0][0],t1-step*Math.min(60,Math.max(B.length,24)));
-  const bars=B.filter(q=>q[0]>=t0),mxL=Math.max(1,...bars.map(q=>q[1])),mxS=Math.max(1,...bars.map(q=>q[2])),top=Math.max(mxL,mxS);
+  const W=Math.max(320,body.clientWidth||600),H=170,G=(typeof geo!=='undefined'&&geo&&geo.d1>geo.d0)?geo:null,L=G?G.L:50,R=G?G.R:48,T=8,Bt=20,step=D.step*1000;
+  const t1=Math.max(Date.now(),B[B.length-1][0]+step),t0=Math.min(B[0][0],t1-step*Math.min(60,Math.max(B.length,24)));if(G){t0=G.d0;t1=G.d1}   /* v167: 横軸は価格チャートと同じ範囲 */
+  const bars=B.filter(q=>q[0]>=t0-step&&q[0]<=t1),mxL=Math.max(1,...bars.map(q=>q[1])),mxS=Math.max(1,...bars.map(q=>q[2])),top=Math.max(mxL,mxS);
   const mid=T+(H-T-Bt)/2,half=(H-T-Bt)/2,bw=Math.max(1,((W-L-R)/Math.max(1,(t1-t0)/step)-1)*.7),x=t=>L+(t-t0)/(t1-t0)*(W-L-R);
   let g='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" preserveAspectRatio="none" role="img"><line x1="'+L+'" x2="'+(W-R)+'" y1="'+mid+'" y2="'+mid+'" stroke="rgba(180,205,230,.18)"/>'+
     '<text x="'+(L-6)+'" y="'+(T+9)+'" text-anchor="end">'+usdS(top)+'</text><text x="'+(L-6)+'" y="'+(mid+3)+'" text-anchor="end">0</text><text x="'+(L-6)+'" y="'+(H-Bt-2)+'" text-anchor="end">'+usdS(top)+'</text>';
@@ -3119,16 +3119,27 @@ function drawLiq(){
   const PB=((CD[sym+'|'+tf]||{}).bars||[]).filter(b=>b[0]*1000+step>=t0&&b[0]*1000<=t1);   // v159: 価格線(価格チャートの終値。右軸)
   if(PB.length>1){const pc=PB.map(b=>b[4]),pl=Math.min(...pc),ph=Math.max(...pc),pr=(ph-pl)||1,py=v=>T+4+(1-(v-pl)/pr)*(H-T-Bt-8);
     g+='<polyline fill="none" stroke="#d8dee8" stroke-width="1.3" opacity=".9" points="'+PB.map(b=>x(b[0]*1000+step/2).toFixed(1)+','+py(b[4]).toFixed(1)).join(' ')+'"/>';
-    [ph,(ph+pl)/2,pl].forEach(v=>{g+='<text x="'+(W-R+4)+'" y="'+(py(v)+3).toFixed(1)+'" text-anchor="start">'+Math.round(v).toLocaleString('en-US')+'</text>'})}
+    if(!G)[ph,(ph+pl)/2,pl].forEach(v=>{g+='<text x="'+(W-R+4)+'" y="'+(py(v)+3).toFixed(1)+'" text-anchor="start">'+Math.round(v).toLocaleString('en-US')+'</text>'})}
   bars.forEach(q=>{const xx=x(q[0]).toFixed(1),l=q[1]/top*half,s=q[2]/top*half;
     if(l>0)g+='<rect x="'+xx+'" y="'+(mid-l).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+l.toFixed(1)+'" fill="#e07a7a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ロング','long')+' '+usdS(q[1])+'</title></rect>';
     if(s>0)g+='<rect x="'+xx+'" y="'+mid+'" width="'+bw.toFixed(1)+'" height="'+s.toFixed(1)+'" fill="#7fc99a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ショート','short')+' '+usdS(q[2])+'</title></rect>'});
   const n=Math.min(6,Math.max(1,Math.round((t1-t0)/864e5)));for(let k=0;k<=n;k++){const t=t0+(t1-t0)*k/n;g+='<text x="'+x(t).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+(step>=864e5||(t1-t0)>2*864e5?fdS(t):new Intl.DateTimeFormat(LOC(),{timeZone:tz(),hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(t))+'</text>'}
+  const EVL=[...new Set(visEv().filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>=t0&&e.ts<=t1).map(e=>e.ts))];   // v167: 重要指標の縦線(価格チャートと同じ)
+  EVL.forEach(ts=>{g+='<line x1="'+x(ts).toFixed(1)+'" x2="'+x(ts).toFixed(1)+'" y1="'+T+'" y2="'+(H-Bt)+'" stroke="#d8b46a" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>'});
+  g+='<line id="liqX" y1="'+T+'" y2="'+(H-Bt)+'" stroke="#e3eaf4" stroke-width="1" opacity=".7" visibility="hidden"/><text id="liqR" y="'+(T+12)+'" fill="#e3eaf4" style="font-size:11px" visibility="hidden"></text>';
+  LQG={L,R,W,t0,t1,step,bars,x};
   body.innerHTML=head+g+'</svg>'+liqNote()+liqBf()}
+let LQG=null;
+function liqCross(t){const s=document.getElementById('liqX'),r=document.getElementById('liqR');if(!s||!r||!LQG)return;
+  if(t==null||t<LQG.t0||t>LQG.t1){s.setAttribute('visibility','hidden');r.setAttribute('visibility','hidden');return}
+  const xx=LQG.x(t).toFixed(1),q=LQG.bars.find(q=>t>=q[0]&&t<q[0]+LQG.step);
+  s.setAttribute('x1',xx);s.setAttribute('x2',xx);s.setAttribute('visibility','visible');
+  r.textContent=q?fdt(q[0])+'  '+TL('ロング ','Long ')+usdS(q[1])+'  '+TL('ショート ','Short ')+usdS(q[2]):fdt(t)+'  '+TL('清算の記録なし','no liquidation record');
+  r.setAttribute('x',Math.min(LQG.W-LQG.R-250,Math.max(LQG.L+4,+xx+8)));r.setAttribute('visibility','visible')}
 function liqBf(){const D=LQ[sym+'|'+LQSTEP[tf]],b=D&&D.do&&D.do.bf;if(!b)return '';
   const t=b==='no_key'?TL('過去分: 未取得（Coinalyzeの鍵が未設定）','History: not loaded (no Coinalyze key)'):b==='pending'?TL('過去分: 取り込み待ち','History: pending'):b.ok?TL('過去分: Coinalyzeから取り込み済み','History: imported from Coinalyze'):TL('過去分: 取り込み失敗（'+esc(b.err||'?')+'）','History: import failed ('+esc(b.err||'?')+')');
   return '<div class="cs-msg" style="padding:2px 0 0">'+t+(b&&b.ok&&b.lt_err?' · '+TL('日足の長期分は失敗: ','daily failed: ')+esc(b.lt_err):'')+'</div>'}
-function liqNote(){return '<div class="cs-msg" style="padding:6px 0 0">'+TL('ロング清算=買いポジションの強制決済。データ元はCoinalyze。Binance・Bybit・OKX・Huobiの無期限先物(USDT建て)の合算で、全市場の清算ではありません。棒の幅は上の価格チャートの足に合わせて切り替わります。','Long liquidation = forced close of a buy position. Data from Coinalyze: Binance + Bybit + OKX + Huobi USDT perpetuals combined, not the whole market. Bar size follows the price chart timeframe.')+'</div>'}
+function liqNote(){return '<div class="cs-msg" style="padding:6px 0 0">'+TL('ロング清算=買いポジションの強制決済。データ元はCoinalyze。Binance・Bybit・OKX・Huobiの無期限先物(USDT建て)の合算で、全市場の清算ではありません。横軸は上の価格チャートと同じ範囲で、棒の幅は足に合わせて切り替わります。価格チャートにカーソルを乗せると、同じ時刻の清算が出ます。金色の点線は重要指標の発表です。','Long liquidation = forced close of a buy position. Data from Coinalyze: Binance + Bybit + OKX + Huobi USDT perpetuals combined, not the whole market. The time axis matches the price chart above; hover the price chart to read liquidations at the same time. Gold dashed lines mark major releases.')+'</div>'}
 
 /* チャートの下: イベント一覧(これから / 直近) */
 let EVTAB='up';

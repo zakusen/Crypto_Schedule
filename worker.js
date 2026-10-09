@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v166';
+const VERSION = '2026-10-09-v167';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1860,11 +1860,12 @@ export class LiqHub {
         c[0] += v[0]; c[1] += v[1]; agg.set(b, c);
       }
     }
-    if (step === DAY || step === 36e5) {   // v163: 2週間より古い分は長期保存から足す(新しい分はこの集計を優先)
+    if (step === DAY || step === 36e5 || step === 144e5) {   // v163: 2週間より古い分は長期保存から足す(新しい分はこの集計を優先)
       this.ltc = this.ltc || {};
       const pre = step === DAY ? 'lt:' : 'lh:', ck = pre + sym;
       if (!this.ltc[ck]) { const mm = await this.state.storage.list({ prefix: pre + sym + ':' }); this.ltc[ck] = [].concat(...mm.values()); }
-      for (const [t, l, sh] of this.ltc[ck]) { if (t >= Math.floor(from / step) * step || agg.has(t)) continue; agg.set(t, [l, sh]); if (!first || t < first) first = t; }
+      const cutT = Math.floor(from / step) * step;   // v167: 4時間足も1時間の長期保存から束ねる
+      for (const [t, l, sh] of this.ltc[ck]) { if (t >= cutT) continue; const b = Math.floor(t / step) * step; if (b >= cutT) continue; const c = agg.get(b) || [0, 0]; c[0] += l; c[1] += sh; agg.set(b, c); if (!first || b < first) first = b; }
     }
     const buckets = [...agg.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, Math.round(v[0]), Math.round(v[1])]);
     let l24 = 0, s24 = 0;
