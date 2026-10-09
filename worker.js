@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v167';
+const VERSION = '2026-10-09-v168';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1943,6 +1943,24 @@ async function liqImpactApi(env, url) {
   }
   return json({ sym, type, n: out.length, med: { l: med(out.map((o) => o.lx)), s: med(out.map((o) => o.sx)) }, since: d.since || null, events: out.slice(-60), note: '発表日(UTC)の1日合計 ÷ 直前14日の中央値。Coinalyze 4社合算。因果を示すものではありません。' });
 }
+// v168: 清算×指標の「全回」は有料(トークン確認は /api/rx と同じ rxAccess)。
+//   無料 = 直近1回だけ(見本)。指標の一覧(type 無し)は無料のまま。中央値は全回が要るので無料では出さない。
+//   計算本体は今までどおり10分キャッシュ(全員共通)。切り分けはキャッシュの外でやるので、無料の人に全回が渡ることはない。
+async function liqImpactGated(ctx, request, env, url) {
+  const full = await cached(ctx, request, 600, () => liqImpactApi(env, url));
+  if (!url.searchParams.get('type') || full.status !== 200) return new Response(full.body, full);
+  const acc = await rxAccess(env, request);
+  if (acc === 'err') return json({ error: 'アクセス確認に失敗しました。少し待ってから再読み込みしてください' }, 503);
+  const d = await full.clone().json();
+  d.access = acc;
+  if (acc !== 'ok') {
+    d.locked = true;
+    d.shown = Math.min(1, (d.events || []).length);
+    d.events = (d.events || []).slice(-1);
+    d.med = { l: null, s: null };
+  }
+  return json(d);
+}
 async function liqPing(env) {   // 定時実行から呼び、DOが眠っていたら起こす(接続の張り直し)
   if (!env.LIQ) return null;
   try { const r = await env.LIQ.get(env.LIQ.idFromName('hub')).fetch('https://liq/data?sym=BTC&step=86400'); const j = await r.json(); return j.sources || j; } catch (e) { return { error: String((e && e.message) || e) }; }
@@ -1958,7 +1976,7 @@ export default {
     //   画面は /api/cal を使う。/api/events は確認用に残す。
     if (url.pathname === '/api/events' || url.pathname === '/api/cal') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
-    if (url.pathname === '/api/liqimpact') return cached(ctx, request, 600, () => liqImpactApi(env, url));   // v164: 清算×指標(平常比)
+    if (url.pathname === '/api/liqimpact') { const r = await liqImpactGated(ctx, request, env, url); r.headers.set('cache-control', 'private, no-store'); return r; }   // v164: 清算×指標(平常比) / v168: 全回は有料
     if (url.pathname === '/api/liq') return cached(ctx, request, 20, () => liqApi(env, url));   // v150: ロング/ショート清算額
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname === '/api/spike') { const r = await spikeStatus(env); r.headers.set('cache-control', 'no-store'); return r; }   // v145: 急変動の判定の今の値(見るだけ。投稿はしない)

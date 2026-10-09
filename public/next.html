@@ -5,55 +5,52 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CRYPTO SIGNAL ARCHIVE — 清算 × 経済指標</title>
 <style>
-:root{--bg:#080d16;--panel:#0e1624;--panel2:#111c2c;--line:#263448;--text:#e7edf6;--muted:#8e9db3;--gold:#d6b36a;--blue:#77a9f8;--long:#f15c79;--short:#37d5a0;--radius:14px}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% -20%,#172640 0,transparent 45%),var(--bg);color:var(--text);font:14px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+:root{--bg:#05070e;--panel:#0e1320;--panel2:#101625;--line:#1d2538;--text:#e8ecf5;--muted:#7a869e;--gold:#d9ad68;--blue:#739ee8;--long:#e07a7a;--short:#7fc99a;--radius:14px}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 15% -20%,#121c33 0,transparent 45%),var(--bg);color:var(--text);font:14px/1.55 "Noto Sans JP","Hiragino Sans","Yu Gothic",Inter,system-ui,sans-serif;font-variant-numeric:tabular-nums}
 button,select{font:inherit}button{cursor:pointer}.wrap{max-width:1440px;margin:auto;padding:24px}.top{display:flex;justify-content:space-between;align-items:center;gap:18px;border-bottom:1px solid var(--line);padding-bottom:18px}.brand{display:flex;gap:12px;align-items:center}.mark{width:4px;height:42px;border-radius:4px;background:var(--blue);box-shadow:0 0 18px #77a9f855}.eyebrow{font-size:10px;letter-spacing:.18em;color:var(--gold);font-weight:800}.brand h1{font-size:22px;margin:2px 0 0;letter-spacing:-.03em}.subtitle{color:var(--muted);font-size:12px}.demo{border:1px solid #78643a;color:var(--gold);padding:5px 9px;border-radius:999px;font-size:10px;letter-spacing:.08em;white-space:nowrap}
-.eventbar{margin:20px 0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(220px,.8fr) minmax(180px,.6fr);gap:12px}.card{background:linear-gradient(145deg,#111b2b,#0c1320);border:1px solid var(--line);border-radius:var(--radius);padding:16px;min-width:0}.label{color:var(--muted);font-size:10px;letter-spacing:.13em;font-weight:700}.eventname{font-size:20px;font-weight:750;margin:6px 0}.meta{display:flex;gap:7px;flex-wrap:wrap;color:#aab7c9;font-size:11px}.pill{border:1px solid #314258;border-radius:999px;padding:3px 8px}.pill.gold{border-color:#69562f;color:var(--gold)}.metric{font-size:24px;font-weight:760;letter-spacing:-.04em;margin:4px 0}.metric small{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:0}.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.mini{background:#0a111d;border:1px solid #202e41;padding:11px;border-radius:10px}.mini .n{font-size:19px;font-weight:750;margin-top:3px}.long{color:var(--long)}.short{color:var(--short)}.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);padding:0 0 10px;margin-bottom:14px;overflow:auto}.tab{background:transparent;border:1px solid transparent;color:var(--muted);padding:10px 14px;border-radius:9px;white-space:nowrap}.tab.active{background:#172438;color:var(--text);border-color:#3a4e68}.tab .letter{color:var(--gold);font-size:10px;margin-right:7px;font-weight:800}.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px}.maincard{background:#0d1522;border:1px solid var(--line);border-radius:var(--radius);padding:18px;min-width:0}.side{display:flex;flex-direction:column;gap:12px}.sectionhead{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px}.sectionhead h2{margin:3px 0 4px;font-size:18px}.desc{color:var(--muted);font-size:12px}.select{background:#111c2c;color:var(--text);border:1px solid #33445b;border-radius:8px;padding:8px}.chart{width:100%;display:block;overflow:visible}.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:10px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.note{font-size:11px;color:var(--muted);border-top:1px solid var(--line);margin-top:14px;padding-top:12px}.statrow{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #202c3d}.statrow:last-child{border:0}.statrow span{color:var(--muted);font-size:12px}.statrow b{font-variant-numeric:tabular-nums}.range{display:flex;gap:5px}.range button{background:#101a29;border:1px solid #2c3b50;color:var(--muted);border-radius:7px;padding:6px 9px;font-size:11px}.range button.active{color:var(--gold);border-color:#8c7544}.history{display:flex;flex-direction:column;gap:9px}.hist{display:grid;grid-template-columns:70px 1fr 56px;gap:8px;align-items:center;font-size:11px}.track{height:7px;border-radius:8px;background:#202c3d;overflow:hidden}.fill{height:100%;border-radius:8px}.unlock{border:1px solid #5a4b2d;background:linear-gradient(130deg,#1b1c1a,#101723);border-radius:var(--radius);padding:16px}.unlock h3{margin:4px 0 8px;font-size:16px}.unlock p{font-size:12px;color:var(--muted);margin:0 0 12px}.cta{border:1px solid #b99a5a;color:#f0d69b;background:#5b4927;border-radius:8px;padding:9px 12px;width:100%;font-weight:700}.eventlist{display:grid;gap:8px}.eventrow{display:flex;justify-content:space-between;gap:12px;padding:10px;background:#0a111d;border:1px solid #202e41;border-radius:9px}.eventrow strong{font-size:12px}.eventrow small{display:block;color:var(--muted);font-size:10px}.hidden{display:none!important}.footer{display:flex;justify-content:space-between;gap:12px;margin:16px 2px 0;color:#66768d;font-size:10px}.badge{font-size:10px;border-radius:5px;padding:3px 6px;background:#1b293b;color:#a9bedb}.sample{font-size:10px;color:#d7bb7a;border:1px solid #65532f;border-radius:6px;padding:3px 7px}
+.eventbar{margin:20px 0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(220px,.8fr) minmax(180px,.6fr);gap:12px}.card{background:linear-gradient(145deg,#101625,#0e1320);border:1px solid var(--line);border-radius:var(--radius);padding:16px;min-width:0}.label{color:var(--muted);font-size:10px;letter-spacing:.13em;font-weight:700}.eventname{font-size:20px;font-weight:750;margin:6px 0}.meta{display:flex;gap:7px;flex-wrap:wrap;color:#aab7c9;font-size:11px}.pill{border:1px solid #314258;border-radius:999px;padding:3px 8px}.pill.gold{border-color:#69562f;color:var(--gold)}.metric{font-size:24px;font-weight:760;letter-spacing:-.04em;margin:4px 0}.metric small{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:0}.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.mini{background:#0a111d;border:1px solid #202e41;padding:11px;border-radius:10px}.mini .n{font-size:19px;font-weight:750;margin-top:3px}.long{color:var(--long)}.short{color:var(--short)}.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);padding:0 0 10px;margin-bottom:14px;overflow:auto}.tab{background:transparent;border:1px solid transparent;color:var(--muted);padding:10px 14px;border-radius:9px;white-space:nowrap}.tab.active{background:#172438;color:var(--text);border-color:#3a4e68}.tab .letter{color:var(--gold);font-size:10px;margin-right:7px;font-weight:800}.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px}.maincard{background:#0e1320;border:1px solid var(--line);border-radius:var(--radius);padding:18px;min-width:0}.side{display:flex;flex-direction:column;gap:12px}.sectionhead{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px}.sectionhead h2{margin:3px 0 4px;font-size:18px}.desc{color:var(--muted);font-size:12px}.select{background:#111c2c;color:var(--text);border:1px solid #33445b;border-radius:8px;padding:8px}.chart{width:100%;display:block;overflow:visible}.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:10px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.note{font-size:11px;color:var(--muted);border-top:1px solid var(--line);margin-top:14px;padding-top:12px}.statrow{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #202c3d}.statrow:last-child{border:0}.statrow span{color:var(--muted);font-size:12px}.statrow b{font-variant-numeric:tabular-nums}.range{display:flex;gap:5px}.range button{background:#101a29;border:1px solid #2c3b50;color:var(--muted);border-radius:7px;padding:6px 9px;font-size:11px}.range button.active{color:var(--gold);border-color:#8c7544}.history{display:flex;flex-direction:column;gap:9px}.hist{display:grid;grid-template-columns:70px 1fr 56px;gap:8px;align-items:center;font-size:11px}.track{height:7px;border-radius:8px;background:#202c3d;overflow:hidden}.fill{height:100%;border-radius:8px}.unlock{border:1px solid #5a4b2d;background:linear-gradient(130deg,#1b1c1a,#101723);border-radius:var(--radius);padding:16px}.unlock h3{margin:4px 0 8px;font-size:16px}.unlock p{font-size:12px;color:var(--muted);margin:0 0 12px}.cta{border:1px solid #b99a5a;color:#f0d69b;background:#5b4927;border-radius:8px;padding:9px 12px;width:100%;font-weight:700}.eventlist{display:grid;gap:8px}.eventrow{display:flex;justify-content:space-between;gap:12px;padding:10px;background:#0a111d;border:1px solid #202e41;border-radius:9px}.eventrow strong{font-size:12px}.eventrow small{display:block;color:var(--muted);font-size:10px}.hidden{display:none!important}.footer{display:flex;justify-content:space-between;gap:12px;margin:16px 2px 0;color:#66768d;font-size:10px}.badge{font-size:10px;border-radius:5px;padding:3px 6px;background:#1b293b;color:#a9bedb}.sample{font-size:10px;color:#d7bb7a;border:1px solid #65532f;border-radius:6px;padding:3px 7px}
 @media(max-width:900px){.wrap{padding:15px}.eventbar{grid-template-columns:1fr 1fr}.eventbar .event-main{grid-column:1/-1}.layout{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr}.unlock{grid-column:1/-1}}
 @media(max-width:560px){.wrap{padding:11px}.top{align-items:flex-start}.brand h1{font-size:17px}.subtitle{max-width:240px}.demo{font-size:9px}.eventbar{grid-template-columns:1fr 1fr;gap:8px;margin:13px 0}.card{padding:12px}.event-main{grid-column:1/-1}.eventname{font-size:18px}.metric{font-size:21px}.side{grid-template-columns:1fr}.maincard{padding:12px}.sectionhead{flex-direction:column}.sectionhead h2{font-size:16px}.tab{padding:9px 10px;font-size:12px}.footer{flex-direction:column}.hist{grid-template-columns:62px 1fr 48px}.compare{gap:6px}}
+
+.topr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.back{color:var(--gold);text-decoration:none;border:1px solid #69562f;border-radius:999px;padding:5px 11px;font-size:12px;white-space:nowrap}.back:hover{background:#2a2315}
+.lang-switch{display:inline-flex;align-items:center;gap:2px;padding:3px;border:1px solid #263149;border-radius:8px;background:rgba(3,7,12,.9)}
+.lang-switch-label{padding:0 7px;color:#8193a5;font:600 8px/26px system-ui,sans-serif;letter-spacing:.14em}
+.lang-switch button{appearance:none;min-width:38px;height:26px;padding:0 9px;border:1px solid transparent;border-radius:5px;background:transparent;color:#8193a5;font:700 10px/26px system-ui,sans-serif;letter-spacing:.08em}
+.lang-switch button.active{color:#f7fbff;background:rgba(111,170,222,.18);border-color:rgba(141,199,255,.30)}
+a.cta{display:block;text-align:center;text-decoration:none}
+a.cta.on{background:#14291f;border-color:#3f8f63;color:#a9e5c3}
+@media(max-width:560px){.topr{justify-content:flex-start}}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header class="top">
- <div class="brand"><div class="mark"></div><div><div class="eyebrow">CRYPTO SIGNAL ARCHIVE / RESEARCH</div><h1>清算 × 経済指標</h1><div class="subtitle">イベント前後の実績と、過去の同種イベントを比較</div></div></div>
- <div class="demo">Coinalyze 4社合算</div>
+ <div class="brand"><div class="mark"></div><div><div class="eyebrow">CRYPTO SIGNAL ARCHIVE / RESEARCH</div><h1 data-i="h1"></h1><div class="subtitle" data-i="sub"></div></div></div>
+ <div class="topr"><a class="back" href="/" data-i="back"></a><span class="demo" data-i="src"></span><div class="lang-switch" role="group" aria-label="Language / 言語"><span class="lang-switch-label">LANG</span><button type="button" data-lang="ja">JP</button><button type="button" data-lang="en">EN</button></div></div>
 </header>
 <section class="eventbar">
- <div class="card event-main"><div class="label">NEXT ECONOMIC EVENT</div><div class="eventname" id="eventName">米国 消費者物価指数（CPI）</div><div class="meta"><span class="pill gold" id="eventCountry">US · 高重要度</span><span class="pill" id="eventDate">2026/10/13 21:30 JST</span><span class="pill">発表まで <b id="countdown">—</b></span></div></div>
- <div class="card"><div class="label" id="pvLabel">LIQUIDATION · BTC</div><div class="metric"><span id="pvTot">—</span> <small>直近24時間</small></div><div class="meta">ロング + ショート合計</div><div class="compare"><div class="mini"><div class="label long">LONG</div><div class="n long" id="pvL">—</div></div><div class="mini"><div class="label short">SHORT</div><div class="n short" id="pvS">—</div></div></div></div>
- <div class="card"><div class="label">HISTORICAL SAMPLE</div><div class="metric"><span id="hsN">—</span> <small>回</small></div><div class="subtitle">同種イベントの比較対象(2022年8月〜)</div></div>
+ <div class="card event-main"><div class="label">NEXT ECONOMIC EVENT</div><div class="eventname" id="eventName">—</div><div class="meta"><span class="pill gold" id="eventCountry">—</span><span class="pill" id="eventDate">—</span><span class="pill"><span data-i="cd"></span> <b id="countdown">—</b></span></div></div>
+ <div class="card"><div class="label" id="pvLabel">LIQUIDATION · BTC</div><div class="metric"><span id="pvTot">—</span> <small data-i="h24"></small></div><div class="meta" data-i="lstot"></div><div class="compare"><div class="mini"><div class="label long">LONG</div><div class="n long" id="pvL">—</div></div><div class="mini"><div class="label short">SHORT</div><div class="n short" id="pvS">—</div></div></div></div>
+ <div class="card"><div class="label">HISTORICAL SAMPLE</div><div class="metric"><span id="hsN">—</span> <small data-i="nunit"></small></div><div class="subtitle" data-i="hssub"></div></div>
 </section>
 
 <div class="layout">
  <main class="maincard">
-  <section id="pane-a">
-   <div class="sectionhead"><div><div class="label">EVENT-ALIGNED RESPONSE</div><h2>発表時刻を基準にした清算の推移</h2><div class="desc">過去の各回と中央値を重ね、発表前後の変化を比較します。</div></div><select class="select" id="assetA" aria-label="資産"><option>BTC</option><option>ETH</option><option>SOL</option><option>BNB</option></select></div>
-   <div class="range" id="windowButtons"><button data-window="60">±1時間</button><button class="active" data-window="120">±2時間</button><button data-window="240">±4時間</button></div>
-   <svg id="chartA" class="chart" viewBox="0 0 760 340" role="img" aria-label="イベント前後の清算推移"></svg>
-   <div class="legend"><span><i class="dot" style="background:var(--long)"></i>ロング清算（上方向）</span><span><i class="dot" style="background:var(--short)"></i>ショート清算（下方向）</span><span>細線：過去の各回　太線：中央値</span></div>
-   <div class="note">発表時刻を0分として整列。線はデモ用に生成した過去イベントです。因果関係を示すものではありません。</div>
-  </section>
   <section id="pane-b">
-   <div class="sectionhead"><div><div class="label">BASELINE COMPARISON</div><h2>発表日の清算額は、平常日の何倍か</h2><div class="desc">各回の倍率を点で表示。発表日(UTC)の1日合計 ÷ 直前14日の中央値。中央値と観測回数を併記します。</div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><select class="select" id="typeB" aria-label="指標"></select><select class="select" id="assetB" aria-label="資産"><option>BTC</option><option>ETH</option><option>SOL</option><option>BNB</option></select></div>
-   <div class="compare" style="margin:0 0 15px"><div class="mini"><div class="label">LONG · MEDIAN MULTIPLE</div><div class="metric long" id="longMultiple">1.8×</div><div class="subtitle"><span id="nL">n=—</span></div></div><div class="mini"><div class="label">SHORT · MEDIAN MULTIPLE</div><div class="metric short" id="shortMultiple">1.3×</div><div class="subtitle"><span id="nS">n=—</span></div></div></div>
-   <svg id="chartB" class="chart" viewBox="0 0 760 330" role="img" aria-label="過去イベントごとの平常比"></svg>
-   <div class="note" id="noteB">発表日(UTC)の1日合計 ÷ 直前14日の中央値。4倍を超える回は右端に寄せて表示。因果を示すものではありません。</div>
-  </section>
-  <section id="pane-c" class="hidden">
-   <div class="sectionhead"><div><div class="label">PRICE & LIQUIDATION TIMELINE</div><h2>価格変動と清算の発生タイミング</h2><div class="desc">価格、発表時刻、ロング／ショート清算を共通の時間軸で確認します。</div></div><select class="select" id="assetC" aria-label="資産"><option>BTC</option><option>ETH</option><option>SOL</option><option>BNB</option></select></div>
-   <svg id="chartC" class="chart" viewBox="0 0 760 420" role="img" aria-label="価格と清算の時系列"></svg>
-   <div class="legend"><span><i class="dot" style="background:#8fb7f5"></i>価格ローソク足</span><span><i class="dot" style="background:var(--long)"></i>ロング清算</span><span><i class="dot" style="background:var(--short)"></i>ショート清算</span><span><i class="dot" style="background:var(--gold)"></i>経済指標発表</span></div>
-   <div class="note">価格と清算の同時発生を示す表示であり、イベントが価格や清算を引き起こしたことを意味しません。</div>
+   <div class="sectionhead"><div><div class="label">BASELINE COMPARISON</div><h2 data-i="bh2"></h2><div class="desc" data-i="bdesc"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><select class="select" id="typeB"></select><select class="select" id="assetB"><option>BTC</option><option>ETH</option><option>SOL</option><option>BNB</option></select></div></div>
+   <div class="compare" style="margin:0 0 15px"><div class="mini"><div class="label">LONG · MEDIAN MULTIPLE</div><div class="metric long" id="longMultiple">—</div><div class="subtitle"><span id="nL">n=—</span></div></div><div class="mini"><div class="label">SHORT · MEDIAN MULTIPLE</div><div class="metric short" id="shortMultiple">—</div><div class="subtitle"><span id="nS">n=—</span></div></div></div>
+   <svg id="chartB" class="chart" viewBox="0 0 760 330" role="img"></svg>
+   <div class="note" id="noteB"></div>
   </section>
  </main>
  <aside class="side">
-  <div class="card"><div class="label">EVENT SUMMARY</div><h3 style="margin:5px 0 10px;font-size:15px">過去の同種イベント</h3><div class="statrow"><span>比較対象</span><b id="sType">—</b></div><div class="statrow"><span>観測回数 n</span><b id="sN">—</b></div><div class="statrow"><span>発表日の清算 中央値</span><b id="sMed">—</b></div><div class="statrow"><span>ロング／ショート比</span><b id="sRatio">—</b></div><div class="note">割合・中央値は必ず対象回数とセットで表示。</div></div>
-  <div class="card"><div class="label">PAST EVENTS</div><h3 style="margin:5px 0 10px;font-size:15px">比較対象の発表</h3><div class="eventlist" id="pastEvents"></div></div>
-  <div class="unlock"><div class="label">CSA ARCHIVE ACCESS</div><h3>次のイベント＋過去の反応</h3><p>無料プレビューでは次のイベント1件と、過去の反応1件を表示。全履歴・全イベント比較はアーカイブ対象。</p><button class="cta" id="previewBtn">無料プレビューを表示中</button></div>
+  <div class="card"><div class="label">EVENT SUMMARY</div><h3 style="margin:5px 0 10px;font-size:15px" data-i="s_h"></h3><div class="statrow"><span data-i="s_type"></span><b id="sType">—</b></div><div class="statrow"><span data-i="s_n"></span><b id="sN">—</b></div><div class="statrow"><span data-i="s_med"></span><b id="sMed">—</b></div><div class="statrow"><span data-i="s_ratio"></span><b id="sRatio">—</b></div><div class="note" data-i="s_note"></div></div>
+  <div class="card"><div class="label">PAST EVENTS</div><h3 style="margin:5px 0 10px;font-size:15px" data-i="p_h"></h3><div class="eventlist" id="pastEvents"></div></div>
+  <div class="unlock"><div class="label">CSA ARCHIVE ACCESS</div><h3 data-i="u_h"></h3><p data-i="u_p"></p><a class="cta" id="accessBtn" href="/"></a></div>
  </aside>
 </div>
-<footer class="footer"><span>CRYPTO SIGNAL ARCHIVE · LIQUIDATION × MACRO EVENTS</span><span>集計範囲：Coinalyze経由の Binance・Bybit・OKX・Huobi 合算（全市場を網羅するものではありません）</span></footer>
+<footer class="footer"><span>CRYPTO SIGNAL ARCHIVE · LIQUIDATION × MACRO EVENTS</span><span data-i="foot"></span></footer>
 </div>
 <script>
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -62,45 +59,113 @@ function el(tag,attrs={},parent){const n=document.createElementNS(NS,tag);Object
 function txt(parent,x,y,s,attrs={}){const n=el('text',{x,y,fill:'#91a0b5','font-size':11,...attrs},parent);n.textContent=s;return n}
 function line(parent,x1,y1,x2,y2,stroke='#273548',dash=''){el('line',{x1,y1,x2,y2,stroke,'stroke-width':1,...(dash?{'stroke-dasharray':dash}:{})},parent)}
 function clear(svg){while(svg.firstChild)svg.removeChild(svg.firstChild)}
-function path(parent,pts,stroke,width=1,opacity=1){if(!pts.length)return;el('path',{d:pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(2)+','+p[1].toFixed(2)).join(' '),fill:'none',stroke,'stroke-width':width,opacity,'stroke-linecap':'round','stroke-linejoin':'round'},parent)}
 
 const $=i=>document.getElementById(i);
+/* v168: 言語はメインページと同じ保存キー csa-lang(未設定なら英語)。固定の文言は I に、動的な文言は T(日本語,English) に置く */
+const L=()=>{try{return localStorage.getItem('csa-lang')==='ja'?'ja':'en'}catch(_){return'en'}};
+const T=(ja,en)=>L()==='ja'?ja:en;
+const I={
+ h1:['清算 × 経済指標','Liquidations × Economic events'],
+ sub:['イベント前後の実績と、過去の同種イベントを比較','Past releases of the same type, compared with a normal day'],
+ back:['← メインページ','← Main page'],
+ src:['Coinalyze 4社合算','Coinalyze · 4 exchanges combined'],
+ cd:['発表まで','Release in'],
+ h24:['直近24時間','last 24h'],
+ lstot:['ロング + ショート合計','Long + Short total'],
+ nunit:['回','events'],
+ hssub:['同種イベントの比較対象(2022年8月〜)','Same-type releases compared (Aug 2022 onward)'],
+ bh2:['発表日の清算額は、平常日の何倍か','Liquidations on release day vs. a normal day'],
+ bdesc:['各回の倍率を点で表示。発表日(UTC)の1日合計 ÷ 直前14日の中央値。中央値と観測回数を併記します。','One dot per release: the daily total on release day (UTC) ÷ the median of the prior 14 days. The median is always shown with the count (n).'],
+ s_h:['過去の同種イベント','Past events of this type'],
+ s_type:['比較対象','Compared event'],
+ s_n:['観測回数 n','Count (n)'],
+ s_med:['発表日の清算 中央値','Release-day liquidations, median'],
+ s_ratio:['ロング／ショート比','Long / Short ratio'],
+ s_note:['割合・中央値は必ず対象回数とセットで表示。','Shares and medians are always shown with the count.'],
+ p_h:['比較対象の発表','Releases compared'],
+ u_h:['次のイベント＋過去の反応','Next event + past reaction'],
+ u_p:['無料プレビューでは次のイベント1件と、過去の反応1件を表示。全履歴・全イベント比較はアーカイブ対象。','The free preview shows the next event and one past reaction. The full history and all-event comparison are part of Archive access.'],
+ foot:['集計範囲：Coinalyze経由の Binance・Bybit・OKX・Huobi 合算（全市場を網羅するものではありません）','Scope: Binance, Bybit, OKX and Huobi combined via Coinalyze (not the whole market)']
+};
 const usd=v=>v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(1)+'M':'$'+Math.round(v/1e3)+'K';
 const fx=v=>v==null?'—':(v>=10?v.toFixed(0):v.toFixed(1))+'×';
 const ymd=ts=>new Date(ts).toISOString().slice(0,10).replace(/-/g,'/');
 const med=a=>{a=a.filter(Number.isFinite).sort((x,y)=>x-y);if(!a.length)return null;const m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2};
-async function j(u){const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
-let CAL=[];
+const lab=k=>String(k||'').split('|').join(' · ');
+/* 有料トークンはメインページが保存したものを読むだけ(csa-rxtok)。有効かどうかの最終判断はサーバーがする */
+const TKEY='csa-rxtok';
+const tokOk=t=>{const m=/^[1-9A-HJ-NP-Za-km-z]+\.(\d+)\.\w+$/.exec(t||'');return !!m&&Date.now()<Number(m[1])};
+const getTok=()=>{for(const g of [()=>localStorage,()=>sessionStorage]){try{const t=g().getItem(TKEY);if(tokOk(t))return t}catch(_){}}return null};
+async function j(u,auth){const o={};if(auth){const t=getTok();if(t)o.headers={authorization:'Bearer '+t}}
+ const r=await fetch(u,o);if(!r.ok){let m='HTTP '+r.status;try{const b=await r.json();if(b&&b.error)m=b.error}catch(_){}throw new Error(m)}return r.json()}
+const Q=new URLSearchParams(location.search);
+let CAL=[],TY=[],D=null,ERR=null;
 function renderB(d){
- const svg=$('chartB');clear(svg);const W=760,L=135,R=35,top=30,max=4,rows=d.events.slice(-12),bottom=top+Math.max(rows.length,6)*19.5;
+ const svg=$('chartB');clear(svg);const W=760,L0=135,R=35,top=30,max=4,rows=d.events.slice(-12),bottom=top+Math.max(rows.length,6)*19.5;
  svg.setAttribute('viewBox','0 0 760 '+(bottom+52));
- for(let v=0;v<=4;v++){const x=L+(W-L-R)*v/max;line(svg,x,top-6,x,bottom);txt(svg,x,bottom+20,v+'×',{'text-anchor':'middle'})}
- const px=v=>L+Math.min(v,max)/max*(W-L-R);
+ for(let v=0;v<=4;v++){const x=L0+(W-L0-R)*v/max;line(svg,x,top-6,x,bottom);txt(svg,x,bottom+20,v+'×',{'text-anchor':'middle'})}
+ const px=v=>L0+Math.min(v,max)/max*(W-L0-R);
  rows.forEach((e,i)=>{const y=top+i*19.5;txt(svg,8,y+4,ymd(e.ts));
-  [[e.lx,'--long',-2],[e.sx,'--short',4]].forEach(([v,c,dy])=>{if(v==null)return;const x=px(v);line(svg,L,y+dy,x,y+dy,css(c));const o=el('circle',{cx:x,cy:y+dy,r:4.5,fill:css(c)},svg);o.appendChild(document.createElementNS(NS,'title')).textContent=ymd(e.ts)+' '+fx(v);if(v>max)txt(svg,x-8,y+dy-7,fx(v),{'text-anchor':'end','font-size':10})})});
- [[d.med.l,'--long'],[d.med.s,'--short']].forEach(([m,c])=>{if(m!=null)line(svg,px(m),top-6,px(m),bottom,css(c),'4 4')});
- txt(svg,L,16,'平常日比（倍率・点線＝全'+d.n+'回の中央値）');txt(svg,W-R,16,'n = '+d.n+'回（直近'+rows.length+'回を表示）',{'text-anchor':'end','fill':css('--gold')});
+  [[e.lx,'--long',-2],[e.sx,'--short',4]].forEach(([v,c,dy])=>{if(v==null)return;const x=px(v);line(svg,L0,y+dy,x,y+dy,css(c));const o=el('circle',{cx:x,cy:y+dy,r:4.5,fill:css(c)},svg);o.appendChild(document.createElementNS(NS,'title')).textContent=ymd(e.ts)+' '+fx(v);if(v>max)txt(svg,x-8,y+dy-7,fx(v),{'text-anchor':'end','font-size':10})})});
+ if(!d.locked)[[d.med.l,'--long'],[d.med.s,'--short']].forEach(([m,c])=>{if(m!=null)line(svg,px(m),top-6,px(m),bottom,css(c),'4 4')});
+ txt(svg,L0,16,d.locked?T('平常日比（倍率）','Multiple of a normal day'):T('平常日比（倍率・点線＝全'+d.n+'回の中央値）','Multiple of a normal day (dashed = median of all '+d.n+')'));
+ txt(svg,W-R,16,T('n = '+d.n+'回（直近'+rows.length+'回を表示）','n = '+d.n+' (latest '+rows.length+' shown)'),{'text-anchor':'end','fill':css('--gold')});
 }
 function summary(d){
- $('longMultiple').textContent=fx(d.med.l);$('shortMultiple').textContent=fx(d.med.s);$('nL').textContent='平常日比 · n='+d.n+'回';$('nS').textContent='平常日比 · n='+d.n+'回';
- $('hsN').textContent=d.n;$('sType').textContent=d.type;$('sN').textContent=d.n+'回';
- $('sMed').textContent=usd(med(d.events.map(e=>e.long+e.short)));
- const r=med(d.events.map(e=>e.long/(e.long+e.short)));$('sRatio').innerHTML=r==null?'—':'<span class="long">'+Math.round(r*100)+'%</span> / <span class="short">'+Math.round((1-r)*100)+'%</span>';
- const box=$('pastEvents');box.innerHTML='';d.events.slice(-3).reverse().forEach(e=>{const row=document.createElement('div');row.className='eventrow';row.innerHTML='<div><strong>'+d.type+'</strong><small>'+ymd(e.ts)+' · ロング '+fx(e.lx)+' / ショート '+fx(e.sx)+'</small></div><span class="badge">比較対象</span>';box.appendChild(row)});
+ const lk=!!d.locked,lockTxt='🔒';
+ $('longMultiple').textContent=lk?lockTxt:fx(d.med.l);$('shortMultiple').textContent=lk?lockTxt:fx(d.med.s);
+ $('nL').textContent=T('平常日比 · n='+d.n+'回','vs normal day · n='+d.n);$('nS').textContent=$('nL').textContent;
+ $('hsN').textContent=d.n;$('sType').textContent=lab(d.type);$('sN').textContent=T(d.n+'回','n = '+d.n);
+ $('sMed').textContent=lk?lockTxt:usd(med(d.events.map(e=>e.long+e.short)));
+ const r=lk?null:med(d.events.map(e=>e.long/(e.long+e.short)));
+ $('sRatio').innerHTML=lk?lockTxt:(r==null?'—':'<span class="long">'+Math.round(r*100)+'%</span> / <span class="short">'+Math.round((1-r)*100)+'%</span>');
+ const box=$('pastEvents');box.innerHTML='';
+ d.events.slice(-3).reverse().forEach(e=>{const row=document.createElement('div');row.className='eventrow';
+  const a=document.createElement('div'),s=document.createElement('strong'),m=document.createElement('small'),b=document.createElement('span');
+  s.textContent=lab(d.type);m.textContent=ymd(e.ts)+T(' · ロング ',' · Long ')+fx(e.lx)+T(' / ショート ',' / Short ')+fx(e.sx);
+  b.className='badge';b.textContent=T('比較対象','Compared');a.appendChild(s);a.appendChild(m);row.appendChild(a);row.appendChild(b);box.appendChild(row)});
 }
+let TICK=null;
 function nextEv(type){const now=Date.now(),e=CAL.filter(x=>x.s===type&&Date.parse(x.at)>now).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))[0];
- if(!e){$('eventName').textContent=type;$('eventCountry').textContent='予定なし';$('eventDate').textContent='取得できる範囲に次の発表がありません';$('countdown').textContent='—';return}
- const ts=Date.parse(e.at);$('eventName').textContent=e.t;$('eventCountry').textContent=(e.c||'')+(e.im==='high'?' · 高重要度':e.im?' · 中重要度':'');
- $('eventDate').textContent=new Date(ts).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})+' JST';
- const tick=()=>{const s=Math.max(0,ts-Date.now())/1000;$('countdown').textContent=Math.floor(s/86400)+'日 '+Math.floor(s%86400/3600)+'時間'};tick()}
+ if(TICK){clearInterval(TICK);TICK=null}
+ if(!e){$('eventName').textContent=lab(type);$('eventCountry').textContent=T('予定なし','No upcoming release');$('eventDate').textContent=T('取得できる範囲に次の発表がありません','No upcoming release in the available range');$('countdown').textContent='—';return}
+ const ts=Date.parse(e.at);$('eventName').textContent=e.t;
+ $('eventCountry').textContent=(e.c||'')+(e.im==='high'?T(' · 高重要度',' · High impact'):e.im?T(' · 中重要度',' · Medium impact'):'');
+ $('eventDate').textContent=new Date(ts).toLocaleString(T('ja-JP','en-US'),{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})+' JST';
+ const tick=()=>{const s=Math.max(0,ts-Date.now())/1000,d=Math.floor(s/86400),h=Math.floor(s%86400/3600);$('countdown').textContent=T(d+'日 '+h+'時間',d+'d '+h+'h')};tick();TICK=setInterval(tick,60000)}
 async function pv(){const a=$('assetB').value;$('pvLabel').textContent='LIQUIDATION · '+a;try{const d=await j('/api/liq?sym='+a+'&step=3600'),h=d.h24||{long:0,short:0};$('pvTot').textContent=usd(h.long+h.short);$('pvL').textContent=usd(h.long);$('pvS').textContent=usd(h.short)}catch(e){$('pvTot').textContent='—'}}
-async function show(){try{const d=await j('/api/liqimpact?sym='+$('assetB').value+'&type='+encodeURIComponent($('typeB').value));if(!d.n){$('noteB').textContent='この指標は、清算の日足と重なる回がありません。';return}renderB(d);summary(d);nextEv(d.type);pv()}catch(e){$('noteB').textContent='取得できませんでした: '+e.message}}
-async function init(){try{
+function fillTypes(){const sel=$('typeB'),cur=sel.value||Q.get('type')||'';sel.innerHTML='';
+ TY.forEach(t=>{const o=document.createElement('option');o.value=t.k;o.textContent=lab(t.k)+T('（'+t.n+'回）',' (n='+t.n+')');sel.appendChild(o)});
+ if(cur&&TY.some(t=>t.k===cur))sel.value=cur}
+function noteText(){
+ const base=T('発表日(UTC)の1日合計 ÷ 直前14日の中央値。4倍を超える回は右端に寄せて表示。因果を示すものではありません。','Daily total on release day (UTC) ÷ median of the prior 14 days. Values above 4× are pinned to the right edge. This does not show cause and effect.');
+ if(ERR)return T('取得できませんでした: ','Could not load: ')+ERR;
+ if(D&&!D.n)return T('この指標は、清算の日足と重なる回がありません。','No releases of this type overlap with the liquidation daily data.');
+ if(D&&D.locked)return T('無料プレビュー: 直近1回のみ表示しています。全'+D.n+'回の比較と中央値はアーカイブアクセスで見られます。','Free preview: only the latest release is shown. All '+D.n+' releases and the median are part of Archive access. ')+' '+base;
+ return base}
+function render(){
+ document.documentElement.lang=L();document.title=T('CRYPTO SIGNAL ARCHIVE — 清算 × 経済指標','CRYPTO SIGNAL ARCHIVE — Liquidations × Economic events');
+ document.querySelectorAll('[data-i]').forEach(n=>{const v=I[n.dataset.i];if(v)n.textContent=v[L()==='ja'?0:1]});
+ document.querySelectorAll('.lang-switch button').forEach(b=>{const on=b.dataset.lang===L();b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false')});
+ $('typeB').setAttribute('aria-label',T('指標','Indicator'));$('assetB').setAttribute('aria-label',T('資産','Asset'));
+ $('chartB').setAttribute('aria-label',T('過去イベントごとの平常比','Multiple of a normal day, by past release'));
+ fillTypes();
+ if(D&&D.n){renderB(D);summary(D);nextEv(D.type)}else clear($('chartB'));
+ const ok=!!(D&&D.access==='ok'),b=$('accessBtn');b.classList.toggle('on',ok);
+ b.textContent=ok?T('アーカイブアクセス有効','Archive access active'):T('メインページでアクセスを確認 →','Check access on the main page →');
+ $('noteB').textContent=noteText()}
+function syncUrl(){try{history.replaceState(null,'','?sym='+encodeURIComponent($('assetB').value)+'&type='+encodeURIComponent($('typeB').value))}catch(_){}}
+async function show(){ERR=null;
+ try{D=await j('/api/liqimpact?sym='+$('assetB').value+'&type='+encodeURIComponent($('typeB').value),true)}catch(e){D=null;ERR=e.message}
+ syncUrl();render();pv()}
+async function init(){render();
+ const q=(Q.get('sym')||'').toUpperCase();if(['BTC','ETH','SOL','BNB'].includes(q))$('assetB').value=q;
  try{const c=await j('/api/cal');CAL=c.events||[]}catch(_){}
- const d=await j('/api/liqimpact?sym=BTC'),pr=[/CPI/,/雇用統計/,/政策金利|FOMC|日銀|ECB/],rank=k=>{const i=pr.findIndex(r=>r.test(k));return i<0?9:i};
- const ty=d.types.slice().sort((a,b)=>rank(a.k)-rank(b.k)||b.n-a.n);
- $('typeB').innerHTML=ty.map(t=>'<option value="'+t.k.replace(/"/g,'&quot;')+'">'+t.k+'（'+t.n+'回）</option>').join('');show()}catch(e){$('noteB').textContent='取得できませんでした: '+e.message}}
-$('assetB').addEventListener('change',show);$('typeB').addEventListener('change',show);init();
+ try{const d=await j('/api/liqimpact?sym='+$('assetB').value),pr=[/CPI/,/雇用統計/,/政策金利|FOMC|日銀|ECB/],rank=k=>{const i=pr.findIndex(r=>r.test(k));return i<0?9:i};
+  TY=d.types.slice().sort((a,b)=>rank(a.k)-rank(b.k)||b.n-a.n);fillTypes();await show()}catch(e){ERR=e.message;render()}}
+$('assetB').addEventListener('change',show);$('typeB').addEventListener('change',show);
+document.querySelector('.lang-switch').addEventListener('click',e=>{const b=e.target.closest('button[data-lang]');if(!b)return;try{localStorage.setItem('csa-lang',b.dataset.lang)}catch(_){}render()});
+init();
 </script>
 </body>
 </html>

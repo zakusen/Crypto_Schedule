@@ -1861,6 +1861,12 @@ html.lang-switching [data-csa-i18n]{
 .evrow .ek{color:var(--muted);font-size:10px;margin-top:2px}
 .evrow .im{font-size:9px;letter-spacing:.1em;color:var(--dim);text-align:right}
 .evrow .im.high{color:var(--gold2)}
+/* v168: 清算×指標ページ(/next.html)への入口。日本語/英語は html[lang] で切り替える(辞書に頼らない) */
+.nx-link{display:inline-block;margin:9px 0 0;color:var(--gold2);text-decoration:none;border:1px solid rgba(201,154,69,.45);border-radius:5px;padding:7px 11px;font-size:11px;letter-spacing:.04em}
+.nx-link:hover{background:rgba(201,154,69,.08)}
+.nx-top{margin:0 10px 0 0;padding:6px 10px;white-space:nowrap}
+html[lang="ja"] .nx-en{display:none}
+html:not([lang="ja"]) .nx-ja{display:none}
 .refresh{background:#0b1017;color:var(--text);border:1px solid var(--line);padding:7px 10px;border-radius:5px;font-size:10px;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
 .refresh:hover{border-color:var(--gold);color:var(--gold2)}.refresh[disabled]{opacity:.5;cursor:wait}
 .left .coin.evt{cursor:pointer;user-select:none}.left .coin.evt.off{opacity:.35}
@@ -2396,7 +2402,7 @@ body:after{box-shadow:0 0 180px rgba(55,145,215,.075),inset 0 0 150px rgba(110,1
 </g>
 </svg>
 
-</div><div><b>CRYPTO SIGNAL ARCHIVE</b><small>ALL SIGNALS. ONE TIMELINE.</small></div></div><div class="clock"><div><small id="clockCity">TOKYO</small><strong id="clock">--:--:--</strong> <em id="tz">JST</em></div><select class="city" id="city"><option value="Asia/Tokyo" data-l="TOKYO" data-t="JST">TOKYO</option><option value="America/New_York" data-l="NEW YORK" data-t="ET">NEW YORK</option><option value="Europe/London" data-l="LONDON" data-t="GMT/BST">LONDON</option><option value="Asia/Singapore" data-l="SINGAPORE" data-t="SGT">SINGAPORE</option><option value="Asia/Hong_Kong" data-l="HONG KONG" data-t="HKT">HONG KONG</option><option value="Asia/Dubai" data-l="DUBAI" data-t="GST">DUBAI</option><option value="Europe/Berlin" data-l="FRANKFURT" data-t="CET/CEST">FRANKFURT</option><option value="Australia/Sydney" data-l="SYDNEY" data-t="AET">SYDNEY</option></select><button class="refresh" id="refreshBtn" type="button" title="Reload prices, events and on-chain data" data-ti-en="Reload prices, events and on-chain data" data-ti-ja="価格・イベント・チェーンの記録を取り直します">↻ Refresh</button></div></header>
+</div><div><b>CRYPTO SIGNAL ARCHIVE</b><small>ALL SIGNALS. ONE TIMELINE.</small></div></div><div class="clock"><a class="nx-link nx-top" id="nxTop" href="/next.html"><span class="nx-ja">清算×指標を見る →</span><span class="nx-en">Liquidations × Events →</span></a><div><small id="clockCity">TOKYO</small><strong id="clock">--:--:--</strong> <em id="tz">JST</em></div><select class="city" id="city"><option value="Asia/Tokyo" data-l="TOKYO" data-t="JST">TOKYO</option><option value="America/New_York" data-l="NEW YORK" data-t="ET">NEW YORK</option><option value="Europe/London" data-l="LONDON" data-t="GMT/BST">LONDON</option><option value="Asia/Singapore" data-l="SINGAPORE" data-t="SGT">SINGAPORE</option><option value="Asia/Hong_Kong" data-l="HONG KONG" data-t="HKT">HONG KONG</option><option value="Asia/Dubai" data-l="DUBAI" data-t="GST">DUBAI</option><option value="Europe/Berlin" data-l="FRANKFURT" data-t="CET/CEST">FRANKFURT</option><option value="Australia/Sydney" data-l="SYDNEY" data-t="AET">SYDNEY</option></select><button class="refresh" id="refreshBtn" type="button" title="Reload prices, events and on-chain data" data-ti-en="Reload prices, events and on-chain data" data-ti-ja="価格・イベント・チェーンの記録を取り直します">↻ Refresh</button></div></header>
 
 <div class="wallet-popover" id="walletPopover" aria-hidden="true">
   <div class="wallet-popover-glow"></div>
@@ -2445,7 +2451,7 @@ body:after{box-shadow:0 0 180px rgba(55,145,215,.075),inset 0 0 150px rgba(110,1
 <div class="hero"><div><div class="kicker" id="heroKicker" data-dyn>NEXT EVENT · HIGH IMPACT</div><h1 data-dyn>米 消費者物価指数 (CPI)<span class="pill">重要</span></h1><div class="when" id="eventTime" data-dyn>—</div><p class="desc" data-dyn>未来のイベントを価格チャート上に配置。発表までの時間をリアルタイムで追跡します。</p></div><div><div class="dial"><div class="dialin"><small>NEXT EVENT</small><div class="count" id="count" data-dyn>--:--:--</div><small>COUNTDOWN</small></div></div></div><div class="q"><div class="ptitle">EVENT DATA</div><div class="qrow"><span>Forecast</span><b data-dyn>—</b></div><div class="qrow"><span>Previous</span><b data-dyn>—</b></div><div class="qrow"><span>Category</span><b data-dyn>指標</b></div><div class="qrow"><span>Status</span><b data-dyn>UPCOMING</b></div></div><div class="indinfo" id="indInfo" data-dyn></div></div>
 <div class="card chart"><div class="chead"><div class="asset" data-dyn><div class="badge">₿</div><b>BTC/USDT</b><span class="price"></span><span class="change"></span><span class="muted">—</span></div><div class="tf"><button>5M</button><button>15M</button><button>1H</button><button class="on">4H</button><button>1D</button><button>1W</button><button>1M</button></div></div><div class="canvaswrap"><canvas id="chart"></canvas><div class="nowtag">NOW</div></div><div class="eventsbar" data-dyn><span>● <b>CPI</b> 指標</span><span>● <b>FOMC</b> 指標</span><span>● <b>ETH Upgrade</b> チェーン</span><span>● <b>満期</b></span><span>● <b>Burn</b> バーン</span></div><div class="caption"><strong>MARKET TIMELINE</strong><span>EVENT · NOW · PRICE</span></div></div>
 <div class="card chainstat" id="chainCard"><div class="ptitle"><span id="chainTitle" data-dyn>CHAIN DATA</span><span id="chainSrc" data-dyn></span></div><div id="chainBody" data-dyn></div></div>
-<div class="card chainstat" id="liqCard"><div class="ptitle"><span id="liqTitle" data-dyn>LIQUIDATIONS</span><span id="liqSrc" data-dyn></span></div><div id="liqBody" data-dyn></div></div>
+<div class="card chainstat" id="liqCard"><div class="ptitle"><span id="liqTitle" data-dyn>LIQUIDATIONS</span><span id="liqSrc" data-dyn></span></div><div id="liqBody" data-dyn></div><a class="nx-link" id="nxCard" href="/next.html"><span class="nx-ja">清算×指標を見る →</span><span class="nx-en">Liquidations × Events →</span></a></div>
 <div class="card evlist" id="evCard"><div class="ptitle"><span>EVENT ARCHIVE</span><span class="evtabs"><button type="button" data-ev="up" class="on">Upcoming</button><button type="button" data-ev="past">Recent</button><label><input type="checkbox" id="evHigh"> <span>High impact only</span></label></span></div><div id="evBody" data-dyn><div class="cs-msg">Loading…</div></div></div>
 </section>
 <aside class="right">
@@ -2584,6 +2590,7 @@ const TFM={'5M':'5m','15M':'15m','1H':'1h','4H':'4h','1D':'1d','1W':'1w','1M':'1
 const TFD={'5m':{ms:3e5,fut:48},'15m':{ms:9e5,fut:96},'1h':{ms:36e5,fut:120},'4h':{ms:144e5,fut:60},'1d':{ms:864e5,fut:30},'1w':{ms:6048e5,fut:8},'1M':{ms:2629e6,fut:3}};
 const SYMS=['BTC','ETH','SOL','BNB'], BADGE={BTC:'₿',ETH:'Ξ',SOL:'◎',BNB:'B'};
 let sym='BTC',tf='4h',E=[],CD={},ST={},evState='loading',geo=null;
+window.CSA_SYM=()=>sym;   /* v168: 清算×指標ページへ今の銘柄を引き継ぐ用(読むだけ) */
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const tz=()=>($('city')&&$('city').value)||'Asia/Tokyo';
 const fp=v=>v>=1000?v.toLocaleString('en-US',{maximumFractionDigits:0}):v>=1?v.toFixed(2):v.toFixed(4);
@@ -3589,4 +3596,10 @@ window.addEventListener('csa-lang',draw);draw()})();
 <script>/* v149: 狭い画面では言語の切り替えを時計の段に入れる(右上で重ならないように) */
 (function(){const mq=matchMedia('(max-width:720px)');function place(){const ls=document.querySelector('.lang-switch'),ck=document.querySelector('header.top .clock');if(!ls||!ck)return;if(mq.matches){if(ls.parentNode!==ck)ck.appendChild(ls)}else if(ls.parentNode!==document.body)document.body.appendChild(ls)}
 const go=()=>{place();setTimeout(place,300)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();mq.addEventListener?mq.addEventListener('change',place):mq.addListener(place)})();</script>
+<script id="v168-next-link">
+/* v168: /next.html への入口リンクに、今選んでいる銘柄を付ける(?sym=ETH など)。読むだけで、ほかの処理には触らない。 */
+(()=>{const upd=()=>{try{const s=window.CSA_SYM&&window.CSA_SYM();if(!s)return;document.querySelectorAll('.nx-link').forEach(a=>{a.href='/next.html?sym='+encodeURIComponent(s)})}catch(_){}};
+['mouseover','pointerdown','focusin','touchstart'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target&&e.target.closest&&e.target.closest('.nx-link'))upd()},true));
+upd();setInterval(upd,3000)})();
+</script>
 </body></html>
