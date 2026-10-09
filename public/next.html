@@ -12,6 +12,7 @@ button,select{font:inherit}button{cursor:pointer}.wrap{max-width:1440px;margin:a
 @media(max-width:900px){.wrap{padding:15px}.eventbar{grid-template-columns:1fr 1fr}.eventbar .event-main{grid-column:1/-1}.layout{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr}.unlock{grid-column:1/-1}}
 @media(max-width:560px){.wrap{padding:11px}.top{align-items:flex-start}.brand h1{font-size:17px}.subtitle{max-width:240px}.demo{font-size:9px}.eventbar{grid-template-columns:1fr 1fr;gap:8px;margin:13px 0}.card{padding:12px}.event-main{grid-column:1/-1}.eventname{font-size:18px}.metric{font-size:21px}.side{grid-template-columns:1fr}.maincard{padding:12px}.sectionhead{flex-direction:column}.sectionhead h2{font-size:16px}.tab{padding:9px 10px;font-size:12px}.footer{flex-direction:column}.hist{grid-template-columns:62px 1fr 48px}.compare{gap:6px}}
 
+.tab[disabled]{opacity:.45;cursor:not-allowed}.tab .soon{font-size:9px;color:var(--muted);margin-left:6px;border:1px solid #314258;border-radius:5px;padding:1px 5px}.ctl{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}.range{margin:0 0 6px}
 .topr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 .back{color:var(--gold);text-decoration:none;border:1px solid #69562f;border-radius:999px;padding:5px 11px;font-size:12px;white-space:nowrap}.back:hover{background:#2a2315}
 .lang-switch{display:inline-flex;align-items:center;gap:2px;padding:3px;border:1px solid #263149;border-radius:8px;background:rgba(3,7,12,.9)}
@@ -35,10 +36,23 @@ a.cta.on{background:#14291f;border-color:#3f8f63;color:#a9e5c3}
  <div class="card"><div class="label">HISTORICAL SAMPLE</div><div class="metric"><span id="hsN">—</span> <small data-i="nunit"></small></div><div class="subtitle" data-i="hssub"></div></div>
 </section>
 
+<nav class="tabs" role="tablist" aria-label="View">
+ <button class="tab active" role="tab" data-tab="a"><span class="letter">A</span><span data-i="tabA"></span></button>
+ <button class="tab" role="tab" data-tab="b"><span class="letter">B</span><span data-i="tabB"></span></button>
+ <button class="tab" role="tab" data-tab="c" disabled id="tabC"><span class="letter">C</span><span data-i="tabC"></span><span class="soon" data-i="soon"></span></button>
+</nav>
 <div class="layout">
  <main class="maincard">
-  <section id="pane-b">
-   <div class="sectionhead"><div><div class="label">BASELINE COMPARISON</div><h2 data-i="bh2"></h2><div class="desc" data-i="bdesc"></div></div><div style="display:flex;gap:8px;flex-wrap:wrap"><select class="select" id="typeB"></select><select class="select" id="assetB"><option>BTC</option><option>ETH</option><option>SOL</option><option>BNB</option></select></div></div>
+  <div class="ctl"><select class="select" id="typeB"></select><select class="select" id="assetB"><option>BTC</option><option>ETH</option><option>SOL</option><option>BNB</option></select></div>
+  <section id="pane-a">
+   <div class="sectionhead"><div><div class="label">EVENT-ALIGNED RESPONSE</div><h2 data-i="ah2"></h2><div class="desc" data-i="adesc"></div></div></div>
+   <div class="range" id="windowButtons"><button data-window="6">±6h</button><button class="active" data-window="12">±12h</button><button data-window="24">±24h</button></div>
+   <svg id="chartA" class="chart" viewBox="0 0 760 340" role="img"></svg>
+   <div class="legend"><span><i class="dot" style="background:var(--long)"></i><span data-i="lgL"></span></span><span><i class="dot" style="background:var(--short)"></i><span data-i="lgS"></span></span><span data-i="lgT"></span></div>
+   <div class="note" id="noteA"></div>
+  </section>
+  <section id="pane-b" class="hidden">
+   <div class="sectionhead"><div><div class="label">BASELINE COMPARISON</div><h2 data-i="bh2"></h2><div class="desc" data-i="bdesc"></div></div></div>
    <div class="compare" style="margin:0 0 15px"><div class="mini"><div class="label">LONG · MEDIAN MULTIPLE</div><div class="metric long" id="longMultiple">—</div><div class="subtitle"><span id="nL">n=—</span></div></div><div class="mini"><div class="label">SHORT · MEDIAN MULTIPLE</div><div class="metric short" id="shortMultiple">—</div><div class="subtitle"><span id="nS">n=—</span></div></div></div>
    <svg id="chartB" class="chart" viewBox="0 0 760 330" role="img"></svg>
    <div class="note" id="noteB"></div>
@@ -59,6 +73,7 @@ function el(tag,attrs={},parent){const n=document.createElementNS(NS,tag);Object
 function txt(parent,x,y,s,attrs={}){const n=el('text',{x,y,fill:'#91a0b5','font-size':11,...attrs},parent);n.textContent=s;return n}
 function line(parent,x1,y1,x2,y2,stroke='#273548',dash=''){el('line',{x1,y1,x2,y2,stroke,'stroke-width':1,...(dash?{'stroke-dasharray':dash}:{})},parent)}
 function clear(svg){while(svg.firstChild)svg.removeChild(svg.firstChild)}
+function path(parent,pts,stroke,width=1,opacity=1){if(pts.length<2)return;el('path',{d:pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(2)+','+p[1].toFixed(2)).join(' '),fill:'none',stroke,'stroke-width':width,opacity,'stroke-linecap':'round','stroke-linejoin':'round'},parent)}
 
 const $=i=>document.getElementById(i);
 /* v168: 言語はメインページと同じ保存キー csa-lang(未設定なら英語)。固定の文言は I に、動的な文言は T(日本語,English) に置く */
@@ -70,10 +85,15 @@ const I={
  back:['← メインページ','← Main page'],
  src:['Coinalyze 4社合算','Coinalyze · 4 exchanges combined'],
  cd:['発表まで','Release in'],
- h24:['直近24時間','last 24h'],
+ h24:['直近1時間','last 1h'],
+ tabA:['イベント反応','Event response'],tabB:['平常比','vs normal day'],tabC:['価格 × 清算','Price × liquidations'],soon:['準備中','soon'],
+ ah2:['発表時刻を基準にした清算の推移','Liquidations around the release'],
+ adesc:['過去の各回と中央値を重ね、発表前後の変化を比較します。各回の清算額は、その回の直前14日の1時間あたり中央値を1とした倍率です。','Past releases overlaid with their median. Each release is scaled so that the median hour of the prior 14 days = 1×.'],
+ lgL:['ロング清算（上方向）','Long liquidations (up)'],lgS:['ショート清算（下方向）','Short liquidations (down)'],lgT:['細線：過去の各回　太線：中央値','Thin: each past release · Thick: median'],
  lstot:['ロング + ショート合計','Long + Short total'],
  nunit:['回','events'],
  hssub:['同種イベントの比較対象(2022年8月〜)','Same-type releases compared (Aug 2022 onward)'],
+ cTip:['過去の時間足の価格が未保存のため、まだ表示できません','Not available yet: hourly price history around past releases is not stored'],
  bh2:['発表日の清算額は、平常日の何倍か','Liquidations on release day vs. a normal day'],
  bdesc:['各回の倍率を点で表示。発表日(UTC)の1日合計 ÷ 直前14日の中央値。中央値と観測回数を併記します。','One dot per release: the daily total on release day (UTC) ÷ the median of the prior 14 days. The median is always shown with the count (n).'],
  s_h:['過去の同種イベント','Past events of this type'],
@@ -111,6 +131,48 @@ function renderB(d){
  txt(svg,L0,16,d.locked?T('平常日比（倍率）','Multiple of a normal day'):T('平常日比（倍率・点線＝全'+d.n+'回の中央値）','Multiple of a normal day (dashed = median of all '+d.n+')'));
  txt(svg,W-R,16,T('n = '+d.n+'回（直近'+rows.length+'回を表示）','n = '+d.n+' (latest '+rows.length+' shown)'),{'text-anchor':'end','fill':css('--gold')});
 }
+/* v170: 案A(発表を基準にした清算の推移)。1時間足(/api/liq?step=3600、公開)と、/api/liqimpact が返した回(無料は直近1回のみ)を使う。
+   0 = 発表を含む1時間。各回は「直前14日の1時間あたり中央値」を1×として倍率にそろえる。 */
+const HMS=3600000;let HR=null,HRSYM='',ATOK=0;
+async function loadHr(sym){if(HR&&HRSYM===sym)return HR;const d=await j('/api/liq?sym='+sym+'&step=3600');HR={m:new Map((d.buckets||[]).map(b=>[b[0],b])),since:d.since||null};HRSYM=sym;return HR}
+function alignEvents(d,hr,win){
+ const out=[],now=Date.now();
+ (d.events||[]).forEach(e=>{const tb=Math.floor(e.ts/HMS)*HMS;
+  if(hr.since&&tb-14*24*HMS<hr.since)return;
+  const bl=[],bs=[];for(let i=1;i<=336;i++){const b=hr.m.get(tb-i*HMS);bl.push(b?b[1]:0);bs.push(b?b[2]:0)}
+  const base=a=>{const m=med(a);if(m>0)return m;const avg=a.reduce((x,y)=>x+y,0)/a.length;return avg>0?avg:null};
+  const ml=base(bl),ms=base(bs);if(ml==null||ms==null)return;
+  const pts=[];for(let k=-win;k<=win;k++){const t=tb+k*HMS;if(t>now-HMS)continue;const b=hr.m.get(t);pts.push({k,l:(b?b[1]:0)/ml,s:(b?b[2]:0)/ms})}
+  out.push({ts:e.ts,pts})});
+ return out}
+function renderA(evs,win){
+ const svg=$('chartA');clear(svg);const W=760,H=340,L0=48,R=15,mid=164,top=24,bottom=305;
+ if(!evs.length)return;
+ const ks=[];for(let k=-win;k<=win;k++)ks.push(k);
+ const at=(e,k,key)=>{const p=e.pts.find(q=>q.k===k);return p?p[key]:null};
+ const mk=key=>ks.map(k=>({k,v:med(evs.map(e=>at(e,k,key)))}));
+ const one=evs.length===1,ML=mk('l'),MS=mk('s');
+ const peak=Math.max(2,...ML.map(p=>p.v||0),...MS.map(p=>p.v||0));const max=Math.ceil(peak*1.3);
+ for(let k=0;k<=4;k++){const y=top+(bottom-top)*k/4;line(svg,L0,y,W-R,y);txt(svg,4,y+4,(max*(1-k/4)).toFixed(max>=10?0:1)+'×')}
+ const x=k=>L0+(k+win)/(2*win)*(W-L0-R);
+ line(svg,L0,mid,W-R,mid,'#4a5c72');line(svg,x(0),top,x(0),bottom,css('--gold'),'4 4');txt(svg,x(0)+6,top+11,T('発表','Release'),{'fill':css('--gold'),'font-weight':700});
+ const yl=v=>mid-Math.min(v,max)/max*(mid-top-8),ys=v=>mid+Math.min(v,max)/max*(bottom-mid-8);
+ const seg=(f,key,c,w,op)=>{let cur=[];const flush=()=>{path(svg,cur,css(c),w,op);cur=[]};ks.forEach(k=>{const v=f(k,key);if(v==null)flush();else cur.push([x(k),(key==='l'?yl:ys)(v)])});flush()};
+ if(!one)evs.forEach((e,i)=>{const op=.12+(i%4)*.035;seg((k,key)=>at(e,k,key),'l','--long',1,op);seg((k,key)=>at(e,k,key),'s','--short',1,op)});
+ const mv=(arr)=>(k)=>{const p=arr.find(q=>q.k===k);return p?p.v:null};
+ seg((k)=>mv(ML)(k),'l','--long',3,1);seg((k)=>mv(MS)(k),'s','--short',3,1);
+ [-win,-win/2,0,win/2,win].forEach(k=>txt(svg,x(k),H-12,(k>0?'+':'')+k+T('時間','h'),{'text-anchor':'middle'}));
+ txt(svg,L0,15,'LONG ↑',{'fill':css('--long'),'font-weight':700});txt(svg,L0,H-31,'SHORT ↓',{'fill':css('--short'),'font-weight':700});
+ txt(svg,W-R,15,one?T('直近1回のみ','Latest release only'):T('n = '+evs.length+'回（中央値）','n = '+evs.length+' (median)'),{'text-anchor':'end','fill':css('--gold')})}
+async function drawA(){
+ const tok=++ATOK,svg=$('chartA'),note=$('noteA');
+ if(!D||!D.n){clear(svg);note.textContent=ERR?T('取得できませんでした: ','Could not load: ')+ERR:T('この指標は、清算の記録と重なる回がありません。','No releases of this type overlap with the liquidation data.');return}
+ const win=Number(document.querySelector('#windowButtons .active').dataset.window);
+ let hr;try{hr=await loadHr($('assetB').value)}catch(e){if(tok===ATOK){clear(svg);note.textContent=T('取得できませんでした: ','Could not load: ')+e.message}return}
+ if(tok!==ATOK)return;
+ const evs=alignEvents(D,hr,win);renderA(evs,win);
+ const base=T('発表を含む1時間を0として整列。1時間足のため、5分単位の細かい動きは見えません。線は過去の実績で、因果関係を示すものではありません。','Aligned so the hour containing the release = 0. Hourly bars only, so 5-minute detail is not shown. Lines are past records and do not show cause and effect.');
+ note.textContent=(evs.length?'':T('1時間足の記録と重なる回がありません。','No releases overlap with the hourly record. '))+(D.locked?T('無料プレビュー: 直近1回のみ表示しています。','Free preview: only the latest release is shown. '):'')+base}
 function summary(d){
  const lk=!!d.locked,lockTxt='🔒';
  $('longMultiple').textContent=lk?lockTxt:fx(d.med.l);$('shortMultiple').textContent=lk?lockTxt:fx(d.med.s);
@@ -133,7 +195,7 @@ function nextEv(type){const now=Date.now(),e=CAL.filter(x=>x.s===type&&Date.pars
  $('eventCountry').textContent=(e.c||'')+(e.im==='high'?T(' · 高重要度',' · High impact'):e.im?T(' · 中重要度',' · Medium impact'):'');
  $('eventDate').textContent=new Date(ts).toLocaleString(T('ja-JP','en-US'),{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'})+' JST';
  const tick=()=>{const s=Math.max(0,ts-Date.now())/1000,d=Math.floor(s/86400),h=Math.floor(s%86400/3600);$('countdown').textContent=T(d+'日 '+h+'時間',d+'d '+h+'h')};tick();TICK=setInterval(tick,60000)}
-async function pv(){const a=$('assetB').value;$('pvLabel').textContent='LIQUIDATION · '+a;try{const d=await j('/api/liq?sym='+a+'&step=3600'),h=d.h24||{long:0,short:0};$('pvTot').textContent=usd(h.long+h.short);$('pvL').textContent=usd(h.long);$('pvS').textContent=usd(h.short)}catch(e){$('pvTot').textContent='—'}}
+async function pv(){const a=$('assetB').value;$('pvLabel').textContent='PREVIEW · '+a;try{const d=await j('/api/liq?sym='+a+'&step=300'),from=Date.now()-36e5;let l=0,sh=0;(d.buckets||[]).forEach(b=>{if(b[0]>=from){l+=b[1];sh+=b[2]}});$('pvTot').textContent=usd(l+sh);$('pvL').textContent=usd(l);$('pvS').textContent=usd(sh)}catch(e){$('pvTot').textContent='—'}}
 function fillTypes(){const sel=$('typeB'),cur=sel.value||Q.get('type')||'';sel.innerHTML='';
  TY.forEach(t=>{const o=document.createElement('option');o.value=t.k;o.textContent=lab(t.k)+T('（'+t.n+'回）',' (n='+t.n+')');sel.appendChild(o)});
  if(cur&&TY.some(t=>t.k===cur))sel.value=cur}
@@ -148,9 +210,12 @@ function render(){
  document.querySelectorAll('[data-i]').forEach(n=>{const v=I[n.dataset.i];if(v)n.textContent=v[L()==='ja'?0:1]});
  document.querySelectorAll('.lang-switch button').forEach(b=>{const on=b.dataset.lang===L();b.classList.toggle('active',on);b.setAttribute('aria-pressed',on?'true':'false')});
  $('typeB').setAttribute('aria-label',T('指標','Indicator'));$('assetB').setAttribute('aria-label',T('資産','Asset'));
- $('chartB').setAttribute('aria-label',T('過去イベントごとの平常比','Multiple of a normal day, by past release'));
+ $('chartA').setAttribute('aria-label',T('発表前後の清算の推移','Liquidations around the release'));$('chartB').setAttribute('aria-label',T('過去イベントごとの平常比','Multiple of a normal day, by past release'));
  fillTypes();
  if(D&&D.n){renderB(D);summary(D);nextEv(D.type)}else clear($('chartB'));
+ drawA();
+ $('tabC').title=T('過去の時間足の価格が未保存のため、まだ表示できません','Not available yet: hourly price history around past releases is not stored');
+ $('tabC').querySelector('.soon').textContent=T('準備中','soon');
  const ok=!!(D&&D.access==='ok'),b=$('accessBtn');b.classList.toggle('on',ok);
  b.textContent=ok?T('アーカイブアクセス有効','Archive access active'):T('メインページでアクセスを確認 →','Check access on the main page →');
  $('noteB').textContent=noteText()}
@@ -163,6 +228,8 @@ async function init(){render();
  try{const c=await j('/api/cal');CAL=c.events||[]}catch(_){}
  try{const d=await j('/api/liqimpact?sym='+$('assetB').value),pr=[/CPI/,/雇用統計/,/政策金利|FOMC|日銀|ECB/],rank=k=>{const i=pr.findIndex(r=>r.test(k));return i<0?9:i};
   TY=d.types.slice().sort((a,b)=>rank(a.k)-rank(b.k)||b.n-a.n);fillTypes();await show()}catch(e){ERR=e.message;render()}}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{if(b.disabled)return;document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t===b));['a','b'].forEach(k=>$('pane-'+k).classList.toggle('hidden',k!==b.dataset.tab))}));
+document.querySelectorAll('#windowButtons button').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('#windowButtons button').forEach(t=>t.classList.toggle('active',t===b));drawA()}));
 $('assetB').addEventListener('change',show);$('typeB').addEventListener('change',show);
 document.querySelector('.lang-switch').addEventListener('click',e=>{const b=e.target.closest('button[data-lang]');if(!b)return;try{localStorage.setItem('csa-lang',b.dataset.lang)}catch(_){}render()});
 init();
