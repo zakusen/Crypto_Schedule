@@ -22,6 +22,14 @@ button,select{font:inherit}button{cursor:pointer}.wrap{max-width:1440px;margin:a
 a.cta{display:block;text-align:center;text-decoration:none}
 a.cta.on{background:#14291f;border-color:#3f8f63;color:#a9e5c3}
 @media(max-width:560px){.topr{justify-content:flex-start}}
+/* v172: 入口(csa_research_gateway)のグラフ枠に寄せる */
+.chartframe{position:relative;padding:15px 16px 10px;margin:4px 0 0;border:1px solid #9eddf52c;border-radius:12px;background:linear-gradient(140deg,#0d1a2ce8,#080f1cf0);box-shadow:0 14px 34px #0006,inset 0 1px #d7faff12,0 0 28px #4bdfff0a;overflow:hidden}
+.chartframe:before{content:"";position:absolute;inset:0;border-radius:12px;pointer-events:none;background:linear-gradient(125deg,#e7fcff0b,transparent 30% 70%,#6edfff09)}
+.charthead{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px;position:relative}
+.charttitle{font-size:10px;letter-spacing:.15em;color:#c4d8ec;font-weight:600}
+.live{font-size:9px;letter-spacing:.12em;color:#9fe9d0;white-space:nowrap}.live:before{content:"";display:inline-block;width:4px;height:4px;border-radius:50%;background:#80e1bb;box-shadow:0 0 7px #80e1bb;margin:0 6px 1px 0}
+.chartframe .chart{position:relative}
+@media(max-width:560px){.chartframe{padding:11px 8px 6px}.charthead{flex-direction:column;align-items:flex-start;gap:4px}}
 </style>
 </head>
 <body>
@@ -47,14 +55,14 @@ a.cta.on{background:#14291f;border-color:#3f8f63;color:#a9e5c3}
   <section id="pane-a">
    <div class="sectionhead"><div><div class="label">EVENT-ALIGNED RESPONSE</div><h2 data-i="ah2"></h2><div class="desc" data-i="adesc"></div></div></div>
    <div class="range" id="windowButtons"><button data-window="6">±6h</button><button class="active" data-window="12">±12h</button><button data-window="24">±24h</button></div>
-   <svg id="chartA" class="chart" viewBox="0 0 760 340" role="img"></svg>
-   <div class="legend"><span><i class="dot" style="background:var(--long)"></i><span data-i="lgL"></span></span><span><i class="dot" style="background:var(--short)"></i><span data-i="lgS"></span></span><span data-i="lgT"></span></div>
+   <div class="chartframe"><div class="charthead"><span class="charttitle" data-i="cfA"></span><span class="live" data-i="cfAb"></span></div><svg id="chartA" class="chart" viewBox="0 0 760 340" role="img"></svg></div>
+   <div class="legend"><span><i class="dot" style="background:#ff9da0;box-shadow:0 0 8px #ff9da088"></i><span data-i="lgL"></span></span><span><i class="dot" style="background:#a0f0c4;box-shadow:0 0 8px #a0f0c488"></i><span data-i="lgS"></span></span><span data-i="lgT"></span></div>
    <div class="note" id="noteA"></div>
   </section>
   <section id="pane-b" class="hidden">
    <div class="sectionhead"><div><div class="label">BASELINE COMPARISON</div><h2 data-i="bh2"></h2><div class="desc" data-i="bdesc"></div></div></div>
    <div class="compare" style="margin:0 0 15px"><div class="mini"><div class="label">LONG · MEDIAN MULTIPLE</div><div class="metric long" id="longMultiple">—</div><div class="subtitle"><span id="nL">n=—</span></div></div><div class="mini"><div class="label">SHORT · MEDIAN MULTIPLE</div><div class="metric short" id="shortMultiple">—</div><div class="subtitle"><span id="nS">n=—</span></div></div></div>
-   <svg id="chartB" class="chart" viewBox="0 0 760 330" role="img"></svg>
+   <div class="chartframe"><div class="charthead"><span class="charttitle" data-i="cfB"></span><span class="live" data-i="cfBb"></span></div><svg id="chartB" class="chart" viewBox="0 0 760 330" role="img"></svg></div>
    <div class="note" id="noteB"></div>
   </section>
  </main>
@@ -73,7 +81,14 @@ function el(tag,attrs={},parent){const n=document.createElementNS(NS,tag);Object
 function txt(parent,x,y,s,attrs={}){const n=el('text',{x,y,fill:'#91a0b5','font-size':11,...attrs},parent);n.textContent=s;return n}
 function line(parent,x1,y1,x2,y2,stroke='#273548',dash=''){el('line',{x1,y1,x2,y2,stroke,'stroke-width':1,...(dash?{'stroke-dasharray':dash}:{})},parent)}
 function clear(svg){while(svg.firstChild)svg.removeChild(svg.firstChild)}
-function path(parent,pts,stroke,width=1,opacity=1){if(pts.length<2)return;el('path',{d:pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(2)+','+p[1].toFixed(2)).join(' '),fill:'none',stroke,'stroke-width':width,opacity,'stroke-linecap':'round','stroke-linejoin':'round'},parent)}
+function path(parent,pts,stroke,width=1,opacity=1,extra={}){if(pts.length<2)return;el('path',{d:pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(2)+','+p[1].toFixed(2)).join(' '),fill:'none',stroke,'stroke-width':width,opacity,'stroke-linecap':'round','stroke-linejoin':'round',...extra},parent)}
+/* v172: 入口のモックアップの配色・光(グロー)・面の塗り */
+const CP={lf:'#ed8589',sf:'#80d8ad',lt:'#df888c',st:'#7bc9a3',lm:'#ff9da0',sm:'#a0f0c4',gold:'#e9c47c',axis:'#9eafc7',grid:'#8ca7c3',zero:'#c4d4e7'};
+function defs(svg,id,grad){const d=el('defs',{},svg);
+ if(grad)[['LF',CP.lf,.26,0],['SF',CP.sf,0,.22]].forEach(([k,c,a,b])=>{const g=el('linearGradient',{id:id+k,x1:0,y1:0,x2:0,y2:1},d);el('stop',{offset:0,'stop-color':c,'stop-opacity':a},g);el('stop',{offset:1,'stop-color':c,'stop-opacity':b},g)});
+ const f=el('filter',{id:id+'G',filterUnits:'userSpaceOnUse',x:-20,y:-20,width:820,height:1000},d);   /* 縦線は幅0なので、領域は画面座標で固定する(bbox 基準だと線が消える) */el('feGaussianBlur',{stdDeviation:2.4,result:'b'},f);const m=el('feMerge',{},f);el('feMergeNode',{in:'b'},m);el('feMergeNode',{in:'SourceGraphic'},m)}
+function gl(parent,x1,y1,x2,y2,op=.13,stroke=CP.grid,w=1,extra={}){el('line',{x1,y1,x2,y2,stroke,'stroke-opacity':op,'stroke-width':w,...extra},parent)}
+function area(parent,pts,base,fill,op=1){if(pts.length<2)return;el('path',{d:'M'+pts[0][0].toFixed(2)+','+base+' '+pts.map(p=>'L'+p[0].toFixed(2)+','+p[1].toFixed(2)).join(' ')+' L'+pts[pts.length-1][0].toFixed(2)+','+base+'Z',fill,opacity:op,stroke:'none'},parent)}
 
 const $=i=>document.getElementById(i);
 /* v168: 言語はメインページと同じ保存キー csa-lang(未設定なら英語)。固定の文言は I に、動的な文言は T(日本語,English) に置く */
@@ -86,6 +101,7 @@ const I={
  src:['Coinalyze 4社合算','Coinalyze · 4 exchanges combined'],
  cd:['発表まで','Release in'],
  h24:['直近1時間','last 1h'],
+ cfA:['指標発表前後の清算推移','LONG / SHORT AROUND THE RELEASE'],cfAb:['過去イベント比較','PAST RELEASES'],cfB:['指標ごとの平常日比','MULTIPLE OF A NORMAL DAY'],cfBb:['発表日の1日合計','RELEASE-DAY TOTAL'],
  tabA:['イベント反応','Event response'],tabB:['平常比','vs normal day'],tabC:['価格 × 清算','Price × liquidations'],soon:['準備中','soon'],
  ah2:['発表時刻を基準にした清算の推移','Liquidations around the release'],
  adesc:['過去の各回と中央値を重ね、発表前後の変化を比較します。各回の清算額は、その回の直前14日の1時間あたり中央値を1とした倍率です。','Past releases overlaid with their median. Each release is scaled so that the median hour of the prior 14 days = 1×.'],
@@ -121,15 +137,15 @@ async function j(u,auth){const o={};if(auth){const t=getTok();if(t)o.headers={au
 const Q=new URLSearchParams(location.search);
 let CAL=[],TY=[],D=null,ERR=null;
 function renderB(d){
- const svg=$('chartB');clear(svg);const W=760,L0=135,R=35,top=30,max=4,rows=d.events.slice(-12),bottom=top+Math.max(rows.length,6)*19.5;
- svg.setAttribute('viewBox','0 0 760 '+(bottom+52));
- for(let v=0;v<=4;v++){const x=L0+(W-L0-R)*v/max;line(svg,x,top-6,x,bottom);txt(svg,x,bottom+20,v+'×',{'text-anchor':'middle'})}
- const px=v=>L0+Math.min(v,max)/max*(W-L0-R);
- rows.forEach((e,i)=>{const y=top+i*19.5;txt(svg,8,y+4,ymd(e.ts));
-  [[e.lx,'--long',-2],[e.sx,'--short',4]].forEach(([v,c,dy])=>{if(v==null)return;const x=px(v);line(svg,L0,y+dy,x,y+dy,css(c));const o=el('circle',{cx:x,cy:y+dy,r:4.5,fill:css(c)},svg);o.appendChild(document.createElementNS(NS,'title')).textContent=ymd(e.ts)+' '+fx(v);if(v>max)txt(svg,x-8,y+dy-7,fx(v),{'text-anchor':'end','font-size':10})})});
- if(!d.locked)[[d.med.l,'--long'],[d.med.s,'--short']].forEach(([m,c])=>{if(m!=null)line(svg,px(m),top-6,px(m),bottom,css(c),'4 4')});
- txt(svg,L0,16,d.locked?T('平常日比（倍率）','Multiple of a normal day'):T('平常日比（倍率・点線＝全'+d.n+'回の中央値）','Multiple of a normal day (dashed = median of all '+d.n+')'));
- txt(svg,W-R,16,T('n = '+d.n+'回（直近'+rows.length+'回を表示）','n = '+d.n+' (latest '+rows.length+' shown)'),{'text-anchor':'end','fill':css('--gold')});
+  const svg=$('chartB');clear(svg);defs(svg,'nxB',false);const W=760,L0=135,R=35,top=30,max=4,rows=d.events.slice(-12),bottom=top+Math.max(rows.length,6)*19.5;
+  svg.setAttribute('viewBox','0 0 760 '+(bottom+52));
+  for(let v=0;v<=4;v++){const x=L0+(W-L0-R)*v/max;gl(svg,x,top-6,x,bottom,v?.13:.4);txt(svg,x,bottom+20,v+'×',{'text-anchor':'middle',fill:CP.axis})}
+  const px=v=>L0+Math.min(v,max)/max*(W-L0-R);
+  rows.forEach((e,i)=>{const y=top+i*19.5;txt(svg,8,y+4,ymd(e.ts),{fill:CP.axis});
+   [[e.lx,CP.lm,-2],[e.sx,CP.sm,4]].forEach(([v,c,dy])=>{if(v==null)return;const x=px(v);gl(svg,L0,y+dy,x,y+dy,.55,c,1.2);const o=el('circle',{cx:x,cy:y+dy,r:4.5,fill:c,filter:'url(#nxBG)'},svg);o.appendChild(document.createElementNS(NS,'title')).textContent=ymd(e.ts)+' '+fx(v);if(v>max)txt(svg,x-8,y+dy-7,fx(v),{'text-anchor':'end','font-size':10})})});
+  if(!d.locked)[[d.med.l,CP.lm],[d.med.s,CP.sm]].forEach(([m,c])=>{if(m!=null)gl(svg,px(m),top-6,px(m),bottom,1,c,1.6,{'stroke-dasharray':'4 4',filter:'url(#nxBG)'})});
+  txt(svg,L0,16,d.locked?T('平常日比（倍率）','Multiple of a normal day'):T('平常日比（倍率・点線＝全'+d.n+'回の中央値）','Multiple of a normal day (dashed = median of all '+d.n+')'));
+  txt(svg,W-R,16,T('n = '+d.n+'回（直近'+rows.length+'回を表示）','n = '+d.n+' (latest '+rows.length+' shown)'),{'text-anchor':'end','fill':CP.gold});
 }
 /* v170: 案A(発表を基準にした清算の推移)。1時間足(/api/liq?step=3600、公開)と、/api/liqimpact が返した回(無料は直近1回のみ)を使う。
    0 = 発表を含む1時間。各回は「直前14日の1時間あたり中央値」を1×として倍率にそろえる。 */
@@ -146,24 +162,29 @@ function alignEvents(d,hr,win){
   out.push({ts:e.ts,pts})});
  return out}
 function renderA(evs,win){
- const svg=$('chartA');clear(svg);const W=760,H=340,L0=48,R=15,mid=164,top=24,bottom=305;
- if(!evs.length)return;
- const ks=[];for(let k=-win;k<=win;k++)ks.push(k);
- const at=(e,k,key)=>{const p=e.pts.find(q=>q.k===k);return p?p[key]:null};
- const mk=key=>ks.map(k=>({k,v:med(evs.map(e=>at(e,k,key)))}));
- const one=evs.length===1,ML=mk('l'),MS=mk('s');
- const peak=Math.max(2,...ML.map(p=>p.v||0),...MS.map(p=>p.v||0));const max=Math.ceil(peak*1.3);
- for(let k=0;k<=4;k++){const y=top+(bottom-top)*k/4;line(svg,L0,y,W-R,y);txt(svg,4,y+4,(max*(1-k/4)).toFixed(max>=10?0:1)+'×')}
- const x=k=>L0+(k+win)/(2*win)*(W-L0-R);
- line(svg,L0,mid,W-R,mid,'#4a5c72');line(svg,x(0),top,x(0),bottom,css('--gold'),'4 4');txt(svg,x(0)+6,top+11,T('発表','Release'),{'fill':css('--gold'),'font-weight':700});
- const yl=v=>mid-Math.min(v,max)/max*(mid-top-8),ys=v=>mid+Math.min(v,max)/max*(bottom-mid-8);
- const seg=(f,key,c,w,op)=>{let cur=[];const flush=()=>{path(svg,cur,css(c),w,op);cur=[]};ks.forEach(k=>{const v=f(k,key);if(v==null)flush();else cur.push([x(k),(key==='l'?yl:ys)(v)])});flush()};
- if(!one)evs.forEach((e,i)=>{const op=.12+(i%4)*.035;seg((k,key)=>at(e,k,key),'l','--long',1,op);seg((k,key)=>at(e,k,key),'s','--short',1,op)});
- const mv=(arr)=>(k)=>{const p=arr.find(q=>q.k===k);return p?p.v:null};
- seg((k)=>mv(ML)(k),'l','--long',3,1);seg((k)=>mv(MS)(k),'s','--short',3,1);
- [-win,-win/2,0,win/2,win].forEach(k=>txt(svg,x(k),H-12,(k>0?'+':'')+k+T('時間','h'),{'text-anchor':'middle'}));
- txt(svg,L0,15,'LONG ↑',{'fill':css('--long'),'font-weight':700});txt(svg,L0,H-31,'SHORT ↓',{'fill':css('--short'),'font-weight':700});
- txt(svg,W-R,15,one?T('直近1回のみ','Latest release only'):T('n = '+evs.length+'回（中央値）','n = '+evs.length+' (median)'),{'text-anchor':'end','fill':css('--gold')})}
+  const svg=$('chartA');clear(svg);defs(svg,'nxA',true);const W=760,H=340,L0=48,R=15,mid=164,top=24,bottom=305;
+  if(!evs.length)return;
+  const ks=[];for(let k=-win;k<=win;k++)ks.push(k);
+  const at=(e,k,key)=>{const p=e.pts.find(q=>q.k===k);return p?p[key]:null};
+  const mk=key=>ks.map(k=>({k,v:med(evs.map(e=>at(e,k,key)))}));
+  const one=evs.length===1,ML=mk('l'),MS=mk('s');
+  const peak=Math.max(2,...ML.map(p=>p.v||0),...MS.map(p=>p.v||0));const max=Math.ceil(peak*1.3);
+  const x=k=>L0+(k+win)/(2*win)*(W-L0-R);
+  /* v172: 軸は「中央 = 0、上 = ロングの倍率、下 = ショートの倍率」(以前は上から下へ max→0 と並べていて、中央の線が 0 ではなく max/2 と読めた) */
+  const yl=v=>mid-Math.min(v,max)/max*(mid-top-8),ys=v=>mid+Math.min(v,max)/max*(bottom-mid-8),fm=v=>v.toFixed(max>=10?0:1)+'×';
+  [1,.5].forEach(f=>{const a=mid-f*(mid-top-8),b=mid+f*(bottom-mid-8);gl(svg,L0,a,W-R,a);gl(svg,L0,b,W-R,b);txt(svg,4,a+4,fm(max*f),{fill:CP.axis,'font-size':10});txt(svg,4,b+4,fm(max*f),{fill:CP.axis,'font-size':10})});
+  [-win,-win/2,win/2,win].forEach(k=>gl(svg,x(k),top,x(k),bottom));
+  gl(svg,L0,mid,W-R,mid,.48,CP.zero,1.2);txt(svg,4,mid+4,'0',{fill:CP.axis,'font-size':10});
+  gl(svg,x(0),top,x(0),bottom,1,CP.gold,1.5,{'stroke-dasharray':'4 5',filter:'url(#nxAG)'});txt(svg,x(0)+6,top+11,T('発表','Release'),{'fill':CP.gold,'font-weight':700,'letter-spacing':1});
+  const segs=(f,key)=>{const out=[];let cur=[];ks.forEach(k=>{const v=f(k,key);if(v==null){if(cur.length>1)out.push(cur);cur=[]}else cur.push([x(k),(key==='l'?yl:ys)(v)])});if(cur.length>1)out.push(cur);return out};
+  const mv=arr=>k=>{const p=arr.find(q=>q.k===k);return p?p.v:null};
+  const fL=mv(ML),fS=mv(MS);
+  segs(k=>fL(k),'l').forEach(p=>area(svg,p,mid,'url(#nxALF)',.9));segs(k=>fS(k),'s').forEach(p=>area(svg,p,mid,'url(#nxASF)',.9));
+  if(!one)evs.forEach((e,i)=>{const op=.14+(i%4)*.04;segs((k,key)=>at(e,k,key),'l').forEach(p=>path(svg,p,CP.lt,1.1,op));segs((k,key)=>at(e,k,key),'s').forEach(p=>path(svg,p,CP.st,1.1,op))});
+  segs(k=>fL(k),'l').forEach(p=>path(svg,p,CP.lm,2.6,1,{filter:'url(#nxAG)'}));segs(k=>fS(k),'s').forEach(p=>path(svg,p,CP.sm,2.6,1,{filter:'url(#nxAG)'}));
+  [-win,-win/2,0,win/2,win].forEach(k=>txt(svg,x(k),H-12,(k>0?'+':'')+k+T('時間','h'),{'text-anchor':'middle',fill:CP.axis}));
+  txt(svg,L0,15,'LONG ↑',{'fill':CP.lm,'font-weight':700});txt(svg,L0,H-31,'SHORT ↓',{'fill':CP.sm,'font-weight':700});
+  txt(svg,W-R,15,one?T('直近1回のみ','Latest release only'):T('n = '+evs.length+'回（中央値）','n = '+evs.length+' (median)'),{'text-anchor':'end','fill':CP.gold})}
 async function drawA(){
  const tok=++ATOK,svg=$('chartA'),note=$('noteA');
  if(!D||!D.n){clear(svg);note.textContent=ERR?T('取得できませんでした: ','Could not load: ')+ERR:T('この指標は、清算の記録と重なる回がありません。','No releases of this type overlap with the liquidation data.');return}
