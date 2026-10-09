@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v157';
+const VERSION = '2026-10-09-v159';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1550,6 +1550,10 @@ const LIQ_QUIET = 0.5, LIQ_MAXWAIT = 6 * 36e5, LIQ_DAILY_CAP = 5;
 const jstDay = (t) => liqDay(t + 9 * 36e5);
 const LIQ_OKX_CT = { BTC: 0.01, ETH: 0.1, SOL: 1, BNB: 0.01 };   // OKXの1枚あたりの数量(取れない時の既定値。起動時に公式の値で上書き)
 const liqDay = (t) => new Date(t).toISOString().slice(0, 10);
+// v158: 過去分の取り込み(Coinalyze の /liquidation-history。Bybit・OKX の USDT無期限、5分刻み、USD換算)。鍵は env.COINALYZE_KEY(Cloudflare のシークレット)。鍵が無ければ何もしない。
+//   起動後の最初の alarm で1回だけ取り込む。失敗したら10分おきに6回、それでも駄目なら6時間おき。BF_VER を変えてデプロイすると、もう一度取り込む。
+const CZ_BASE = 'https://api.coinalyze.net/v1';
+const BF_VER = 'v159';   // v159: 日足を取れる限り(2017年〜)遡って長期用に保存する
 
 export class LiqHub {
   constructor(state, env) {
@@ -1559,12 +1563,13 @@ export class LiqHub {
     this.dirty = new Set();
     this.src = {};           // 取引所ごとの状態 { at: 最後の受信, n: 受信数, err: 直近の失敗理由, ws }
     this.ct = { ...LIQ_OKX_CT };
-    this.boot = Date.now(); this.alarms = 0; this.alarmAt = null; this.stale = 0;   // v156: 診断用(このインスタンスがいつ起きたか・alarmが動いているか)
+    this.boot = Date.now(); this.alarms = 0; this.alarmAt = null; this.stale = 0; this.bf = null; this.bfBusy = false;   // v156: 診断用(このインスタンスがいつ起きたか・alarmが動いているか)
     this.ready = this.state.blockConcurrencyWhile(async () => {
       const all = await this.state.storage.list({ prefix: 'd:' });
       for (const [k, v] of all) this.days[k.slice(2)] = v;
       const mx = await this.state.storage.get('max'); if (mx) this.max = mx;
       this.ev = (await this.state.storage.get('ev')) || { open: null, log: [] };
+      this.bf = (await this.state.storage.get('bf')) || null;   // v158: 過去分の取り込みの記録
     });
   }
 
@@ -1720,11 +1725,114 @@ export class LiqHub {
     } catch (_) {}
   }
 
+  // ---- v158: 過去分の取り込み(Coinalyze) ----
+  bfDue(now) {
+    if (!this.env.COINALYZE_KEY || this.bfBusy) return false;
+    const b = this.bf;
+    if (!b || b.v !== BF_VER) return true;
+    if (b.ok) return false;
+    return now - b.at >= ((b.tries || 0) < 6 ? 600000 : 6 * 3600000);
+  }
+
+  async czGet(path, params) {
+    const q = params ? '?' + new URLSearchParams(params) : '';
+    for (let i = 0; i < 3; i++) {
+      const res = await fetch(CZ_BASE + path + q, { headers: { api_key: this.env.COINALYZE_KEY } });
+      if (res.status === 429) { const w = Math.min(60, Number(res.headers.get('Retry-After')) || 5); await new Promise((r) => setTimeout(r, w * 1000 + 300)); continue; }
+      if (!res.ok) throw new Error('Coinalyze ' + path + ' HTTP ' + res.status);   // 本文は載せない(鍵が混ざらないように)
+      return await res.json();
+    }
+    throw new Error('Coinalyze ' + path + ' 429が続いた');
+  }
+
+  async backfill() {
+    this.bfBusy = true;
+    const prev = this.bf && this.bf.v === BF_VER ? this.bf : null, tries = (prev ? prev.tries || 0 : 0) + 1;
+    try {
+      const now = Date.now();
+      const cut = Math.floor((now - 36e5) / LIQ_STEP) * LIQ_STEP;          // この時刻より前の枠だけ入れる(直近1時間は入れない = 投稿の判定に触れない)
+      const from = Math.ceil((now - PAST_KEEP) / LIQ_STEP) * LIQ_STEP;     // 保存期間(2週間)の始まり
+      const ex = await this.czGet('/exchanges');
+      const codes = {};
+      for (const e of Array.isArray(ex) ? ex : []) { const n = String(e.name || '').toLowerCase(); if (n === 'bybit' || n === 'okx') codes[String(e.code)] = n; }
+      if (!Object.keys(codes).length) throw new Error('取引所コード(Bybit・OKX)が見つからない');
+      const mk = await this.czGet('/future-markets');
+      const uniq = new Map();   // 取引所×銘柄で1本だけ(同じ組が複数あっても二重に数えない)
+      for (const m of Array.isArray(mk) ? mk : []) {
+        if (!codes[String(m.exchange)] || !m.is_perpetual || m.quote_asset !== 'USDT' || !SYMS.includes(m.base_asset)) continue;
+        const k = codes[String(m.exchange)] + ':' + m.base_asset; if (!uniq.has(k)) uniq.set(k, m);
+      }
+      if (!uniq.size) throw new Error('対象の銘柄が見つからない');
+      const bySym = new Map([...uniq.values()].map((m) => [m.symbol, m.base_asset]));
+      const mid = from + Math.floor((cut - from) / 2 / LIQ_STEP) * LIQ_STEP;   // 2回に分けて取る(1回の件数が多すぎないように)
+      const raw = new Map();   // 'シンボル|時刻' -> [ロング, ショート](同じ足が2回来ても1回だけ数える)
+      for (const [a, b] of [[from, mid], [mid, cut]]) {
+        const res = await this.czGet('/liquidation-history', { symbols: [...bySym.keys()].join(','), interval: '5min', from: Math.floor(a / 1000), to: Math.floor(b / 1000), convert_to_usd: 'true' });
+        for (const r of Array.isArray(res) ? res : []) {
+          if (!bySym.has(r.symbol)) continue;
+          for (const h of r.history || []) {
+            const t = Number(h.t) * 1000, l = Number(h.l), sh = Number(h.s);
+            if (!Number.isFinite(t) || !(l >= 0) || !(sh >= 0)) continue;
+            raw.set(r.symbol + '|' + t, [l, sh]);
+          }
+        }
+      }
+      const cz = new Map();    // '銘柄|枠の始まり' -> [ロング, ショート](Bybit と OKX を足す)
+      for (const [k, [l, sh]] of raw) {
+        const [sym, ts] = k.split('|'), t = Math.floor(Number(ts) / LIQ_STEP) * LIQ_STEP;
+        if (t < from || t >= cut) continue;
+        const key = bySym.get(sym) + '|' + t, c = cz.get(key) || [0, 0];
+        c[0] += l; c[1] += sh; cz.set(key, c);
+      }
+      // ライブで集めていた分(= 最大の1件の記録 v[2] がある枠)の合計。取り込む前に数える(比較用)
+      let liveUsd = 0;
+      for (const [k, d] of Object.entries(this.days)) {
+        const [c, day] = k.split(':'); if (!SYMS.includes(c)) continue;
+        const base = Date.parse(day + 'T00:00:00Z');
+        for (const [slot, v] of Object.entries(d)) { const t = base + Number(slot) * LIQ_STEP; if (t >= from && t < cut && v[2] > 0) liveUsd += v[0] + v[1]; }
+      }
+      let filled = 0, fillUsd = 0, sameUsd = 0;
+      for (const [k, [l, sh]] of cz) {
+        if (!(l > 0 || sh > 0)) continue;
+        const [c, ts] = k.split('|'), t = Number(ts), key = c + ':' + liqDay(t), slot = Math.floor((t % DAY) / LIQ_STEP);
+        const d = this.days[key] || (this.days[key] = {});
+        if (d[slot]) { if (d[slot][2] > 0) sameUsd += l + sh; continue; }   // すでに入っている枠は触らない(ライブ優先・二重に足さない)
+        d[slot] = [l, sh]; this.dirty.add(key); filled++; fillUsd += l + sh;
+      }
+      // v159: 長期(日足)。Coinalyze が持つ限り遡る(最古は返ってきた分で決まる)。Bybit+OKX を足す。年ごとに DO の storage へ('lt:銘柄:年')。
+      const dres = await this.czGet('/liquidation-history', { symbols: [...bySym.keys()].join(','), interval: 'daily', from: 1483228800, to: Math.floor(cut / 1000), convert_to_usd: 'true' });
+      const lt = new Map();   // '銘柄|日' -> [ロング, ショート]
+      for (const r of Array.isArray(dres) ? dres : []) {
+        const c = bySym.get(r.symbol); if (!c) continue;
+        for (const h of r.history || []) {
+          const t = Math.floor(Number(h.t) * 1000 / DAY) * DAY, l = Number(h.l), sh = Number(h.s);
+          if (!Number.isFinite(t) || !(l >= 0) || !(sh >= 0)) continue;
+          const k = c + '|' + t, a = lt.get(k) || [0, 0]; a[0] += l; a[1] += sh; lt.set(k, a);
+        }
+      }
+      const yr = new Map(); let ltOld = 0;
+      for (const [k, [l, sh]] of lt) {
+        const [c, t] = k.split('|'), y = new Date(Number(t)).getUTCFullYear(), kk = 'lt:' + c + ':' + y;
+        if (!yr.has(kk)) yr.set(kk, []); yr.get(kk).push([Number(t), Math.round(l), Math.round(sh)]);
+        if (!ltOld || Number(t) < ltOld) ltOld = Number(t);
+      }
+      for (const [kk, arr] of yr) await this.state.storage.put(kk, arr.sort((a, b) => a[0] - b[0]));
+      this.ltc = {};
+      this.bf = { lt_from: ltOld || null, lt_days: lt.size, v: BF_VER, ok: true, at: Date.now(), tries, from, cut, syms: [...bySym.keys()], bars: cz.size, filled, fill_usd: Math.round(fillUsd), live_usd: Math.round(liveUsd), cz_same_usd: Math.round(sameUsd) };
+      await this.state.storage.put('bf', this.bf);
+      await this.flush();
+    } catch (e) {
+      this.bf = { v: BF_VER, ok: false, at: Date.now(), tries, err: String((e && e.message) || e).slice(0, 160) };
+      try { await this.state.storage.put('bf', this.bf); } catch (_) {}
+    } finally { this.bfBusy = false; }
+  }
+
   async alarm() {
     await this.ready;
     this.alarms++; this.alarmAt = Date.now();
     this.ensure();
     try { await this.detect(); } catch (_) {}
+    if (this.bfDue(Date.now())) await this.backfill();   // v158: 過去分の取り込み(鍵があって、まだ済んでいない時だけ)
     if (this.evDirty) { this.evDirty = false; try { await this.state.storage.put('ev', this.ev); } catch (_) {} }
     await this.flush();
     await this.state.storage.setAlarm(Date.now() + LIQ_FLUSH);
@@ -1751,6 +1859,11 @@ export class LiqHub {
         c[0] += v[0]; c[1] += v[1]; agg.set(b, c);
       }
     }
+    if (step === DAY) {   // v159: 日足は、2週間より古い分を長期の保存から足す(新しい分はライブ集計を優先)
+      this.ltc = this.ltc || {};
+      if (!this.ltc[sym]) { const m = await this.state.storage.list({ prefix: 'lt:' + sym + ':' }); this.ltc[sym] = [].concat(...m.values()); }
+      for (const [t, l, sh] of this.ltc[sym]) { if (t >= Math.floor(from / DAY) * DAY || agg.has(t)) continue; agg.set(t, [l, sh]); if (!first || t < first) first = t; }
+    }
     const buckets = [...agg.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, Math.round(v[0]), Math.round(v[1])]);
     let l24 = 0, s24 = 0;
     for (const [k, d] of Object.entries(this.days)) {
@@ -1761,7 +1874,7 @@ export class LiqHub {
     const m = this.max[sym];
     const sources = {};
     for (const [n, s] of Object.entries(this.src)) sources[n] = { live: !!s.ws, last: s.at || null, n: s.n, err: s.err || null, opened: s.opened || null, msgs: s.msgs || 0, pings: s.pings || 0, closes: s.closes || 0, closed_at: s.closedAt || null };
-    return json({ step: step / 1000, buckets, since: first || null, h24: { long: Math.round(l24), short: Math.round(s24) }, max24: m && now - m[2] <= DAY ? { usd: Math.round(m[0]), side: m[1], ts: m[2], src: m[3] } : null, sources, th: LIQ_TH, open: !!(this.ev && this.ev.open), do: { boot: this.boot, alarms: this.alarms, alarm_at: this.alarmAt, stale_skipped: this.stale } });
+    return json({ step: step / 1000, buckets, since: first || null, h24: { long: Math.round(l24), short: Math.round(s24) }, max24: m && now - m[2] <= DAY ? { usd: Math.round(m[0]), side: m[1], ts: m[2], src: m[3] } : null, sources, th: LIQ_TH, open: !!(this.ev && this.ev.open), do: { boot: this.boot, alarms: this.alarms, alarm_at: this.alarmAt, stale_skipped: this.stale, bf: this.bf || (this.env.COINALYZE_KEY ? 'pending' : 'no_key') } });
   }
 }
 

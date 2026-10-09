@@ -3109,12 +3109,17 @@ function drawLiq(){
     (mx?'<span>'+TL('最大1件','Largest')+' <b>'+usdS(mx.usd)+'</b>'+(mx.side==='long'?TL('ロング','long'):TL('ショート','short'))+' · '+agoTxt(mx.ts)+'</span>':'')+
     (D.since?'<span>'+TL('記録: '+fdS(D.since)+' から','Since '+fdS(D.since))+'</span>':'')+'</div>';
   if(!B.length){body.innerHTML=head+'<div class="cs-msg">'+TL('集計中…','Collecting…')+'</div>'+liqNote();return}
-  const W=Math.max(320,body.clientWidth||600),H=170,L=50,R=10,T=8,Bt=20,step=D.step*1000;
+  const W=Math.max(320,body.clientWidth||600),H=170,L=50,R=48,T=8,Bt=20,step=D.step*1000;
   const t1=Math.max(Date.now(),B[B.length-1][0]+step),t0=Math.min(B[0][0],t1-step*Math.min(60,Math.max(B.length,24)));
   const bars=B.filter(q=>q[0]>=t0),mxL=Math.max(1,...bars.map(q=>q[1])),mxS=Math.max(1,...bars.map(q=>q[2])),top=Math.max(mxL,mxS);
-  const mid=T+(H-T-Bt)/2,half=(H-T-Bt)/2,bw=Math.max(1,(W-L-R)/Math.max(1,(t1-t0)/step)-1),x=t=>L+(t-t0)/(t1-t0)*(W-L-R);
+  const mid=T+(H-T-Bt)/2,half=(H-T-Bt)/2,bw=Math.max(1,((W-L-R)/Math.max(1,(t1-t0)/step)-1)*.7),x=t=>L+(t-t0)/(t1-t0)*(W-L-R);
   let g='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" preserveAspectRatio="none" role="img"><line x1="'+L+'" x2="'+(W-R)+'" y1="'+mid+'" y2="'+mid+'" stroke="rgba(180,205,230,.18)"/>'+
     '<text x="'+(L-6)+'" y="'+(T+9)+'" text-anchor="end">'+usdS(top)+'</text><text x="'+(L-6)+'" y="'+(mid+3)+'" text-anchor="end">0</text><text x="'+(L-6)+'" y="'+(H-Bt-2)+'" text-anchor="end">'+usdS(top)+'</text>';
+  [-1,-.5,.5,1].forEach(f=>{const yy=(mid+f*half).toFixed(1);g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" stroke="rgba(180,205,230,.12)" stroke-dasharray="2 4"/>'});   // v159: 点線の目盛
+  const PB=((CD[sym+'|'+tf]||{}).bars||[]).filter(b=>b[0]*1000+step>=t0&&b[0]*1000<=t1);   // v159: 価格線(価格チャートの終値。右軸)
+  if(PB.length>1){const pc=PB.map(b=>b[4]),pl=Math.min(...pc),ph=Math.max(...pc),pr=(ph-pl)||1,py=v=>T+4+(1-(v-pl)/pr)*(H-T-Bt-8);
+    g+='<polyline fill="none" stroke="#d8dee8" stroke-width="1.3" opacity=".9" points="'+PB.map(b=>x(b[0]*1000+step/2).toFixed(1)+','+py(b[4]).toFixed(1)).join(' ')+'"/>';
+    [ph,(ph+pl)/2,pl].forEach(v=>{g+='<text x="'+(W-R+4)+'" y="'+(py(v)+3).toFixed(1)+'" text-anchor="start">'+Math.round(v).toLocaleString('en-US')+'</text>'})}
   bars.forEach(q=>{const xx=x(q[0]).toFixed(1),l=q[1]/top*half,s=q[2]/top*half;
     if(l>0)g+='<rect x="'+xx+'" y="'+(mid-l).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+l.toFixed(1)+'" fill="#e07a7a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ロング','long')+' '+usdS(q[1])+'</title></rect>';
     if(s>0)g+='<rect x="'+xx+'" y="'+mid+'" width="'+bw.toFixed(1)+'" height="'+s.toFixed(1)+'" fill="#7fc99a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ショート','short')+' '+usdS(q[2])+'</title></rect>'});
