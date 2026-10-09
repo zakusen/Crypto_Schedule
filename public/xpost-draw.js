@@ -364,36 +364,86 @@ function drawSpike2(g, im, lg) {
 
 // v152: 清算(巨額清算の総括 kind='wave' / 毎朝のまとめ kind='day')。上 = ロング清算(赤)・下 = ショート清算(緑)
 const usdK = (v) => { v = Math.abs(+v || 0); return v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e7 ? '$' + Math.round(v / 1e6) + 'M' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + Math.round(v / 1e3) + 'K' : '$' + Math.round(v); };
+// v171: 清算の色・言い回しは /next.html に揃える(ロング #e07a7a・ショート #7fc99a)。倍率は next.html と同じ定義
+const LQL = '#e07a7a', LQS = '#7fc99a';
+const fxs = (v) => v == null || !isFinite(v) ? '—' : v >= 10 ? v.toFixed(0) : v.toFixed(1);
+function twoTone(g, x, y, a, b, { size = 14, align = 'left', fam = MONO, w = 600, gap = 12 } = {}) {   // 左 = ロング色、右 = ショート色
+  g.font = `${w} ${size}px ${fam}`; const wa = g.measureText(a).width, wb = g.measureText(b).width, x0 = align === 'right' ? x - (wa + gap + wb) : x;
+  txt(g, a, x0, y, { size, w, fam, col: LQL }); txt(g, b, x0 + wa + gap, y, { size, w, fam, col: LQS });
+  return x0;
+}
 function drawLiq(g, im, lg) {
-  const en = lg === 'en', wave = im.kind === 'wave', co = im.coins || {};
-  frame(g, wave ? 'LIQUIDATION WAVE' : 'LIQUIDATIONS 24H', en ? 'Bybit + OKX public liquidation streams · USD · not the whole market' : 'Bybit・OKX の公開清算ストリームの合算 / USD / 全市場ではありません');
+  const en = lg === 'en', wave = im.kind === 'wave', co = im.coins || {}, mu = !wave && im.mult ? im.mult : null;
+  frame(g, wave ? 'LIQUIDATION WAVE' : 'LIQUIDATIONS 24H',
+    wave ? (en ? 'Bybit + OKX live liquidation streams · USD · not the whole market' : 'Bybit・OKX のライブ受信の合算 / USD / 全市場ではありません')
+      : (en ? 'Binance + Bybit + OKX + Huobi (Coinalyze) · USD · normal day = prior 14-day median · not whole market' : 'Binance・Bybit・OKX・Huobi の合算(Coinalyze)/ USD / 平常日 = 直前14日の中央値 / 全市場ではありません'));
   let tl = 0, ts = 0; for (const c of Object.keys(co)) { tl += co[c].long || 0; ts += co[c].short || 0; }
   txt(g, wave ? (en ? 'LIQUIDATION WAVE' : '巨額清算') : (en ? 'LIQUIDATIONS · LAST 24H' : '清算額 · 直近24時間'), 56, 146, { size: 44, w: 600, max: 470 });
   const a = im.start, b = im.end, d1 = D(a, lg), d2 = D(b, lg);
-  const rng = en ? `${P2(d1.getUTCDate())} ${ME[d1.getUTCMonth()]} ${hm(a, lg)} → ${P2(d2.getUTCDate())} ${ME[d2.getUTCMonth()]} ${hm(b, lg)} UTC` : `${d1.getUTCMonth() + 1}/${d1.getUTCDate()} ${hm(a, lg)} → ${d2.getUTCMonth() + 1}/${d2.getUTCDate()} ${hm(b, lg)} 日本時間`;
+  const rng = en ? `${P2(d1.getUTCDate())} ${ME3[d1.getUTCMonth()]} ${hm(a, lg)} → ${P2(d2.getUTCDate())} ${ME3[d2.getUTCMonth()]} ${hm(b, lg)} UTC` : `${d1.getUTCMonth() + 1}/${d1.getUTCDate()} ${hm(a, lg)} → ${d2.getUTCMonth() + 1}/${d2.getUTCDate()} ${hm(b, lg)} 日本時間`;
   txt(g, rng + (im.partial ? (en ? ' · partial' : ' · 記録は途中から') : ''), 56, 182, { size: 18, fam: MONO, col: C.mut });
-  txt(g, (en ? 'LONG ' : 'ロング ') + usdK(tl), 760, 146, { size: 30, w: 600, col: C.dn, align: 'right' });
-  txt(g, (en ? 'SHORT ' : 'ショート ') + usdK(ts), 760, 182, { size: 30, w: 600, col: C.up, align: 'right' });
+  txt(g, (en ? 'LONG ' : 'ロング ') + usdK(tl), 760, 146, { size: 30, w: 600, col: LQL, align: 'right' });
+  txt(g, (en ? 'SHORT ' : 'ショート ') + usdK(ts), 760, 182, { size: 30, w: 600, col: LQS, align: 'right' });
+  if (mu && mu.l != null && mu.s != null) {   // 平常日比(全銘柄の合計 ÷ 各銘柄の平常日の合計)
+    const lx = twoTone(g, 760, 210, (en ? 'LONG ×' : 'ロング ×') + fxs(mu.l), (en ? 'SHORT ×' : 'ショート ×') + fxs(mu.s), { size: 17, align: 'right' });
+    txt(g, en ? 'vs normal day' : '平常日比', lx - 12, 210, { size: 15, fam: MONO, col: C.mut, align: 'right' });
+  }
   const ser = wave ? (im.ser || []) : (im.hours || []), step = wave ? 3e5 : 36e5, n = Math.max(2, Math.round((b - a) / step));
-  const x0 = 120, x1 = 760, y0 = 230, y1 = 560, mid = (y0 + y1) / 2, half = (y1 - y0) / 2;
+  const x0 = 120, x1 = 760, y0 = 236, y1 = 560, mid = (y0 + y1) / 2, half = (y1 - y0) / 2;
   const mx = Math.max(1, ...ser.map((q) => Math.max(q[1], q[2]))) * 1.12;
   g.strokeStyle = C.line; g.lineWidth = 1; g.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0, y1 - y0);
   for (const f of [-1, -0.5, 0, 0.5, 1]) { const y = mid - f * half; g.strokeStyle = f === 0 ? 'rgba(200,210,225,0.35)' : 'rgba(140,160,190,0.10)'; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); txt(g, f === 0 ? '0' : usdK(Math.abs(f) * mx), x0 - 10, y + 5, { size: 14, fam: MONO, col: C.mut, align: 'right' }); }
   const bw = Math.max(2, (x1 - x0) / n - 2);
   for (const q of ser) {
     const i = Math.max(0, Math.min(n - 1, Math.floor((q[0] - a) / step))), x = x0 + (i / n) * (x1 - x0) + 1, lh = (q[1] / mx) * half, sh = (q[2] / mx) * half;
-    if (lh > 0) { g.fillStyle = C.dn; g.fillRect(x, mid - lh, bw, lh); } if (sh > 0) { g.fillStyle = C.up; g.fillRect(x, mid, bw, sh); }
+    if (lh > 0) { g.fillStyle = LQL; g.fillRect(x, mid - lh, bw, lh); } if (sh > 0) { g.fillStyle = LQS; g.fillRect(x, mid, bw, sh); }
   }
+  txt(g, 'LONG ↑', x0 + 8, y0 + 20, { size: 14, w: 600, fam: MONO, col: LQL }); txt(g, 'SHORT ↓', x0 + 8, y1 - 10, { size: 14, w: 600, fam: MONO, col: LQS });
   for (let k = 0; k <= 4; k++) { const t = a + (b - a) * k / 4; txt(g, hm(t, lg), x0 + (x1 - x0) * k / 4, y1 + 28, { size: 14, fam: MONO, col: C.mut, align: k === 0 ? 'left' : k === 4 ? 'right' : 'center' }); }
   if (wave && im.maxOne) txt(g, (en ? 'LARGEST ' : '最大の1件 ') + usdK(im.maxOne.usd) + ' ' + im.maxOne.coin + (en ? (im.maxOne.side === 'long' ? ' LONG' : ' SHORT') : (im.maxOne.side === 'long' ? ' ロング' : ' ショート')), x0, 214, { size: 18, w: 600, fam: MONO, col: C.gold });
+  if (mu && mu.live) txt(g, en ? 'The latest hours are Bybit + OKX only until the next refresh' : '直近の数時間は、次の取り直しまで Bybit・OKX のみの分を含む', x0, y1 + 52, { size: 13, fam: MONO, col: C.mut });
   const rx = 920, rw = 224; g.fillStyle = C.line; g.fillRect(rx - 24, 120, 1, 470);
   txt(g, en ? 'BY COIN' : '銘柄別', rx, 146, { size: 21, w: 600 }); txt(g, en ? 'LONG / SHORT' : 'ロング / ショート', rx, 174, { size: 17, fam: MONO, col: C.mut });
   ['BTC', 'ETH', 'SOL', 'BNB'].forEach((c, i) => {
-    const o = co[c] || { long: 0, short: 0 }, y = 236 + i * 84, sum = (o.long || 0) + (o.short || 0);
-    txt(g, c, rx, y, { size: 20, w: 600, fam: MONO });
-    txt(g, usdK(o.long), rx + rw, y - 24, { size: 18, w: 600, fam: MONO, col: C.dn, align: 'right' }); txt(g, usdK(o.short), rx + rw, y, { size: 18, w: 600, fam: MONO, col: C.up, align: 'right' });
-    g.fillStyle = C.line; g.fillRect(rx, y + 14, rw, 8); if (sum > 0) { g.fillStyle = C.dn; g.fillRect(rx, y + 14, (o.long / sum) * rw, 8); g.fillStyle = C.up; g.fillRect(rx + (o.long / sum) * rw, y + 14, (o.short / sum) * rw, 8); }
+    const o = co[c] || { long: 0, short: 0 }, y = 236 + i * 84, sum = (o.long || 0) + (o.short || 0), cm = mu && mu.coins && mu.coins[c];
+    txt(g, c, rx, y - 24, { size: 20, w: 600, fam: MONO });
+    if (cm && cm.l != null) twoTone(g, rx, y, '×' + fxs(cm.l), '×' + fxs(cm.s), { size: 14, gap: 8 });
+    txt(g, usdK(o.long), rx + rw, y - 24, { size: 18, w: 600, fam: MONO, col: LQL, align: 'right' }); txt(g, usdK(o.short), rx + rw, y, { size: 18, w: 600, fam: MONO, col: LQS, align: 'right' });
+    g.fillStyle = C.line; g.fillRect(rx, y + 14, rw, 8); if (sum > 0) { g.fillStyle = LQL; g.fillRect(rx, y + 14, (o.long / sum) * rw, 8); g.fillStyle = LQS; g.fillRect(rx + (o.long / sum) * rw, y + 14, (o.short / sum) * rw, 8); }
   });
+  if (mu) txt(g, en ? '× = vs normal day' : '× = 平常日比', rx, 612, { size: 12, fam: MONO, col: C.mut });
+}
+
+// v171: 清算の反応(発表を含む1時間を 0 として ±6時間。/next.html の案Aと同じ作り: 上 = ロング・下 = ショート、細線 = 過去の各回、太線 = 中央値、棒 = 今回)
+function drawLiqImp(g, im, lg) {
+  const en = lg === 'en', win = im.win || 6, nb = 2 * win + 1;
+  frame(g, 'LIQUIDATIONS × MACRO', en ? 'Binance + Bybit + OKX + Huobi (Coinalyze) · 1× = median hour, prior 14 days · not causal' : 'Binance・Bybit・OKX・Huobi 合算(Coinalyze)/ 1× = 直前14日の1時間中央値 / 因果ではありません');
+  txt(g, en ? im.en : im.ja, 56, 146, { size: 44, w: 600, max: 640 });
+  const d = D(im.t, lg);
+  txt(g, (en ? `${P2(d.getUTCDate())} ${ME3[d.getUTCMonth()]} ${hm(im.t, lg)} UTC release` : `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${hm(im.t, lg)} 日本時間 発表`) + ` · ${im.sym}`, 56, 182, { size: 18, fam: MONO, col: C.mut });
+  const cb = im.cw && im.cw[im.sym];
+  if (cb && cb.l != null) { txt(g, (en ? 'LONG ×' : 'ロング ×') + fxs(cb.l), 760, 146, { size: 30, w: 600, col: LQL, align: 'right' }); txt(g, (en ? 'SHORT ×' : 'ショート ×') + fxs(cb.s), 760, 182, { size: 30, w: 600, col: LQS, align: 'right' }); }
+  txt(g, en ? `${im.sym} · avg of the 3 hours from the release hour, vs a normal hour` : `${im.sym} · 発表を含む1時間から3時間の平均(平常の1時間比)`, 760, 210, { size: 14, fam: MONO, col: C.mut, align: 'right' });
+  const x0 = 120, x1 = 760, y0 = 236, y1 = 560, mid = (y0 + y1) / 2, half = (y1 - y0) / 2, slot = (x1 - x0) / nb;
+  const pk = Math.max(2, ...(im.med.l || []).map((v) => v || 0), ...(im.med.s || []).map((v) => v || 0), ...(im.cur.l || []).map((v) => v || 0), ...(im.cur.s || []).map((v) => v || 0));
+  const mx = Math.ceil(pk * 1.25), X = (j) => x0 + (j + win + 0.5) * slot, YL = (v) => mid - Math.min(v, mx) / mx * half, YS = (v) => mid + Math.min(v, mx) / mx * half;
+  g.strokeStyle = C.line; g.lineWidth = 1; g.strokeRect(x0 + 0.5, y0 + 0.5, x1 - x0, y1 - y0);
+  for (const f of [-1, -0.5, 0, 0.5, 1]) { const y = mid - f * half; g.strokeStyle = f === 0 ? 'rgba(200,210,225,0.35)' : 'rgba(140,160,190,0.10)'; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); txt(g, f === 0 ? '0' : '×' + fxs(Math.abs(f) * mx), x0 - 10, y + 5, { size: 14, fam: MONO, col: C.mut, align: 'right' }); }
+  const ks = im.cur.k;
+  const line = (arr, up, col, w, al) => { g.strokeStyle = col; g.globalAlpha = al; g.lineWidth = w; g.lineJoin = 'round'; g.beginPath(); let st = false; arr.forEach((v, i) => { if (v == null) { st = false; return; } const x = X(ks[i]), y = up ? YL(v) : YS(v); st ? g.lineTo(x, y) : g.moveTo(x, y); st = true; }); g.stroke(); g.globalAlpha = 1; };
+  const bw = Math.max(4, slot - 10);
+  ks.forEach((j, i) => { const l = im.cur.l[i], sh = im.cur.s[i]; if (l != null) { g.globalAlpha = 0.78; g.fillStyle = LQL; g.fillRect(X(j) - bw / 2, YL(l), bw, mid - YL(l)); } if (sh != null) { g.globalAlpha = 0.78; g.fillStyle = LQS; g.fillRect(X(j) - bw / 2, mid, bw, YS(sh) - mid); } g.globalAlpha = 1; });
+  for (const q of im.past || []) { line(q.l, true, LQL, 1.2, 0.2); line(q.s, false, LQS, 1.2, 0.2); }
+  line(im.med.l, true, LQL, 3.5, 1); line(im.med.s, false, LQS, 3.5, 1);
+  g.strokeStyle = C.gold; g.setLineDash([6, 5]); g.lineWidth = 1.5; g.beginPath(); g.moveTo(X(0), y0); g.lineTo(X(0), y1); g.stroke(); g.setLineDash([]);
+  txt(g, en ? 'RELEASE HOUR' : '発表を含む1時間', X(0) + 8, y0 + 18, { size: 13, w: 600, fam: MONO, col: C.gold });
+  txt(g, 'LONG ↑', x0 + 8, y0 + 20, { size: 14, w: 600, fam: MONO, col: LQL }); txt(g, 'SHORT ↓', x0 + 8, y1 - 10, { size: 14, w: 600, fam: MONO, col: LQS });
+  for (const j of [-win, -win / 2, 0, win / 2, win]) txt(g, (j > 0 ? '+' : '') + j + 'h', X(j), y1 + 28, { size: 14, fam: MONO, col: C.mut, align: 'center' });
+  txt(g, en ? `Bars: this release · Thin: each past release · Thick: median (n = ${im.n})` : `棒: 今回 · 細線: 過去の各回 · 太線: 中央値(n = ${im.n}回)`, x0, y1 + 54, { size: 13, fam: MONO, col: C.mut });
+  const rx = 920, rw = 224; g.fillStyle = C.line; g.fillRect(rx - 24, 120, 1, 470);
+  txt(g, en ? 'BY COIN' : '銘柄別', rx, 146, { size: 21, w: 600 }); txt(g, en ? 'NEXT 3H · LONG / SHORT' : '発表後3時間 · ロング / ショート', rx, 174, { size: 14, fam: MONO, col: C.mut });
+  ['BTC', 'ETH', 'SOL', 'BNB'].forEach((c, i) => { const o = im.cw && im.cw[c], y = 236 + i * 70; txt(g, c, rx, y, { size: 20, w: 600, fam: MONO }); if (o && o.l != null) twoTone(g, rx + rw, y, '×' + fxs(o.l), '×' + fxs(o.s), { size: 20, align: 'right', gap: 10 }); g.fillStyle = C.line; g.fillRect(rx, y + 16, rw, 1); });
+  if (im.mw && im.mw.l != null) { txt(g, en ? `${im.sym} PAST MEDIAN (n = ${im.n})` : `${im.sym} 過去の中央値(n = ${im.n}回)`, rx, 530, { size: 13, w: 600, fam: MONO, col: C.mut }); twoTone(g, rx + rw, 560, '×' + fxs(im.mw.l), '×' + fxs(im.mw.s), { size: 22, align: 'right', gap: 10 }); }
 }
 
 let fontsReady = null;
@@ -404,13 +454,14 @@ function loadFonts(sample) {
 
 // 投稿1つの画像を描いて canvas を返す(描けない種類は null)
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   if (p.sr === 'daily') return null;                                     // v109: 毎朝の予定は画像なし(本文と同じ内容のため)
   else if (p.sr === 'arch') { if (p.img && p.img.v === 3) drawArch3(g, p.img, lg); else drawEvent(g, p.img, lg, false); }
   else if (p.sr === 'week') { if (p.img && p.img.v === 3 && p.img.btc) drawWeek3(g, p.img, lg); else drawWeek(g, p.img, lg); }
   else if (p.sr === 'spike') { if (p.img && p.img.v === 2 && p.img.ser) drawSpike2(g, p.img, lg); else drawSpike(g, p.img, lg); }
   else if (p.sr === 'liq' || p.sr === 'liqday') drawLiq(g, p.img, lg);   // v152
+  else if (p.sr === 'liqimp') drawLiqImp(g, p.img, lg);   // v171
   else return null;
   return cv;
 }

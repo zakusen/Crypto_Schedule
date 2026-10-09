@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v170';
+const VERSION = '2026-10-09-v171';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1993,6 +1993,10 @@ export default {
       return new Response(txt || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
     }
     if (url.pathname === '/api/admin/rx-put' && request.method === 'POST') { const r = await rxPut(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/admin/liqimpact' && request.method === 'GET') {   // v171: 合言葉つき。X の「清算の反応」用に、next.html と同じ集計を無料の絞り込みなしで返す
+      if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
+      const r = await liqImpactApi(env, url); r.headers.set('cache-control', 'no-store'); return r;
+    }
     if (url.pathname === '/api/admin/posts') { const r = await postsApi(request, env); r.headers.set('cache-control', 'no-store'); return r; }   // v73
     if (url.pathname === '/api/rx') { const r = await rxApi(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }

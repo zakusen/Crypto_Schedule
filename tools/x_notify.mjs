@@ -19,6 +19,7 @@ const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileS
 const { uDay, uhm, AUTO_DAILY_FROM } = L;   // v103: 英語は UTC(毎朝の予定は自動投稿になる日から。手で予約済みの分は作り直さない)
 const { H, DAY, DAILY_AT, ARCH_WAIT, WEEK_AT, J, xlen, enDay, enDate, hm, jaDay, pct, pctTxt, usd, dayStart, weekStart, isoDay, hashStr,
   pickEvents, groups, MAJOR, archId, groupLine, tags, siteLine, moves, COINS, barsStart, klinesUrl, archPost, kindOf, weekPost, dueList } = L;
+const { liqDayMult, liqHourMap, liqAlign, winMean, medOf, liqImpId, liqImpWinEnd, liqImpDue, liqImpPost, LIQ_IMP_WIN } = L;   // v171
 
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
 const KEY = process.env.RX_ADMIN_KEY || '';
@@ -240,18 +241,52 @@ try {
   for (const ev of (lq.ev || [])) { if (byId.has(ev.id) || NOW - ev.end > 6 * H) continue; put(L.liqPost(ev)); console.log('[x] 巨額清算の総括:', ev.id); }
   const day = dayStart(NOW), lid = 'liqday:' + isoDay(day);
   if (NOW >= day + L.LIQ_DAY_AT && !byId.has(lid)) {
-    const end = day + L.LIQ_DAY_AT, start = end - DAY, coins = {}, hrs = new Map(); let from = null, ok = true, total = 0;
+    const end = day + L.LIQ_DAY_AT, start = end - DAY, coins = {}, hrs = new Map(), dly = {}; let from = null, ok = true, total = 0, cutMin = null;
     for (const [c] of COINS) {
       const r = await fetch(SITE + '/api/liq?sym=' + c + '&step=3600', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(30000) });
       if (!r.ok) { ok = false; console.log('[x] 清算(毎朝): /api/liq HTTP ' + r.status + ' なので次回'); break; }
+      try { const r2 = await fetch(SITE + '/api/liq?sym=' + c + '&step=86400', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(30000) }); if (r2.ok) dly[c] = (await r2.json()).buckets || []; } catch (_) {}   // v171: 平常日比(直前14日の中央値)用の日足
       const j = await r.json(); let l = 0, s = 0;
+      const ct = j.do && j.do.bf && j.do.bf.cut; if (ct && (cutMin == null || ct < cutMin)) cutMin = ct;
       for (const q of j.buckets || []) if (q[0] >= start && q[0] < end) { l += q[1]; s += q[2]; const h = hrs.get(q[0]) || [q[0], 0, 0]; h[1] += q[1]; h[2] += q[2]; hrs.set(q[0], h); }
       coins[c] = { long: l, short: s }; total += l + s; if (j.since && (from == null || j.since > from)) from = j.since;
     }
-    if (ok && total > 0) put(L.liqDayPost(day, coins, [...hrs.values()].sort((a, b) => a[0] - b[0]), from));
+    // v171: 平常日比 = 前日(UTC。日本時間 9:00〜9:00 と同じ)の合計 ÷ 直前14日の中央値(/next.html の案Bと同じ定義)。足りない銘柄があれば出さない
+    const mult = Object.keys(dly).length === COINS.length ? liqDayMult(dly, start) : null;
+    if (mult) mult.live = cutMin == null || cutMin < end;                  // true = 直近の数時間は Coinalyze に置き換わる前(Bybit・OKXのみ)の分を含む
+    if (ok && total > 0) put(L.liqDayPost(day, coins, [...hrs.values()].sort((a, b) => a[0] - b[0]), from, mult));
     else if (ok) console.log('[x] 清算(毎朝): 記録が0なので出しません(LiqHub が動いているか /api/liq を確認)');
   }
 } catch (e) { console.log('[x] 清算でエラー(ほかの下書きは続けます):', e.message); }
+
+// ---- 6) 清算の反応(v171。/next.html の案A: 発表を含む1時間を 0 として ±6時間) ----
+//   主要指標(MAJOR)の発表を含む1時間から3時間が終わり、さらに「Coinalyze の4社合算に置き換わった」(/api/liq の do.bf.cut が3時間の終わり以降)後に1本。
+//   直近の数時間は Bybit・OKX のライブ受信だけで、平常(直前14日 = 4社)と並べると倍率が小さく出るため、置き換わるまで作らない。
+//   過去の回 = /api/admin/liqimpact(next.html と同じ集計・無料の絞り込みなし)。過去の回が3回未満なら出さない。
+try {
+  const cand = groups(events.filter((e) => MAJOR(e) && NOW >= liqImpWinEnd(e.ts) && NOW - e.ts < 48 * H)).filter((g) => !byId.has(liqImpId(g)));
+  if (cand.length) {
+    const types = ((await (await site('/api/admin/liqimpact?sym=BTC')).json()).types || []);
+    const hourly = {};
+    for (const [c] of COINS) { const r = await fetch(SITE + '/api/liq?sym=' + c + '&step=3600', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(30000) }); if (!r.ok) throw new Error('/api/liq ' + c + ' HTTP ' + r.status); const j = await r.json(); hourly[c] = { m: liqHourMap(j.buckets), since: j.since || null, cut: j.do && j.do.bf && j.do.bf.cut || null }; }
+    for (const g of cand) {
+      const e0 = g.find(MAJOR) || g[0], id = liqImpId(g), we = liqImpWinEnd(g[0].ts);
+      if (!types.some((t) => t.k === e0.s)) { console.log('[x] 清算の反応: 過去の回が5回未満で種別に無いので出しません', id, e0.s); continue; }
+      const cuts = COINS.map(([c]) => hourly[c].cut);
+      if (cuts.some((t) => !t || t < we)) { console.log('[x] 清算の反応: 4社合算に置き換わるのを待ちます', id); continue; }
+      const hist = await (await site('/api/admin/liqimpact?sym=BTC&type=' + encodeURIComponent(e0.s))).json();
+      const past = []; for (const h of hist.events || []) { if (Math.abs(h.ts - g[0].ts) < H) continue; const a = liqAlign(hourly.BTC.m, hourly.BTC.since, h.ts); if (a && winMean(a.l) != null && winMean(a.s) != null) past.push({ ts: h.ts, l: a.l, s: a.s }); }
+      const cur = liqAlign(hourly.BTC.m, hourly.BTC.since, g[0].ts);
+      if (!cur || past.length < 3) { console.log('[x] 清算の反応: 比べる過去の回が足りないので出しません', id, 'n=' + past.length); continue; }
+      const med = { l: cur.k.map((_, i) => medOf(past.map((q) => q.l[i]))), s: cur.k.map((_, i) => medOf(past.map((q) => q.s[i]))) };
+      const cw = {}; for (const [c] of COINS) { const a = liqAlign(hourly[c].m, hourly[c].since, g[0].ts); const l = a && winMean(a.l), sh = a && winMean(a.s); if (l != null && sh != null) cw[c] = { l, s: sh }; }
+      if (!cw.BTC) { console.log('[x] 清算の反応: BTC の倍率が出せないので出しません', id); continue; }
+      const mw = { l: medOf(past.map((q) => winMean(q.l))), s: medOf(past.map((q) => winMean(q.s))) };
+      put(liqImpPost(g, { sym: 'BTC', win: LIQ_IMP_WIN, cur, med, past, n: past.length, cw, mw, due: Math.max(liqImpDue(g[0].ts), NOW) }));
+      console.log('[x] 清算の反応:', id, 'n=' + past.length);
+    }
+  }
+} catch (e) { console.log('[x] 清算の反応でエラー(ほかの下書きは続けます):', e.message); }
 
 // ---- 保存・通知 ----
 for (const p of out) for (const lg of ['en', 'ja']) if (xlen(p[lg]) > 280) console.log(`[x] 注意: ${p.id} ${lg} が280を超えています(${xlen(p[lg])})`);

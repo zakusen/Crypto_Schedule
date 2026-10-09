@@ -275,7 +275,7 @@ export function liqPost(ev) {
     img: { v: 1, kind: 'wave', start: ev.start, end: ev.end, capped: !!ev.capped, coins: ev.coins, maxOne: mo || null, ser: ev.ser || [] } };
 }
 // 毎朝のまとめ: day = 日本時間の0時(ms)。直近24時間 = (day+9h-24h) 〜 (day+9h)。coins = {BTC:{long,short}}, hours = [[t,long,short]](24本まで)、from = 記録の始まり(24時間に満たない時)
-export function liqDayPost(day, coins, hours, from) {
+export function liqDayPost(day, coins, hours, from, mult) {   // v171: mult = {l, s, n, coins:{BTC:{l,s}}, live} 平常日比(next.html の案Bと同じ定義)
   const end = day + LIQ_DAY_AT, start = end - DAY, tot = liqTot(coins);
   let pk = null; for (const h of hours || []) if (!pk || h[1] + h[2] > pk[1] + pk[2]) pk = h;
   const part = from && from > start + 36e5;
@@ -286,15 +286,87 @@ export function liqDayPost(day, coins, hours, from) {
       ...(o.nodate ? [] : [en ? `to ${dEnU(end)} · ${uhm(end)} UTC${part ? ' (partial)' : ''}` : `${dJaL(end)} ${hm(end)} まで${part ? '（記録は途中から）' : ''}`]), rule,
       ...liqRows(coins), rule,
       en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}${tot.share != null ? ` (${tot.share}% long)` : ''}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}${tot.share != null ? `（ロング${tot.share}%）` : ''}`,
+      ...(mult && !o.nomult ? [en ? `📏 vs normal day: Long ×${fxs(mult.l)} · Short ×${fxs(mult.s)}` : `📏 平常日比: ロング ×${fxs(mult.l)} · ショート ×${fxs(mult.s)}`] : []),
       ...(pk && !o.nopeak ? [en ? `⏱ Peak hour ${uhm(pk[0])} UTC · ${usdS(pk[1] + pk[2])}` : `⏱ ピーク ${hm(pk[0])} · ${usdS(pk[1] + pk[2])}`] : []),
-      ...(o.src ? [en ? 'Bybit + OKX' : 'Bybit・OKX合算'] : []),
+      ...(o.src ? [en ? 'Binance+Bybit+OKX+Huobi' : 'Binance・Bybit・OKX・Huobi合算'] : []),   // v171: 毎朝のまとめは /api/liq の集計(Coinalyze 4社)。巨額清算の総括(ライブ受信)は Bybit・OKX のまま
       ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
   };
-  const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nopeak: 1 }, { nopeak: 1, nodate: 1 }];
+  const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nopeak: 1 }, { nopeak: 1, nodate: 1 }, { nopeak: 1, nodate: 1, nomult: 1 }];
   const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitL('en'), ja = fitL('ja');
   return { id: 'liqday:' + isoDay(day), sr: 'liqday', due: end, en, ja, h: hashStr(en + ja),
-    img: { v: 1, kind: 'day', start, end, coins, hours: hours || [], partial: !!part } };
+    img: { v: 2, kind: 'day', start, end, coins, hours: hours || [], partial: !!part, mult: mult || null } };
+}
+
+// ---- v171: 清算 × 経済指標(/next.html と同じ定義。X の画像・本文もここに揃える) ----
+//   平常日比(案B) = 1日(UTC)の合計 ÷ 直前14日の中央値(ロング・ショート別)。毎朝のまとめ(日本時間 9:00 = UTC 0:00)の「直近24時間」はちょうど前日(UTC)なので、そのまま同じ定義が使える。
+//   発表基準の推移(案A) = 発表を含む1時間を 0 として ±6時間。各回は「直前14日の1時間あたり中央値」を 1× にそろえた倍率。
+export const fxs = (v) => v == null || !isFinite(v) ? '—' : v >= 10 ? v.toFixed(0) : v.toFixed(1);
+export const medOf = (a) => { const b = (a || []).filter((x) => x != null && isFinite(x)).sort((x, y) => x - y); if (!b.length) return null; const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+export const LIQ_BASE_DAYS = 14, LIQ_IMP_WIN = 6, LIQ_IMP_NW = 3;   // NW = 発表を含む1時間から数える本数(0, +1, +2 の3時間)
+// daily = /api/liq?step=86400 の buckets [[t,long,short]]。day0 = UTC の日の始まり(ms)。足りない(7日未満)時は null
+export function liqDayMult1(daily, day0) {
+  const m = new Map((daily || []).map((b) => [b[0], b])), cur = m.get(day0); if (!cur) return null;
+  const bl = [], bs = [];
+  for (let i = 1; i <= LIQ_BASE_DAYS; i++) { const q = m.get(day0 - i * DAY); if (q) { bl.push(q[1]); bs.push(q[2]); } }
+  if (bl.length < 7) return null;
+  const ml = medOf(bl), ms = medOf(bs);
+  return { cl: cur[1], cs: cur[2], ml, ms, l: ml > 0 ? cur[1] / ml : null, s: ms > 0 ? cur[2] / ms : null, n: bl.length };
+}
+// byCoin = {BTC: daily buckets, ETH: …}。全銘柄の合計 ÷ 各銘柄の「平常日」の合計(ロング・ショート別)
+export function liqDayMult(byCoin, day0) {
+  let cl = 0, cs = 0, ml = 0, ms = 0, n = 0; const coins = {};
+  for (const c of Object.keys(byCoin || {})) {
+    const r = liqDayMult1(byCoin[c], day0); if (!r) return null;   // 1つでも足りなければ出さない(合計の分母がずれるため)
+    cl += r.cl; cs += r.cs; ml += r.ml; ms += r.ms; n = n ? Math.min(n, r.n) : r.n; coins[c] = { l: r.l, s: r.s };
+  }
+  if (!(ml > 0) || !(ms > 0)) return null;
+  return { l: cl / ml, s: cs / ms, n, coins };
+}
+// 1時間足 → 発表を含む1時間を 0 とした ±win 時間の倍率。buckets = /api/liq?step=3600、since = 記録の始まり(ms)。足りなければ null
+export const liqHourMap = (buckets) => new Map((buckets || []).map((b) => [b[0], b]));
+export function liqAlign(hm_, since, ts, win = LIQ_IMP_WIN, now = Date.now()) {
+  const tb = Math.floor(ts / H) * H;
+  if (since && tb - LIQ_BASE_DAYS * DAY < since) return null;
+  const bl = [], bs = [];
+  for (let i = 1; i <= LIQ_BASE_DAYS * 24; i++) { const b = hm_.get(tb - i * H); bl.push(b ? b[1] : 0); bs.push(b ? b[2] : 0); }
+  const base = (a) => { const m = medOf(a); if (m > 0) return m; const avg = a.reduce((x, y) => x + y, 0) / a.length; return avg > 0 ? avg : null; };
+  const ml = base(bl), ms = base(bs); if (ml == null || ms == null) return null;
+  const k = [], l = [], s = [];
+  for (let j = -win; j <= win; j++) { const t = tb + j * H; k.push(j); if (t > now - H) { l.push(null); s.push(null); continue; } const b = hm_.get(t); l.push((b ? b[1] : 0) / ml); s.push((b ? b[2] : 0) / ms); }
+  return { k, l, s };
+}
+// 発表を含む1時間から3本(0, +1, +2)の倍率の平均 = 発表後3時間の「平常の1時間の何倍で推移したか」
+export const winMean = (arr, win = LIQ_IMP_WIN) => { const v = arr.slice(win, win + LIQ_IMP_NW); return v.length === LIQ_IMP_NW && v.every((x) => x != null) ? v.reduce((x, y) => x + y, 0) / LIQ_IMP_NW : null; };
+// 投稿の時刻: 3本が終わってから、Coinalyze 4社の確定値(6時間ごとの取り直し)に置き換わるのを待つ
+export const LIQ_IMP_WAIT = 7.5 * H;
+export const liqImpId = (g) => 'liqimp:' + g[0].ts + ':' + (g[0].c || g[0].l);
+export const liqImpWinEnd = (ts) => Math.floor(ts / H) * H + LIQ_IMP_NW * H;
+export const liqImpDue = (ts) => liqImpWinEnd(ts) + LIQ_IMP_WAIT;
+const r2 = (v) => v == null ? null : Math.round(v * 100) / 100;
+const r2a = (a) => (a || []).map(r2);
+// imp = {sym, win, cur:{k,l,s}, med:{l,s}, past:[{ts,l,s}], n, cw:{BTC:{l,s}}, mw:{l,s}}。BTC の線 + 4銘柄の発表後3時間の倍率
+export function liqImpPost(g, imp) {
+  const ts = g[0].ts, nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), k = kindOf(g);
+  const tg = tags(nE + ' ' + nJ), tagE = tg.en.split(' ').slice(0, 1).concat('#Liquidations').join(' '), tagJ = tg.ja.split(' ').slice(0, 1).concat('#清算').join(' ');
+  const rows = (o) => COINS.filter(([c]) => imp.cw[c] && imp.cw[c].l != null).slice(0, o.coins || 4).map(([c, , sy]) => `${sy} ${c} 🔴×${fxs(imp.cw[c].l)} 🟢×${fxs(imp.cw[c].s)}`);
+  const build = (lang) => (o) => {
+    const en = lang === 'en', rule = '━'.repeat(o.rule);
+    return [...(o.brand ? [BRAND[lang], ''] : []),
+      en ? `🟢 LIQUIDATIONS × MACRO · ${dEnU(ts, false)} · ${uhm(ts)} UTC` : `🟢 清算 × 経済指標 · ${dJaL(ts)} · ${hm(ts)}発表`, rule,
+      `🟡 ${icon2(g)} ${en ? nE.toUpperCase() : nJ}`, '',
+      ...rows(o), rule,
+      ...(imp.mw && imp.mw.l != null ? [en ? `${imp.sym} past ${imp.n} median: 🔴×${fxs(imp.mw.l)} 🟢×${fxs(imp.mw.s)}` : `${imp.sym} 過去${imp.n}回の中央値: 🔴×${fxs(imp.mw.l)} 🟢×${fxs(imp.mw.s)}`] : []),
+      ...(o.note ? [en ? '3h from the release hour vs a normal hour (🔴 long · 🟢 short)' : '発表を含む3時間の、平常の1時間比(🔴ロング・🟢ショート)'] : []),
+      ...(o.tag ? [en ? tagE : tagJ] : [])].join('\n');
+  };
+  const OPT = [{ brand: 1, rule: 18, note: 1, tag: 1 }, { brand: 1, rule: 10, note: 1, tag: 1 }, { rule: 10, note: 1, tag: 1 }, { rule: 10, note: 1 }, { rule: 10 }, { rule: 10, coins: 2 }];
+  const en = fit280(build('en'), OPT), ja = fit280(build('ja'), OPT);
+  const cw = {}; for (const [c] of COINS) if (imp.cw[c]) cw[c] = { l: r2(imp.cw[c].l), s: r2(imp.cw[c].s) };
+  return { id: liqImpId(g), sr: 'liqimp', due: imp.due || liqImpDue(ts), en, ja, h: hashStr(en + ja),
+    img: { v: 1, kind: 'imp', t: ts, en: nE, ja: nJ, icon: k.icon, sym: imp.sym, win: imp.win, n: imp.n,
+      cur: { k: imp.cur.k, l: r2a(imp.cur.l), s: r2a(imp.cur.s) }, med: { l: r2a(imp.med.l), s: r2a(imp.med.s) },
+      past: (imp.past || []).slice(-12).map((p) => ({ ts: p.ts, l: r2a(p.l), s: r2a(p.s) })), cw, mw: imp.mw ? { l: r2(imp.mw.l), s: r2(imp.mw.s) } : null } };
 }
 
 // ---- 自動投稿(v94) ----
@@ -304,11 +376,12 @@ export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎ�
 export const SPIKE_WINDOW = 6 * H;  // v147: 急変動は見つけてから6時間まで
 export const winOf = (p) => (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'liq' || p.sr === 'liqday' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
   for (const p of posts || []) { seen.add(p.id); if (isAuto(p) && p.due && !(p.done && p.done.en && p.done.ja) && p.due > now - winOf(p) && p.due < now + 8 * DAY) items.push({ id: p.id, due: p.due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
