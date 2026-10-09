@@ -1,0 +1,22 @@
+name: Coinalyze check
+
+# 手動で実行する(Actions タブ → Coinalyze check → Run workflow)。何も書き込まない。
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 何日前まで見るか
+        default: '14'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: 清算履歴がどこまで取れるか確認
+        env:
+          COINALYZE_KEY: ${{ secrets.COINALYZE_KEY }}
+        run: node tools/coinalyze_check.mjs "${{ github.event.inputs.days }}"
