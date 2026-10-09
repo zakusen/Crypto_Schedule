@@ -366,7 +366,7 @@ function drawSpike2(g, im, lg) {
 const usdK = (v) => { v = Math.abs(+v || 0); return v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e7 ? '$' + Math.round(v / 1e6) + 'M' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + Math.round(v / 1e3) + 'K' : '$' + Math.round(v); };
 function drawLiq(g, im, lg) {
   const en = lg === 'en', wave = im.kind === 'wave', co = im.coins || {};
-  frame(g, wave ? 'LIQUIDATION WAVE' : 'LIQUIDATIONS 24H', en ? 'Bybit + OKX + Binance public liquidation streams · USD · not the whole market' : 'Bybit・OKX・Binance の公開清算ストリームの合算 / USD / 全市場ではありません');
+  frame(g, wave ? 'LIQUIDATION WAVE' : 'LIQUIDATIONS 24H', en ? 'Bybit + OKX public liquidation streams · USD · not the whole market' : 'Bybit・OKX の公開清算ストリームの合算 / USD / 全市場ではありません');
   let tl = 0, ts = 0; for (const c of Object.keys(co)) { tl += co[c].long || 0; ts += co[c].short || 0; }
   txt(g, wave ? (en ? 'LIQUIDATION WAVE' : '巨額清算') : (en ? 'LIQUIDATIONS · LAST 24H' : '清算額 · 直近24時間'), 56, 146, { size: 44, w: 600, max: 470 });
   const a = im.start, b = im.end, d1 = D(a, lg), d2 = D(b, lg);

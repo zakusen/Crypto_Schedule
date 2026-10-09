@@ -4,12 +4,12 @@
 //   銘柄の予定は、チェーン直読み(BTC半減期・ETHフォーク)・満期の自動計算・BNBバーンの目安・手動登録だけ。出どころ不明の投稿型カレンダーは使わない。
 //   /api/ethqueue               … ETHの出口待ち・入口待ち・ステーク量(30分ごとに自前で記録)
 //   /api/stake?sym=SOL|BNB      … SOL・BNBのステーク量(30分ごとに自前で記録)
-//   /api/liq?sym=BTC&step=3600  … ロング/ショートの清算額(Durable Object LiqHub が Binance・Bybit・OKX のストリームを集計)
+//   /api/liq?sym=BTC&step=3600  … ロング/ショートの清算額(Durable Object LiqHub が Bybit・OKX のストリームを集計)
 // 定時実行(Cron Trigger)が30分ごとにマクロ指標を取得してKV(cal)へ保存し、/api/events は保存済みの内容を返す。
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v154';
+const VERSION = '2026-10-09-v155';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1538,14 +1538,14 @@ async function rxPut(request, url, env) {
 
 // ---------- 清算額(v150): Durable Object が取引所の清算ストリームを常時受信して5分足に集計 ----------
 // ロング清算 = 買いポジションの強制決済(売り注文で約定)。ショート清算はその逆。金額はUSD建て(数量×価格)。
-// 取引所: Bybit(allLiquidation)・OKX(liquidation-orders)が主、Binance(!forceOrder@arr)は補助(Binanceは1銘柄1秒に最新1件しか流れず、荒れた相場では少なく出る。公式の仕様)。合算で、どれかが落ちても他は続く。
+// 取引所: Bybit(allLiquidation)・OKX(liquidation-orders)。合算で、どれかが落ちても他は続く。(v155: Binance は Cloudflare のIPを HTTP 403 で断るため外した)
 // 保存: DOのstorageに日ごと('d:BTC:2026-10-09')。5分刻み(0〜287)→[ロング,ショート]。2週間(PAST_KEEP)より古い日は捨てる。
 const LIQ_STEP = 300000;
 const LIQ_FLUSH = 30000;
 // v152: 巨額清算の「事象」の判定(直近1時間の、ロング清算かショート清算の大きい方が、銘柄ごとの閾値以上)。
 //   始まり = どれかの銘柄が閾値以上 / 終わり = 全銘柄が閾値の半分を下回った時(または始まりから6時間)。終わった時に総括を1本投稿する。
 //   終わった後に再び閾値を超えたら別の事象。1日(日本時間)の投稿は LIQ_DAILY_CAP 本まで。閾値は推定の初期値(実測で見直す)。
-const LIQ_TH = { BTC: 30e6, ETH: 25e6, SOL: 8e6, BNB: 3e6 };
+const LIQ_TH = { BTC: 12e6, ETH: 10e6, SOL: 3e6, BNB: 1.2e6 };   // v155: Binance を外した分(全取引所の規模の約4割と仮定)に合わせて、v152 の値(30/25/8/3M)の0.4倍。実測で見直す(tools/liq_th.mjs)
 const LIQ_QUIET = 0.5, LIQ_MAXWAIT = 6 * 36e5, LIQ_DAILY_CAP = 5;
 const jstDay = (t) => liqDay(t + 9 * 36e5);
 const LIQ_OKX_CT = { BTC: 0.01, ETH: 0.1, SOL: 1, BNB: 0.01 };   // OKXの1枚あたりの数量(取れない時の既定値。起動時に公式の値で上書き)
@@ -1676,13 +1676,6 @@ export class LiqHub {
     for (const s of Object.values(this.src)) {
       if (s.ws && now - (s.at || 0) > 1800000 && now - (s.opened || 0) > 1800000) { try { s.ws.close(); } catch (_) {} s.ws = null; }
     }
-    this.connect('binance', 'wss://fstream.binance.com/ws/!forceOrder@arr', () => {}, (j) => {
-      const o = j && j.o; if (!o || !/USDT$/.test(o.s)) return;
-      const sym = o.s.slice(0, -4);
-      // S=SELL … ロングが強制的に売られた(ロング清算)
-      this.add(sym, o.S === 'SELL' ? 'long' : 'short', Number(o.z) * Number(o.ap), Number(o.T) || Date.now(), 'binance');
-      this.src.binance.n++;
-    });
     this.connect('bybit', 'wss://stream.bybit.com/v5/public/linear', (ws) => {
       ws.send(JSON.stringify({ op: 'subscribe', args: SYMS.map((s) => 'allLiquidation.' + s + 'USDT') }));
     }, (j) => {

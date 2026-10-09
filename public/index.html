@@ -3090,7 +3090,7 @@ function drawChain(){
   body.innerHTML='<div class="cs-head"><span>'+TL('ステーク量','Staked')+' <b>'+TL('約','~')+(c[1]/1e6).toFixed(sym==='SOL'?1:2)+TL('百万'+sym,'M '+sym)+'</b>'+(sym==='SOL'&&c[2]?TL('（総供給の約'+(c[1]/c[2]*100).toFixed(1)+'%）','('+(c[1]/c[2]*100).toFixed(1)+'% of supply)'):'')+'</span><span>'+TL('記録: '+fdS(S[0][0]*1e3)+' から','Recorded since '+fdS(S[0][0]*1e3))+'</span></div>'+
     spark([{name:'stake',color:'#9fd1b0',fill:1,pts:S.map(q=>[q[0]*1e3,q[1]/1e6])}],{fmt:v=>v.toFixed(sym==='SOL'?1:2)+'M'})}
 
-/* チャートの下: 清算額(ロング=上・赤 / ショート=下・緑)。Binance・Bybit・OKXの合算 */
+/* チャートの下: 清算額(ロング=上・赤 / ショート=下・緑)。Bybit・OKXの合算 */
 let LQ={};
 const LQSTEP={'5m':300,'15m':900,'1h':3600,'4h':14400,'1d':86400,'1w':86400,'1M':86400};
 const usdS=v=>{v=Math.abs(v);return v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(0)+'K':'$'+Math.round(v)};
@@ -3100,7 +3100,7 @@ async function loadLiq(){const k=sym+'|'+LQSTEP[tf];
   drawLiq()}
 function drawLiq(){
   const card=$('liqCard'),body=$('liqBody');if(!card||!body)return;
-  $('liqTitle').textContent=sym+TL(' · 清算額（ロング／ショート）',' · LIQUIDATIONS (LONG / SHORT)');$('liqSrc').textContent=TL('Binance・Bybit・OKXの合算（USD）','Binance + Bybit + OKX (USD)');
+  $('liqTitle').textContent=sym+TL(' · 清算額（ロング／ショート）',' · LIQUIDATIONS (LONG / SHORT)');$('liqSrc').textContent=TL('Bybit・OKXの合算（USD）','Bybit + OKX (USD)');
   const D=LQ[sym+'|'+LQSTEP[tf]];if(!D){body.innerHTML='<div class="cs-msg">'+TL('読み込み中…','Loading…')+'</div>';return}
   const B=D.error?[]:(D.buckets||[]);
   const fdS=t=>new Intl.DateTimeFormat(LOC(),{timeZone:tz(),month:EN()?'short':'numeric',day:'numeric'}).format(t);

@@ -492,3 +492,9 @@
 - `/api/liq` が「Durable Object(LIQ)が未接続です」(503)を返す時は、`wrangler.jsonc` に LiqHub の2つの設定が無い。プロジェクトの直下で `node tools/add_liq_config.mjs` を実行すると、今の設定にその2つを足す(コメント・KVのIDなどはそのまま。元は `.bak` に残す)。そのあと `npx wrangler deploy`。
 - 何度実行しても二重には入らない。既に `durable_objects` か `migrations` がある設定は壊さないよう自動では触らず、足す内容を表示するだけ。`wrangler.json`・`wrangler.toml` にも対応。
 - 直ったかは `/api/liq?sym=BTC&step=3600` の `error` が消え、数分後に `sources` の `live`・`n` が出ているかで見る。
+
+## v155: 清算の情報源から Binance を外し、閾値を下げた
+- Binance の清算ストリームは Cloudflare のIPを HTTP 403 で断られ、取れなかったので外した(`worker.js` の `LiqHub` の接続は Bybit・OKX の2つ)。`/api/liq` の `sources` には bybit・okx だけが出る。画面・X投稿・画像の「合算」の表記も Bybit・OKX に直した。
+- 閾値(`LIQ_TH`)を v152 の0.4倍にした: BTC $12M・ETH $10M・SOL $3M・BNB $1.2M(旧: 30/25/8/3M)。**0.4は「Bybit+OKX は、元にした全取引所の規模の約4割」という仮定で、実測ではない**。
+- 見直し: 数日動かしてから `node tools/liq_th.mjs https://サイト` で分布を見て、`LIQ_TH` を決め直す。
+- 記録(`d:`)に前の Binance 分が入っていても害はない(2週間で消える)。価格・指標に使っている Binance 現物は別で、変えていない。

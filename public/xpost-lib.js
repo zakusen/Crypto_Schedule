@@ -245,7 +245,7 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
 }
 
 
-// ---- v152: 清算(ロング清算 = 買いポジションの強制決済。Bybit・OKX・Binance の合算) ----
+// ---- v152: 清算(ロング清算 = 買いポジションの強制決済。Bybit・OKX の合算) ----
 //   liq    = 巨額清算の総括(収まった時に1本。Worker の LiqHub が事象を記録 → x:liq)
 //   liqday = 毎朝のまとめ(日本時間 9:00 に、直近24時間)
 export const LIQ_DAY_AT = 9 * H;
@@ -265,7 +265,7 @@ export function liqPost(ev) {
       ...liqRows(ev.coins), rule,
       en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}`,
       ...(mo && !o.nomax ? [en ? `💥 Largest: ${usdS(mo.usd)} ${mo.coin} ${mo.side}` : `💥 最大の1件: ${usdS(mo.usd)} ${mo.coin}の${mo.side === 'long' ? 'ロング' : 'ショート'}`] : []),
-      ...(o.src ? [en ? 'Bybit + OKX + Binance' : 'Bybit・OKX・Binance合算'] : []),
+      ...(o.src ? [en ? 'Bybit + OKX' : 'Bybit・OKX合算'] : []),
       ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
   };
   const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nomax: 1 }, { nomax: 1, nodate: 1 }];
@@ -287,7 +287,7 @@ export function liqDayPost(day, coins, hours, from) {
       ...liqRows(coins), rule,
       en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}${tot.share != null ? ` (${tot.share}% long)` : ''}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}${tot.share != null ? `（ロング${tot.share}%）` : ''}`,
       ...(pk && !o.nopeak ? [en ? `⏱ Peak hour ${uhm(pk[0])} UTC · ${usdS(pk[1] + pk[2])}` : `⏱ ピーク ${hm(pk[0])} · ${usdS(pk[1] + pk[2])}`] : []),
-      ...(o.src ? [en ? 'Bybit + OKX + Binance' : 'Bybit・OKX・Binance合算'] : []),
+      ...(o.src ? [en ? 'Bybit + OKX' : 'Bybit・OKX合算'] : []),
       ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
   };
   const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nopeak: 1 }, { nopeak: 1, nodate: 1 }];
