@@ -1867,6 +1867,8 @@ html.lang-switching [data-csa-i18n]{
 .nx-top{margin:0 10px 0 0;padding:6px 10px;white-space:nowrap}
 html[lang="ja"] .nx-en{display:none}
 html:not([lang="ja"]) .nx-ja{display:none}
+#liqCard{margin-top:4px;padding:9px 16px 10px}   /* v169: 価格チャートとの距離を詰める */
+#liqCard .cs-head{margin:6px 0 4px;gap:16px}
 .refresh{background:#0b1017;color:var(--text);border:1px solid var(--line);padding:7px 10px;border-radius:5px;font-size:10px;letter-spacing:.06em;cursor:pointer;white-space:nowrap}
 .refresh:hover{border-color:var(--gold);color:var(--gold2)}.refresh[disabled]{opacity:.5;cursor:wait}
 .left .coin.evt{cursor:pointer;user-select:none}.left .coin.evt.off{opacity:.35}
@@ -2450,8 +2452,8 @@ body:after{box-shadow:0 0 180px rgba(55,145,215,.075),inset 0 0 150px rgba(110,1
 <div class="zones"><div class="zone active"><b>TOKYO</b><span id="z0">--:--</span></div><div class="zone"><b>NEW YORK</b><span id="z1">--:--</span></div><div class="zone"><b>LONDON</b><span id="z2">--:--</span></div><div class="zone"><b>SINGAPORE</b><span id="z3">--:--</span></div><div class="zone"><b>HONG KONG</b><span id="z4">--:--</span></div><div class="zone"><b>DUBAI</b><span id="z5">--:--</span></div><div class="zone"><b>FRANKFURT</b><span id="z6">--:--</span></div><div class="zone"><b>SYDNEY</b><span id="z7">--:--</span></div></div>
 <div class="hero"><div><div class="kicker" id="heroKicker" data-dyn>NEXT EVENT · HIGH IMPACT</div><h1 data-dyn>米 消費者物価指数 (CPI)<span class="pill">重要</span></h1><div class="when" id="eventTime" data-dyn>—</div><p class="desc" data-dyn>未来のイベントを価格チャート上に配置。発表までの時間をリアルタイムで追跡します。</p></div><div><div class="dial"><div class="dialin"><small>NEXT EVENT</small><div class="count" id="count" data-dyn>--:--:--</div><small>COUNTDOWN</small></div></div></div><div class="q"><div class="ptitle">EVENT DATA</div><div class="qrow"><span>Forecast</span><b data-dyn>—</b></div><div class="qrow"><span>Previous</span><b data-dyn>—</b></div><div class="qrow"><span>Category</span><b data-dyn>指標</b></div><div class="qrow"><span>Status</span><b data-dyn>UPCOMING</b></div></div><div class="indinfo" id="indInfo" data-dyn></div></div>
 <div class="card chart"><div class="chead"><div class="asset" data-dyn><div class="badge">₿</div><b>BTC/USDT</b><span class="price"></span><span class="change"></span><span class="muted">—</span></div><div class="tf"><button>5M</button><button>15M</button><button>1H</button><button class="on">4H</button><button>1D</button><button>1W</button><button>1M</button></div></div><div class="canvaswrap"><canvas id="chart"></canvas><div class="nowtag">NOW</div></div><div class="eventsbar" data-dyn><span>● <b>CPI</b> 指標</span><span>● <b>FOMC</b> 指標</span><span>● <b>ETH Upgrade</b> チェーン</span><span>● <b>満期</b></span><span>● <b>Burn</b> バーン</span></div><div class="caption"><strong>MARKET TIMELINE</strong><span>EVENT · NOW · PRICE</span></div></div>
-<div class="card chainstat" id="chainCard"><div class="ptitle"><span id="chainTitle" data-dyn>CHAIN DATA</span><span id="chainSrc" data-dyn></span></div><div id="chainBody" data-dyn></div></div>
 <div class="card chainstat" id="liqCard"><div class="ptitle"><span id="liqTitle" data-dyn>LIQUIDATIONS</span><span id="liqSrc" data-dyn></span></div><div id="liqBody" data-dyn></div><a class="nx-link" id="nxCard" href="/next.html"><span class="nx-ja">清算×指標を見る →</span><span class="nx-en">Liquidations × Events →</span></a></div>
+<div class="card chainstat" id="chainCard"><div class="ptitle"><span id="chainTitle" data-dyn>CHAIN DATA</span><span id="chainSrc" data-dyn></span></div><div id="chainBody" data-dyn></div></div>
 <div class="card evlist" id="evCard"><div class="ptitle"><span>EVENT ARCHIVE</span><span class="evtabs"><button type="button" data-ev="up" class="on">Upcoming</button><button type="button" data-ev="past">Recent</button><label><input type="checkbox" id="evHigh"> <span>High impact only</span></label></span></div><div id="evBody" data-dyn><div class="cs-msg">Loading…</div></div></div>
 </section>
 <aside class="right">
@@ -2731,8 +2733,8 @@ function draw(){
         fd=new Intl.DateTimeFormat(LOC(),{timeZone:tz(),month:EN()?'short':'numeric',day:'numeric'}),
         fm=new Intl.DateTimeFormat(LOC(),{timeZone:'UTC',year:'2-digit',month:EN()?'short':'numeric'});
   const fx=t=>{if(tf==='1M')return fm.format(t);if(step>=864e5)return fd.format(t);const q=f.format(t);return(q==='00:00'||step>=144e5)?fd.format(t)+' '+q:q};
-  ctx.textAlign='center';ctx.fillStyle='#7f8a99';
-  for(let t=d0;t<d1;t+=kk*step){const px=xc(t);if(px>L+cw-14)break;ctx.fillText(fx(t),px,H-9);ctx.strokeStyle='rgba(180,205,230,.045)';ctx.beginPath();ctx.moveTo(Math.round(px)+.5,T);ctx.lineTo(Math.round(px)+.5,T+ch);ctx.stroke()}
+  ctx.textAlign='center';ctx.fillStyle='#7f8a99';const ticksX=[];   /* v169: 清算グラフに同じ目盛りを渡す */
+  for(let t=d0;t<d1;t+=kk*step){const px=xc(t);if(px>L+cw-14)break;ticksX.push([px,fx(t)]);ctx.fillText(fx(t),px,H-9);ctx.strokeStyle='rgba(180,205,230,.045)';ctx.beginPath();ctx.moveTo(Math.round(px)+.5,T);ctx.lineTo(Math.round(px)+.5,T+ch);ctx.stroke()}
   ctx.textAlign='left';
   /* 未来の帯(モック: 淡い青のグラデーション+左の細線) */
   const now=Date.now(),nx=x(now);
@@ -2799,7 +2801,7 @@ function draw(){
     ctx.fillStyle='rgba(217,173,104,.08)';ctx.fillRect(x0,yt,x1-x0,yb-yt);ctx.strokeStyle='rgba(217,173,104,.45)';ctx.setLineDash([3,3]);ctx.strokeRect(x0+.5,yt+.5,x1-x0,Math.max(1,yb-yt));ctx.setLineDash([]);
     ctx.font='600 10px system-ui,sans-serif';ctx.textAlign='left';const tu='▲ '+sgn(r.up),td2='▼ '+sgn(r.dn),yu=Math.max(T+10,yt-5),yd=Math.min(T+ch-14,yb+13);ctx.lineWidth=3;ctx.strokeStyle='rgba(5,10,16,.85)';ctx.lineJoin='round';ctx.strokeText(tu,x0+4,yu);ctx.strokeText(td2,x0+4,yd);
     ctx.fillStyle='#6ccaa0';ctx.fillText(tu,x0+4,yu);ctx.fillStyle='#d87878';ctx.fillText(td2,x0+4,yd);ctx.restore()});
-  geo={L,R,T,cw,ch,W,H,d0,d1,step,n,bs,x,xc,Y,pos};
+  geo={L,R,T,cw,ch,W,H,d0,d1,step,n,bs,x,xc,Y,pos,ticksX};
 }
 /* NEXT の発表までの残り時間は、描き直さなくても動かす */
 setInterval(()=>{document.querySelectorAll('.evc .cd,.evhover .cd').forEach(s=>{s.textContent=cdTxt(+s.dataset.ts-Date.now())})},15000);
@@ -3116,30 +3118,43 @@ function drawLiq(){
     (mx?'<span>'+TL('最大1件','Largest')+' <b>'+usdS(mx.usd)+'</b>'+(mx.side==='long'?TL('ロング','long'):TL('ショート','short'))+' · '+agoTxt(mx.ts)+'</span>':'')+
     (D.since?'<span>'+TL('記録: '+fdS(D.since)+' から','Since '+fdS(D.since))+'</span>':'')+'</div>';
   if(!B.length){body.innerHTML=head+'<div class="cs-msg">'+TL('集計中…','Collecting…')+'</div>'+liqNote()+liqBf();return}
-  const W=Math.max(320,body.clientWidth||600),H=170,G=(typeof geo!=='undefined'&&geo&&geo.d1>geo.d0)?geo:null,L=G?G.L:50,R=G?G.R:48,T=8,Bt=20,step=D.step*1000;
-  const t1=Math.max(Date.now(),B[B.length-1][0]+step),t0=Math.min(B[0][0],t1-step*Math.min(60,Math.max(B.length,24)));if(G){t0=G.d0;t1=G.d1}   /* v167: 横軸は価格チャートと同じ範囲 */
-  const bars=B.filter(q=>q[0]>=t0-step&&q[0]<=t1),mxL=Math.max(1,...bars.map(q=>q[1])),mxS=Math.max(1,...bars.map(q=>q[2])),top=Math.max(mxL,mxS);
-  const mid=T+(H-T-Bt)/2,half=(H-T-Bt)/2,bw=Math.max(1,((W-L-R)/Math.max(1,(t1-t0)/step)-1)*.7),x=t=>L+(t-t0)/(t1-t0)*(W-L-R);
-  let g='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" preserveAspectRatio="none" role="img"><line x1="'+L+'" x2="'+(W-R)+'" y1="'+mid+'" y2="'+mid+'" stroke="rgba(180,205,230,.18)"/>'+
+  const H=170,G=(typeof geo!=='undefined'&&geo&&geo.d1>geo.d0)?geo:null,T=8,Bt=20,cs=TFD[tf].ms,slotMs=G?cs:D.step*1000;
+  /* v169: 清算の棒の組み立て。5分〜日足は取れた足のまま。週足・月足は、価格の1本(その週・その月)ごとに日足を合計する */
+  const CB=((CD[sym+'|'+tf]||{}).bars)||[];let bars;
+  if(!G||D.step*1000===cs||!CB.length){bars=B.map(q=>[q[0],q[1],q[2],D.step*1000])}
+  else{bars=[];const first=B[0][0];CB.forEach((cb,i)=>{const a0=cb[0]*1000,b0=i+1<CB.length?CB[i+1][0]*1000:a0+cs;if(a0<first)return;let l=0,s2=0;B.forEach(q=>{if(q[0]>=a0&&q[0]<b0){l+=q[1];s2+=q[2]}});bars.push([a0,l,s2,b0-a0])})}
+  /* v169: 横軸の範囲・左右の余白・幅は価格チャートと同じ(価格チャートの範囲=その足で取れた価格の最初〜先の予定まで) */
+  let W,L,R,t0,t1;
+  if(G){W=G.W;L=G.L;R=G.R;t0=G.d0;t1=G.d1}
+  else{W=Math.max(320,body.clientWidth||600);L=50;R=48;t1=Math.max(Date.now(),B[B.length-1][0]+slotMs);t0=Math.min(B[0][0],t1-slotMs*Math.min(60,Math.max(B.length,24)))}
+  const cw=W-L-R,x=t=>L+(t-t0)/(t1-t0)*cw,slot=cw/((t1-t0)/slotMs),bw=Math.max(G?2:1,slot*.62);   /* 棒の幅は足の幅の6割(価格のローソク足と同じ割合) */
+  const vis=bars.filter(q=>q[0]+slotMs>=t0&&q[0]<=t1),mxL=Math.max(1,...vis.map(q=>q[1])),mxS=Math.max(1,...vis.map(q=>q[2])),top=Math.max(mxL,mxS);
+  const mid=T+(H-T-Bt)/2,half=(H-T-Bt)/2;
+  let sty='';if(G){const cr=cv.getBoundingClientRect(),br=body.getBoundingClientRect();sty=' style="margin-left:'+(cr.left-br.left).toFixed(1)+'px;width:'+cr.width.toFixed(1)+'px;max-width:none"'}   /* v169: カードの内側の余白ぶん狭くならないよう、価格チャートと同じ幅・同じ左端にそろえる */
+  let g='<svg viewBox="0 0 '+W+' '+H+'" height="'+H+'" preserveAspectRatio="none" role="img"'+sty+'><line x1="'+L+'" x2="'+(W-R)+'" y1="'+mid+'" y2="'+mid+'" stroke="rgba(180,205,230,.18)"/>'+
     '<text x="'+(L-6)+'" y="'+(T+9)+'" text-anchor="end">'+usdS(top)+'</text><text x="'+(L-6)+'" y="'+(mid+3)+'" text-anchor="end">0</text><text x="'+(L-6)+'" y="'+(H-Bt-2)+'" text-anchor="end">'+usdS(top)+'</text>';
   [-1,-.5,.5,1].forEach(f=>{const yy=(mid+f*half).toFixed(1);g+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+yy+'" y2="'+yy+'" stroke="rgba(180,205,230,.12)" stroke-dasharray="2 4"/>'});   // v159: 点線の目盛
-  const PB=((CD[sym+'|'+tf]||{}).bars||[]).filter(b=>b[0]*1000+step>=t0&&b[0]*1000<=t1);   // v159: 価格線(価格チャートの終値。右軸)
+  /* v169: 清算の記録が始まる前の期間は、棒を細く埋めず、空白のまま示す */
+  const fT=vis.length?vis[0][0]:t1;
+  if(G&&fT>t0+slotMs){const xe=Math.min(W-R,x(fT));g+='<rect x="'+L+'" y="'+T+'" width="'+Math.max(0,xe-L).toFixed(1)+'" height="'+(H-T-Bt)+'" fill="rgba(180,205,230,.035)"/>'+(xe-L>170?'<text x="'+((L+xe)/2).toFixed(1)+'" y="'+(mid-6)+'" text-anchor="middle" style="fill:#5f6b7c">'+TL('この期間は清算の記録なし','No liquidation record for this period')+'</text>':'')}
+  const PB=CB.filter(b=>b[0]*1000+cs>=t0&&b[0]*1000<=t1);   // v159: 価格線(価格チャートの終値。右軸)
   if(PB.length>1){const pc=PB.map(b=>b[4]),pl=Math.min(...pc),ph=Math.max(...pc),pr=(ph-pl)||1,py=v=>T+4+(1-(v-pl)/pr)*(H-T-Bt-8);
-    g+='<polyline fill="none" stroke="#d8dee8" stroke-width="1.3" opacity=".9" points="'+PB.map(b=>x(b[0]*1000+step/2).toFixed(1)+','+py(b[4]).toFixed(1)).join(' ')+'"/>';
+    g+='<polyline fill="none" stroke="#d8dee8" stroke-width="1.3" opacity=".9" points="'+PB.map(b=>x(b[0]*1000+cs/2).toFixed(1)+','+py(b[4]).toFixed(1)).join(' ')+'"/>';
     if(!G)[ph,(ph+pl)/2,pl].forEach(v=>{g+='<text x="'+(W-R+4)+'" y="'+(py(v)+3).toFixed(1)+'" text-anchor="start">'+Math.round(v).toLocaleString('en-US')+'</text>'})}
-  bars.forEach(q=>{const xx=x(q[0]).toFixed(1),l=q[1]/top*half,s=q[2]/top*half;
+  vis.forEach(q=>{const xx=(x(q[0]+slotMs/2)-bw/2).toFixed(1),l=q[1]/top*half,s=q[2]/top*half;   /* v169: 棒は足の中心に置く(価格のローソク足と同じ位置) */
     if(l>0)g+='<rect x="'+xx+'" y="'+(mid-l).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+l.toFixed(1)+'" fill="#e07a7a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ロング','long')+' '+usdS(q[1])+'</title></rect>';
     if(s>0)g+='<rect x="'+xx+'" y="'+mid+'" width="'+bw.toFixed(1)+'" height="'+s.toFixed(1)+'" fill="#7fc99a" opacity=".85"><title>'+esc(fdt(q[0]))+' '+TL('ショート','short')+' '+usdS(q[2])+'</title></rect>'});
-  const n=Math.min(6,Math.max(1,Math.round((t1-t0)/864e5)));for(let k=0;k<=n;k++){const t=t0+(t1-t0)*k/n;g+='<text x="'+x(t).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+(step>=864e5||(t1-t0)>2*864e5?fdS(t):new Intl.DateTimeFormat(LOC(),{timeZone:tz(),hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(t))+'</text>'}
+  if(G&&G.ticksX){G.ticksX.forEach(([px,lb])=>{g+='<line x1="'+px.toFixed(1)+'" x2="'+px.toFixed(1)+'" y1="'+T+'" y2="'+(H-Bt)+'" stroke="rgba(180,205,230,.045)"/><text x="'+px.toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+esc(lb)+'</text>'})}   /* v169: 目盛りの位置・文字も価格チャートと同じ */
+  else{const n=Math.min(6,Math.max(1,Math.round((t1-t0)/864e5)));for(let k=0;k<=n;k++){const t=t0+(t1-t0)*k/n;g+='<text x="'+x(t).toFixed(1)+'" y="'+(H-5)+'" text-anchor="middle">'+(slotMs>=864e5||(t1-t0)>2*864e5?fdS(t):new Intl.DateTimeFormat(LOC(),{timeZone:tz(),hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(t))+'</text>'}}
   const EVL=[...new Set(visEv().filter(e=>e.l==='macro'&&e.im==='high'&&e.ts>=t0&&e.ts<=t1).map(e=>e.ts))];   // v167: 重要指標の縦線(価格チャートと同じ)
   EVL.forEach(ts=>{g+='<line x1="'+x(ts).toFixed(1)+'" x2="'+x(ts).toFixed(1)+'" y1="'+T+'" y2="'+(H-Bt)+'" stroke="#d8b46a" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>'});
   g+='<line id="liqX" y1="'+T+'" y2="'+(H-Bt)+'" stroke="#e3eaf4" stroke-width="1" opacity=".7" visibility="hidden"/><text id="liqR" y="'+(T+12)+'" fill="#e3eaf4" style="font-size:11px" visibility="hidden"></text>';
-  LQG={L,R,W,t0,t1,step,bars,x};
+  LQG={L,R,W,t0,t1,step:slotMs,bars:vis,x};
   body.innerHTML=head+g+'</svg>'+liqNote()+liqBf()}
 let LQG=null;
 function liqCross(t){const s=document.getElementById('liqX'),r=document.getElementById('liqR');if(!s||!r||!LQG)return;
   if(t==null||t<LQG.t0||t>LQG.t1){s.setAttribute('visibility','hidden');r.setAttribute('visibility','hidden');return}
-  const xx=LQG.x(t).toFixed(1),q=LQG.bars.find(q=>t>=q[0]&&t<q[0]+LQG.step);
+  const xx=LQG.x(t).toFixed(1),q=LQG.bars.find(q=>t>=q[0]&&t<q[0]+(q[3]||LQG.step));
   s.setAttribute('x1',xx);s.setAttribute('x2',xx);s.setAttribute('visibility','visible');
   r.textContent=q?fdt(q[0])+'  '+TL('ロング ','Long ')+usdS(q[1])+'  '+TL('ショート ','Short ')+usdS(q[2]):fdt(t)+'  '+TL('清算の記録なし','no liquidation record');
   r.setAttribute('x',Math.min(LQG.W-LQG.R-250,Math.max(LQG.L+4,+xx+8)));r.setAttribute('visibility','visible')}
