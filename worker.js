@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v159';
+const VERSION = '2026-10-09-v164';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1545,7 +1545,7 @@ const LIQ_FLUSH = 30000;
 // v152: 巨額清算の「事象」の判定(直近1時間の、ロング清算かショート清算の大きい方が、銘柄ごとの閾値以上)。
 //   始まり = どれかの銘柄が閾値以上 / 終わり = 全銘柄が閾値の半分を下回った時(または始まりから6時間)。終わった時に総括を1本投稿する。
 //   終わった後に再び閾値を超えたら別の事象。1日(日本時間)の投稿は LIQ_DAILY_CAP 本まで。閾値は推定の初期値(実測で見直す)。
-const LIQ_TH = { BTC: 12e6, ETH: 10e6, SOL: 3e6, BNB: 1.2e6 };   // v155: Binance を外した分(全取引所の規模の約4割と仮定)に合わせて、v152 の値(30/25/8/3M)の0.4倍。実測で見直す(tools/liq_th.mjs)
+const LIQ_TH = { BTC: 30e6, ETH: 25e6, SOL: 8e6, BNB: 3e6 };   // v163: Coinalyze 4社(Binance・Bybit・OKX・Huobi)合算に合わせ v152 の値へ戻した。実測で見直す(tools/liq_th.mjs)   // v155: Binance を外した分(全取引所の規模の約4割と仮定)に合わせて、v152 の値(30/25/8/3M)の0.4倍。実測で見直す(tools/liq_th.mjs)
 const LIQ_QUIET = 0.5, LIQ_MAXWAIT = 6 * 36e5, LIQ_DAILY_CAP = 5;
 const jstDay = (t) => liqDay(t + 9 * 36e5);
 const LIQ_OKX_CT = { BTC: 0.01, ETH: 0.1, SOL: 1, BNB: 0.01 };   // OKXの1枚あたりの数量(取れない時の既定値。起動時に公式の値で上書き)
@@ -1553,7 +1553,7 @@ const liqDay = (t) => new Date(t).toISOString().slice(0, 10);
 // v158: 過去分の取り込み(Coinalyze の /liquidation-history。Bybit・OKX の USDT無期限、5分刻み、USD換算)。鍵は env.COINALYZE_KEY(Cloudflare のシークレット)。鍵が無ければ何もしない。
 //   起動後の最初の alarm で1回だけ取り込む。失敗したら10分おきに6回、それでも駄目なら6時間おき。BF_VER を変えてデプロイすると、もう一度取り込む。
 const CZ_BASE = 'https://api.coinalyze.net/v1';
-const BF_VER = 'v159';   // v159: 日足を取れる限り(2017年〜)遡って長期用に保存する
+const BF_VER = 'v163';   // v159: 日足を取れる限り(2017年〜)遡って長期用に保存する
 
 export class LiqHub {
   constructor(state, env) {
@@ -1730,7 +1730,7 @@ export class LiqHub {
     if (!this.env.COINALYZE_KEY || this.bfBusy) return false;
     const b = this.bf;
     if (!b || b.v !== BF_VER) return true;
-    if (b.ok) return false;
+    if (b.ok) return now - b.at >= 6 * 3600000;   // v163: 6時間ごとに取り直す(Coinalyze準拠の値で上書き)
     return now - b.at >= ((b.tries || 0) < 6 ? 600000 : 6 * 3600000);
   }
 
@@ -1754,7 +1754,7 @@ export class LiqHub {
       const from = Math.ceil((now - PAST_KEEP) / LIQ_STEP) * LIQ_STEP;     // 保存期間(2週間)の始まり
       const ex = await this.czGet('/exchanges');
       const codes = {};
-      for (const e of Array.isArray(ex) ? ex : []) { const n = String(e.name || '').toLowerCase(); if (n === 'bybit' || n === 'okx') codes[String(e.code)] = n; }
+      for (const e of Array.isArray(ex) ? ex : []) { const n = String(e.name || '').toLowerCase(); if (n === 'bybit' || n === 'okx' || n === 'binance' || n === 'huobi') codes[String(e.code)] = n; }
       if (!Object.keys(codes).length) throw new Error('取引所コード(Bybit・OKX)が見つからない');
       const mk = await this.czGet('/future-markets');
       const uniq = new Map();   // 取引所×銘柄で1本だけ(同じ組が複数あっても二重に数えない)
@@ -1796,29 +1796,30 @@ export class LiqHub {
         if (!(l > 0 || sh > 0)) continue;
         const [c, ts] = k.split('|'), t = Number(ts), key = c + ':' + liqDay(t), slot = Math.floor((t % DAY) / LIQ_STEP);
         const d = this.days[key] || (this.days[key] = {});
-        if (d[slot]) { if (d[slot][2] > 0) sameUsd += l + sh; continue; }   // すでに入っている枠は触らない(ライブ優先・二重に足さない)
+        if (d[slot] && d[slot][2] > 0) sameUsd += l + sh;   // v163: Coinalyze 準拠。直近1時間より前の枠は Coinalyze で置き換える
         d[slot] = [l, sh]; this.dirty.add(key); filled++; fillUsd += l + sh;
       }
-      // v159: 長期(日足)。Coinalyze が持つ限り遡る(最古は返ってきた分で決まる)。Bybit+OKX を足す。年ごとに DO の storage へ('lt:銘柄:年')。
-      const dres = await this.czGet('/liquidation-history', { symbols: [...bySym.keys()].join(','), interval: 'daily', from: 1483228800, to: Math.floor(cut / 1000), convert_to_usd: 'true' });
-      const lt = new Map();   // '銘柄|日' -> [ロング, ショート]
-      for (const r of Array.isArray(dres) ? dres : []) {
-        const c = bySym.get(r.symbol); if (!c) continue;
-        for (const h of r.history || []) {
-          const t = Math.floor(Number(h.t) * 1000 / DAY) * DAY, l = Number(h.l), sh = Number(h.s);
-          if (!Number.isFinite(t) || !(l >= 0) || !(sh >= 0)) continue;
-          const k = c + '|' + t, a = lt.get(k) || [0, 0]; a[0] += l; a[1] += sh; lt.set(k, a);
-        }
-      }
-      const yr = new Map(); let ltOld = 0;
-      for (const [k, [l, sh]] of lt) {
-        const [c, t] = k.split('|'), y = new Date(Number(t)).getUTCFullYear(), kk = 'lt:' + c + ':' + y;
-        if (!yr.has(kk)) yr.set(kk, []); yr.get(kk).push([Number(t), Math.round(l), Math.round(sh)]);
-        if (!ltOld || Number(t) < ltOld) ltOld = Number(t);
-      }
-      for (const [kk, arr] of yr) await this.state.storage.put(kk, arr.sort((a, b) => a[0] - b[0]));
+      // v163: 長期保存。日足は2022年8月から(年ごと 'lt:銘柄:年')、1時間は取れる限り(月ごと 'lh:銘柄:年-月')。4社を足す。
+      let ltErr = null, ltOld = 0, ltDays = 0;
+      const lng = async (iv, from0, bucket, pre, keyOf) => {
+        const res = []; const ks = [...bySym.keys()];
+        for (let q = 0; q < ks.length; q += 10) res.push(...(await this.czGet('/liquidation-history', { symbols: ks.slice(q, q + 10).join(','), interval: iv, from: from0, to: Math.floor(cut / 1000), convert_to_usd: 'true' })));
+        const agg = new Map();
+        for (const r of res) { const c = bySym.get(r.symbol); if (!c) continue;
+          for (const h of r.history || []) { const t = Math.floor(Number(h.t) * 1000 / bucket) * bucket, l = Number(h.l), sh = Number(h.s); if (!Number.isFinite(t) || !(l >= 0) || !(sh >= 0)) continue;
+            const k = c + '|' + t, a = agg.get(k) || [0, 0]; a[0] += l; a[1] += sh; agg.set(k, a); } }
+        const grp = new Map();
+        for (const [k, [l, sh]] of agg) { const [c, t] = k.split('|'), kk = pre + c + ':' + keyOf(new Date(Number(t))); if (!grp.has(kk)) grp.set(kk, []); grp.get(kk).push([Number(t), Math.round(l), Math.round(sh)]); }
+        for (const [kk, arr] of grp) await this.state.storage.put(kk, arr.sort((a, b) => a[0] - b[0]));
+        return agg;
+      };
+      try {
+        const ad = await lng('daily', 1659312000, DAY, 'lt:', (d) => d.getUTCFullYear());
+        ltDays = ad.size; for (const k of ad.keys()) { const t = Number(k.split('|')[1]); if (!ltOld || t < ltOld) ltOld = t; }
+        await lng('1hour', Math.floor((now - 400 * DAY) / 1000), 36e5, 'lh:', (d) => d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'));
+      } catch (e) { ltErr = String((e && e.message) || e).slice(0, 120); }
       this.ltc = {};
-      this.bf = { lt_from: ltOld || null, lt_days: lt.size, v: BF_VER, ok: true, at: Date.now(), tries, from, cut, syms: [...bySym.keys()], bars: cz.size, filled, fill_usd: Math.round(fillUsd), live_usd: Math.round(liveUsd), cz_same_usd: Math.round(sameUsd) };
+      this.bf = { lt_err: ltErr, lt_from: ltOld || null, lt_days: ltDays, v: BF_VER, ok: true, at: Date.now(), tries, from, cut, syms: [...bySym.keys()], bars: cz.size, filled, fill_usd: Math.round(fillUsd), live_usd: Math.round(liveUsd), cz_same_usd: Math.round(sameUsd) };
       await this.state.storage.put('bf', this.bf);
       await this.flush();
     } catch (e) {
@@ -1859,10 +1860,11 @@ export class LiqHub {
         c[0] += v[0]; c[1] += v[1]; agg.set(b, c);
       }
     }
-    if (step === DAY) {   // v159: 日足は、2週間より古い分を長期の保存から足す(新しい分はライブ集計を優先)
+    if (step === DAY || step === 36e5) {   // v163: 2週間より古い分は長期保存から足す(新しい分はこの集計を優先)
       this.ltc = this.ltc || {};
-      if (!this.ltc[sym]) { const m = await this.state.storage.list({ prefix: 'lt:' + sym + ':' }); this.ltc[sym] = [].concat(...m.values()); }
-      for (const [t, l, sh] of this.ltc[sym]) { if (t >= Math.floor(from / DAY) * DAY || agg.has(t)) continue; agg.set(t, [l, sh]); if (!first || t < first) first = t; }
+      const pre = step === DAY ? 'lt:' : 'lh:', ck = pre + sym;
+      if (!this.ltc[ck]) { const mm = await this.state.storage.list({ prefix: pre + sym + ':' }); this.ltc[ck] = [].concat(...mm.values()); }
+      for (const [t, l, sh] of this.ltc[ck]) { if (t >= Math.floor(from / step) * step || agg.has(t)) continue; agg.set(t, [l, sh]); if (!first || t < first) first = t; }
     }
     const buckets = [...agg.entries()].sort((a, b) => a[0] - b[0]).map(([t, v]) => [t, Math.round(v[0]), Math.round(v[1])]);
     let l24 = 0, s24 = 0;
@@ -1897,6 +1899,49 @@ async function liqDayKick(env) {
   const r = await ghDispatch(env, { liqday: day });
   return { day, dispatched: r.status };
 }
+
+// ---------- v164: 清算×指標(案B: 平常比) ----------
+// 指標の発表日(UTC)の清算額(ロング・ショート別の1日合計) ÷ その直前14日の中央値 を、回ごとに出す。日足(Coinalyze 4社合算)を使うので2022年8月から数えられる。
+// 発表の前後ではなく「発表日の1日」の合計。因果は示さない。
+async function impHist(env) {
+  const key = 'imphist:v1';
+  if (env.CAL) { const c = await env.CAL.get(key, 'json'); if (c && Date.now() - c.at < 86400000) return c.ev; }
+  const from = Date.UTC(2022, 7, 1), to = Date.now(), step = 50 * DAY, spans = [];
+  for (let a = from; a < to; a += step) spans.push([a, Math.min(a + step, to)]);
+  const seen = new Map(); let fail = 0;
+  await Promise.all(spans.map(async ([a, b]) => {
+    try { for (const e of await tvChunk(a, b)) {
+      if (!e || !e.id || !e.date || !REGION[e.country] || e.importance < 0 || /holiday/i.test(e.indicator || '')) continue;
+      const title = String(e.title || e.indicator || ''), L = jaLabel(e.country, title), ts = Date.parse(e.date);
+      if (isFinite(ts) && ts <= to) seen.set(e.id, [ts, L.s, L.t]);
+    } } catch (_) { fail++; }
+  }));
+  const ev = [...seen.values()].sort((x, y) => x[0] - y[0]);
+  if (env.CAL && ev.length && fail === 0) await env.CAL.put(key, JSON.stringify({ at: Date.now(), ev }));
+  return ev;
+}
+const med = (a) => { const b = a.filter((x) => Number.isFinite(x)).sort((x, y) => x - y); if (!b.length) return null; const m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+async function liqImpactApi(env, url) {
+  const sym = url.searchParams.get('sym') || 'BTC', type = url.searchParams.get('type');
+  if (!SYMS.includes(sym)) return json({ error: 'bad sym' }, 400);
+  if (!env.LIQ) return json({ error: 'LIQ未接続' }, 503);
+  const ev = await impHist(env);
+  const cnt = {}; for (const [, k] of ev) cnt[k] = (cnt[k] || 0) + 1;
+  const types = Object.entries(cnt).filter(([, n]) => n >= 5).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ k, n }));
+  if (!type) return json({ types });
+  const r = await env.LIQ.get(env.LIQ.idFromName('hub')).fetch('https://liq/data?sym=' + sym + '&step=86400');
+  const d = await r.json(), B = new Map((d.buckets || []).map((b) => [b[0], b]));
+  const out = [];
+  for (const [ts, k, t] of ev) {
+    if (k !== type) continue;
+    const day = Math.floor(ts / DAY) * DAY, cur = B.get(day); if (!cur || day > Date.now() - DAY) continue;   // 当日(未完)は除く
+    const bl = [], bs = []; for (let i = 1; i <= 14; i++) { const q = B.get(day - i * DAY); if (q) { bl.push(q[1]); bs.push(q[2]); } }
+    if (bl.length < 7) continue;
+    const ml = med(bl), ms = med(bs);
+    out.push({ ts, t, lx: ml > 0 ? +(cur[1] / ml).toFixed(2) : null, sx: ms > 0 ? +(cur[2] / ms).toFixed(2) : null, long: cur[1], short: cur[2] });
+  }
+  return json({ sym, type, n: out.length, med: { l: med(out.map((o) => o.lx)), s: med(out.map((o) => o.sx)) }, since: d.since || null, events: out.slice(-60), note: '発表日(UTC)の1日合計 ÷ 直前14日の中央値。Coinalyze 4社合算。因果を示すものではありません。' });
+}
 async function liqPing(env) {   // 定時実行から呼び、DOが眠っていたら起こす(接続の張り直し)
   if (!env.LIQ) return null;
   try { const r = await env.LIQ.get(env.LIQ.idFromName('hub')).fetch('https://liq/data?sym=BTC&step=86400'); const j = await r.json(); return j.sources || j; } catch (e) { return { error: String((e && e.message) || e) }; }
@@ -1912,6 +1957,7 @@ export default {
     //   画面は /api/cal を使う。/api/events は確認用に残す。
     if (url.pathname === '/api/events' || url.pathname === '/api/cal') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
+    if (url.pathname === '/api/liqimpact') return cached(ctx, request, 600, () => liqImpactApi(env, url));   // v164: 清算×指標(平常比)
     if (url.pathname === '/api/liq') return cached(ctx, request, 20, () => liqApi(env, url));   // v150: ロング/ショート清算額
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname === '/api/spike') { const r = await spikeStatus(env); r.headers.set('cache-control', 'no-store'); return r; }   // v145: 急変動の判定の今の値(見るだけ。投稿はしない)

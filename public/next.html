@@ -1,0 +1,40 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>清算 × 経済指標 | CRYPTO SIGNAL ARCHIVE</title>
+<style>
+:root{--bg:#070b12;--card:#0c121c;--line:#243348;--tx:#e3eaf4;--mut:#8a9ab0;--gold:#d8b46a;--lg:#e07a7a;--sh:#7fc99a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.6 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;padding:16px}
+.w{max-width:860px;margin:0 auto}h1{font-size:13px;letter-spacing:.14em;color:var(--gold);margin:0 0 4px}h2{font-size:20px;margin:0 0 4px}.m{color:var(--mut);font-size:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:14px}
+select{background:#101827;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit}.row{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.big{display:flex;gap:24px;flex-wrap:wrap;margin:6px 0 10px}.big b{font-size:26px}.l{color:var(--lg)}.s{color:var(--sh)}
+svg{width:100%;height:auto;display:block}svg text{fill:var(--mut);font-size:11px}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:5px 6px;border-bottom:1px solid #16202f;text-align:right}td:first-child,th:first-child{text-align:left}th{color:var(--mut);font-weight:400}
+</style></head><body><div class="w">
+<h1>CRYPTO SIGNAL ARCHIVE / 清算 × 経済指標</h1><h2>発表日の清算額は、平常日の何倍か</h2>
+<div class="m">発表日(UTC)の1日合計 ÷ 直前14日の中央値。回ごとの倍率を点で表示します。因果を示すものではありません。</div>
+<div class="card"><div class="row"><select id="sy"><option>BTC</option><option>ETH</option><option>SOL</option><option>BNB</option></select><select id="ty"></select></div>
+<div id="out" class="m">読み込み中…</div></div>
+<div class="m" style="margin-top:12px">集計範囲: Coinalyze経由の Binance・Bybit・OKX・Huobi 合算(USDT建て無期限)。全市場ではありません。割合・中央値は必ず回数nとセットで見てください。</div>
+</div><script>
+const $=i=>document.getElementById(i);
+const usd=v=>v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(1)+'M':'$'+Math.round(v/1e3)+'K';
+const fx=v=>v==null?'—':(v>=10?v.toFixed(0):v.toFixed(2))+'×';
+async function j(u){const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+async function types(){try{const d=await j('/api/liqimpact?sym='+$('sy').value);$('ty').innerHTML=d.types.map(t=>'<option value="'+t.k.replace(/"/g,'&quot;')+'">'+t.k+'（'+t.n+'回）</option>').join('');if(!d.types.length)throw new Error('指標の履歴が取れませんでした');show()}catch(e){$('out').textContent='取得できませんでした: '+e.message}}
+async function show(){$('out').textContent='計算中…';try{
+ const d=await j('/api/liqimpact?sym='+$('sy').value+'&type='+encodeURIComponent($('ty').value));
+ if(!d.n){$('out').textContent='この指標は、清算の日足と重なる回がまだありません。';return}
+ const W=760,H=150,L=60,R=20,lo=Math.log(.25),hi=Math.log(8),x=v=>L+(Math.log(Math.min(8,Math.max(.25,v)))-lo)/(hi-lo)*(W-L-R);
+ let g='<svg viewBox="0 0 '+W+' '+H+'">';
+ [.25,.5,1,2,4,8].forEach(v=>{g+='<line x1="'+x(v)+'" x2="'+x(v)+'" y1="14" y2="'+(H-22)+'" stroke="'+(v==1?'#5b6b82':'#1c2a3d')+'" stroke-dasharray="'+(v==1?'':'2 4')+'"/><text x="'+x(v)+'" y="'+(H-6)+'" text-anchor="middle">'+v+'×</text>'});
+ [['lx','ロング','#e07a7a',44,d.med.l],['sx','ショート','#7fc99a',96,d.med.s]].forEach(([k,n,c,y,m])=>{g+='<text x="'+(L-8)+'" y="'+(y+4)+'" text-anchor="end">'+n+'</text>';
+  d.events.forEach(e=>{if(e[k]!=null)g+='<circle cx="'+x(e[k]).toFixed(1)+'" cy="'+y+'" r="4.5" fill="'+c+'" opacity=".6"><title>'+new Date(e.ts).toISOString().slice(0,10)+' '+fx(e[k])+'</title></circle>'});
+  if(m!=null)g+='<line x1="'+x(m)+'" x2="'+x(m)+'" y1="'+(y-14)+'" y2="'+(y+14)+'" stroke="#d8dee8" stroke-width="2"/>'});
+ g+='</svg>';
+ const last=d.events.slice(-8).reverse();
+ $('out').innerHTML='<div class="big"><div class="m">ロング 中央値<br><b class="l">'+fx(d.med.l)+'</b></div><div class="m">ショート 中央値<br><b class="s">'+fx(d.med.s)+'</b></div><div class="m">観測回数<br><b>n='+d.n+'</b></div></div>'+g+
+ '<div class="m">白線=中央値、点=各回。直近の回数が多い場合は最新60回まで。</div><table style="margin-top:10px"><tr><th>発表日(UTC)</th><th>ロング清算</th><th>倍率</th><th>ショート清算</th><th>倍率</th></tr>'+
+ last.map(e=>'<tr><td>'+new Date(e.ts).toISOString().slice(0,10)+'</td><td>'+usd(e.long)+'</td><td class="l">'+fx(e.lx)+'</td><td>'+usd(e.short)+'</td><td class="s">'+fx(e.sx)+'</td></tr>').join('')+'</table>'+
+ '<div class="m" style="margin-top:8px">'+d.note+(d.since?' 記録の始まり: '+new Date(d.since).toISOString().slice(0,10)+'。':'')+'</div>'}catch(e){$('out').textContent='取得できませんでした: '+e.message}}
+$('sy').onchange=show;$('ty').onchange=show;types();
+</script></body></html>
