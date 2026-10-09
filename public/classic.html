@@ -156,7 +156,21 @@ body{padding-bottom:env(safe-area-inset-bottom,0px)}
 .wallet-popover{top:calc(66px + env(safe-area-inset-top,0px));max-height:calc(100vh - 80px);overflow-y:auto}
 .wallet-label b{max-width:92px}@media(max-width:380px){.wallet-label b{max-width:64px}}
 /* v168: 清算×指標ページへの入口 */
-.nx-link{display:inline-block;color:#e4b96a;text-decoration:none;border:1px solid rgba(201,154,69,.45);border-radius:6px;padding:0 10px;font-size:11px;line-height:30px;white-space:nowrap}
+/* v170: 清算×指標への入口をガラス調に。半透明+ぼかし+上端のハイライト+ホバーで光が走る。矢印はCSS側(文言は→なし) */
+.nx-link{position:relative;display:inline-flex;align-items:center;gap:8px;margin:0;color:#f6e2b0;text-decoration:none;font-size:11px;font-weight:600;letter-spacing:.05em;padding:0 15px;height:32px;line-height:1;border-radius:999px;border:1px solid rgba(228,185,106,.40);overflow:hidden;isolation:isolate;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  background:linear-gradient(180deg,rgba(255,255,255,.17),rgba(255,255,255,.04) 55%,rgba(228,185,106,.10)),radial-gradient(120% 150% at 0% 0%,rgba(228,185,106,.24),transparent 62%),radial-gradient(90% 140% at 100% 100%,rgba(105,199,214,.12),transparent 60%),rgba(16,24,34,.42);
+  -webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);
+  box-shadow:0 8px 24px rgba(0,0,0,.36),0 0 22px rgba(228,185,106,.10),inset 0 1px 0 rgba(255,255,255,.30),inset 0 -1px 0 rgba(0,0,0,.35);text-shadow:0 1px 8px rgba(0,0,0,.45);
+  transition:transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .25s,border-color .25s,color .25s}
+.nx-link::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.34) 48%,transparent 66%);transform:translateX(-120%);transition:transform .75s cubic-bezier(.2,.8,.2,1)}
+.nx-link::after{content:"→";display:inline-block;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.nx-link:hover{transform:translateY(-1px);color:#fff1cc;border-color:rgba(244,214,150,.75);box-shadow:0 12px 30px rgba(0,0,0,.42),0 0 30px rgba(228,185,106,.22),inset 0 1px 0 rgba(255,255,255,.40),inset 0 -1px 0 rgba(0,0,0,.35)}
+.nx-link:hover::before{transform:translateX(120%)}
+.nx-link:hover::after{transform:translateX(3px)}
+.nx-link:active{transform:translateY(0) scale(.97)}
+.nx-link:focus-visible{outline:2px solid rgba(105,199,214,.85);outline-offset:2px}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.nx-link{background-color:rgba(26,32,40,.94)}}
+@media(prefers-reduced-motion:reduce){.nx-link,.nx-link::before,.nx-link::after{transition:none}}
 .nx-classic{margin-right:auto}
 html[lang="ja"] .nx-en{display:none}
 html:not([lang="ja"]) .nx-ja{display:none}
@@ -601,7 +615,7 @@ body{
 </g>
 </svg>
 </div><div class="brand"><b>暗号資産シグナル・アーカイブ</b><small>すべてのシグナルを、ひとつのタイムラインに。</small></div><button class="wallet-access" id="walletAccess" type="button" aria-expanded="false"><span class="wallet-icon">◈</span><span class="wallet-label"><b id="walletBtn">ウォレット接続</b><small>ARCHIVE ACCESS</small></span><span class="wallet-chevron">⌄</span></button></div>
-<div class="langbar"><a class="nx-link nx-classic" id="nxClassic" href="/next.html"><span class="nx-ja">清算×指標を見る →</span><span class="nx-en">Liquidations × Events →</span></a><div class="lang-switch" role="group" aria-label="Language / 言語"><span class="lang-switch-label">LANG</span><button type="button" data-lang="ja" aria-pressed="false">JP</button><button type="button" data-lang="en" aria-pressed="true">EN</button></div></div>
+<div class="langbar"><a class="nx-link nx-classic" id="nxClassic" href="/next.html"><span class="nx-ja">清算×指標を見る</span><span class="nx-en">Liquidations × Events</span></a><div class="lang-switch" role="group" aria-label="Language / 言語"><span class="lang-switch-label">LANG</span><button type="button" data-lang="ja" aria-pressed="false">JP</button><button type="button" data-lang="en" aria-pressed="true">EN</button></div></div>
 <div class="wallet-popover" id="walletPopover" aria-hidden="true"><div class="wallet-popover-glow"></div><div class="wallet-popover-head"><div><span class="wallet-eyebrow">ARCHIVE ACCESS</span><h3>Pick Your Coin</h3><div id="walletTerm" data-dyn style="margin:6px 0 5px;font-size:18px;font-weight:700;color:#e1cb9d"></div><p>ONE PAYMENT · 365 DAYS</p></div><button class="wallet-close" type="button" aria-label="Close">×</button></div><div class="wallet-choices"><button class="pay-choice active" type="button" data-coin="USDC"><span>◎</span><b>1 USDC</b><small>STABLE</small></button><button class="pay-choice" type="button" data-coin="USDT"><span>₮</span><b>1 USDT</b><small>STABLE</small></button><button class="pay-choice" type="button" data-coin="SOL"><span>S</span><b>0.01 SOL</b><small>SOLANA</small></button><button class="pay-choice" type="button" data-coin="RAY"><span>R</span><b>1 RAY</b><small>RAYDIUM</small></button><button class="pay-choice" type="button" data-coin="PUMP"><span>P</span><b>100 PUMP</b><small>PUMP</small></button><button class="pay-choice" type="button" data-coin="JUP"><span>J</span><b>3 JUP</b><small>JUPITER</small></button><button class="pay-choice" type="button" data-coin="PENGU"><span>Pe</span><b>100 PENGU</b><small>PENGU</small></button><button class="pay-choice" type="button" data-coin="PYTH"><span>Ψ</span><b>10 PYTH</b><small>PYTH</small></button><button class="pay-choice" type="button" data-coin="JTO"><span>JT</span><b>2 JTO</b><small>JITO</small></button><button class="pay-choice" type="button" data-coin="BONK"><span>B</span><b>300,000 BONK</b><small>BONK</small></button><button class="pay-choice" type="button" data-coin="WIF"><span>W</span><b>4 WIF</b><small>WIF</small></button><button class="pay-choice" type="button" data-coin="POPCAT"><span>C</span><b>20 POPCAT</b><small>POPCAT</small></button><button class="pay-choice more" type="button"><span>+</span><b>MORE</b><small>SOON</small></button></div><div id="walletMsg" data-dyn></div><button id="walletOff" type="button" data-dyn style="display:none"></button><div id="walletSafe" data-dyn></div><div class="wallet-popover-foot"><div><strong>Use the coin already in your wallet.</strong><span>Rates are intentionally simple.</span></div><button class="confirm-access" id="walletGo" type="button" data-dyn>CONNECT &amp; ACCESS <i>→</i></button></div></div>
 <div class="wrap">
 
