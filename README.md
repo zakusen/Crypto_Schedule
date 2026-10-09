@@ -14,6 +14,8 @@
 | `.github/workflows/apply_update.yml` | zipをpushすると自動で展開・反映 |
 | `.github/workflows/deploy.yml` | 反映後にCloudflareへ自動公開 |
 | `.github/workflows/check.yml` | 公開URLの動作確認（手動実行） |
+| `tools/coinalyze_check.mjs`(v157〜) | Coinalyze の清算履歴が、Bybit・OKX の4銘柄で5分刻みにどこまで遡れるかを確かめる(見るだけ。何も書き込まない) |
+| `.github/workflows/coinalyze-check.yml`(v157〜) | 上の確認をActionsで手動実行する(シークレット `COINALYZE_KEY` を使う) |
 
 ## 公開手順
 1. 新しいGitHubリポジトリを作り、この中身をそのままpush（botのリポジトリには入れない）
@@ -504,3 +506,11 @@
 - 直し(`worker.js` の `LiqHub`): (1)**20秒ごとに ping を送る**(Bybit は `{"op":"ping"}`、OKX は文字列 `ping`。取引所は何も送らない接続を切る)。(2)pong など何か届けば「生きている」とみなし、**2分間なにも届かない接続は閉じて張り直す**(旧: 30分)。(3)**10分より古い記録は入れない**(`stale_skipped` に数が出る)。
 - 診断(`/api/liq` の `sources`・`do`): `opened`(接続した時刻)・`msgs`(pong を含む受信数)・`pings`・`closes`(切断の回数)・`closed_at`、`do.boot`(DOが起動した時刻)・`do.alarms`(alarm の回数)・`do.alarm_at`。見方: `boot` が頻繁に新しくなる=DOが落ちている。`closes` が増える=取引所に切られている。`alarms` が増えない=alarm が動いていない。`pings` と `msgs` が増えているのに `n` が0=その間は本当に清算が無かった。
 - 確認は偽のWebSocketを使った模擬のみ(ping・pong・切断→張り直し・無音の検出・古い記録の除外・診断の出力)。実際の取引所での確認は、デプロイ後の `/api/liq` で行う。
+
+## v157: 清算の過去分を取り込めるか確かめる準備(Coinalyze)
+- 目的: 清算の過去2週間分を取り込めないか。今の `LiqHub` は Bybit・OKX の WebSocket をリアルタイムで受けるだけで、過去分を引く処理は無い。取り込み元の候補として Coinalyze(無料のAPIキー、1分に40回まで)の `/liquidation-history` を使う。
+- **このバージョンでは、動作は変わらない**(`worker.js` は `VERSION` を `2026-10-09-v157` にしただけ。画面・投稿・集計はv156のまま)。追加は確認用のファイル2つだけ。
+- `tools/coinalyze_check.mjs`: `COINALYZE_KEY=キー node tools/coinalyze_check.mjs [日数=14]`。`/exchanges` と `/future-markets` から Bybit・OKX の BTC・ETH・SOL・BNB の USDT 無期限を探し、`interval=5min` と `1hour` で `/liquidation-history`(USD換算)を引いて、銘柄ごとに本数・最古・最新・ロング合計・ショート合計を表示する。5分刻みの「最古」が日数の始まりに近ければ、5分刻みで取れている。
+- `.github/workflows/coinalyze-check.yml`: Actions → 「Coinalyze check」→ Run workflow(日数は初期値14)。リポジトリのシークレット `COINALYZE_KEY` を渡す。キーはログに出ない。
+- **注意: `.github/workflows/` の変更はzipで自動反映できない**(上の「zipで更新する」の注意)。`coinalyze-check.yml` だけは、GitHubの画面から手で上げる。zipに入れてあるので、ログに警告が出ても正常。
+- 未確認: 実際のCoinalyzeのAPIに対しては、まだ動かしていない(APIの形は公開ドキュメントと検索結果に基づく)。模擬サーバーでの動作確認のみ。結果を見て、取り込みの作り(Actionsで取ってWorkerへ送る/Workerが自分で取る)を決める。
