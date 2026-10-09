@@ -1477,8 +1477,8 @@ try{const mo=new MutationObserver(upd);mo.observe(btn,{childList:true,characterD
 upd()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init()})();
 </script><script id="v168-next-link-classic">
-/* v168: /next.html への入口リンクに、今選んでいる銘柄を付ける(?sym=ETH など)。読むだけで、ほかの処理には触らない。 */
-(()=>{const upd=()=>{try{const s=window.CSA_SYM&&window.CSA_SYM();if(!s)return;document.querySelectorAll('.nx-link').forEach(a=>{a.href='/next.html?sym='+encodeURIComponent(s)})}catch(_){}};
+/* v168: /next.html への入口リンクに、今選んでいる銘柄と、選択中の指標(自動以外のとき)を付ける(?sym=ETH&type=... )。読むだけで、ほかの処理には触らない。 */
+(()=>{const upd=()=>{try{const s=window.CSA_SYM&&window.CSA_SYM();if(!s)return;let t='';try{t=(typeof IMPSEL==='string'&&IMPSEL!=='auto')?IMPSEL.split('|')[0]:''}catch(_){}const h='/next.html?sym='+encodeURIComponent(s)+(t?'&type='+encodeURIComponent(t):'');document.querySelectorAll('.nx-link').forEach(a=>{a.href=h})}catch(_){}};
 ['mouseover','pointerdown','focusin','touchstart'].forEach(ev=>document.addEventListener(ev,e=>{if(e.target&&e.target.closest&&e.target.closest('.nx-link'))upd()},true));
 upd();setInterval(upd,3000)})();
 </script>
