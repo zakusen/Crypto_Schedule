@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v155';
+const VERSION = '2026-10-09-v156';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1559,6 +1559,7 @@ export class LiqHub {
     this.dirty = new Set();
     this.src = {};           // 取引所ごとの状態 { at: 最後の受信, n: 受信数, err: 直近の失敗理由, ws }
     this.ct = { ...LIQ_OKX_CT };
+    this.boot = Date.now(); this.alarms = 0; this.alarmAt = null; this.stale = 0;   // v156: 診断用(このインスタンスがいつ起きたか・alarmが動いているか)
     this.ready = this.state.blockConcurrencyWhile(async () => {
       const all = await this.state.storage.list({ prefix: 'd:' });
       for (const [k, v] of all) this.days[k.slice(2)] = v;
@@ -1569,6 +1570,7 @@ export class LiqHub {
 
   add(sym, side, usd, ts, src) {
     if (!SYMS.includes(sym) || !(usd > 0) || !(ts > 0)) return;
+    if (Date.now() - ts > 600000) { this.stale++; return; }   // v156: 10分より古い記録は入れない(購読直後に古い記録が来たため。再接続のたびの二重計上も防ぐ)
     const key = sym + ':' + liqDay(ts), slot = Math.floor((ts % DAY) / LIQ_STEP);
     const d = this.days[key] || (this.days[key] = {});
     const c = d[slot] || (d[slot] = [0, 0]);
@@ -1651,7 +1653,7 @@ export class LiqHub {
 
   note(name, f) { const s = this.src[name] || (this.src[name] = { n: 0 }); Object.assign(s, f); return s; }
 
-  connect(name, url, onOpen, onMsg) {
+  connect(name, url, onOpen, onMsg, ping) {
     const s = this.note(name, {});
     if (s.ws || s.connecting) return;
     s.connecting = true;
@@ -1661,9 +1663,12 @@ export class LiqHub {
       ws.accept();
       s.ws = ws; s.connecting = false; s.err = null; s.opened = Date.now();
       ws.addEventListener('message', (ev) => {
-        try { const j = JSON.parse(typeof ev.data === 'string' ? ev.data : ''); s.at = Date.now(); onMsg(j, s); } catch (_) {}
+        s.at = Date.now(); s.msgs = (s.msgs || 0) + 1;   // v156: pong も含めて、何か届いたら生きている印にする
+        try { const j = JSON.parse(typeof ev.data === 'string' ? ev.data : ''); onMsg(j, s); } catch (_) {}
       });
-      const gone = (why) => { if (s.ws === ws) { s.ws = null; s.err = why; } };
+      // v156: 取引所は、しばらく何も送らない接続を切る(OKX は30秒、Bybit は20秒ごとの ping を求める)。20秒ごとに ping を送る。
+      const timer = ping ? setInterval(() => { try { ws.send(ping); s.pings = (s.pings || 0) + 1; } catch (_) {} }, 20000) : null;
+      const gone = (why) => { if (timer) clearInterval(timer); if (s.ws === ws) { s.ws = null; s.err = why; s.closes = (s.closes || 0) + 1; s.closedAt = Date.now(); } };
       ws.addEventListener('close', () => gone('切断'));
       ws.addEventListener('error', () => gone('通信エラー'));
       try { onOpen(ws); } catch (_) {}
@@ -1672,9 +1677,9 @@ export class LiqHub {
 
   ensure() {
     const now = Date.now();
-    // 30分以上なにも届かず、開いてからも30分たつ接続は、静かに死んでいる可能性があるので閉じて張り直す
+    // v156: ping の返事(pong)が20秒ごとに届くはずなので、2分以上なにも届かず、開いてからも2分たつ接続は、静かに死んでいるので閉じて張り直す
     for (const s of Object.values(this.src)) {
-      if (s.ws && now - (s.at || 0) > 1800000 && now - (s.opened || 0) > 1800000) { try { s.ws.close(); } catch (_) {} s.ws = null; }
+      if (s.ws && now - (s.at || 0) > 120000 && now - (s.opened || 0) > 120000) { try { s.ws.close(); } catch (_) {} s.ws = null; }
     }
     this.connect('bybit', 'wss://stream.bybit.com/v5/public/linear', (ws) => {
       ws.send(JSON.stringify({ op: 'subscribe', args: SYMS.map((s) => 'allLiquidation.' + s + 'USDT') }));
@@ -1686,7 +1691,7 @@ export class LiqHub {
         this.add(d.s.slice(0, -4), d.S === 'Buy' ? 'long' : 'short', Number(d.v) * Number(d.p), Number(d.T) || Date.now(), 'bybit');
         this.src.bybit.n++;
       }
-    });
+    }, '{"op":"ping"}');
     this.connect('okx', 'wss://ws.okx.com:8443/ws/v5/public', (ws) => {
       ws.send(JSON.stringify({ op: 'subscribe', args: [{ channel: 'liquidation-orders', instType: 'SWAP' }] }));
       this.okxCt();
@@ -1701,7 +1706,7 @@ export class LiqHub {
           this.src.okx.n++;
         }
       }
-    });
+    }, 'ping');
   }
 
   async okxCt() {
@@ -1717,6 +1722,7 @@ export class LiqHub {
 
   async alarm() {
     await this.ready;
+    this.alarms++; this.alarmAt = Date.now();
     this.ensure();
     try { await this.detect(); } catch (_) {}
     if (this.evDirty) { this.evDirty = false; try { await this.state.storage.put('ev', this.ev); } catch (_) {} }
@@ -1754,8 +1760,8 @@ export class LiqHub {
     }
     const m = this.max[sym];
     const sources = {};
-    for (const [n, s] of Object.entries(this.src)) sources[n] = { live: !!s.ws, last: s.at || null, n: s.n, err: s.err || null };
-    return json({ step: step / 1000, buckets, since: first || null, h24: { long: Math.round(l24), short: Math.round(s24) }, max24: m && now - m[2] <= DAY ? { usd: Math.round(m[0]), side: m[1], ts: m[2], src: m[3] } : null, sources, th: LIQ_TH, open: !!(this.ev && this.ev.open) });
+    for (const [n, s] of Object.entries(this.src)) sources[n] = { live: !!s.ws, last: s.at || null, n: s.n, err: s.err || null, opened: s.opened || null, msgs: s.msgs || 0, pings: s.pings || 0, closes: s.closes || 0, closed_at: s.closedAt || null };
+    return json({ step: step / 1000, buckets, since: first || null, h24: { long: Math.round(l24), short: Math.round(s24) }, max24: m && now - m[2] <= DAY ? { usd: Math.round(m[0]), side: m[1], ts: m[2], src: m[3] } : null, sources, th: LIQ_TH, open: !!(this.ev && this.ev.open), do: { boot: this.boot, alarms: this.alarms, alarm_at: this.alarmAt, stale_skipped: this.stale } });
   }
 }
 
