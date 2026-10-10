@@ -191,7 +191,7 @@ function build() {
   }
   ITEMS = items.sort((a, b) => a.due - b.due);
 }
-const isDone = (p) => !!(p && p.done && p.done.en && p.done.ja);
+const isDone = (p) => !!(p && p.done && L.langsOf(p).every((l) => p.done[l]));   // v173: 出す言語だけで判定
 // 状態: done(済) / warn(予約後に変更) / ready(今投稿できる) / todo(予約・投稿待ち) / wait(時刻待ち) / missed(過ぎた・作れなかった)
 function stateOf(it, now = Date.now()) {
   const p = it.post;

@@ -9,7 +9,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-09-v172';
+const VERSION = '2026-10-10-v173';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1393,7 +1393,7 @@ async function postsApi(request, env) {
   let doc; try { doc = (await env.CAL.get(POSTS_KEY, { type: 'json' })) || { v: 1, posts: [] }; } catch (_) { return json({ error: 'kv' }, 503); }
   const have = new Map(doc.posts.map((p) => [p.id, p]));
   let added = 0, changed = 0, flagged = 0;
-  const clean = (p) => ({ sr: String(p.sr || ''), due: +p.due || 0, en: String(p.en || ''), ja: String(p.ja || ''), h: String(p.h || ''), img: p.img || null, ...(p.man ? { man: 1 } : {}) });   // v101: man = 手で作った下書き(自動投稿しない)
+  const clean = (p) => ({ sr: String(p.sr || ''), due: +p.due || 0, en: String(p.en || ''), ja: String(p.ja || ''), h: String(p.h || ''), img: p.img || null, ...(p.man ? { man: 1 } : {}), ...(p.dues && typeof p.dues === 'object' ? { dues: { ...(+p.dues.en ? { en: +p.dues.en } : {}), ...(+p.dues.ja ? { ja: +p.dues.ja } : {}) } } : {}), ...(Array.isArray(p.langs) ? { langs: p.langs.filter((l) => l === 'en' || l === 'ja') } : {}) });   // v173: dues = 言語ごとの投稿時刻 / langs = 出す言語   // v101: man = 手で作った下書き(自動投稿しない)
   for (const p of [].concat(Array.isArray(q.add) ? q.add : [], Array.isArray(q.upsert) ? q.upsert : [])) {
     if (!p || typeof p.id !== 'string') continue;
     const o = have.get(p.id), c = clean(p);
@@ -1892,13 +1892,15 @@ async function liqApi(env, url) {
 // v152: 毎朝のまとめ(日本時間 9:00)の合図。9:00〜9:19 の5分ごとの実行のうち最初の1回だけ「X post」を起こす(下書きは tools/x_notify.mjs が作る)
 async function liqDayKick(env) {
   if (!env.CAL || !env.GH_DISPATCH_TOKEN || !env.GH_REPO) return null;
-  const j = new Date(Date.now() + 9 * 36e5);
-  if (j.getUTCHours() !== 9 || j.getUTCMinutes() >= 20) return null;
-  const day = j.toISOString().slice(0, 10);
-  if ((await env.CAL.get('x:liqday:kick')) === day) return null;
-  await env.CAL.put('x:liqday:kick', day, { expirationTtl: 86400 });
-  const r = await ghDispatch(env, { liqday: day });
-  return { day, dispatched: r.status };
+  const j = new Date(Date.now() + 9 * 36e5), u = new Date();
+  let key = null, day = null;
+  if (j.getUTCHours() === 9 && j.getUTCMinutes() < 20) { key = 'x:liqday:kick'; day = j.toISOString().slice(0, 10); }            // 日本語: 9:00 JST
+  else if (u.getUTCHours() === 13 && u.getUTCMinutes() < 20) { key = 'x:liqday:kick:en'; day = u.toISOString().slice(0, 10); }   // v173: 英語: 13:00 UTC
+  if (!key) return null;
+  if ((await env.CAL.get(key)) === day) return null;
+  await env.CAL.put(key, day, { expirationTtl: 86400 });
+  const r = await ghDispatch(env, { liqday: day, lang: key.endsWith(':en') ? 'en' : 'ja' });
+  return { day, key, dispatched: r.status };
 }
 
 // ---------- v164: 清算×指標(案B: 平常比) ----------

@@ -91,12 +91,12 @@ const prevOf = (g) => {                                                     // �
 function dailyPost(day) {
   // v104: 英語(UTC)は「今日」= 投稿時刻〜UTC の 24:00、「今週」= UTC の翌日〜月曜 0:00(UTC)。日本語は日本時間の今日・今週のまま
   const utc = isoDay(day) >= AUTO_DAILY_FROM, eh = utc ? uhm : hm, ed = utc ? uDay : enDay;
-  const due = day + DAILY_AT, J9 = 9 * H;                                   // day = 日本時間の0時。+9時間 = 同じ日付の UTC 0時
+  const due = day + DAILY_AT, J9 = 9 * H, split = isoDay(day) >= L.SPLIT_FROM, enDue = day + J9 + L.EN_DAILY_AT;   // v173: 英語は 11:30 UTC                                   // day = 日本時間の0時。+9時間 = 同じ日付の UTC 0時
   const win = (lang) => {
     const u = lang === 'en' && utc, dEnd = u ? day + J9 + DAY : day + DAY;   // 「今日」の終わり
     let wa = dEnd, wb = weekStart(day) + 7 * DAY + (u ? J9 : 0), next = false;
     if (wb - wa <= 0) { wb = wa + 7 * DAY; next = true; }                     // 日曜は来週を出す
-    const tg = between(due, dEnd);
+    const tg = between(u && split ? enDue : due, dEnd);   // v173: 英語は英語の投稿時刻から
     return { tg, wk: between(wa, wb), next, prev: tg.map(prevOf) };
   };
   const WN = { en: win('en'), ja: win('ja') };
@@ -134,7 +134,7 @@ function dailyPost(day) {
   };
   const en = text('en'), ja = text('ja');
   const lists = (w) => ({ today: w.tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: w.prev[i] ? w.prev[i].chg : null })), week: w.wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) });
-  return { id: 'daily:' + isoDay(day), sr: 'daily', due, en, ja, h: hashStr(en + ja),
+  return { id: 'daily:' + isoDay(day), sr: 'daily', due, ...(split ? { dues: { ja: due, en: enDue } } : {}), en, ja, h: hashStr(en + ja + (split ? 'split' : '')),
     img: { day, next: WN.ja.next, ...lists(WN.ja), ...(utc ? { utc: 1, enl: { next: WN.en.next, ...lists(WN.en) } } : {}) } };   // enl = 英語の画像用(UTC の区切り)
 }
 const drop = [...redo];                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
@@ -239,23 +239,33 @@ try {
 try {
   const lq = await (await site('/api/admin/rx-one?name=xl')).json();
   for (const ev of (lq.ev || [])) { if (byId.has(ev.id) || NOW - ev.end > 6 * H) continue; put(L.liqPost(ev)); console.log('[x] 巨額清算の総括:', ev.id); }
-  const day = dayStart(NOW), lid = 'liqday:' + isoDay(day);
-  if (NOW >= day + L.LIQ_DAY_AT && !byId.has(lid)) {
-    const end = day + L.LIQ_DAY_AT, start = end - DAY, coins = {}, hrs = new Map(), dly = {}; let from = null, ok = true, total = 0, cutMin = null;
+  // v173: 日本語 = 9:00 JST(直近24時間)/ 英語 = 13:00 UTC(その時点までの直近24時間)。英語は平常日比なし(日足の区切りと合わないため)
+  const liqWin = async (end) => {
+    const start = end - DAY, coins = {}, hrs = new Map(), dly = {}; let from = null, ok = true, total = 0, cutMin = null;
     for (const [c] of COINS) {
       const r = await fetch(SITE + '/api/liq?sym=' + c + '&step=3600', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(30000) });
-      if (!r.ok) { ok = false; console.log('[x] 清算(毎朝): /api/liq HTTP ' + r.status + ' なので次回'); break; }
-      try { const r2 = await fetch(SITE + '/api/liq?sym=' + c + '&step=86400', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(30000) }); if (r2.ok) dly[c] = (await r2.json()).buckets || []; } catch (_) {}   // v171: 平常日比(直前14日の中央値)用の日足
-      const j = await r.json(); let l = 0, s = 0;
+      if (!r.ok) { ok = false; console.log('[x] 清算(まとめ): /api/liq HTTP ' + r.status + ' なので次回'); break; }
+      try { const r2 = await fetch(SITE + '/api/liq?sym=' + c + '&step=86400', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(30000) }); if (r2.ok) dly[c] = (await r2.json()).buckets || []; } catch (_) {}
+      const j = await r.json(); let l = 0, s2 = 0;
       const ct = j.do && j.do.bf && j.do.bf.cut; if (ct && (cutMin == null || ct < cutMin)) cutMin = ct;
-      for (const q of j.buckets || []) if (q[0] >= start && q[0] < end) { l += q[1]; s += q[2]; const h = hrs.get(q[0]) || [q[0], 0, 0]; h[1] += q[1]; h[2] += q[2]; hrs.set(q[0], h); }
-      coins[c] = { long: l, short: s }; total += l + s; if (j.since && (from == null || j.since > from)) from = j.since;
+      for (const q of j.buckets || []) if (q[0] >= start && q[0] < end) { l += q[1]; s2 += q[2]; const h = hrs.get(q[0]) || [q[0], 0, 0]; h[1] += q[1]; h[2] += q[2]; hrs.set(q[0], h); }
+      coins[c] = { long: l, short: s2 }; total += l + s2; if (j.since && (from == null || j.since > from)) from = j.since;
     }
+    return { ok, total, coins, hours: [...hrs.values()].sort((x, y) => x[0] - y[0]), from, dly, cutMin, start };
+  };
+  const day = dayStart(NOW), lid = 'liqday:' + isoDay(day), split = isoDay(day) >= L.SPLIT_FROM;
+  if (NOW >= day + L.LIQ_DAY_AT && !byId.has(lid)) {
+    const end = day + L.LIQ_DAY_AT, w = await liqWin(end);
     // v171: 平常日比 = 前日(UTC。日本時間 9:00〜9:00 と同じ)の合計 ÷ 直前14日の中央値(/next.html の案Bと同じ定義)。足りない銘柄があれば出さない
-    const mult = Object.keys(dly).length === COINS.length ? liqDayMult(dly, start) : null;
-    if (mult) mult.live = cutMin == null || cutMin < end;                  // true = 直近の数時間は Coinalyze に置き換わる前(Bybit・OKXのみ)の分を含む
-    if (ok && total > 0) put(L.liqDayPost(day, coins, [...hrs.values()].sort((a, b) => a[0] - b[0]), from, mult));
-    else if (ok) console.log('[x] 清算(毎朝): 記録が0なので出しません(LiqHub が動いているか /api/liq を確認)');
+    const mult = Object.keys(w.dly).length === COINS.length ? liqDayMult(w.dly, w.start) : null;
+    if (mult) mult.live = w.cutMin == null || w.cutMin < end;
+    if (w.ok && w.total > 0) put(L.liqDayPost(day, w.coins, w.hours, w.from, mult, split ? { langs: ['ja'] } : {}));
+    else if (w.ok) console.log('[x] 清算(毎朝): 記録が0なので出しません(LiqHub が動いているか /api/liq を確認)');
+  }
+  const uday = Math.floor(NOW / DAY) * DAY, eend = uday + L.EN_LIQDAY_AT, eid = 'liqday-en:' + new Date(uday).toISOString().slice(0, 10);
+  if (isoDay(uday + 9 * H) >= L.SPLIT_FROM && NOW >= eend && NOW - eend < L.AUTO_WINDOW && !byId.has(eid)) {
+    const w = await liqWin(eend);
+    if (w.ok && w.total > 0) put(L.liqDayPost(uday - 9 * H, w.coins, w.hours, w.from, null, { end: eend, id: eid, langs: ['en'] }));
   }
 } catch (e) { console.log('[x] 清算でエラー(ほかの下書きは続けます):', e.message); }
 

@@ -152,7 +152,8 @@ export function weekPost(wk, site) {
     return build(lang)({ rule: 10, n: 0 });
   };
   const en = fitW('en'), ja = fitW('ja');
-  return { id: 'week:' + isoDay(wk.ws), sr: 'week', due: wk.we + WEEK_AT, en, ja, h: hashStr(en + ja), img: { v: 3, ws: wk.ws, we: wk.we, coins: wk.coins, ev: wk.ev, btc: wk.btc || null } };   // v109: btc = 1時間足の終値(週の168本)
+  const wdues = isoDay(wk.we) >= SPLIT_FROM ? { ja: wk.we + WEEK_AT, en: wk.we + 9 * H + EN_WEEK_AT } : null;   // v173: we = 土曜0時(日本時間) = 金曜15時(UTC)。+9時間 = 土曜0時(UTC)
+  return { id: 'week:' + isoDay(wk.ws), sr: 'week', due: wk.we + WEEK_AT, ...(wdues ? { dues: wdues } : {}), en, ja, h: hashStr(en + ja + (wdues ? JSON.stringify(wdues) : '')), img: { v: 3, ws: wk.ws, we: wk.we, coins: wk.coins, ev: wk.ev, btc: wk.btc || null } };   // v109: btc = 1時間足の終値(週の168本)
 }
 
 // ---- S&P500 との相関・急変動(v95) ----
@@ -275,8 +276,8 @@ export function liqPost(ev) {
     img: { v: 1, kind: 'wave', start: ev.start, end: ev.end, capped: !!ev.capped, coins: ev.coins, maxOne: mo || null, ser: ev.ser || [] } };
 }
 // 毎朝のまとめ: day = 日本時間の0時(ms)。直近24時間 = (day+9h-24h) 〜 (day+9h)。coins = {BTC:{long,short}}, hours = [[t,long,short]](24本まで)、from = 記録の始まり(24時間に満たない時)
-export function liqDayPost(day, coins, hours, from, mult) {   // v171: mult = {l, s, n, coins:{BTC:{l,s}}, live} 平常日比(next.html の案Bと同じ定義)
-  const end = day + LIQ_DAY_AT, start = end - DAY, tot = liqTot(coins);
+export function liqDayPost(day, coins, hours, from, mult, opt = {}) {   // v171: mult = {l, s, n, coins:{BTC:{l,s}}, live} 平常日比(next.html の案Bと同じ定義) / v173: opt = {end, id, langs}
+  const end = opt.end || day + LIQ_DAY_AT, start = end - DAY, tot = liqTot(coins);
   let pk = null; for (const h of hours || []) if (!pk || h[1] + h[2] > pk[1] + pk[2]) pk = h;
   const part = from && from > start + 36e5;
   const build = (lang, o) => {
@@ -294,7 +295,7 @@ export function liqDayPost(day, coins, hours, from, mult) {   // v171: mult = {l
   const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nopeak: 1 }, { nopeak: 1, nodate: 1 }, { nopeak: 1, nodate: 1, nomult: 1 }];
   const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitL('en'), ja = fitL('ja');
-  return { id: 'liqday:' + isoDay(day), sr: 'liqday', due: end, en, ja, h: hashStr(en + ja),
+  return { id: opt.id || 'liqday:' + isoDay(day), sr: 'liqday', due: end, ...(opt.langs ? { langs: opt.langs } : {}), en, ja, h: hashStr(en + ja),
     img: { v: 2, kind: 'day', start, end, coins, hours: hours || [], partial: !!part, mult: mult || null } };
 }
 
@@ -372,6 +373,11 @@ export function liqImpPost(g, imp) {
 // ---- 自動投稿(v94) ----
 // 自動で投稿する種類: 発表後の値動き・週間記録はいつも、毎朝の予定は AUTO_DAILY_FROM 以降(それまでは X で手で予約済み)
 export const AUTO_DAILY_FROM = '2026-10-09';   // v104: 10/9 から自動(X の手の予約は消してもらう)
+// v173: 言語ごとの投稿時刻。dues = {en, ja}(無ければ due)。langs = 出す言語(無ければ英日両方)
+export const SPLIT_FROM = '2026-10-11';                       // この日(日本時間)の分から英日の時刻を分ける
+export const EN_DAILY_AT = 11.5 * H, EN_WEEK_AT = 14 * H, EN_LIQDAY_AT = 13 * H;   // 英語: 毎朝の予定 11:30 UTC / 週間記録 土曜 14:00 UTC / 清算のまとめ 13:00 UTC
+export const langsOf = (p) => (p && Array.isArray(p.langs) && p.langs.length ? p.langs : ['en', 'ja']);
+export const dueOf = (p, lg) => (p && p.dues && p.dues[lg]) || (p && p.due) || 0;
 export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
 export const SPIKE_WINDOW = 6 * H;  // v147: 急変動は見つけてから6時間まで
 export const winOf = (p) => (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
@@ -380,7 +386,7 @@ export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'week' || p.
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
-  for (const p of posts || []) { seen.add(p.id); if (isAuto(p) && p.due && !(p.done && p.done.en && p.done.ja) && p.due > now - winOf(p) && p.due < now + 8 * DAY) items.push({ id: p.id, due: p.due }); }
+  for (const p of posts || []) { seen.add(p.id); if (!isAuto(p) || !p.due) continue; for (const lg of langsOf(p)) { const d = dueOf(p, lg); if (!(p.done && p.done[lg]) && d > now - winOf(p) && d < now + 8 * DAY) items.push({ id: p.id, due: d }); } }   // v173: 言語ごと
   for (const g of groups((events || []).filter(MAJOR))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
   return { at: now, items: items.sort((a, b) => a.due - b.due) };

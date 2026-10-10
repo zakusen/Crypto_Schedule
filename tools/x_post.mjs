@@ -33,8 +33,9 @@ async function site(p, opt = {}) {
 const store = await (await site('/api/admin/posts')).json();
 const posts = store.posts || [];
 const todo = [];
-for (const p of posts.filter((p) => L.isAuto(p) && p.due && p.due <= NOW && NOW - p.due < L.winOf(p) && !p.upd).sort((a, b) => a.due - b.due))
-  for (const lg of ['en', 'ja']) if (!(p.done && p.done[lg])) todo.push({ p, lg });
+for (const p of posts.filter((p) => L.isAuto(p) && p.due && !p.upd))   // v173: 言語ごとの投稿時刻(dues)と出す言語(langs)
+  for (const lg of L.langsOf(p)) { const d = L.dueOf(p, lg); if (!(p.done && p.done[lg]) && d <= NOW && NOW - d < L.winOf(p)) todo.push({ p, lg, d }); }
+todo.sort((a, b) => a.d - b.d);
 if (DRY && !todo.length) {                 // 試しの時、投稿時刻のものが無ければ、種類ごとに一番近い下書きを1つずつ使う(文面と画像の確認用)
   for (const sr of ['daily', 'arch', 'week']) { const p = posts.filter((x) => x.sr === sr && x.due).sort((a, b) => Math.abs(a.due - NOW) - Math.abs(b.due - NOW))[0]; if (p) for (const lg of ['en', 'ja']) todo.push({ p, lg }); }
 }
