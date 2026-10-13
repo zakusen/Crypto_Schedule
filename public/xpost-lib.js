@@ -49,7 +49,7 @@ export function groups(list) {
   return [...m.values()].sort((a, b) => a[0].ts - b[0].ts);
 }
 // 発表後の値動きを出す主要指標: FOMC・日銀・ECB の政策金利、米CPI・雇用統計・PCE
-export const MAJOR = (e) => e.l === 'macro' && (/^(FOMC|日銀|ECB)$/.test(e.s || '') || (e.c === 'US' && /CPI|雇用統計|PCE/.test(e.s || '')));
+export const MAJOR = (e) => e.l === 'macro' && (/^(FOMC|日銀|ECB)$/.test(e.s || '') || (e.c === 'US' && /CPI|雇用統計|PCE/.test(e.s || '')) || (e.c === 'JP' && e.s === '短観'));   // v179: 日銀短観を追加
 export const archId = (g) => 'arch:' + g[0].ts + ':' + (g[0].c || g[0].l);
 
 // ---- 名前・タグ ----
@@ -182,6 +182,21 @@ export function corrCalc(B, now) {
       for (let t = end - d * DAY + H; t <= end; t += H) { const a0 = m.get(t - H), a1 = m.get(t), s0 = sp.get(t - H), s1 = sp.get(t); if (a0 > 0 && a1 > 0 && s0 > 0 && s1 > 0) { x.push(Math.log(a1 / a0)); y.push(Math.log(s1 / s0)); } }
       const r = x.length >= d * 24 * 0.8 ? pearson(x, y) : null;
       out.w[d][c] = { r: r == null ? null : Math.round(r * 100) / 100, n: x.length };
+    }
+  }
+  // v180: WTI原油(Pacifica CL)との相関。取れない時は入れない(S&P500 側はそのまま)
+  const clB = closed(B.CL);
+  if (clB.length) {
+    const cl = new Map(clB.map((b) => [b[0], b[4]])), ce = clB[clB.length - 1][0];
+    out.cl = {};
+    for (const d of CORR_DAYS) {
+      out.cl[d] = {};
+      for (const [c] of COINS) {
+        const m = new Map(closed(B[c]).map((b) => [b[0], b[4]])), x = [], y = [];
+        for (let t = ce - d * DAY + H; t <= ce; t += H) { const a0 = m.get(t - H), a1 = m.get(t), s0 = cl.get(t - H), s1 = cl.get(t); if (a0 > 0 && a1 > 0 && s0 > 0 && s1 > 0) { x.push(Math.log(a1 / a0)); y.push(Math.log(s1 / s0)); } }
+        const r = x.length >= d * 24 * 0.5 ? pearson(x, y) : null;   // 原油は休場があるので5割で可
+        out.cl[d][c] = { r: r == null ? null : Math.round(r * 100) / 100, n: x.length };
+      }
     }
   }
   return out;
@@ -390,4 +405,41 @@ export function dueList(posts, events, now) {
   for (const g of groups((events || []).filter(MAJOR))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
+}
+
+// ---- v174: 返信用の短い文(大きいアカウントの投稿への返信に使う。手で投稿する。数字だけ・意見なし) ----
+export function replyText(p, lg) {
+  if (!p || !p.img) return '';
+  const en = lg === 'en', im = p.img, C4 = ['BTC', 'ETH', 'SOL', 'BNB'];
+  const sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  if (p.sr === 'liqday' || p.sr === 'liq') {
+    const t = liqTot(im.coins); let pk = null;
+    for (const h of im.hours || im.ser || []) if (!pk || h[1] + h[2] > pk[1] + pk[2]) pk = h;
+    const head = p.sr === 'liqday' ? (en ? 'Liquidations, last 24h (BTC/ETH/SOL/BNB)' : '直近24時間の清算額（BTC・ETH・SOL・BNB）') : (en ? `Liquidations ${uhm(im.start)}–${uhm(im.end)} UTC (BTC/ETH/SOL/BNB)` : `清算額 ${hm(im.start)}〜${hm(im.end)}（BTC・ETH・SOL・BNB）`);
+    const mo = im.maxOne;
+    return [head, '', en ? `Long ${usdS(t.l)} / Short ${usdS(t.s)}${t.share != null ? ` (${t.share}% long)` : ''}` : `ロング ${usdS(t.l)} ／ ショート ${usdS(t.s)}${t.share != null ? `（ロング${t.share}%）` : ''}`,
+      ...(pk && p.sr === 'liqday' ? [en ? `Peak hour ${uhm(pk[0])} UTC (${usdS(pk[1] + pk[2])})` : `ピークは ${hm(pk[0])}台（${usdS(pk[1] + pk[2])}）`] : []),
+      ...(mo && mo.usd ? [en ? `Largest single: ${mo.coin} ${mo.side === 'long' ? 'long' : 'short'} ${usdS(mo.usd)}` : `最大の1件: ${mo.coin} ${mo.side === 'long' ? 'ロング' : 'ショート'} ${usdS(mo.usd)}`] : []),
+      '', en ? 'Just the record.' : '記録だけ置いておきます。'].join('\n');
+  }
+  if (p.sr === 'spike') {
+    const W = im.win || 1, r = (c) => im.corr && im.corr[30] && im.corr[30][c] ? im.corr[30][c].r : null, rb = r('BTC');
+    return [en ? `Same ${W}h, side by side:` : `同じ${W}時間の比較です。`, '',
+      ...C4.filter((c) => im.coins && im.coins[c] != null).map((c) => `${c} ${sg(im.coins[c])}`),
+      `S&P500 ${sg(im.spx)}${im.open ? '' : en ? ' (US market closed)' : '（米国市場の時間外）'}`,
+      ...(rb != null ? [en ? `BTC–S&P500 30D corr: ${rTxt(rb)} (${corrLabel(rb, 'en')})` : `BTC と S&P500 の30日相関: ${rTxt(rb)}（${corrLabel(rb, 'ja')}）`] : []),
+      '', en ? 'Facts only.' : '事実だけ。'].join('\n');
+  }
+  if (p.sr === 'arch' && im.coins) {
+    const nm = en ? im.en : im.ja;
+    return [en ? `${nm} — 1h after release (${uDay(im.t)} ${uhm(im.t)} UTC):` : `${nm} 発表から1時間（${jaDay(im.t)} ${hm(im.t)}）`, '',
+      ...C4.filter((c) => im.coins[c]).map((c) => `${c} ${sg(im.coins[c].c60)}`),
+      '', en ? 'Just the record.' : '記録だけ置いておきます。'].join('\n');
+  }
+  if (p.sr === 'week' && im.coins) {
+    const top = (im.ev || []).slice(0, 3).map((e) => `${en ? e.sen || e.en : e.sja || e.ja} ${e.btc == null ? '—' : sg(e.btc)}`);
+    return [en ? 'This week (BTC change / BTC 1h after each release):' : '今週の記録（BTC の週の変化／指標ごとの発表1時間後）', '',
+      ...C4.filter((c) => im.coins[c]).map((c) => `${c} ${sg(im.coins[c].chg)}`), ...(top.length ? ['', ...top] : []), '', en ? 'Just the record.' : '記録だけ置いておきます。'].join('\n');
+  }
+  return '';
 }

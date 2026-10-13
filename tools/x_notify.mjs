@@ -203,6 +203,7 @@ async function pac(sym, iv, start, end) {                                     //
 const SYM5 = ['SP500', ...COINS.map(([c]) => c)];
 async function corrNow() {
   const B = {}; for (const s of SYM5) B[s] = await pac(s, '1h', NOW - (Math.max(...L.CORR_DAYS) + 2) * DAY, NOW);
+  try { B.CL = await pac('CL', '1h', NOW - (Math.max(...L.CORR_DAYS) + 2) * DAY, NOW); } catch (e) { console.log('[x] 原油(CL)が取れません:', e.message); }   // v180
   return L.corrCalc(B, NOW);
 }
 try {
