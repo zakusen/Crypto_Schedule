@@ -192,6 +192,11 @@ function build() {
     if (by.has(id)) { by.get(id)._g = g; continue; }
     items.push({ id, sr: 'arch', due: g[0].ts + L.ARCH_WAIT, g, post: null });
   }
+  for (const g of L.groups(EVENTS.filter(L.AUTOEV))) {                    // v186: 発表前の予告(下書きは発表の3時間前から作られる)
+    const id = L.preId(g);
+    if (by.has(id)) { by.get(id)._g = g; continue; }
+    items.push({ id, sr: 'pre', due: g[0].ts - L.PRE_AHEAD, g, post: null });
+  }
   ITEMS = items.sort((a, b) => a.due - b.due);
 }
 const isDone = (p) => !!(p && p.done && L.langsOf(p).every((l) => p.done[l]));   // v173: 出す言語だけで判定
@@ -201,13 +206,14 @@ function stateOf(it, now = Date.now()) {
   if (p && p.upd) return 'warn';
   if (isDone(p)) return 'done';
   if (it.sr === 'daily') return it.due >= now ? 'todo' : it.due + 14 * L.H > now ? 'ready' : 'missed';   // 予約しそびれた今日の分は、その日のうちならすぐ投稿
+  if (!p && it.sr === 'pre') return it.due + L.PRE_WINDOW <= now ? 'missed' : 'wait';   // v186
   if (!p) return it.due <= now ? (now - it.due < 48 * L.H ? 'ready' : 'missed') : 'wait';
   return it.due <= now ? 'ready' : 'todo';
 }
 const AUTO = (it) => L.isAuto({ sr: it.sr, due: it.due, man: it.post && it.post.man });   // v101: man = 手で作った下書き(自動投稿しない)   // v94: X API で自動投稿されるもの
 const STXT = { done: (sr) => sr === 'daily' ? '✔ 予約済' : '✔ 済', warn: () => '⚠ 要修正', ready: () => '● 今', todo: (sr) => sr === 'daily' ? '未予約' : '待ち', wait: () => '発表待ち', missed: () => '時刻過ぎ' };
 const stxt = (it, s) => AUTO(it) && s !== 'done' && s !== 'missed' ? '🤖 自動' : STXT[s](it.sr);
-const shortName = (it) => it.sr === 'daily' ? '予定' : it.sr === 'week' ? '週間記録' : it.sr === 'liq' ? '巨額清算' : it.sr === 'liqday' ? '清算 24時間' : it.sr === 'liqimp' ? '清算の反応 ' + ((it.post && it.post.img && it.post.img.ja) || '') : it.sr === 'spike' ? '急変動 ' + ((it.post && it.post.img && it.post.img.hit) || []).join('・') : (it.post ? (it.post.img && it.post.img.ja) : L.groupLine(it.g, 'ja'));
+const shortName = (it) => it.sr === 'pre' ? '予告 ' + ((it.g || (it.post && it.post._g)) ? L.headName(it.g || it.post._g, 'ja') : ((it.post && it.post.img && it.post.img.ja) || '')) : it.sr === 'daily' ? '予定' : it.sr === 'week' ? '週間記録' : it.sr === 'liq' ? '巨額清算' : it.sr === 'liqday' ? '清算 24時間' : it.sr === 'liqimp' ? '清算の反応 ' + ((it.post && it.post.img && it.post.img.ja) || '') : it.sr === 'spike' ? '急変動 ' + ((it.post && it.post.img && it.post.img.hit) || []).join('・') : (it.post ? (it.post.img && it.post.img.ja) : L.groupLine(it.g, 'ja'));
 
 // ---------- 画面 ----------
 function render() {
@@ -238,7 +244,7 @@ function render() {
   $('#main').innerHTML = `
     <h2>✅ 今やること</h2><div id="todo">${T.map((t) => `<div class="task ${t.cls}" ${t.id ? `data-open="${esc(t.id)}"` : ''}><span class="ic">${t.ic}</span><div><div class="tt">${esc(t.tt)}</div>${t.sub ? `<div class="sub">${esc(t.sub)}</div>` : ''}</div>${t.go ? `<button class="btn ${t.cls === 'now' ? 'cy' : 'main'} go">${t.go} →</button>` : ''}</div>`).join('')}</div>
     <div class="calbar"><h2 style="margin:0">📅 カレンダー</h2><button class="chip" data-mv="-1">‹ 前の月</button><span class="ym">${VIEW.y}年${VIEW.m + 1}月</span><button class="chip" data-mv="1">次の月 ›</button><button class="chip" data-mv="0">今月</button>
-      <div class="legend"><span><i style="background:var(--gold)"></i>未予約・待ち</span><span><i style="background:var(--cyan)"></i>今投稿できる</span><span><i style="background:var(--up)"></i>済み</span><span><i style="background:var(--dn)"></i>要修正</span><span>🗓 今日・今週の予定(9:30)</span><span>📈 発表後の値動き(発表65分後)</span><span>📊 週間記録(土曜10:00)</span></div></div>
+      <div class="legend"><span><i style="background:var(--gold)"></i>未予約・待ち</span><span><i style="background:var(--cyan)"></i>今投稿できる</span><span><i style="background:var(--up)"></i>済み</span><span><i style="background:var(--dn)"></i>要修正</span><span>🗓 今日・今週の予定(9:30)</span><span>⏰ 予告(発表15分前)</span><span>📈 発表後の値動き(発表65分後)</span><span>📊 週間記録(土曜10:00)</span></div></div>
     <div class="cal">${cells}</div>
     <p class="sub" style="color:var(--mut);font-size:12px;margin-top:10px">時刻はすべて日本時間。予定をクリックすると、画像と本文と投稿ボタンが開きます。<span class="kbd">←</span><span class="kbd">→</span> で前後の予定へ、<span class="kbd">Esc</span> で閉じる。</p>`;
   if (OPEN) modal(OPEN, true);
@@ -269,7 +275,7 @@ function modalBody(it, keep) {
     ${p && p.upd ? `<div class="warnbox">⚠ 予約した後に予定が変わりました。Xで予約を削除して、新しい内容で予約し直してください。
       <button class="btn" id="showUpd">${OPENUPD ? '元の内容を見る' : '新しい内容を見る'}</button><button class="btn main" id="accept">新しい内容で予約し直した</button></div>` : ''}
     ${show ? `<div class="panes">${['en', 'ja'].map((lg) => pane(show, lg)).join('')}</div>`
-      : `<div class="empty">${s === 'wait' ? `⏳ まだ発表前です。投稿時刻(${fmtDT(it.due)})になると、このページがBinanceから価格を取って下書きを作ります。` : s === 'ready' ? '価格を取得しています…(1分ほどで出ます)' : '下書きは作られませんでした。'}</div>`}`;
+      : `<div class="empty">${it.sr === 'pre' && s === 'wait' ? `⏰ 発表 ${fmtDT(it.g[0].ts)} の15分前(${fmtDT(it.due)})に自動で投稿されます。下書きは発表の3時間前から作られます。` : s === 'wait' ? `⏳ まだ発表前です。投稿時刻(${fmtDT(it.due)})になると、このページがBinanceから価格を取って下書きを作ります。` : s === 'ready' ? '価格を取得しています…(1分ほどで出ます)' : '下書きは作られませんでした。'}</div>`}`;
   if (show) for (const lg of ['en', 'ja']) image(show, lg).then((o) => { const el = $(`#md img[data-lg="${lg}"]`); if (el && o) el.src = o.url; }).catch((e) => console.error(e));
 }
 function pane(p, lg) {
