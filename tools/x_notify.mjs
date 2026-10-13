@@ -154,6 +154,25 @@ for (const g of groups(events.filter((e) => MAJOR(e) && NOW - e.ts >= ARCH_WAIT 
   put(archPost(g, mv, SITE));
 }
 
+// ---- 2b) v181: 発表前の予告(v182: 主要指標の15分前。前回の同じ指標の「発表後の値動き」の画像を付ける) ----
+{
+  const soon = groups(events.filter((e) => MAJOR(e) && e.ts - NOW > 60000 && e.ts - NOW <= 3 * H));
+  if (soon.length) {
+    let corr = null; try { corr = await (await site('/api/admin/rx-one?name=cr')).json(); } catch (_) {}
+    const archs = [...byId.values()].filter((p) => p.sr === 'arch' && p.img && p.img.v === 3 && p.img.coins && p.img.coins.BTC);
+    const kOf = (p) => { const c = String(p.id).split(':')[2]; return c + '|' + (kindOf([{ s: p.img.ja, te: p.img.en, c }]).short[0] || p.img.en); };
+    for (const g of soon) {
+      const k = (g[0].c || g[0].l) + '|' + (kindOf(g).short[0] || groupLine(g, 'en'));
+      const pa = archs.filter((p) => p.img.t < g[0].ts - H && kOf(p) === k).sort((a, b) => b.img.t - a.img.t)[0];
+      const r = prevOf(g);
+      const prev = pa ? { chg: pa.img.coins.BTC.c60, t: pa.img.t } : r ? { chg: r.chg, t: r.t } : null;
+      const p = L.prePost(g, prev, corr && corr.w ? corr : null, pa ? pa.img : null);
+      const o = byId.get(p.id); if (o && o.done && (o.done.en || o.done.ja)) continue;   // 出した後は作り直さない
+      put(p); console.log('[x] 発表前の予告:', p.id, pa ? '(画像: ' + pa.id + ')' : '(画像なし)');
+    }
+  }
+}
+
 // ---- 3) 週間記録(v92: 土曜 7時以降に作成 → 10:00 投稿。期間 = 前の土曜0時〜金曜24時 JST) ----
 if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
   const we = dayStart(NOW), ws = we - 7 * DAY, id = 'week:' + isoDay(ws);

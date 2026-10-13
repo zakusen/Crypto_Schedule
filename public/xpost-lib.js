@@ -395,15 +395,18 @@ export const langsOf = (p) => (p && Array.isArray(p.langs) && p.langs.length ? p
 export const dueOf = (p, lg) => (p && p.dues && p.dues[lg]) || (p && p.due) || 0;
 export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
 export const SPIKE_WINDOW = 6 * H;  // v147: 急変動は見つけてから6時間まで
-export const winOf = (p) => (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
+export const PRE_AHEAD = 15 * 60000, PRE_WINDOW = 14 * 60000;   // v183: 発表前の予告 = 発表の15分前に予定。本文は「何時に発表」なので遅れても出せる。発表1分前まで(発表後には出さない)
+export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
+export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
   for (const p of posts || []) { seen.add(p.id); if (!isAuto(p) || !p.due) continue; for (const lg of langsOf(p)) { const d = dueOf(p, lg); if (!(p.done && p.done[lg]) && d > now - winOf(p) && d < now + 8 * DAY) items.push({ id: p.id, due: d }); } }   // v173: 言語ごと
   for (const g of groups((events || []).filter(MAJOR))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
+  for (const g of groups((events || []).filter(MAJOR))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
 
@@ -442,4 +445,32 @@ export function replyText(p, lg) {
       ...C4.filter((c) => im.coins[c]).map((c) => `${c} ${sg(im.coins[c].chg)}`), ...(top.length ? ['', ...top] : []), '', en ? 'Just the record.' : '記録だけ置いておきます。'].join('\n');
   }
   return '';
+}
+
+// ---- v181: 発表前の予告(v182: 発表の15分前。主要指標だけ) ----
+// g = 発表のまとまり / prev = {chg(BTC +1h %), t(前回の発表時刻)} | null / corr = corr:v1 | null
+export function prePost(g, prev, corr, prevImg) {
+  const ts = g[0].ts, nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), tg = tags(nE + ' ' + nJ);
+  const fx = g.filter((e) => e.fc || e.pv).slice(0, 2);
+  const rb = corr && corr.w && corr.w[30] && corr.w[30].BTC ? corr.w[30].BTC.r : null;
+  const build = (lang) => (o) => {
+    const en = lang === 'en', rule = '━'.repeat(o.rule);
+    const NM = fx.map((e) => en ? (e.se || enName(e)) : (e.t || jaName(e)));
+    const W = NM.map((n) => n.split(/(?=[\s(（])/));   // 共通の頭を外して短く(Inflation Rate YoY / MoM → YoY / MoM)
+    let k = 0; if (NM.length > 1) while (W.every((w) => w[k] != null && w[k] === W[0][k]) && W.every((w) => w.length > k + 1)) k++;
+    const fl = fx.map((e, i) => {
+      const nm = o.nm && NM.length > 1 ? W[i].slice(k).join('').trim().replace(/^[(（](.*)[)）]$/, '$1') + ': ' : '';
+      return en ? `${nm}Consensus ${e.fc || '—'} / Prior ${e.pv || '—'}` : `${nm}市場予想 ${e.fc || '—'} ／ 前回 ${e.pv || '—'}`;
+    });
+    return [...(o.brand ? [BRAND[lang], ''] : []),
+      en ? `⏰ RELEASE AT ${uhm(ts)} UTC · ${dEnU(ts)}` : `⏰ ${hm(ts)} 発表 · ${dJaL(ts)}`, rule,
+      `🟡 ${icon2(g)} ${en ? (fx.length > 1 && kindOf(g).short[0] ? ((REGION_EN[g[0].c] || '') + ' ' + kindOf(g).short[0]).trim() : nE).toUpperCase() : nJ}`, '',
+      ...fl,
+      ...(prev ? [en ? `Last release: BTC ${sgn(prev.chg)} in the first hour (${dEnU(prev.t, false)})` : `前回の発表: BTC ${sgn(prev.chg)}（発表から1時間・${jaDay(prev.t)}）`] : []),
+      ...(rb != null && o.corr ? [en ? `BTC–S&P500 30D corr: ${rTxt(rb)} (${corrLabel(rb, 'en')})` : `BTC と S&P500 の30日相関: ${rTxt(rb)}（${corrLabel(rb, 'ja')}）`] : []),
+      rule, ...(o.tag ? [en ? tg.en.split(' ').slice(0, 1).concat('#Bitcoin').join(' ') : tg.ja.split(' ').slice(0, 1).concat('#ビットコイン').join(' ')] : [])].join('\n');
+  };
+  const OPT = [{ brand: 1, rule: 18, nm: 1, corr: 1, tag: 1 }, { brand: 1, rule: 10, nm: 1, corr: 1, tag: 1 }, { brand: 1, rule: 10, nm: 1, corr: 1 }, { rule: 10, nm: 1, corr: 1, tag: 1 }, { rule: 10, nm: 1, corr: 1 }, { rule: 10, corr: 1 }, { rule: 10 }];
+  const en = fit280(build('en'), OPT), ja = fit280(build('ja'), OPT);
+  return { id: preId(g), sr: 'pre', due: ts - PRE_AHEAD, en, ja, h: hashStr(en + ja + (prevImg ? prevImg.t : '')), img: prevImg || null };
 }
