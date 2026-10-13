@@ -249,7 +249,11 @@ const kind = (sr) => sr === 'daily' ? '予約' : '投稿';
 async function modal(id, keep) {
   const it = ITEMS.find((x) => x.id === id); if (!it) return closeModal();
   if (!keep) OPENUPD = false;
-  OPEN = id; $('#ov').classList.add('on');
+  OPEN = id; $('#ov').classList.add('on'); $('#md').innerHTML = '';   // v178: 前の画面(戻り引用文など)を残さない
+  try { modalBody(it, keep); } catch (e) { console.error(e); $('#md').innerHTML = `<div class="mh"><span class="k">表示できませんでした</span><div class="x"><button class="chip" id="close">✕ 閉じる</button></div></div><pre>${esc(String(e && e.stack || e))}</pre>`; }
+}
+function modalBody(it, keep) {
+  const id = it.id;
   const now = Date.now(), s = stateOf(it, now), p = it.post, show = p && OPENUPD && p.upd ? { ...p, ...p.upd } : p, d = jd(it.due);
   const steps = AUTO(it) ? ['🤖 X API で自動投稿されます(画像つき)', '手で投稿しないでください', '投稿されると自動で「済み」になります']
     : it.sr === 'daily'
@@ -269,12 +273,13 @@ async function modal(id, keep) {
   if (show) for (const lg of ['en', 'ja']) image(show, lg).then((o) => { const el = $(`#md img[data-lg="${lg}"]`); if (el && o) el.src = o.url; }).catch((e) => console.error(e));
 }
 function pane(p, lg) {
+  let rp = ''; try { rp = L.replyText(p, lg) || ''; } catch (e) { console.error(e); }   // v178: 返信文で失敗しても画面は出す
   const n = L.xlen(p[lg]), on = p.done && p.done[lg], lab = p.sr === 'daily' ? '予約済み' : '投稿済み';
   return `<div class="pane" data-lg="${lg}">
     <div class="lang"><span>${lg === 'en' ? '① ENGLISH(先に)' : '② 日本語'}</span><span class="${n > 280 ? 'over' : ''}">${n}/280</span></div>
     <img alt="" data-lg="${lg}" draggable="true">
     <pre>${esc(p[lg])}</pre>
-    ${L.replyText(p, lg) ? `<div class="reply"><div class="rh">↩ 返信用(大きいアカウントの関連する投稿に、画像を付けて手で返信。1日3件まで)</div><pre>${esc(L.replyText(p, lg))}</pre><button class="btn" data-act="reply">返信文コピー</button></div>` : ''}
+    ${rp ? `<div class="reply"><div class="rh">↩ 返信用(大きいアカウントの関連する投稿に、画像を付けて手で返信。1日3件まで)</div><pre>${esc(rp)}</pre><button class="btn" data-act="reply">返信文コピー</button></div>` : ''}
     <div class="btns">
       <button class="btn main" data-act="share">${MOBILE ? '画像つきで投稿' : '画像をコピーしてXを開く'}</button>
       <button class="btn" data-act="save">画像保存</button>
@@ -282,7 +287,7 @@ function pane(p, lg) {
       <label class="ck ${on ? 'on' : ''}"><input type="checkbox" data-act="done" ${on ? 'checked' : ''}>${on ? '✔ ' + lab : lab + 'にする'}</label>
     </div></div>`;
 }
-function closeModal() { OPEN = null; $('#ov').classList.remove('on'); }
+function closeModal() { OPEN = null; $('#ov').classList.remove('on'); $('#md').innerHTML = ''; }
 
 // ---------- 操作 ----------
 async function mark(id, lang, v) {
