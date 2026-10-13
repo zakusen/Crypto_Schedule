@@ -106,6 +106,8 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#e6e9ef;color:#0a0e16;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92vw;text-align:center;z-index:60}
 #toast.on{opacity:1}
 .kbd{font:600 11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--mut)}
+
+.reply{margin:8px 0;padding:8px 10px;border:1px dashed rgba(127,200,216,.45);border-radius:8px;background:rgba(127,200,216,.05)}.reply .rh{font-size:11px;color:#7fc8d8;margin-bottom:4px}.reply pre{margin:0 0 6px}
 </style>
 </head>
 <body>
@@ -114,6 +116,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <span class="sp"></span>
   <button class="chip" id="bell">🔔 通知をオンにする</button>
   <button class="chip" id="pastBtn" title="発表済みの指標の「発表後の値動き」を今つくる(手で投稿)">＋ 過去の発表から作る</button>
+  <button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button>
   <button class="chip" id="reload">↻ 更新</button>
   <button class="chip" id="keyBtn">鍵</button>
 </header>
@@ -271,6 +274,7 @@ function pane(p, lg) {
     <div class="lang"><span>${lg === 'en' ? '① ENGLISH(先に)' : '② 日本語'}</span><span class="${n > 280 ? 'over' : ''}">${n}/280</span></div>
     <img alt="" data-lg="${lg}" draggable="true">
     <pre>${esc(p[lg])}</pre>
+    ${L.replyText(p, lg) ? `<div class="reply"><div class="rh">↩ 返信用(大きいアカウントの関連する投稿に、画像を付けて手で返信。1日3件まで)</div><pre>${esc(L.replyText(p, lg))}</pre><button class="btn" data-act="reply">返信文コピー</button></div>` : ''}
     <div class="btns">
       <button class="btn main" data-act="share">${MOBILE ? '画像つきで投稿' : '画像をコピーしてXを開く'}</button>
       <button class="btn" data-act="save">画像保存</button>
@@ -301,6 +305,7 @@ document.addEventListener('click', async (ev) => {
   const p = OPENUPD && p0.upd ? { ...p0, ...p0.upd } : p0, lg = b.closest('.pane').dataset.lg, text = p[lg], act = b.dataset.act;
   if (act === 'done') return mark(p0.id, lg, b.checked);
   if (act === 'copy') { try { await navigator.clipboard.writeText(text); toast('本文をコピーしました'); } catch (_) { toast('コピーできませんでした'); } return; }
+  if (act === 'reply') { try { await navigator.clipboard.writeText(L.replyText(p, lg)); toast('返信文をコピーしました。「画像保存」で画像も付けてください'); } catch (_) { toast('コピーできませんでした'); } return; }   // v174
   const im = await image(p, lg).catch(() => null);
   if (act === 'save') { if (!im) return toast('画像を作れませんでした'); const a = document.createElement('a'); a.href = im.url; a.download = im.name; a.click(); return; }
   if (act === 'share') {
@@ -391,6 +396,56 @@ function pickPast() {
   }; });
 }
 $('#pastBtn').onclick = () => { if (READY) pickPast(); };
+
+// ---------- v175: 急落からの戻り(または急騰からの押し)の引用文。直近8時間のBTC 5分足。手で引用投稿 ----------
+async function vQuote() {
+  toast('BTC 5分足を取得しています…');
+  let j; try { j = await (await fetch('/api/candles?sym=BTC&tf=5m', { cache: 'no-store' })).json(); } catch (_) {}
+  const B = j && j.bars; if (!B || B.length < 12) return toast('5分足が取れませんでした');
+  const now = B[B.length - 1], f$ = (x) => '$' + Math.round(x).toLocaleString('en-US');
+  const u = (t) => new Date(t).toISOString().slice(11, 16) + ' UTC';
+  const hm = (ms) => { const m = Math.round(ms / 60000); return (m >= 60 ? Math.floor(m / 60) + 'h ' : '') + (m % 60) + 'm'; };
+  let lo = 0; B.forEach((b, i) => { if (b.l < B[lo].l) lo = i; });
+  let hi = 0; for (let i = 0; i <= lo; i++) if (B[i].h > B[hi].h) hi = i;
+  let H2 = 0; B.forEach((b, i) => { if (b.h > B[H2].h) H2 = i; });
+  let L2 = H2; for (let i = H2; i < B.length; i++) if (B[i].l < B[L2].l) L2 = i;
+  const dn = B[hi].h - B[lo].l, up = B[H2].h - B[L2].l;   // 急落→戻り か 急騰→押し か、新しい方の山谷を使う
+  const rebound = lo >= H2 ? true : false;
+  let txt;
+  if (rebound) {
+    const rec = (now.c - B[lo].l) / dn * 100, pct = (now.c / B[lo].l - 1) * 100;
+    if (!(dn > 0) || rec < 10) return toast('目立つ戻りがありません');
+    txt = (rec >= 100 ? `BTC erased the entire drop in ${hm(now.t + 300000 - B[lo].t)}.` : `BTC recovered ${Math.round(rec)}% of the drop in ${hm(now.t + 300000 - B[lo].t)}.`)
+      + `\n\nHigh: ${f$(B[hi].h)} (${u(B[hi].t)})\nLow:  ${f$(B[lo].l)} (${u(B[lo].t)})\nNow:  ${f$(now.c)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+  } else {
+    const giv = (B[H2].h - now.c) / up * 100, pct = (now.c / B[H2].h - 1) * 100;
+    if (!(up > 0) || giv < 10) return toast('目立つ押しがありません');
+    txt = (giv >= 100 ? `BTC gave back the entire rally in ${hm(now.t + 300000 - B[H2].t)}.` : `BTC gave back ${Math.round(giv)}% of the rally in ${hm(now.t + 300000 - B[H2].t)}.`)
+      + `\n\nLow:  ${f$(B[L2].l)} (${u(B[L2].t)})\nHigh: ${f$(B[H2].h)} (${u(B[H2].t)})\nNow:  ${f$(now.c)} (${pct.toFixed(1)}%)`;
+  }
+  // 画像: 終値の線 + 山と谷の点
+  const cv = document.createElement('canvas'); cv.width = 1200; cv.height = 675; const g = cv.getContext('2d');
+  g.fillStyle = '#0b0f14'; g.fillRect(0, 0, 1200, 675);
+  const P = 70, W = 1200 - P * 2, Hh = 675 - 190, mx = Math.max(...B.map((b) => b.h)), mn = Math.min(...B.map((b) => b.l));
+  const X = (i) => P + i / (B.length - 1) * W, Y = (v) => 120 + (mx - v) / (mx - mn || 1) * Hh;
+  g.fillStyle = '#e6edf3'; g.font = 'bold 40px system-ui,sans-serif'; g.fillText(txt.split('\n')[0], P, 70);
+  g.strokeStyle = '#26303b'; g.lineWidth = 1; [mn, (mn + mx) / 2, mx].forEach((v) => { g.beginPath(); g.moveTo(P, Y(v)); g.lineTo(1200 - P, Y(v)); g.stroke(); g.fillStyle = '#8b96a3'; g.font = '20px system-ui'; g.fillText(f$(v), 1200 - P - 100, Y(v) - 6); });
+  g.strokeStyle = '#f7931a'; g.lineWidth = 4; g.beginPath(); B.forEach((b, i) => i ? g.lineTo(X(i), Y(b.c)) : g.moveTo(X(i), Y(b.c))); g.stroke();
+  const dot = (i, v, c) => { g.fillStyle = c; g.beginPath(); g.arc(X(i), Y(v), 9, 0, 7); g.fill(); };
+  if (rebound) { dot(hi, B[hi].h, '#e5534b'); dot(lo, B[lo].l, '#e5534b'); } else { dot(L2, B[L2].l, '#3fb950'); dot(H2, B[H2].h, '#3fb950'); }
+  dot(B.length - 1, now.c, '#e6edf3');
+  g.fillStyle = '#8b96a3'; g.font = '20px system-ui'; g.fillText(`BTC 5m · ${u(B[0].t)} – ${u(now.t + 300000)} · Pacifica · CRYPTO SIGNAL ARCHIVE`, P, 650);
+  const url = cv.toDataURL('image/png');
+  OPEN = '__v'; $('#ov').classList.add('on');
+  $('#md').innerHTML = `<div class="mh"><span style="font-size:22px">⚡</span><span class="k">戻り引用文</span><span class="w">BTC 5分足・直近8時間${j.stale ? '(保存が古い)' : ''}</span><div class="x"><button class="chip" id="vClose">✕ 閉じる</button></div></div>
+    <p style="color:var(--mut);margin:8px 0 10px">大手のBTC速報を「引用」して、文と画像を貼る。<b>自動投稿はされません</b>。</p>
+    <pre style="white-space:pre-wrap">${esc(txt)}</pre><img src="${url}" style="width:100%;border-radius:8px;margin:10px 0">
+    <button class="btn" id="vCopy">文をコピー</button> <button class="btn" id="vSave">画像保存</button>`;
+  $('#vClose').onclick = closeModal;
+  $('#vCopy').onclick = async () => { try { await navigator.clipboard.writeText(txt); toast('コピーしました'); } catch (_) { toast('コピーできませんでした'); } };
+  $('#vSave').onclick = () => { const a = document.createElement('a'); a.href = url; a.download = 'csa-btc-v.png'; a.click(); };
+}
+$('#vBtn').onclick = () => { vQuote().catch((e) => toast('作れませんでした: ' + e.message)); };
 
 load(); setInterval(tick, 30000);
 setInterval(() => { if (!OPEN && getKey()) load(); }, 10 * 60000);   // 10分ごとに下書きを読み直す
