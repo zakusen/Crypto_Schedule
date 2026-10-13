@@ -401,7 +401,8 @@ $('#pastBtn').onclick = () => { if (READY) pickPast(); };
 async function vQuote() {
   toast('BTC 5分足を取得しています…');
   let j; try { j = await (await fetch('/api/candles?sym=BTC&tf=5m', { cache: 'no-store' })).json(); } catch (_) {}
-  const B = j && j.bars; if (!B || B.length < 12) return toast('5分足が取れませんでした');
+  const B = ((j && j.bars) || []).map((b) => ({ t: +b.t < 1e12 ? +b.t * 1000 : +b.t, h: +b.h, l: +b.l, c: +b.c })).filter((b) => isFinite(b.t) && b.h > 0 && b.l > 0 && b.c > 0).sort((a, b) => a.t - b.t);   // v176: 並び順・型・秒/ミリ秒の違いに強く
+  if (B.length < 12) return toast('5分足が取れませんでした');
   const now = B[B.length - 1], f$ = (x) => '$' + Math.round(x).toLocaleString('en-US');
   const u = (t) => new Date(t).toISOString().slice(11, 16) + ' UTC';
   const hm = (ms) => { const m = Math.round(ms / 60000); return (m >= 60 ? Math.floor(m / 60) + 'h ' : '') + (m % 60) + 'm'; };
@@ -414,12 +415,12 @@ async function vQuote() {
   let txt;
   if (rebound) {
     const rec = (now.c - B[lo].l) / dn * 100, pct = (now.c / B[lo].l - 1) * 100;
-    if (!(dn > 0) || rec < 10) return toast('目立つ戻りがありません');
+    if (!(dn > 0)) return toast('値動きがありません');
     txt = (rec >= 100 ? `BTC erased the entire drop in ${hm(now.t + 300000 - B[lo].t)}.` : `BTC recovered ${Math.round(rec)}% of the drop in ${hm(now.t + 300000 - B[lo].t)}.`)
       + `\n\nHigh: ${f$(B[hi].h)} (${u(B[hi].t)})\nLow:  ${f$(B[lo].l)} (${u(B[lo].t)})\nNow:  ${f$(now.c)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
   } else {
     const giv = (B[H2].h - now.c) / up * 100, pct = (now.c / B[H2].h - 1) * 100;
-    if (!(up > 0) || giv < 10) return toast('目立つ押しがありません');
+    if (!(up > 0)) return toast('値動きがありません');
     txt = (giv >= 100 ? `BTC gave back the entire rally in ${hm(now.t + 300000 - B[H2].t)}.` : `BTC gave back ${Math.round(giv)}% of the rally in ${hm(now.t + 300000 - B[H2].t)}.`)
       + `\n\nLow:  ${f$(B[L2].l)} (${u(B[L2].t)})\nHigh: ${f$(B[H2].h)} (${u(B[H2].t)})\nNow:  ${f$(now.c)} (${pct.toFixed(1)}%)`;
   }
@@ -439,7 +440,7 @@ async function vQuote() {
   OPEN = '__v'; $('#ov').classList.add('on');
   $('#md').innerHTML = `<div class="mh"><span style="font-size:22px">⚡</span><span class="k">戻り引用文</span><span class="w">BTC 5分足・直近8時間${j.stale ? '(保存が古い)' : ''}</span><div class="x"><button class="chip" id="vClose">✕ 閉じる</button></div></div>
     <p style="color:var(--mut);margin:8px 0 10px">大手のBTC速報を「引用」して、文と画像を貼る。<b>自動投稿はされません</b>。</p>
-    <pre style="white-space:pre-wrap">${esc(txt)}</pre><img src="${url}" style="width:100%;border-radius:8px;margin:10px 0">
+    <pre style="white-space:pre-wrap">${esc(txt)}</pre><div style="color:var(--mut);font-size:12px">データ: ${B.length}本 · ${u(B[0].t)} – ${u(now.t + 300000)} · 最新 ${f$(now.c)}</div><img src="${url}" style="width:100%;border-radius:8px;margin:10px 0">
     <button class="btn" id="vCopy">文をコピー</button> <button class="btn" id="vSave">画像保存</button>`;
   $('#vClose').onclick = closeModal;
   $('#vCopy').onclick = async () => { try { await navigator.clipboard.writeText(txt); toast('コピーしました'); } catch (_) { toast('コピーできませんでした'); } };
