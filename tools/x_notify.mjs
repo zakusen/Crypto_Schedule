@@ -146,7 +146,7 @@ for (let i = 0; i <= AHEAD; i++) {
 }
 
 // ---- 2) 発表後の値動き(予備) ----
-for (const g of groups(events.filter((e) => MAJOR(e) && NOW - e.ts >= ARCH_WAIT && NOW - e.ts < ARCH_MAX))) {
+for (const g of groups(events.filter((e) => L.AUTOEV(e) && NOW - e.ts >= ARCH_WAIT && NOW - e.ts < ARCH_MAX))) {
   if (byId.has(archId(g))) continue;
   const mv = {};                                                             // v91: BTC・ETH・SOL・BNB の1時間後(BTCは必須)
   for (const [c, sym] of COINS) { const bars = await klines(sym, '5m', barsStart(g[0].ts), 25); mv[c] = bars && moves(bars, g[0].ts); }
@@ -156,7 +156,7 @@ for (const g of groups(events.filter((e) => MAJOR(e) && NOW - e.ts >= ARCH_WAIT 
 
 // ---- 2b) v181: 発表前の予告(v182: 主要指標の15分前。前回の同じ指標の「発表後の値動き」の画像を付ける) ----
 {
-  const soon = groups(events.filter((e) => MAJOR(e) && e.ts - NOW > 60000 && e.ts - NOW <= 3 * H));
+  const soon = groups(events.filter((e) => L.AUTOEV(e) && e.ts - NOW > 60000 && e.ts - NOW <= 3 * H));
   if (soon.length) {
     let corr = null; try { corr = await (await site('/api/admin/rx-one?name=cr')).json(); } catch (_) {}
     const archs = [...byId.values()].filter((p) => p.sr === 'arch' && p.img && p.img.v === 3 && p.img.coins && p.img.coins.BTC);
@@ -166,7 +166,7 @@ for (const g of groups(events.filter((e) => MAJOR(e) && NOW - e.ts >= ARCH_WAIT 
       const pa = archs.filter((p) => p.img.t < g[0].ts - H && kOf(p) === k).sort((a, b) => b.img.t - a.img.t)[0];
       const r = prevOf(g);
       const prev = pa ? { chg: pa.img.coins.BTC.c60, t: pa.img.t } : r ? { chg: r.chg, t: r.t } : null;
-      const p = L.prePost(g, prev, corr && corr.w ? corr : null, pa ? pa.img : null);
+      const p = L.prePost(g, prev, corr && corr.w ? corr : null, pa ? pa.img : null, NOW);
       const o = byId.get(p.id); if (o && o.done && (o.done.en || o.done.ja)) continue;   // 出した後は作り直さない
       put(p); console.log('[x] 発表前の予告:', p.id, pa ? '(画像: ' + pa.id + ')' : '(画像なし)');
     }

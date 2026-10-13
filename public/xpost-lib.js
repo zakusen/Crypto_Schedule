@@ -50,6 +50,8 @@ export function groups(list) {
 }
 // 発表後の値動きを出す主要指標: FOMC・日銀・ECB の政策金利、米CPI・雇用統計・PCE
 export const MAJOR = (e) => e.l === 'macro' && (/^(FOMC|日銀|ECB)$/.test(e.s || '') || (e.c === 'US' && /CPI|雇用統計|PCE/.test(e.s || '')) || (e.c === 'JP' && e.s === '短観'));   // v179: 日銀短観を追加
+// v185: 予告と発表後の値動きを出す対象 = 毎朝の予定に載る指標すべて(日米欧・重要度「高」)+ 主要指標
+export const AUTOEV = (e) => e.l === 'macro' && REGIONS.includes(e.c) && (MAJOR(e) || e.im === 'high');
 export const archId = (g) => 'arch:' + g[0].ts + ':' + (g[0].c || g[0].l);
 
 // ---- 名前・タグ ----
@@ -113,18 +115,10 @@ export function archPost(g, mv, site) {
   if (mv && mv.before != null) mv = { BTC: mv };                       // 古い呼び方(BTCだけ)
   const ts = g[0].ts, nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), k = kindOf(g), tg = tags(nE + ' ' + nJ);
   const tagE = tg.en.split(' ').slice(0, 1).concat('#Bitcoin').join(' '), tagJ = tg.ja.split(' ').slice(0, 1).concat('#ビットコイン').join(' ');
-  // v108: 毎朝の予定と同じ形。⏱️ の行はやめた。値は発表時点(5分足の始値)から1時間後(5分足の終値)まで
-  const build = (lang) => (o) => {
-    const en = lang === 'en', rule = '━'.repeat(o.rule);
-    return [...(o.brand ? [BRAND[lang], ''] : []),
-      en ? `🟢 +1H AFTER RELEASE · ${dEnU(ts)} · ${uhm(ts)} UTC` : `🟢 発表から1時間 · ${dJaL(ts)} · ${hm(ts)}発表`, rule,
-      `🟡 ${icon2(g)} ${en ? nE.toUpperCase() : nJ}`, '',
-      ...COINS.filter(([c]) => mv[c]).map(([c, , s]) => coinRow(c, s, mv[c].c60)), rule,
-      ...(o.cta ? ['', en ? `🗂️ Past ${k.short[0] ? k.short[0] + ' ' : ''}records: link in bio` : `🗂️ 過去の${k.short[1] || 'この指標'}の記録はプロフィールのリンクから`] : []),
-      ...(o.tag ? [en ? tagE : tagJ] : [])].join('\n');
-  };
-  const OPT = [{ brand: 1, rule: 18, cta: 1, tag: 1 }, { brand: 1, rule: 10, cta: 1, tag: 1 }, { rule: 10, cta: 1, tag: 1 }, { rule: 10, cta: 1 }, { rule: 10 }];
-  const en = fit280(build('en'), OPT), ja = fit280(build('ja'), OPT);
+  // v184: 発表前の予告と同じ形(見出し → 一文 → BTC の数字1つ → 他の3銘柄)
+  const others = (lang) => COINS.filter(([c]) => c !== 'BTC' && mv[c]).map(([c]) => `${c} ${sgn(mv[c].c60)}`).join(' · ');
+  const en = [`${flagOf(g)} ${headName(g, 'en')} · ${uhm(ts)} UTC`, '', '1 hour after the release,', 'BTC moved:', '', big(mv.BTC.c60), ...(others('en') ? ['', others('en')] : [])].join('\n');
+  const ja = [`${flagOf(g)} ${headName(g, 'ja')} · ${jaDay(ts)} ${hm(ts)}発表`, '', '発表から1時間、', 'BTCはこう動きました。', '', big(mv.BTC.c60), ...(others('ja') ? ['', others('ja')] : [])].join('\n');
   const coins = {}; for (const [c] of COINS) if (mv[c]) coins[c] = { c5: mv[c].c5, c15: mv[c].c15, c60: mv[c].c60, before: mv[c].before, after: mv[c].after, sp: mv[c].spark };   // v109: sp = 5分足の終値(発表1時間前〜1時間後)
   const b = mv.BTC;
   return { id: archId(g), sr: 'arch', due: ts + ARCH_WAIT, en, ja, h: hashStr(en + ja), img: { v: 3, t: ts, en: nE, ja: nJ, icon: k.icon, coins, spark: b.spark, before: b.before, after: b.after, chg: b.chg, t0: b.t0 } };
@@ -404,9 +398,9 @@ export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.s
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
   for (const p of posts || []) { seen.add(p.id); if (!isAuto(p) || !p.due) continue; for (const lg of langsOf(p)) { const d = dueOf(p, lg); if (!(p.done && p.done[lg]) && d > now - winOf(p) && d < now + 8 * DAY) items.push({ id: p.id, due: d }); } }   // v173: 言語ごと
-  for (const g of groups((events || []).filter(MAJOR))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  for (const g of groups((events || []).filter(AUTOEV))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
-  for (const g of groups((events || []).filter(MAJOR))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
+  for (const g of groups((events || []).filter(AUTOEV))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
 
@@ -449,28 +443,26 @@ export function replyText(p, lg) {
 
 // ---- v181: 発表前の予告(v182: 発表の15分前。主要指標だけ) ----
 // g = 発表のまとまり / prev = {chg(BTC +1h %), t(前回の発表時刻)} | null / corr = corr:v1 | null
-export function prePost(g, prev, corr, prevImg) {
-  const ts = g[0].ts, nE = groupLine(g, 'en'), nJ = groupLine(g, 'ja'), tg = tags(nE + ' ' + nJ);
-  const fx = g.filter((e) => e.fc || e.pv).slice(0, 2);
+// v184: 文章で読ませる形(見出し → 前回の事実 → 数字1つ → 次の予告)。市場予想・相関は本文に入れない
+const REG_JA = { US: '米', JP: '日本', EU: 'ユーロ圏' }, FLAG = { US: '🇺🇸', JP: '🇯🇵', EU: '🇪🇺' };
+export function headName(g, lang) {   // 見出しの短い名前: US CPI / 米CPI / FOMC / 日銀
+  if (g.some((e) => e.s === '短観')) return lang === 'en' ? 'BOJ Tankan' : '日銀短観';
+  const k = kindOf(g), c = g[0].c, cb = /FOMC|BOJ|ECB/.test(k.short[0] || '');
+  if (lang === 'en') return k.short[0] ? (cb ? k.short[0] : `${REGION_EN[c] || ''} ${k.short[0]}`.trim()) : groupLine(g, 'en');
+  return k.short[1] ? (cb || /^日銀|ECB|FOMC/.test(k.short[1]) ? k.short[1] : (REG_JA[c] || '') + k.short[1]) : groupLine(g, 'ja');
+}
+const flagOf = (g) => FLAG[g[0].c] || '📅';
+const big = (v) => `${v > 0 ? '🟢' : v < 0 ? '🔴' : '⚪'} ${sgn(v)}`;
+const whenJa = (ts, now) => { const d = isoDay(ts) === isoDay(now) ? (J(ts).getUTCHours() >= 17 ? '今夜' : '今日') : isoDay(ts) === isoDay(now + DAY) ? '明日' : jaDay(ts); return d; };
+export function prePost(g, prev, corr, prevImg, now = g[0].ts - PRE_AHEAD) {
+  const ts = g[0].ts, fx = g.filter((e) => e.fc || e.pv).slice(0, 2);
   const rb = corr && corr.w && corr.w[30] && corr.w[30].BTC ? corr.w[30].BTC.r : null;
-  const build = (lang) => (o) => {
-    const en = lang === 'en', rule = '━'.repeat(o.rule);
-    const NM = fx.map((e) => en ? (e.se || enName(e)) : (e.t || jaName(e)));
-    const W = NM.map((n) => n.split(/(?=[\s(（])/));   // 共通の頭を外して短く(Inflation Rate YoY / MoM → YoY / MoM)
-    let k = 0; if (NM.length > 1) while (W.every((w) => w[k] != null && w[k] === W[0][k]) && W.every((w) => w.length > k + 1)) k++;
-    const fl = fx.map((e, i) => {
-      const nm = o.nm && NM.length > 1 ? W[i].slice(k).join('').trim().replace(/^[(（](.*)[)）]$/, '$1') + ': ' : '';
-      return en ? `${nm}Consensus ${e.fc || '—'} / Prior ${e.pv || '—'}` : `${nm}市場予想 ${e.fc || '—'} ／ 前回 ${e.pv || '—'}`;
-    });
-    return [...(o.brand ? [BRAND[lang], ''] : []),
-      en ? `⏰ RELEASE AT ${uhm(ts)} UTC · ${dEnU(ts)}` : `⏰ ${hm(ts)} 発表 · ${dJaL(ts)}`, rule,
-      `🟡 ${icon2(g)} ${en ? (fx.length > 1 && kindOf(g).short[0] ? ((REGION_EN[g[0].c] || '') + ' ' + kindOf(g).short[0]).trim() : nE).toUpperCase() : nJ}`, '',
-      ...fl,
-      ...(prev ? [en ? `Last release: BTC ${sgn(prev.chg)} in the first hour (${dEnU(prev.t, false)})` : `前回の発表: BTC ${sgn(prev.chg)}（発表から1時間・${jaDay(prev.t)}）`] : []),
-      ...(rb != null && o.corr ? [en ? `BTC–S&P500 30D corr: ${rTxt(rb)} (${corrLabel(rb, 'en')})` : `BTC と S&P500 の30日相関: ${rTxt(rb)}（${corrLabel(rb, 'ja')}）`] : []),
-      rule, ...(o.tag ? [en ? tg.en.split(' ').slice(0, 1).concat('#Bitcoin').join(' ') : tg.ja.split(' ').slice(0, 1).concat('#ビットコイン').join(' ')] : [])].join('\n');
-  };
-  const OPT = [{ brand: 1, rule: 18, nm: 1, corr: 1, tag: 1 }, { brand: 1, rule: 10, nm: 1, corr: 1, tag: 1 }, { brand: 1, rule: 10, nm: 1, corr: 1 }, { rule: 10, nm: 1, corr: 1, tag: 1 }, { rule: 10, nm: 1, corr: 1 }, { rule: 10, corr: 1 }, { rule: 10 }];
-  const en = fit280(build('en'), OPT), ja = fit280(build('ja'), OPT);
-  return { id: preId(g), sr: 'pre', due: ts - PRE_AHEAD, en, ja, h: hashStr(en + ja + (prevImg ? prevImg.t : '')), img: prevImg || null };
+  const en = [`${flagOf(g)} ${headName(g, 'en')} · ${uhm(ts)} UTC`, '',
+    ...(prev ? ['Last time, BTC moved this much', 'in the first hour after the release:', '', big(prev.chg), ''] : []),
+    `This time? We'll post the numbers 1 hour after. ⏳`].join('\n');
+  const ja = [`${flagOf(g)} ${headName(g, 'ja')} · ${whenJa(ts, now)}${hm(ts)}発表`, '',
+    ...(prev ? ['前回の発表から1時間、', 'BTCはこう動きました。', '', big(prev.chg), ''] : []),
+    '今回はどうなるか。1時間後に記録を出します。⏳'].join('\n');
+  const img = prevImg ? { ...prevImg, pre: { t: ts, fx: fx.map((e) => ({ en: e.se || enName(e), ja: e.t || jaName(e), fc: e.fc || null, pv: e.pv || null })), corr: rb } } : null;   // 市場予想・相関は画像用に添える
+  return { id: preId(g), sr: 'pre', due: ts - PRE_AHEAD, en, ja, h: hashStr(en + ja + (prevImg ? prevImg.t : '')), img };
 }
