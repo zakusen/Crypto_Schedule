@@ -35,7 +35,7 @@ const posts = store.posts || [];
 const todo = [];
 for (const p of posts.filter((p) => L.isAuto(p) && p.due && !p.upd))   // v173: 言語ごとの投稿時刻(dues)と出す言語(langs)
   for (const lg of L.langsOf(p)) { const d = L.dueOf(p, lg); if (!(p.done && p.done[lg]) && d <= NOW && NOW - d < L.winOf(p)) todo.push({ p, lg, d }); }
-todo.sort((a, b) => a.d - b.d);
+todo.sort((a, b) => a.d - b.d || (a.p.parent ? 1 : 0) - (b.p.parent ? 1 : 0));   // v187: 返信(parent あり)は親の後
 if (DRY && !todo.length) {                 // 試しの時、投稿時刻のものが無ければ、種類ごとに一番近い下書きを1つずつ使う(文面と画像の確認用)
   for (const sr of ['daily', 'arch', 'week']) { const p = posts.filter((x) => x.sr === sr && x.due).sort((a, b) => Math.abs(a.due - NOW) - Math.abs(b.due - NOW))[0]; if (p) for (const lg of ['en', 'ja']) todo.push({ p, lg }); }
 }
@@ -82,9 +82,20 @@ async function render(p, lg) {
 const OUT = path.join(process.cwd(), 'x_out');
 if (DRY) fs.mkdirSync(OUT, { recursive: true });
 let n = 0;
+const tw = new Map();   // v187: この回に出した投稿のID(返信用)
 for (const { p, lg } of todo) {
-  if (n >= MAX_POSTS) { console.log('[post] 1回の上限に達したので残りは次回'); break; }
-  const text = p[lg], png = await render(p, lg), name = `${p.id.replace(/[^a-z0-9-]+/gi, '-')}-${lg}`;
+  if (n >= MAX_POSTS && !p.parent) { console.log('[post] 1回の上限に達したので残りは次回'); break; }   // v188: 返信は上限でも親と一緒に出す(親だけ出て返信が捨てられるのを防ぐ)
+  // v187: 返信は、この回に親を出した時だけ(親の投稿IDが要る)。親が前の回に出ていたら返信は出さずに済みにする
+  let reply = null;
+  if (p.parent) {
+    reply = tw.get(p.parent + ':' + lg) || null;
+    if (!reply && !DRY) {
+      const par = posts.find((x) => x.id === p.parent);
+      if (par && par.done && par.done[lg]) { await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true } }) }); console.log('[post] 親が前の回に出ているので返信は出しません', p.id + ':' + lg); }
+      continue;
+    }
+  }
+  const text = p[lg], png = p.parent ? null : await render(p, lg), name = `${p.id.replace(/[^a-z0-9-]+/gi, '-')}-${lg}`;
   if (DRY) {
     fs.writeFileSync(path.join(OUT, name + '.txt'), text + `\n\n(${L.xlen(text)}/280)\n`);
     if (png) fs.writeFileSync(path.join(OUT, name + '.png'), png);
@@ -97,7 +108,8 @@ for (const { p, lg } of todo) {
       try { const m = await xapi('https://api.x.com/2/media/upload', { media: png.toString('base64'), media_category: 'tweet_image' }); media = m && m.data && m.data.id; }
       catch (e) { console.log('[post] 画像のアップロードに失敗(文だけで投稿します):', e.message); }
     }
-    const res = await xapi('https://api.x.com/2/tweets', { text, ...(media ? { media: { media_ids: [String(media)] } } : {}) });
+    const res = await xapi('https://api.x.com/2/tweets', { text, ...(media ? { media: { media_ids: [String(media)] } } : {}), ...(reply ? { reply: { in_reply_to_tweet_id: String(reply) } } : {}) });
+    if (res && res.data && res.data.id) tw.set(p.id + ':' + lg, res.data.id);
     console.log(`[post] 投稿しました ${p.id}:${lg} → ${res && res.data && res.data.id}${media ? ' (画像つき)' : ''}`);
     await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true } }) });
     p.done = p.done || {}; p.done[lg] = Date.now();
