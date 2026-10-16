@@ -637,6 +637,9 @@
 - 急変動をスレッドに: 親(いつもの急変動。最後に「清算◯、普段の◯倍 ↓」)+ 返信(その時間の清算の内訳)。返信は親を出した同じ回に、親への返信として出す(spikeliq)。清算が取れない時は返信なし。急変動の本文は相関をBTCだけの1行に。
 
 ## v188 (2026-10-16)
-- v188: 急変動スレッドの返信紐付けを修正。原因: Worker の `/api/admin/posts` の `clean()` が `parent` を保存時に捨てていたため、返信(`spikeliq`)が親なしの単独投稿として出ていた。`clean()` が `parent` を残すように修正(`worker.js`)。
-- `tools/x_post.mjs`: 1回の上限(MAX_POSTS)に達しても、親を出した直後の返信は出す(親だけ出て返信が済み扱いで捨てられるのを防ぐ)。
-- 既に保存済みの `spikeliq` は `parent` が無いまま。次の急変動から新しい下書きに `parent` が付く(過去分の直しは不要)。
+- PWA 化: manifest.webmanifest / sw.js / icons(192・512・maskable・apple-touch)/ favicon-32。index・classic・next の head に追加。SW は画面ネット優先・オフライン時のみ控え、/api はためない。
+
+## v189 (2026-10-16)
+- 急変動スレッドの返信紐付けを修正。原因: Worker の `/api/admin/posts` の `clean()` が `parent` を保存時に捨てていたため、返信(`spikeliq`)が親なしの単独投稿として出ていた。`clean()` が `parent` を残すようにした(`worker.js`)。保存済みの過去分は直らない(次の急変動から)。
+- `tools/x_post.mjs`: 1回の上限(MAX_POSTS)に達しても、親を出した直後の返信は出す。
+- PWA(`public/sw.js`): オフライン時の控え検索で URL の `?src=pwa` を無視するようにした(ホーム画面から開いた時の `/?src=pwa` でも控えが見つかる)。控えの名前を `csa-v189` に更新。
