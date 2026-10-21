@@ -1,0 +1,10 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BTC GARCH | CRYPTO SIGNAL ARCHIVE</title>
+<style>body{background:#101722;color:#e1e9f4;font:16px/1.8 system-ui;max-width:720px;margin:40px auto;padding:20px}a{color:#a8d9ee}table{width:100%;border-collapse:collapse}td,th{padding:12px;text-align:left;border-bottom:1px solid #405063}small{color:#b1bdcd}</style>
+<a href="/">← CRYPTO SIGNAL ARCHIVE</a><h1>BTC の予測変動幅</h1><p>GARCH(1,1) · 試験提供</p><p>直近の値動きから、今後の変動幅（1σ）を推定します。上昇・下落の方向や急変する確率を示すものではありません。±3%の既存通知条件は変更していません。</p>
+<p id="status" role="status">読み込み中…</p><table hidden id="results"><thead><tr><th>予測期間</th><th>変動幅（対数リターン・1σ）</th></tr></thead><tbody></tbody></table>
+<p><small>最大約8時間の5分足を使用する短期の参考指標です。確定した連続61本以上が必要です。ゼロ平均・分散ターゲティングと候補パラメータの尤度比較で推定。精度の改善は未検証で、1σ内に一定の確率で収まる保証はありません。長い予測期間ほど慎重に扱ってください。</small></p><button id="reload">更新</button>
+<script type="module">
+const status=document.querySelector('#status'),table=document.querySelector('#results');
+async function load(){table.hidden=true;status.textContent='読み込み中…';try{const r=await fetch('/api/garch',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();if(!d.available){status.textContent=({insufficient_data:'確定した5分足が不足しています。',stale_data:'データが古いため表示を停止しています。',invalid_or_gapped_data:'データに欠損または不正な値があります。',flat_or_invalid_data:'変動幅を推定できるデータがありません。'})[d.reason]||'推定できません。';return;}status.textContent=`データ時点: ${d.as_of} / ${d.samples}リターン / ${d.source||'不明'}`;const body=table.querySelector('tbody');body.replaceChildren();for(const [k,v] of Object.entries(d.sigma_pct)){const tr=document.createElement('tr');for(const t of [k,Number(v).toFixed(3)+'%']){const td=document.createElement('td');td.textContent=t;tr.append(td);}body.append(tr);}table.hidden=false;}catch(e){status.textContent='取得できませんでした。再度更新してください。';}}
+document.querySelector('#reload').onclick=load;load();
+</script></html>

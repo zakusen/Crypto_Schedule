@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {estimateGarch} from '../public/garch-model.mjs';
+const now=1800000000000;
+function bars(){let p=100;return Array.from({length:96},(_,i)=>{p*=Math.exp((Math.sin(i*2.31)*0.001)*(i>70?3:1));return [now/1000-(96-i)*300,p,p,p,p,1];});}
+test('finite stationary forecasts and growing horizon variance',()=>{const d=estimateGarch(bars(),now);assert.equal(d.available,true);assert.equal(d.samples,95);assert.ok(d.parameters.alpha+d.parameters.beta<1);assert.ok(d.parameters.omega>0);assert.ok(d.sigma_pct['24h']>d.sigma_pct['1h']);assert.ok(Object.values(d.sigma_pct).every(x=>Number.isFinite(x)&&x>0));});
+test('unfinished and future candles cannot affect forecast',()=>{const b=bars();assert.deepEqual(estimateGarch([...b,[now/1000,1,1,1,1e10]],now),estimateGarch(b,now));});
+test('missing, stale, invalid, flat and gapped inputs are unavailable',()=>{assert.equal(estimateGarch([],now).available,false);assert.equal(estimateGarch(bars(),now+1200000).reason,'stale_data');const b=bars();b[10][4]=0;assert.equal(estimateGarch(b,now).available,false);const gap=bars();gap.splice(10,1);assert.equal(estimateGarch(gap,now).available,false);assert.equal(estimateGarch(bars().map(b=>[b[0],1,1,1,1]),now).available,false);});
+test('forecast recursion matches closed-form expected variances',()=>{const d=estimateGarch(bars(),now),p=d.parameters,phi=p.alpha+p.beta;const v=p.omega/(1-phi),h=d.sigma_pct['5m']**2;const expected=12*v+(h-v)*(1-phi**12)/(1-phi);assert.ok(Math.abs(d.sigma_pct['1h']**2-expected)<1e-10);});
+test('worker API returns real estimated results from KV bars',async()=>{const {default:worker}=await import('../worker.js');const b=bars().map(b=>[b[0]+Math.floor((Date.now()-now)/300000)*300,...b.slice(1)]);const response=await worker.fetch(new Request('https://test/api/garch'),{CAL:{get:async()=>({tfs:{BTC:{'5m':{bars:b,src:'fixture'}}}})}},{});assert.equal(response.status,200);const d=await response.json();assert.equal(d.available,true);assert.equal(d.sym,'BTC');assert.equal(d.source,'fixture');});

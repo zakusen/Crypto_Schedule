@@ -1,3 +1,4 @@
+import { estimateGarch } from './public/garch-model.mjs';
 // CRYPTO SIGNAL ARCHIVE の小さなサーバー部分(Cloudflare Worker)。
 //   /api/candles?sym=BTC&tf=1h  … Pacificaのローソク足(公開API・鍵なし)
 //   /api/events                 … 日米欧のマクロ指標カレンダー(TradingViewの公開カレンダー。予備: Forex Factory) + 任意の追加イベント(public/events_manual.json)
@@ -9,7 +10,7 @@
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-16-v189';
+const VERSION = '2026-10-21-v190';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1971,6 +1972,11 @@ async function liqPing(env) {   // 定時実行から呼び、DOが眠ってい�
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (url.pathname === '/api/garch') {
+      const store = await readPx(env);
+      const entry = store?.tfs?.BTC?.['5m'];
+      return json({ sym: 'BTC', source: entry?.src || null, ...estimateGarch(entry?.bars) });
+    }
     if (url.pathname === '/api/candles') {
       return cached(ctx, request, 60, () => candles(url, env, ctx));
     }

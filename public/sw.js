@@ -1,6 +1,6 @@
 // v189: PWA。ホーム画面に追加できるようにするための最小の Service Worker。
 // 画面(HTML)はネット優先(いつも最新)。オフラインの時だけ前に開いた画面を出す。/api/* は一切ためない(数字が古くなるため)。
-const C = 'csa-v189';
+const C = 'csa-v190';
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== C).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {
