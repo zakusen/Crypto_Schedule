@@ -1,0 +1,47 @@
+name: Similar past moves (似ている過去の値動き)
+# v196: 手で動かす用。直近12時間の急な値動き(BTC 2時間で ±2% 以上)に似た過去を探し、サイトのカードを更新する。
+#   post を 1 にすると X 用の下書き(単独の投稿)を作り、そのまま投稿する。急変動の自動投稿の時は「X post」の中で自動で動くので、これは要らない。
+on:
+  workflow_dispatch:
+    inputs:
+      post:
+        description: '1 = X に投稿する / 0 = サイトのカードだけ更新'
+        default: '1'
+      end:
+        description: '終わりの時刻(空なら自動)。例 2026-10-22T11:45+09:00'
+        default: ''
+concurrency:
+  group: x-post
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Find similar past moves
+        run: node tools/pattern.mjs ${{ github.event.inputs.post == '1' && '--post' || '' }} ${{ github.event.inputs.end != '' && format('--end {0}', github.event.inputs.end) || '' }}
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+      - name: Install browser and fonts
+        if: github.event.inputs.post == '1'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fonts-noto-color-emoji fonts-noto-cjk
+          npm i --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Post
+        if: github.event.inputs.post == '1'
+        run: node tools/x_post.mjs
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          X_DRY: '0'
