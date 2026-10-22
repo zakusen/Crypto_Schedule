@@ -72,7 +72,7 @@ function dtw(a, b, r) {
 
 // 今の値動き(end = 終わりの時刻、win = 時間)に似た過去を探す
 export function findSimilar(S, end, win = 2, opt = {}) {
-  const N = win * 12, idx = new Map(S.t.map((t, i) => [t, i])), ie = idx.get(Math.floor(end / M5) * M5 - M5);
+  const N = opt.n || win * 12, idx = new Map(S.t.map((t, i) => [t, i])), ie = idx.get(Math.floor(end / M5) * M5 - M5);   // v199: opt.n = 5分足の本数
   if (ie == null || ie < N) return null;
   const is = ie - N, base = S.c[is], q = []; for (let i = is; i <= ie; i++) q.push((S.c[i] / base - 1) * 100);
   const qc = q[N], sign = Math.sign(qc), lo = Math.abs(qc) * 0.6, hi = Math.abs(qc) * 1.6, R = Math.max(2, Math.round(N / 8));
@@ -101,6 +101,16 @@ export function autoEnd(S, now, win = 2, th = 2) {
   for (let i = S.t.length - 1; i >= N && S.t[i] > now - 12 * H; i--) { const v = Math.abs(S.c[i] / S.c[i - N] - 1) * 100; if (v >= th && (!best || v > best.v)) best = { v, end: S.t[i] + M5 }; }
   return best && best.end;
 }
+// v199: 日本時間の今日の、高値からの一番大きい下げ(または安値からの上げ)。±th% 以上なら {from, end}
+export function autoRange(S, now, th = 2.3) {
+  const d0 = Math.floor((now + 9 * H) / DAY) * DAY - 9 * H; let hi = null, lo = null, dn = null, up = null;
+  for (let i = 0; i < S.t.length; i++) { if (S.t[i] < d0) continue; const c = S.c[i], t = S.t[i];
+    if (!hi || c > hi.c) hi = { c, t }; if (!lo || c < lo.c) lo = { c, t };
+    const a = (c / hi.c - 1) * 100, b = (c / lo.c - 1) * 100;
+    if (!dn || a < dn.v) dn = { v: a, from: hi.t, end: t + M5 }; if (!up || b > up.v) up = { v: b, from: lo.t, end: t + M5 }; }
+  const best = dn && up ? (Math.abs(dn.v) >= up.v ? dn : up) : dn || up;
+  return best && Math.abs(best.v) >= th ? best : null;
+}
 // 似た過去の「同じ時間帯」の事実を足す: 指標の記録(rx の dump)と清算(/api/liq の1時間ごと)
 export function addContext(res, recs, liq) {
   for (const m of res.top) {
@@ -120,9 +130,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   const site = async (p, o = {}) => { const r = await fetch(SITE + p, { ...o, headers: { 'x-admin-key': KEY, ...(o.headers || {}) }, signal: AbortSignal.timeout(60000) }); if (!r.ok) throw new Error(p + ' HTTP ' + r.status); return r; };
   console.log('[pat] 5分足を読み込みます…'); const t0 = Date.now();
   const S = await loadBtc5m(now); console.log(`[pat] ${S.t.length}本 (${new Date(S.t[0]).toISOString().slice(0, 10)}〜) ${Math.round((Date.now() - t0) / 1000)}秒`);
-  const end = arg('--end') ? Date.parse(arg('--end')) : autoEnd(S, now, win, L.SPIKE_TH ? L.SPIKE_TH[win] || 2 : 2);
-  if (!end) { console.log('[pat] 直近12時間に対象の値動きがありません'); process.exit(0); }
-  const res = findSimilar(S, end, win); if (!res) { console.log('[pat] 今の値動きが取れません'); process.exit(0); }
+  // v199: 既定 = 日本時間の今日の高値からの下げ(安値からの上げ)が ±2.3% 以上の区間。--from と --end で区間を指定することもできる
+  let rg = arg('--end') ? { end: Date.parse(arg('--end')), from: arg('--from') ? Date.parse(arg('--from')) : Date.parse(arg('--end')) - win * 3600000 } : autoRange(S, now, L.SPIKE_DAY || 2.3);
+  if (!rg) { console.log('[pat] 今日、高値から(安値から)±2.3% 以上の値動きがありません'); process.exit(0); }
+  const n = Math.max(6, Math.round((rg.end - rg.from) / 300000)), res = findSimilar(S, rg.end, Math.max(1, Math.round(n / 12)), { n });
+  if (!res) { console.log('[pat] 今の値動きが取れません'); process.exit(0); }
   const { recsFrom, liqFrom } = await import('./pattern-ctx.mjs');
   addContext(res, KEY ? await recsFrom(site) : [], await liqFrom(SITE));
   console.log('[pat] 今:', JSON.stringify(res.q.chg), '似た過去:', res.top.map((m) => new Date(m.t0).toISOString() + ' ' + m.d).join(' / '));

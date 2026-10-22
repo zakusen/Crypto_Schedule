@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-22-v198';
+const VERSION = '2026-10-22-v199';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1430,27 +1430,39 @@ async function ghDispatch(env, payload) {
 //   ±3% 以上なら x:spk に記録して「X post」を起こす(下書きは tools/x_notify.mjs が Pacifica の足で作り直し、ETH・SOL・BNB・S&P500 も載せる)。
 //   一度出したら6時間は出さない。ふだん(急変動なし)は KV の読み書きをしない。
 //   v121: 直近60分に加えて直近6時間でも見る(どちらも ±3%。60分を優先)。win = 1 / 6(時間)
-const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_COOL = 6 * 36e5, SPIKE_WINS = [1, 2, 6, 24], SPIKE_TH = { 1: 3, 2: 2, 6: 3, 24: 3 };   // v196: 2時間は ±2%   // v144: 24時間も(±3%)。短い期間を優先
-// v145: 今の判定に使う値(60分・6時間・24時間の変化)を計算する。spikeCheck と /api/spike(確認用)で共通
+const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_COOL = 6 * 36e5, SPIKE_WINS = [1], SPIKE_TH = { 1: 3 }, SPIKE_DAY = 2.3;
+// v199: 急変動の判定を2本にまとめた。① 直近60分で ±3%(5分足) ② 日本時間のその日の高値から −2.3% / 安値から +2.3%(それぞれ1日1回)。
+//   ② の高値・安値 = その日 0:00(日本時間)からの1時間足の高値・安値 + まだ1時間足になっていない5分足。
+const JST9 = 9 * 3600;
+function dayHiLo(store, lastSec) {
+  const d0 = Math.floor((lastSec + JST9) / 86400) * 86400 - JST9, h = store.tfs[SPIKE_COIN]['1h'], f = store.tfs[SPIKE_COIN]['5m'];
+  let hi = null, lo = null;
+  const add = (b) => { if (b[0] < d0) return; if (!hi || b[2] > hi.p) hi = { p: b[2], t: b[0] }; if (!lo || b[3] < lo.p) lo = { p: b[3], t: b[0] }; };
+  for (const b of (h && h.bars) || []) add(b);
+  for (const b of (f && f.bars) || []) add(b);
+  return { d0, hi, lo, day: new Date((d0 + JST9) * 1000).toISOString().slice(0, 10) };
+}
+// v145: 今の判定に使う値。spikeCheck と /api/spike(確認用)で共通
 function spikeNow(store, now) {
   const e = store && store.tfs && store.tfs[SPIKE_COIN] && store.tfs[SPIKE_COIN]['5m'];
   if (!e || !e.bars || e.bars.length < 13) return { error: '5分足がまだありません' };
   const last = e.bars[e.bars.length - 1], out = { price: last[4], bar: new Date(last[0] * 1000).toISOString(), data_at: new Date(e.at).toISOString(), stale: now - e.at > 10 * 60e3, src: e.src || null, wins: {} };
-  for (const w of SPIKE_WINS) {
-    let base = e.bars.find((b) => b[0] === last[0] - w * 3600);
-    if (w > 6) { const h = store.tfs[SPIKE_COIN]['1h']; const t = Math.floor((last[0] - w * 3600) / 3600) * 3600; base = h && h.bars && h.bars.find((b) => b[0] === t); }
-    out.wins[w + 'h'] = base && base[1] > 0 && last[4] > 0 ? { from: new Date(base[0] * 1000).toISOString(), base: base[1], chg: Math.round((last[4] / base[1] - 1) * 1e4) / 100 } : null;
-  }
+  const base = e.bars.find((b) => b[0] === last[0] - 3600);
+  out.wins['1h'] = base && base[1] > 0 && last[4] > 0 ? { from: new Date(base[0] * 1000).toISOString(), base: base[1], chg: Math.round((last[4] / base[1] - 1) * 1e4) / 100 } : null;
+  const d = dayHiLo(store, last[0]);
+  out.day = { day: d.day, hi: d.hi && d.hi.p, hi_at: d.hi && new Date(d.hi.t * 1000).toISOString(), lo: d.lo && d.lo.p, lo_at: d.lo && new Date(d.lo.t * 1000).toISOString(),
+    from_hi: d.hi ? Math.round((last[4] / d.hi.p - 1) * 1e4) / 100 : null, from_lo: d.lo ? Math.round((last[4] / d.lo.p - 1) * 1e4) / 100 : null };
   return out;
 }
 async function spikeStatus(env) {
   const now = Date.now(), store = await readPx(env), cur = spikeNow(store, now);
   let doc = null; try { doc = env.CAL ? await env.CAL.get('x:spk', { type: 'json' }) : null; } catch (_) {}
   const last = doc && doc.ev && doc.ev.length ? doc.ev[doc.ev.length - 1] : null;
-  const hit = Object.entries(cur.wins || {}).find(([k, o]) => o && Math.abs(o.chg) >= (SPIKE_TH[parseInt(k)] || SPIKE_PCT));
+  const w1 = cur.wins && cur.wins['1h'], dy = cur.day || {};
+  const hit = w1 && Math.abs(w1.chg) >= SPIKE_PCT ? '1h' : dy.from_hi != null && dy.from_hi <= -SPIKE_DAY ? 'day_high' : dy.from_lo != null && dy.from_lo >= SPIKE_DAY ? 'day_low' : null;
   let disp = null; try { disp = env.CAL ? await env.CAL.get('x:disp:last', { type: 'json' }) : null; } catch (_) {}
-  return json({ now: new Date(now).toISOString(), threshold_pct: SPIKE_TH, last_dispatch: disp ? { at: new Date(disp.at).toISOString(), status: disp.status, ok: disp.status === 204, body: disp.body || undefined, why: disp.why } : null, gh_repo: env.GH_REPO || null, gh_token_set: !!env.GH_DISPATCH_TOKEN, ...cur, would_trigger: hit ? hit[0] : null,
-    last_spike: last ? { at: new Date(last.t).toISOString(), win: last.win || 1, chg: last.hit && last.hit[SPIKE_COIN] } : null,
+  return json({ now: new Date(now).toISOString(), rules: { '1h_pct': SPIKE_PCT, 'day_pct': SPIKE_DAY }, last_dispatch: disp ? { at: new Date(disp.at).toISOString(), status: disp.status, ok: disp.status === 204, body: disp.body || undefined, why: disp.why } : null, gh_repo: env.GH_REPO || null, gh_token_set: !!env.GH_DISPATCH_TOKEN, ...cur, would_trigger: hit,
+    last_spike: last ? { at: new Date(last.t).toISOString(), win: last.win || 1, kind: last.kind || '1h', chg: last.hit && last.hit[SPIKE_COIN] } : null,
     cooling_until: last && now - last.t < SPIKE_COOL ? new Date(last.t + SPIKE_COOL).toISOString() : null });
 }
 async function spikeCheck(env) {
@@ -1459,24 +1471,23 @@ async function spikeCheck(env) {
   const e = store && store.tfs && store.tfs[SPIKE_COIN] && store.tfs[SPIKE_COIN]['5m'];
   if (!e || !e.bars || e.bars.length < 13 || now - e.at > 10 * 60e3) return null;
   const last = e.bars[e.bars.length - 1];
-  let chg = null, win = 0;
-  for (const w of SPIKE_WINS) {
-    // 60分・6時間は5分足(8時間分ある)。24時間は1時間足の始値(24時間前の時刻を含む足)
-    let base = e.bars.find((b) => b[0] === last[0] - w * 3600);
-    if (w > 6) { const h = store.tfs[SPIKE_COIN]['1h']; const t = Math.floor((last[0] - w * 3600) / 3600) * 3600; base = h && h.bars && h.bars.find((b) => b[0] === t); }
-    if (!base || !(base[1] > 0) || !(last[4] > 0)) continue;
-    const c = Math.round((last[4] / base[1] - 1) * 1e4) / 100;
-    if (Math.abs(c) >= (SPIKE_TH[w] || SPIKE_PCT)) { chg = c; win = w; break; }
-  }
-  if (!win) return null;
+  let ev = null;
+  const b1 = e.bars.find((b) => b[0] === last[0] - 3600);
+  if (b1 && b1[1] > 0 && last[4] > 0) { const c = Math.round((last[4] / b1[1] - 1) * 1e4) / 100; if (Math.abs(c) >= SPIKE_PCT) ev = { kind: '1h', win: 1, chg: c }; }
+  const d = dayHiLo(store, last[0]);
+  if (!ev && d.hi && last[4] <= d.hi.p * (1 - SPIKE_DAY / 100)) ev = { kind: 'dayhi', from: d.hi.t * 1000, chg: Math.round((last[4] / d.hi.p - 1) * 1e4) / 100 };
+  if (!ev && d.lo && last[4] >= d.lo.p * (1 + SPIKE_DAY / 100)) ev = { kind: 'daylo', from: d.lo.t * 1000, chg: Math.round((last[4] / d.lo.p - 1) * 1e4) / 100 };
+  if (!ev) return null;
   const doc = (await env.CAL.get('x:spk', { type: 'json' })) || {};
-  const recent = (doc.ev || []).filter((x) => now - x.t < 24 * 36e5);
-  if (recent.some((x) => now - x.t < SPIKE_COOL)) return { cooling: chg };
-  const ev = { id: 'spike:' + now, t: now, win, hit: { [SPIKE_COIN]: chg } };
-  await env.CAL.put('x:spk', JSON.stringify({ ev: [...recent, ev].slice(-10) }));
-  if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO) return { ev, dispatched: 'GH の鍵が未設定' };
-  const r = await ghDispatch(env, { spike: ev.id });
-  return { ev, dispatched: r.status };
+  const recent = (doc.ev || []).filter((x) => now - x.t < 48 * 36e5);
+  if (recent.some((x) => now - x.t < SPIKE_COOL)) return { cooling: ev.chg };
+  if (ev.kind !== '1h' && recent.some((x) => x.kind === ev.kind && x.day === d.day)) return { done_today: ev.kind };   // その日の高値・安値からは1日1回
+  if (ev.kind !== '1h') ev.win = Math.max(1, Math.ceil((now - ev.from) / 36e5));
+  const rec = { id: 'spike:' + now, t: now, win: ev.win, kind: ev.kind, ...(ev.from ? { from: ev.from } : {}), day: d.day, hit: { [SPIKE_COIN]: ev.chg } };
+  await env.CAL.put('x:spk', JSON.stringify({ ev: [...recent, rec].slice(-10) }));
+  if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO) return { ev: rec, dispatched: 'GH の鍵が未設定' };
+  const r = await ghDispatch(env, { spike: rec.id });
+  return { ev: rec, dispatched: r.status };
 }
 
 async function xDispatch(env) {

@@ -254,7 +254,7 @@ try {
       try { const s0 = ev.t - W * H; B[c] = [...await pac(c, '5m', s0 - 40 * 60000, s0 + 20 * 60000), ...await pac(c, '5m', ev.t - 40 * 60000, end)]; }
       catch (e) { console.log('[x] 急変動:', e.message, `(${c} なしで続けます)`); B[c] = []; }
     }
-    const mv = L.spikeMoves(B, ev.t, NOW, ev.win || 1);
+    const mv = L.spikeMoves(B, ev.t, NOW, ev.win || 1, ev.from ? { from: ev.from, th: L.SPIKE_DAY } : {});   // v199: その日の高値・安値からの判定は、その時刻から
     if (!mv) { console.log('[x] 急変動: Pacifica の5分足では BTC が ±3% に届かないので出しません', ev.id, JSON.stringify(ev.hit)); continue; }
     // v98: URL を付けるのは直近30日で SPIKE_LINK_MAX 回まで(URL付きは1本 $0.20)
     const linked = [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.img && p.img.link && NOW - (p.due || 0) < 30 * DAY).length;
@@ -274,10 +274,10 @@ try {
     put(L.spikePost({ ...mv, id: ev.id, due: ev.t }, corr && corr.w ? corr : null, link, liq));
     if (liq) put(L.spikeLiqPost({ ...mv, id: ev.id, due: ev.t }, liq));
     // v196: 似ている過去の値動き(2017年以降の5分足・DTW)。親への返信 + サイトのカード(pat:v1)。6時間までの急変動だけ
-    if ((ev.win || 1) <= 6 && !byId.has(ev.id + ':pat')) {
+    if (mv.t1 - mv.t0 <= 12 * H && !byId.has(ev.id + ':pat')) {
       try {
         if (!PAT_S) { console.log('[x] 似ている過去: 5分足を読み込みます'); PAT_S = await loadBtc5m(NOW); }
-        const res = findSimilar(PAT_S, mv.t1, ev.win || 1);
+        const res = findSimilar(PAT_S, mv.t1, mv.win, { n: Math.round((mv.t1 - mv.t0) / 300000) });
         if (res && res.top.length) {
           addContext(res, await recsFrom(site), await liqFrom(SITE));
           await site('/api/admin/rx-put?name=pt', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(res) });

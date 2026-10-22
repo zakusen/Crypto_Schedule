@@ -156,7 +156,7 @@ export function weekPost(wk, site) {
 // 急変動(v98) = BTC が直近60分で ±3% 以上(5分足の終値どうし。時計の区切りには合わせない)。投稿には同じ1時間の ETH・SOL・BNB・S&P500 も載せる。
 // v98: 急変動の投稿だけサイトの URL を付ける(X API は URL付き 1本 $0.20)。直近30日で SPIKE_LINK_MAX 回まで、超えたら URL なし。
 export const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_LINK_MAX = 10;
-export const SPIKE_TH = { 1: 3, 2: 2, 6: 3, 24: 3 };   // v196: 2時間は ±2%(Worker と同じ)
+export const SPIKE_TH = { 1: 3 }, SPIKE_DAY = 2.3;   // v199: ① 60分で ±3% ② 日本時間のその日の高値から −2.3% / 安値から +2.3%(Worker と同じ)
 export const CORR_DAYS = [30, 7];
 export function pearson(x, y) {
   const n = x.length; if (n < 3) return null;
@@ -204,19 +204,20 @@ export function usOpen(t) {
 }
 // 急変動の1時間の値動き。B = 5分足(Pacifica)。T = Worker が見つけた時刻。
 // T の前後(T−10分〜T+5分)に閉じた5分足のうち、きっかけの銘柄の1時間の変動が一番大きい足を終わりにする。±3% に届かなければ null
-export function spikeMoves(B, T, now, win = 1) {   // v121: win = 1 / 6(時間)
-  const hit = [SPIKE_COIN], K = 12 * win;
+export function spikeMoves(B, T, now, win = 1, opt = {}) {   // v121: win = 1 / 6(時間)。v199: opt = {from(その日の高値・安値の時刻), th}
+  const hit = [SPIKE_COIN], F = opt.from ? Math.floor(opt.from / M5) * M5 : null; let K = 12 * win;
   const map = {}; for (const k of Object.keys(B)) map[k] = new Map((B[k] || []).map((b) => [b[0], b[4]]));
-  const ch = (k, e) => { const a = map[k] && map[k].get(e - K * M5), b = map[k] && map[k].get(e); return a > 0 && b > 0 ? pct(a, b) : null; };
+  const ch = (k, e) => { const a = map[k] && map[k].get(F != null ? F : e - K * M5), b = map[k] && map[k].get(e); return a > 0 && b > 0 ? pct(a, b) : null; };
   let best = null;
   for (let e = Math.floor((T - 10 * 60000) / M5) * M5 - M5; e <= T + 5 * 60000; e += M5) {
     if (e + M5 > now || e + M5 < T - 10 * 60000) continue;
     const v = Math.max(...hit.map((c) => Math.abs(ch(c, e) ?? 0)));
     if (!best || v > best.v) best = { e, v };
   }
-  if (!best || best.v < (SPIKE_TH[win] || SPIKE_PCT)) return null;
+  if (!best || best.v < (opt.th || SPIKE_TH[win] || SPIKE_PCT)) return null;
+  if (F != null) { K = Math.round((best.e - F) / M5); win = Math.max(1, Math.round(K / 12)); }   // その日の高値・安値から今まで
   const coins = {}; for (const [c] of COINS) { const v = ch(c, best.e); if (v != null) coins[c] = v; }
-  const t1 = best.e + M5, t0 = t1 - win * H, span = win > 6 ? 576 : win > 1 ? 144 : 72, step = win > 6 ? 6 : 1;   // 画像: 1時間 = 直近6時間 / 6時間 = 直近12時間 / 24時間 = 直近48時間(30分おき)
+  const t1 = best.e + M5, t0 = F != null ? F : t1 - win * H, span = win > 6 ? 576 : win > 1 ? 144 : 72, step = win > 6 ? 6 : 1;   // 画像: 1時間 = 直近6時間 / 6時間 = 直近12時間 / 24時間 = 直近48時間(30分おき)
   const ser = (k) => { const a = []; for (let e = best.e - span * M5; e <= best.e; e += step * M5) { const v = map[k] && map[k].get(e); a.push(v > 0 ? v : null); } return a; };   // v109: 直近6時間の5分足の終値(画像用)
   return { win, t0, t1, coins, ser: { btc: ser('BTC'), spx: ser('SP500'), step }, spx: ch('SP500', best.e), open: usOpen(t0) || usOpen(t1) || usOpen((t0 + t1) / 2), hit };
 }
