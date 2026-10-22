@@ -140,6 +140,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   console.log('[pat] 今:', JSON.stringify(res.q.chg), '似た過去:', res.top.map((m) => new Date(m.t0).toISOString() + ' ' + m.d).join(' / '));
   if (KEY) {
     await site('/api/admin/rx-put?name=pt', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(res) });
+    const { appendLog } = await import('./pattern-ctx.mjs'); await appendLog(site, res);   // v201: 記録に残す
     if (process.argv.includes('--post')) { const p = { at: now, ...L.patPost(res, null) }; await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ add: [p] }) }); console.log('[pat] 下書きを作りました', p.id); }
   }
 }

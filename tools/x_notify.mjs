@@ -15,7 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { estimateGarch } from '../public/garch-model.mjs';   // v192
 import { loadBtc5m, findSimilar, addContext } from './pattern.mjs';   // v196
-import { recsFrom, liqFrom } from './pattern-ctx.mjs';
+import { recsFrom, liqFrom, appendLog, fillLog } from './pattern-ctx.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
@@ -281,6 +281,7 @@ try {
         if (res && res.top.length) {
           addContext(res, await recsFrom(site), await liqFrom(SITE));
           await site('/api/admin/rx-put?name=pt', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(res) });
+          await appendLog(site, res);   // v201
           const pp = L.patPost(res, ev.id); pp.due = ev.t; put(pp);
           console.log('[x] 似ている過去:', res.top.map((m) => new Date(m.t0).toISOString()).join(' / '));
         }
@@ -295,6 +296,7 @@ try {
   let vol = {}; try { vol = (await (await site('/api/admin/rx-one?name=vl')).json()) || {}; } catch (_) {}
   if (!vol.at || NOW - vol.at > 50 * 60000) {
     const B = await pac('BTC', '1h', NOW - (L.VOL_DAYS + 3) * DAY, NOW), v = L.volStats(B, NOW);
+    try { const k = await fillLog(site, B, NOW); if (k) console.log('[x] 似ている過去の記録: 答え合わせ', k, '件'); } catch (_) {}   // v201
     if (v) {
       const closed = B.filter((b) => b[0] + H <= NOW).slice(-24 * L.VOL_DAYS).map((b) => [b[0] / 1000, b[1], b[2], b[3], b[4]]);
       const g = estimateGarch(closed, NOW, { step: 3600, stale: 2 * 3600, h: { 1: '1h', 6: '6h', 24: '24h' } });

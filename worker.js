@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-22-v200';
+const VERSION = '2026-10-22-v201';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1371,9 +1371,9 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl|pt)$/;   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
+const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl|pt|pl)$/;   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
 //   v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : n === 'pt' ? 'pat:v1' : 'rx:s:' + n.slice(1);
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : n === 'pt' ? 'pat:v1' : n === 'pl' ? 'pat:log' : 'rx:s:' + n.slice(1);
 
 // === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
 //   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
@@ -2007,6 +2007,17 @@ async function volApi(env) {
   return json({ available: true, ...out });
 }
 
+// ---- v201: 似ている過去の値動きの記録(pat:log)。無料 = 件数と最新1件 / 有料(rxAccess が ok)= 全件 ----
+async function patLogApi(env, request) {
+  let d = null; try { d = env.CAL ? await env.CAL.get('pat:log', 'json') : null; } catch (_) {}
+  const ev = ((d && d.ev) || []).slice().sort((a, b) => b.q.t1 - a.q.t1), acc = await rxAccess(env, request);
+  if (acc === 'err') return json({ error: 'アクセス確認に失敗しました' }, 503);
+  const done = ev.filter((x) => x.a24 != null && x.after), inR = done.filter((x) => x.a24 >= x.after.min && x.a24 <= x.after.max).length;
+  const stat = { total: ev.length, checked: done.length, inRange: inR };
+  if (acc !== 'ok') return json({ access: acc, locked: true, ...stat, rows: ev.slice(0, 1), hidden: ev.slice(1).map((x) => ({ t1: x.q.t1, chg: x.q.chg })) });
+  return json({ access: 'ok', locked: false, ...stat, rows: ev });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -2015,6 +2026,7 @@ export default {
       const entry = store?.tfs?.BTC?.['5m'];
       return json({ sym: 'BTC', source: entry?.src || null, ...estimateGarch(entry?.bars) });
     }
+    if (url.pathname === '/api/patlog') { const r = await patLogApi(env, request); r.headers.set('cache-control', 'private, no-store'); return r; }   // v201: 似ている過去の記録(全件は有料)
     if (url.pathname === '/api/pat') { let t = null; try { t = env.CAL ? await env.CAL.get('pat:v1') : null; } catch (_) {} const r = new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=120' } }); return r; }   // v196: 似ている過去の値動き
     if (url.pathname === '/api/vol') { const r = await volApi(env); r.headers.set('cache-control', 'public, max-age=120'); return r; }   // v192
     if (url.pathname === '/api/candles') {
