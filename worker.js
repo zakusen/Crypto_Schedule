@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-22-v191';
+const VERSION = '2026-10-22-v192';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1371,9 +1371,9 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr)$/;   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
+const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl)$/;   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
 //   v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : 'rx:s:' + n.slice(1);
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : 'rx:s:' + n.slice(1);
 
 // === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
 //   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
@@ -1969,6 +1969,27 @@ async function liqPing(env) {   // 定時実行から呼び、DOが眠ってい�
   try { const r = await env.LIQ.get(env.LIQ.idFromName('hub')).fetch('https://liq/data?sym=BTC&step=86400'); const j = await r.json(); return j.sources || j; } catch (e) { return { error: String((e && e.message) || e) }; }
 }
 
+// ---- v192: BTC ボラティリティ・モニター。30日の「普段の幅」とGARCHは x_notify が1時間ごとに保存(vol:v1)。
+//   「今の倍率」と直近の価格は、保存済みの1時間足(5分ごとに更新)で計算し直して新しくする。
+async function volApi(env) {
+  let v = null; try { v = env.CAL ? await env.CAL.get('vol:v1', 'json') : null; } catch (_) {}
+  if (!v || !v.typ) return json({ available: false });
+  try {
+    const store = await readPx(env), bars = store && store.tfs && store.tfs.BTC && store.tfs.BTC['1h'] && store.tfs.BTC['1h'].bars, now = Date.now();
+    if (Array.isArray(bars) && bars.length > 30) {
+      const b = bars.map((x) => [x[0] * 1000, +x[1], +x[2], +x[3], +x[4]]).filter((x) => x[0] + 36e5 <= now && x[4] > 0), end = b[b.length - 1][0] + 36e5;
+      if (end > v.end) {
+        const m = new Map(b.map((x) => [x[0], x[4]])), r = [];
+        for (const x of b) if (x[0] >= end - 864e5) { const s0 = m.get(x[0] - 36e5); if (s0) r.push(100 * Math.log(x[4] / s0)); }
+        if (r.length >= 20) { const now1 = Math.sqrt(r.reduce((s, x) => s + x * x, 0) / r.length), last = b.filter((x) => x[0] >= end - 864e5), hi = Math.max(...last.map((x) => x[2])), lo = Math.min(...last.map((x) => x[3]));
+          v = { ...v, end, now1, ratio: Math.round(now1 / v.typ[1] * 10) / 10, range24: { hi, lo, pct: Math.round((hi / lo - 1) * 1e4) / 100 }, px: [...(v.px || []).filter((p) => p[0] < b[0][0]), ...b.map((x) => [x[0], x[4]])].filter((p) => p[0] >= end - 2 * 864e5), live: 1 }; }
+      }
+    }
+  } catch (_) {}
+  const { hist, ...out } = v;
+  return json({ available: true, ...out });
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -1977,6 +1998,7 @@ export default {
       const entry = store?.tfs?.BTC?.['5m'];
       return json({ sym: 'BTC', source: entry?.src || null, ...estimateGarch(entry?.bars) });
     }
+    if (url.pathname === '/api/vol') { const r = await volApi(env); r.headers.set('cache-control', 'public, max-age=120'); return r; }   // v192
     if (url.pathname === '/api/candles') {
       return cached(ctx, request, 60, () => candles(url, env, ctx));
     }

@@ -229,7 +229,10 @@ export function corrLabel(v, lang) {
   return en ? ['strong', 'moderate', 'weak'][k] + (inv ? ' inverse' : '') : ['強い', '中程度の', '弱い'][k] + (inv ? '逆連動' : '連動');
 }
 // sp = spikeMoves の結果 + id + corr(corrCalc の結果)
-export function spikePost(sp, corr, link) {   // link = サイトの URL(付けない時は null)
+// v187: 清算の金額(日本語)
+export const jaUsd = (v) => { v = Math.abs(+v || 0); return v >= 1e8 ? (v / 1e8).toFixed(2).replace(/\.?0+$/, '') + '億ドル' : v >= 1e4 ? Math.round(v / 1e4).toLocaleString('en-US') + '万ドル' : Math.round(v) + 'ドル'; };
+// liq = {l, s, mult} | null(v187: 返信で内訳を出す時、親の最後に1行)
+export function spikePost(sp, corr, link, liq) {   // link = サイトの URL(付けない時は null)
   const W = sp.win || 1, d = J(sp.t0), md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, btc = sp.coins[SPIKE_COIN];
   const rv = (d0, c) => corr && corr.w && corr.w[d0] && corr.w[d0][c] ? corr.w[d0][c].r : null;
   const cr = (c, lang, lab) => { const v = rv(30, c); return v == null ? '—' : rTxt(v) + (lab ? ' ' + corrLabel(v, lang) : ''); };
@@ -242,9 +245,10 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
     const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
     return [...(o.brand ? [BRAND[lang], ''] : []),
       en ? `⚡ BTC ${sg(btc)} IN ${W}H` : `⚡ BTC ${W}時間で ${sg(btc)}`, ...(o.nodate ? [] : [en ? (dEnU(sp.t0) === dEnU(sp.t1) ? `${dEnU(sp.t0)} · ${uhm(sp.t0)}→${uhm(sp.t1)} UTC` : `${dEnU(sp.t0, false)} ${uhm(sp.t0)} → ${dEnU(sp.t1, false)} ${uhm(sp.t1)} UTC`) : (dJaL(sp.t0) === dJaL(sp.t1) ? `${dJaL(sp.t0)} · ${hm(sp.t0)}→${hm(sp.t1)} · 日本時間` : `${md} ${hm(sp.t0)} → ${J(sp.t1).getUTCMonth() + 1}/${J(sp.t1).getUTCDate()} ${hm(sp.t1)} · 日本時間`)]), rule,
-      en ? `🟡 ${W}H CHANGE | CORR W/ S&P500 (30D)` : `🟡 ${W}時間の変化 | S&P500との相関(30日)`,
-      ...COINS.filter(([c]) => sp.coins[c] != null).map(([c, , s]) => `${s} ${c} ${mv(sp.coins[c], o.dot)} | ${cr(c, lang, !o.nolab)}`),
-      `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open || o.noclosed ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`, rule,
+      ...COINS.filter(([c]) => sp.coins[c] != null).map(([c, , s]) => `${s} ${c} ${mv(sp.coins[c], o.dot)}`),
+      `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open || o.noclosed ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`,
+      ...(rv(30, 'BTC') != null ? [en ? `BTC–S&P500 corr (30D): ${cr('BTC', lang, !o.nolab)}` : `BTCとS&P500の相関(30日): ${cr('BTC', lang, !o.nolab)}`] : []), rule,
+      ...(liq ? [en ? `${usdS(liq.l + liq.s)} liquidated${liq.mult != null ? ` — ${fxs(liq.mult)}x a normal ${W === 1 ? 'hour' : W + 'h'}` : ''} ↓` : `清算${jaUsd(liq.l + liq.s)}${liq.mult != null ? `、普段の${fxs(liq.mult)}倍` : ''} ↓`] : []),
       ...(link ? ['🔗 ' + link] : []),
       ...(o.tag ? [en ? '#Bitcoin #SP500' : '#ビットコイン #SP500'] : [])].join('\n');
   };
@@ -252,6 +256,13 @@ export function spikePost(sp, corr, link) {   // link = サイトの URL(付け�
   const fitS = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitS('en'), ja = fitS('ja');
   return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, win: W, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
+}
+// v187: 急変動の返信(清算の内訳)。親(spike)を出した直後に、その返信として出す
+export function spikeLiqPost(sp, liq) {
+  const W = sp.win || 1, tot = liq.l + liq.s, sh = tot > 0 ? Math.round(Math.max(liq.l, liq.s) / tot * 100) : null, big = liq.l >= liq.s;
+  const en = [`Liquidations in that ${W === 1 ? 'hour' : W + 'h'} (BTC/ETH/SOL/BNB):`, '', `🔴 Longs  ${usdS(liq.l)}`, `🟢 Shorts ${usdS(liq.s)}`, ...(sh != null ? ['', `${sh}% were ${big ? 'longs' : 'shorts'}.`] : [])].join('\n');
+  const ja = [`その${W}時間の清算（BTC・ETH・SOL・BNB）`, '', `🔴 ロング  ${jaUsd(liq.l)}`, `🟢 ショート ${jaUsd(liq.s)}`, ...(sh != null ? ['', `清算の${sh}%が${big ? 'ロング' : 'ショート'}でした。`] : [])].join('\n');
+  return { id: sp.id + ':liq', sr: 'spikeliq', parent: sp.id, due: sp.due, en, ja, h: hashStr(en + ja) };
 }
 
 
@@ -393,7 +404,7 @@ export const PRE_AHEAD = 15 * 60000, PRE_WINDOW = 14 * 60000;   // v183: 発表�
 export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -465,4 +476,28 @@ export function prePost(g, prev, corr, prevImg, now = g[0].ts - PRE_AHEAD) {
     '今回はどうなるか。1時間後に記録を出します。⏳'].join('\n');
   const img = prevImg ? { ...prevImg, pre: { t: ts, fx: fx.map((e) => ({ en: e.se || enName(e), ja: e.t || jaName(e), fc: e.fc || null, pv: e.pv || null })), corr: rb } } : null;   // 市場予想・相関は画像用に添える
   return { id: preId(g), sr: 'pre', due: ts - PRE_AHEAD, en, ja, h: hashStr(en + ja + (prevImg ? prevImg.t : '')), img };
+}
+
+// ---- v192: BTC ボラティリティ・モニター(トップページのカードと X 投稿で共通) ----
+// B = BTC 1時間足 [[開始ms, 始, 高, 安, 終], …](閉じた足だけ使う)。typ = 過去30日の k時間の対数リターンの二乗平均平方根(%)= 「普段の幅」(事実)。
+// ratio = 直近24時間の1時間リターンの二乗平均平方根 ÷ 過去30日の同じ値。
+export const VOL_DAYS = 30, VOL_HZ = [1, 6, 24], VOL_ALERT = 2;
+const rms = (a) => a.length ? Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length) : null;
+export function volStats(B, now) {
+  const b = (B || []).filter((x) => x[0] + H <= now && x[4] > 0).sort((x, y) => x[0] - y[0]);
+  if (b.length < 24 * 7) return null;
+  const end = b[b.length - 1][0] + H, from = end - VOL_DAYS * DAY, m = new Map(b.map((x) => [x[0], x[4]]));
+  const typ = {};
+  for (const k of VOL_HZ) { const r = []; for (const x of b) if (x[0] >= from) { const s0 = m.get(x[0] - k * H); if (s0) r.push(100 * Math.log(x[4] / s0)); } typ[k] = rms(r); }
+  const r1 = []; for (const x of b) if (x[0] >= end - DAY) { const s0 = m.get(x[0] - H); if (s0) r1.push(100 * Math.log(x[4] / s0)); }
+  const now1 = rms(r1), last = b.filter((x) => x[0] >= end - DAY);
+  const hi = Math.max(...last.map((x) => x[2])), lo = Math.min(...last.map((x) => x[3]));
+  return { at: now, end, typ, now1, ratio: typ[1] > 0 && now1 != null ? Math.round(now1 / typ[1] * 10) / 10 : null,
+    range24: { hi, lo, pct: lo > 0 ? Math.round((hi / lo - 1) * 1e4) / 100 : null }, px: b.filter((x) => x[0] >= end - 2 * DAY).map((x) => [x[0], x[4]]) };
+}
+export function volPost(v, link) {
+  const r = v.ratio, f = (x) => '±' + x.toFixed(2) + '%', id = 'vol:' + new Date(v.end).toISOString().slice(0, 13);
+  const en = [`📊 BTC volatility is ${r}x normal right now.`, '', `Last 24h, avg 1h move: ${f(v.now1)}`, `30-day normal: ${f(v.typ[1])}`, '', `24h range: ${v.range24.pct}% (${usd(v.range24.lo)}–${usd(v.range24.hi)})`].join('\n');
+  const ja = [`📊 BTCの値動きが普段の${r}倍に`, '', `直近24時間の1時間ごとの変動: ${f(v.now1)}`, `過去30日の平均: ${f(v.typ[1])}`, '', `24時間の値幅: ${v.range24.pct}%（${usd(v.range24.lo)}〜${usd(v.range24.hi)}）`].join('\n');
+  return { id, sr: 'vol', due: v.at, en, ja, h: hashStr(en + ja), img: { v: 1, ratio: r, now1: v.now1, typ: v.typ, px: v.px, end: v.end, range24: v.range24 } };
 }

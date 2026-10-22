@@ -661,6 +661,8 @@ body{
   <div class="right" id="cdRight" style="display:none"><div class="big" id="cdHms">--:--:--</div><div class="small">残り時間</div></div>
 </div>
 
+<div class="u-card" id="volCard"></div>
+
 <div class="u-card">
   <div class="u-head"><div><b>現在の価格チャート</b><div class="sub" id="priceSub">読み込み中…</div></div><div style="font-size:8px;color:var(--muted);text-align:right">24時間<br><b id="chg24" style="color:var(--muted)">—</b></div></div>
   <div class="chips"><div id="symChips"></div><div id="tfChips" style="margin-left:auto"></div><button id="rf" class="rfbtn" type="button" title="更新">↻</button></div>
@@ -1537,4 +1539,4 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 upd();setInterval(upd,3000)})();
 </script>
 <a href="/garch.html" style="display:block;text-align:center;padding:16px;color:#b9d9ef">BTC · GARCH / 予測変動幅</a>
-</body></html>
+<script src="/vol-card.js" defer></script></body></html>

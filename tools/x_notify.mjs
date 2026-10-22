@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { estimateGarch } from '../public/garch-model.mjs';   // v192
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
@@ -233,6 +234,7 @@ try {
     const c = await corrNow();
     if (c) { corr = c; await site('/api/admin/rx-put?name=cr', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(c) }); console.log('[x] S&P500 相関を更新:', JSON.stringify(c.w)); }
   }
+  let liqH = null;   // v187
   for (const ev of pend) {
     // v148: 線を描く BTC と S&P500 だけ長く取る。ETH・SOL・BNB は始まりと終わりの前後だけ(取得の回数を減らす)。BTC 以外は取れなくても続ける
     const W = ev.win || 1, end = Math.min(NOW, ev.t + 15 * 60000), from = ev.t - (W > 6 ? 49 : W > 1 ? 13 : 7) * H, B = {};
@@ -248,10 +250,47 @@ try {
     const linked = [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.img && p.img.link && NOW - (p.due || 0) < 30 * DAY).length;
     const link = linked < L.SPIKE_LINK_MAX ? SITE : null;
     if (!link) console.log(`[x] 急変動: 直近30日の URL付きが ${linked} 回に達したので URL なしで出します`);
-    put(L.spikePost({ ...mv, id: ev.id, due: ev.t }, corr && corr.w ? corr : null, link));
+    // v187: その時間の清算(4銘柄・1時間足の合計)と、直前14日の1時間あたり中央値との倍率。取れなければ返信なし
+    let liq = null;
+    try {
+      if (!liqH) { liqH = {}; for (const [c] of COINS) { const r = await fetch(SITE + '/api/liq?sym=' + c + '&step=3600', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(30000) }); if (!r.ok) throw new Error('/api/liq ' + c + ' HTTP ' + r.status); liqH[c] = liqHourMap((await r.json()).buckets); } }
+      const h0 = Math.floor(mv.t0 / H) * H, hs = []; for (let t = h0; t < mv.t1; t += H) hs.push(t);
+      let l = 0, s = 0, got = 0; for (const t of hs) for (const [c] of COINS) { const b = liqH[c].get(t); if (b) { l += b[1]; s += b[2]; got++; } }
+      if (got && l + s > 0) {
+        const tot = []; for (let i = 1; i <= 14 * 24; i++) { let x = 0; for (const [c] of COINS) { const b = liqH[c].get(h0 - i * H); if (b) x += b[1] + b[2]; } tot.push(x); }
+        const md = medOf(tot); liq = { l, s, mult: md > 0 ? Math.round((l + s) / (md * hs.length) * 10) / 10 : null };
+      }
+    } catch (e) { console.log('[x] 急変動: 清算が取れないので返信なし', e.message); }
+    put(L.spikePost({ ...mv, id: ev.id, due: ev.t }, corr && corr.w ? corr : null, link, liq));
+    if (liq) put(L.spikeLiqPost({ ...mv, id: ev.id, due: ev.t }, liq));
   }
 } catch (e) { console.log('[x] S&P500 相関・急変動でエラー(ほかの下書きは続けます):', e.message); }
 
+
+// ---- 4b) v192: BTC ボラティリティ・モニター(トップのカード用に保存 vol:v1 + 普段の2倍以上で X に1本/24時間) ----
+try {
+  let vol = {}; try { vol = (await (await site('/api/admin/rx-one?name=vl')).json()) || {}; } catch (_) {}
+  if (!vol.at || NOW - vol.at > 50 * 60000) {
+    const B = await pac('BTC', '1h', NOW - (L.VOL_DAYS + 3) * DAY, NOW), v = L.volStats(B, NOW);
+    if (v) {
+      const closed = B.filter((b) => b[0] + H <= NOW).slice(-24 * L.VOL_DAYS).map((b) => [b[0] / 1000, b[1], b[2], b[3], b[4]]);
+      const g = estimateGarch(closed, NOW, { step: 3600, stale: 2 * 3600, h: { 1: '1h', 6: '6h', 24: '24h' } });
+      // 答え合わせ: 1日1回、その時点の「24時間先の見積もり(±1σ)」を控え、24時間後に実際の変化と比べる
+      const cm = new Map(B.map((b) => [b[0], b[4]])), hist = (vol.hist || []).slice(-60);
+      if (g.available && !hist.some((x) => x.t > v.end - 20 * H)) hist.push({ t: v.end, p0: cm.get(v.end - H), f: Math.round(g.sigma_pct['24h'] * 100) / 100 });
+      for (const x of hist) if (x.r == null && x.p0) { const p1 = cm.get(x.t + 23 * H); if (p1) x.r = Math.round(Math.abs(Math.log(p1 / x.p0)) * 1e4) / 100; }
+      const done = hist.filter((x) => x.r != null);
+      // 次の主要指標と、その指標の過去の「発表から1時間のBTC」の平均(絶対値)
+      const ng = groups(events.filter((e) => MAJOR(e) && e.ts > NOW && e.ts - NOW < 7 * DAY))[0];
+      let next = null;
+      if (ng) { const a = []; for (const e of ng) for (const r of recs.get((e.s || e.t) + '|' + e.c) || []) a.push(Math.abs(r.chg)); next = { ts: ng[0].ts, c: ng[0].c, en: L.headName(ng, 'en'), ja: L.headName(ng, 'ja'), avg: a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length * 100) / 100 : null, n: a.length }; }
+      vol = { ...v, garch: g.available ? g.sigma_pct : null, garchWhy: g.available ? null : g.reason, hist, acc: { n: done.length, hit: done.filter((x) => x.r <= x.f).length }, next };
+      await site('/api/admin/rx-put?name=vl', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(vol) });
+      console.log('[x] ボラティリティ: 普段の', v.ratio, '倍 / GARCH', g.available ? JSON.stringify(g.sigma_pct) : g.reason);
+      if (v.ratio != null && v.ratio >= L.VOL_ALERT && ![...byId.values(), ...out].some((p) => p.sr === 'vol' && NOW - (p.due || 0) < DAY)) { put(L.volPost(v)); console.log('[x] ボラティリティの投稿を作りました'); }
+    }
+  }
+} catch (e) { console.log('[x] ボラティリティでエラー(ほかの下書きは続けます):', e.message); }
 
 // ---- 5) 清算(v152) ----
 //   巨額清算の総括: Worker(LiqHub)が収まった時に x:liq へ記録した事象ごとに1本。6時間以内で、まだ下書きが無いものだけ作る。
