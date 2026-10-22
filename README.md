@@ -650,3 +650,6 @@
 - ゼロ平均 GARCH(1,1)、標本二乗リターン平均による分散ターゲティング、固定グリッド上のGaussian QMLE。alpha+beta<1。無制約の最尤推定ではない。5分先分散から期待分散を再帰計算し、各期間の分散を合算する。
 - 現行キャッシュは最大96本（約8時間）と短く、推定は試験提供。方向予測・急変確率・保証された信頼区間ではない。時系列アウトオブサンプルでの精度改善は未検証。既存±3%検知と投稿条件は変更なし。
 - テスト: `node --test tools/test_garch.mjs`（5件）、`python3 -m unittest discover -s tools -p 'test_*.py'`（8件）。Worker dry-run build 検証済み。実市場データによる精度評価・本番公開は未実施。
+
+## v191 (2026-10-22)
+- v188 の PWA が一部しか入っていなかったので入れ直し: manifest.webmanifest / favicon-32.png / icons(4種)を追加し、index・classic・next・garch の head に読み込みを追加。sw.js は v189 のまま。

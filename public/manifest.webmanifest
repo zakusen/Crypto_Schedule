@@ -1,0 +1,17 @@
+{
+  "name": "CRYPTO SIGNAL ARCHIVE",
+  "short_name": "CSA",
+  "description": "経済指標の予定と、発表時の暗号資産の値動きの記録。事実のみ。",
+  "id": "/",
+  "start_url": "/?src=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#020a1a",
+  "theme_color": "#020a1a",
+  "lang": "ja",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
