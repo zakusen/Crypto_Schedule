@@ -663,3 +663,6 @@
   - 計算・保存は `tools/x_notify.mjs`(1時間に1回まで、`vol:v1`)。`garch-model.mjs` は足の長さと期間を指定できるようにした(既定は今までどおり)。
 - X: 今の倍率が普段の2倍以上になったら1本(24時間に1本まで、画像つき。sr: vol)。
 - v187 の急変動スレッド(清算の返信)が `xpost-lib.js`・`x_notify.mjs`・`posts.html` から消えていたので入れ直した(v189 の Worker・x_post 側の修正と合わせて動く)。
+
+## v193 (2026-10-22)
+- RX runner が起動できなかったのを修正: `tools/rx_runner.mjs` が worker.js を一時フォルダにコピーして読む時、v190 で増えた `./public/garch-model.mjs` が無くて止まっていた。一緒にコピーするようにした。

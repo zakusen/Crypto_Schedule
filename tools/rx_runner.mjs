@@ -28,6 +28,9 @@ if (!KEY) { console.error('RX_ADMIN_KEY が未設定です(GitHub の Secrets �
 const here = path.dirname(fileURLToPath(import.meta.url));
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rx-')), 'worker.mjs');
 fs.writeFileSync(tmp, fs.readFileSync(path.join(here, '..', 'worker.js'), 'utf8') + '\nexport { jaLabel, rxCalc, rxBucket, RX_LEN };\n');
+// v193: worker.js が読み込む ./public/garch-model.mjs も同じ場所に置く(無いと起動できない)
+fs.mkdirSync(path.join(path.dirname(tmp), 'public'), { recursive: true });
+fs.copyFileSync(path.join(here, '..', 'public', 'garch-model.mjs'), path.join(path.dirname(tmp), 'public', 'garch-model.mjs'));
 const { jaLabel, rxCalc, rxBucket, RX_LEN } = await import(pathToFileURL(tmp).href);
 const RX_MIN = Number(process.env.RX_MIN || 20);                     // v69: 発表がこの回数未満の指標は一覧に出さない(少なすぎる平均は意味がない)
 
