@@ -42,7 +42,8 @@ export async function loadBtc5m(now = Date.now()) {
     for (const [t, c] of await zipRows(`${VISION}/daily/klines/BTCUSDT/5m/BTCUSDT-5m-${ds}.zip`)) rows.set(t, c);
   }
   // 足りない直近分は API(1回1000本)
-  let from = Math.max(...rows.keys(), Date.UTC(y1, m1, 1)) + M5;
+  let mxT = Date.UTC(y1, m1, 1); for (const k of rows.keys()) if (k > mxT) mxT = k;   // v197: 100万本あるので Math.max(...) は使わない(呼び出しの深さを超える)
+  let from = mxT + M5;
   while (from < now - M5) {
     let j = null; for (const b of API) { const r = await get(`${b}/api/v3/klines?symbol=BTCUSDT&interval=5m&startTime=${from}&limit=1000`, 20000); if (r) { j = await r.json(); break; } }
     if (!Array.isArray(j) || !j.length) break;
