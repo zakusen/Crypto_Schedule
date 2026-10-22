@@ -455,30 +455,35 @@ function loadFonts(sample) {
 // 投稿1つの画像を描いて canvas を返す(描けない種類は null)
 
 // v192: ボラティリティ(普段の何倍か)。48時間の終値 + 24時間前からの「普段の幅」(±1σ√時間)の帯
-function drawVol(g, im, lg) {
+function drawVol(g, im, lg, marks = null) {   // v195: marks = 今日の指標 [{t, en, ja}](毎朝の予定の画像)
   const en = lg === 'en';
-  frame(g, en ? 'BTC VOLATILITY' : 'BTC 値動きの大きさ', en ? 'Pacifica perps · 1h closes · normal = RMS of 1h log returns, past 30 days' : 'Pacifica 先物 · 1時間足 · 普段 = 過去30日の1時間変化の二乗平均平方根');
+  frame(g, marks ? (en ? 'TODAY · BTC VOLATILITY' : '本日 · BTC 値動きの大きさ') : (en ? 'BTC VOLATILITY' : 'BTC 値動きの大きさ'), en ? 'Pacifica perps · 1h closes · normal = RMS of 1h log returns, past 30 days' : 'Pacifica 先物 · 1時間足 · 普段 = 過去30日の1時間変化の二乗平均平方根');
   txt(g, im.ratio.toFixed(1) + '×', 56, 210, { size: 96, w: 700, fam: MONO, col: C.gold });
   txt(g, en ? 'vs the 30-day normal' : '過去30日の普段と比べて', 56, 252, { size: 22, col: C.mut });
   const pc = (v) => '±' + v.toFixed(2) + '%';
   txt(g, (en ? 'Last 24h avg 1h move  ' : '直近24時間の1時間の変動  ') + pc(im.now1), 56, 312, { size: 22, col: C.tx });
   txt(g, (en ? '30-day normal  ' : '過去30日の普段  ') + pc(im.typ[1]), 56, 350, { size: 22, col: C.mut });
   if (im.range24) txt(g, (en ? '24h range  ' : '24時間の値幅  ') + im.range24.pct + '%', 56, 388, { size: 22, col: C.mut });
+  if (im.g24 != null) txt(g, (en ? 'Model (ref.) 24h  ±' : 'モデル(参考) 24時間  ±') + im.g24.toFixed(2) + '%', 56, 440, { size: 17, col: C.cyan });
   const px = im.px || []; if (px.length < 5) return;
-  const x0 = 560, x1 = W - 56, y0 = 120, y1 = Hh - 100, t0 = px[0][0], t1 = im.end, s1 = im.typ[1] / 100;
-  const i0 = px.findIndex((p) => p[0] >= t1 - 864e5), base = px[Math.max(0, i0 - 1)], env = [];
+  const mk = (marks || []).filter((m) => m.t > im.end - 2 * 864e5 && m.t < im.end + 864e5);
+  const x0 = 560, x1 = W - 56, y0 = 120, y1 = Hh - 100, t0 = px[0][0], t1 = Math.max(im.end, ...mk.map((m) => m.t + 2 * 36e5)), s1 = im.typ[1] / 100;
+  const i0 = px.findIndex((p) => p[0] >= im.end - 864e5), base = px[Math.max(0, i0 - 1)], env = [];
   for (let k = 0; k <= 24; k++) { const w = s1 * Math.sqrt(k); env.push([base[0] + k * 36e5, base[1] * Math.exp(w), base[1] * Math.exp(-w)]); }
   const vals = [...px.map((p) => p[1]), ...env.map((e) => e[1]), ...env.map((e) => e[2])], mx = Math.max(...vals), mn = Math.min(...vals);
   const X = (t) => x0 + (t - t0) / (t1 - t0) * (x1 - x0), Y = (v) => y0 + (mx - v) / (mx - mn || 1) * (y1 - y0);
   g.fillStyle = 'rgba(127,200,216,0.14)'; g.beginPath(); env.forEach((e, i) => i ? g.lineTo(X(e[0]), Y(e[1])) : g.moveTo(X(e[0]), Y(e[1]))); for (let i = env.length - 1; i >= 0; i--) g.lineTo(X(env[i][0]), Y(env[i][2])); g.closePath(); g.fill();
   g.strokeStyle = C.cyan; g.globalAlpha = 0.6; g.lineWidth = 1.5; g.setLineDash([6, 6]); for (const j of [1, 2]) { g.beginPath(); env.forEach((e, i) => i ? g.lineTo(X(e[0]), Y(e[j])) : g.moveTo(X(e[0]), Y(e[j]))); g.stroke(); } g.setLineDash([]); g.globalAlpha = 1;
   g.strokeStyle = '#f7931a'; g.lineWidth = 3.5; g.beginPath(); px.forEach((p, i) => i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]))); g.stroke();
-  txt(g, en ? '48h · band = normal range from 24h ago' : '48時間 · 帯 = 24時間前からの普段の幅', x0, y1 + 30, { size: 15, col: C.mut });
+  // 今日の指標の発表時刻(縦の点線と名前)。右端を越える名前は左寄せで内側に
+  mk.forEach((m, i) => { const x = X(m.t); g.strokeStyle = C.gold; g.globalAlpha = 0.7; g.lineWidth = 1.5; g.setLineDash([4, 5]); g.beginPath(); g.moveTo(x, y0 - 10); g.lineTo(x, y1); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+    const nm = (en ? m.en : m.ja) || ''; txt(g, nm.length > 16 ? nm.slice(0, 15) + '…' : nm, x - 6, y0 + 8 + i * 22, { size: 15, w: 600, col: C.gold, align: 'right' }); });
+  txt(g, en ? '48h · band = normal range from 24h ago' + (mk.length ? ' · dotted = today\'s releases' : '') : '48時間 · 帯 = 24時間前からの普段の幅' + (mk.length ? ' · 点線 = 本日の指標' : ''), x0, y1 + 30, { size: 15, col: C.mut, max: x1 - x0 });
 }
 export async function drawPost(p, lg) {
   await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
-  if (p.sr === 'daily') return null;                                     // v109: 毎朝の予定は画像なし(本文と同じ内容のため)
+  if (p.sr === 'daily') { if (!(p.img && p.img.vol && p.img.vol.px)) return null; drawVol(g, p.img.vol, lg, lg === 'en' && p.img.enl ? p.img.enl.today : p.img.today); }   // v195: ボラティリティ入りの日だけ画像あり                                     // v109: 毎朝の予定は画像なし(本文と同じ内容のため)
   else if (p.sr === 'arch') { if (p.img && p.img.v === 3) drawArch3(g, p.img, lg); else drawEvent(g, p.img, lg, false); }
   else if (p.sr === 'vol') { if (p.img && p.img.px) drawVol(g, p.img, lg); else return null; }   // v192
   else if (p.sr === 'pre') { if (p.img && p.img.v === 3) drawArch3(g, p.img, lg); else return null; }   // v181: 発表前の予告 = 前回の発表後の値動きの画像

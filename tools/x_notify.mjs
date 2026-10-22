@@ -89,7 +89,7 @@ const prevOf = (g) => {                                                     // �
   for (const e of g) if (e.l === 'macro') for (const r of recs.get((e.s || e.t) + '|' + e.c) || []) if (r.t < g[0].ts - H && (!best || r.t > best.t)) best = r;
   return best;
 };
-function dailyPost(day) {
+function dailyPost(day, vol = null) {   // v195: vol = /api/vol(今日の分だけ。本文に1行・画像)
   // v104: 英語(UTC)は「今日」= 投稿時刻〜UTC の 24:00、「今週」= UTC の翌日〜月曜 0:00(UTC)。日本語は日本時間の今日・今週のまま
   const utc = isoDay(day) >= AUTO_DAILY_FROM, eh = utc ? uhm : hm, ed = utc ? uDay : enDay;
   const due = day + DAILY_AT, J9 = 9 * H, split = isoDay(day) >= L.SPLIT_FROM, enDue = day + J9 + L.EN_DAILY_AT;   // v173: 英語は 11:30 UTC                                   // day = 日本時間の0時。+9時間 = 同じ日付の UTC 0時
@@ -126,22 +126,30 @@ function dailyPost(day) {
       return [...(o.brand ? [en ? '🔹 CRYPTO SIGNAL ARCHIVE' : '🔹 暗号資産シグナル・アーカイブ', ''] : []),
         en ? `🟢 TODAY · ${dEn(due)} · ${utc ? 'UTC' : 'JST'}` : `🟢 本日 · ${dJa(due)} · 日本時間`, rule, '',
         ...body, ...(rest > 0 ? ['', en ? `+${rest} more` : `ほか${rest}件`] : []), '', rule,
+        ...(o.vol && vol ? [en ? `📊 BTC volatility: ${vol.ratio}x normal` : `📊 BTCの値動き: 普段の${vol.ratio}倍`] : []),
         ...(nx ? ['', en ? `🟢 NEXT SIGNAL · ${dEn(nx[0].ts)} · ${eh(nx[0].ts)}` : `🟢 次の予定 · ${dJa(nx[0].ts)} · ${hm(nx[0].ts)}`, `🟡 ${isCB(nx) ? '🏦' : (REG[nx[0].c] || ['📅'])[0]} ${en ? groupLine(nx, 'en').toUpperCase() : groupLine(nx, 'ja')}`] : []),
         '', tag].join('\n');
     };
     const OPT = [{ brand: 1, cat: 1, rule: 18 }, { brand: 1, cat: 1, rule: 10 }, { cat: 1, rule: 10 }, { rule: 10 }];
-    for (let tn = tg.length; tn >= 0; tn--) for (const o of OPT) { const t = mk(tn, o); if (xlen(t) <= 280) return t; }
+    for (let tn = tg.length; tn >= 0; tn--) for (const o of OPT) { const t = mk(tn, o); if (xlen(t) <= 280) { const tv = vol ? mk(tn, { ...o, vol: 1 }) : null; return tv && xlen(tv) <= 280 ? tv : t; } }   // v195: 📊の行は指標より後回し
     return mk(0, OPT[OPT.length - 1]);
   };
   const en = text('en'), ja = text('ja');
   const lists = (w) => ({ today: w.tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: w.prev[i] ? w.prev[i].chg : null })), week: w.wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) });
-  return { id: 'daily:' + isoDay(day), sr: 'daily', due, ...(split ? { dues: { ja: due, en: enDue } } : {}), en, ja, h: hashStr(en + ja + (split ? 'split' : '')),
-    img: { day, next: WN.ja.next, ...lists(WN.ja), ...(utc ? { utc: 1, enl: { next: WN.en.next, ...lists(WN.en) } } : {}) } };   // enl = 英語の画像用(UTC の区切り)
+  return { id: 'daily:' + isoDay(day), sr: 'daily', due, ...(split ? { dues: { ja: due, en: enDue } } : {}), en, ja, h: hashStr(en + ja + (split ? 'split' : '') + (vol ? 'v' + vol.end : '')),
+    img: { day, next: WN.ja.next, ...lists(WN.ja), ...(utc ? { utc: 1, enl: { next: WN.en.next, ...lists(WN.en) } } : {}), ...(vol ? { vol: { ratio: vol.ratio, now1: vol.now1, typ: vol.typ, px: vol.px, end: vol.end, range24: vol.range24, g24: vol.garch ? vol.garch['24h'] : null } } : {}) } };   // enl = 英語の画像用(UTC の区切り)
 }
 const drop = [...redo];                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
+// v195: 今日の分は、投稿の3時間前から(まだどちらの言語も出していなければ)ボラティリティを1回だけ入れて作り直す
+let VOLNOW = null;
+try { const r = await fetch(SITE + '/api/vol', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(20000) }); const j = r.ok ? await r.json() : null; if (j && j.available && j.ratio != null && NOW - j.end < 3 * H) VOLNOW = j; } catch (_) {}
 for (let i = 0; i <= AHEAD; i++) {
-  const day = today + i * DAY, p = dailyPost(day);
-  if (p.due < NOW && byId.has(p.id)) continue;                              // 投稿時刻を過ぎた分は作り直さない(今日の分が無ければ作る)
+  const day = today + i * DAY, o0 = byId.get('daily:' + isoDay(day));
+  const wantVol = i === 0 && VOLNOW && NOW >= day + DAILY_AT - 3 * H && !(o0 && o0.img && o0.img.vol) && !(o0 && o0.done && (o0.done.en || o0.done.ja));
+  const p = dailyPost(day, wantVol ? VOLNOW : null);
+  if (wantVol && (p.img.today.length || p.img.week.length)) { put(p); continue; }
+  if (p.due < NOW && byId.has(p.id)) continue;
+  if (i === 0 && o0 && o0.img && o0.img.vol) continue;   // ボラティリティ入りで作った後は作り直さない                              // 投稿時刻を過ぎた分は作り直さない(今日の分が無ければ作る)
   if (!p.img.today.length && !p.img.week.length) { if (byId.has(p.id)) drop.push(p.id); continue; }   // v85: その日もその週の残りも予定が無い日は作らない(曜日に関係なく)
   put(p);
 }
