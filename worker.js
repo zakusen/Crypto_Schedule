@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-22-v199';
+const VERSION = '2026-10-22-v200';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1430,7 +1430,7 @@ async function ghDispatch(env, payload) {
 //   ±3% 以上なら x:spk に記録して「X post」を起こす(下書きは tools/x_notify.mjs が Pacifica の足で作り直し、ETH・SOL・BNB・S&P500 も載せる)。
 //   一度出したら6時間は出さない。ふだん(急変動なし)は KV の読み書きをしない。
 //   v121: 直近60分に加えて直近6時間でも見る(どちらも ±3%。60分を優先)。win = 1 / 6(時間)
-const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_COOL = 6 * 36e5, SPIKE_WINS = [1], SPIKE_TH = { 1: 3 }, SPIKE_DAY = 2.3;
+const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_COOL = 6 * 36e5, SPIKE_COOL1 = 36e5, SPIKE_WINS = [1], SPIKE_TH = { 1: 3 }, SPIKE_DAY = 2.3;   // v200: 60分の判定は1時間あける(その日の高値・安値からは6時間)
 // v199: 急変動の判定を2本にまとめた。① 直近60分で ±3%(5分足) ② 日本時間のその日の高値から −2.3% / 安値から +2.3%(それぞれ1日1回)。
 //   ② の高値・安値 = その日 0:00(日本時間)からの1時間足の高値・安値 + まだ1時間足になっていない5分足。
 const JST9 = 9 * 3600;
@@ -1463,7 +1463,7 @@ async function spikeStatus(env) {
   let disp = null; try { disp = env.CAL ? await env.CAL.get('x:disp:last', { type: 'json' }) : null; } catch (_) {}
   return json({ now: new Date(now).toISOString(), rules: { '1h_pct': SPIKE_PCT, 'day_pct': SPIKE_DAY }, last_dispatch: disp ? { at: new Date(disp.at).toISOString(), status: disp.status, ok: disp.status === 204, body: disp.body || undefined, why: disp.why } : null, gh_repo: env.GH_REPO || null, gh_token_set: !!env.GH_DISPATCH_TOKEN, ...cur, would_trigger: hit,
     last_spike: last ? { at: new Date(last.t).toISOString(), win: last.win || 1, kind: last.kind || '1h', chg: last.hit && last.hit[SPIKE_COIN] } : null,
-    cooling_until: last && now - last.t < SPIKE_COOL ? new Date(last.t + SPIKE_COOL).toISOString() : null });
+    cooling_until: last ? (() => { const c = (last.kind || '1h') === '1h' ? SPIKE_COOL1 : SPIKE_COOL; return now - last.t < c ? new Date(last.t + c).toISOString() : null; })() : null });
 }
 async function spikeCheck(env) {
   if (!env.CAL) return null;
@@ -1480,8 +1480,14 @@ async function spikeCheck(env) {
   if (!ev) return null;
   const doc = (await env.CAL.get('x:spk', { type: 'json' })) || {};
   const recent = (doc.ev || []).filter((x) => now - x.t < 48 * 36e5);
-  if (recent.some((x) => now - x.t < SPIKE_COOL)) return { cooling: ev.chg };
-  if (ev.kind !== '1h' && recent.some((x) => x.kind === ev.kind && x.day === d.day)) return { done_today: ev.kind };   // その日の高値・安値からは1日1回
+  if (ev.kind === '1h') {
+    if (recent.some((x) => (x.kind || '1h') === '1h' && now - x.t < SPIKE_COOL1)) return { cooling: ev.chg };   // v200: 60分どうしは1時間あける(次の60分は前と重ならない)
+  } else {
+    if (recent.some((x) => x.kind !== '1h' && x.kind && now - x.t < SPIKE_COOL)) return { cooling: ev.chg };   // その日の高値・安値からは6時間あける
+    if (recent.some((x) => x.kind === ev.kind && x.day === d.day)) return { done_today: ev.kind };   // それぞれ1日1回
+    const dir = ev.kind === 'dayhi' ? -1 : 1;   // 同じ日に同じ向きの60分の判定がもう出ていれば出さない(同じ下げを2回出さない)
+    if (recent.some((x) => (x.kind || '1h') === '1h' && x.day === d.day && Math.sign((x.hit && x.hit[SPIKE_COIN]) || 0) === dir)) return { covered_by_1h: ev.kind };
+  }
   if (ev.kind !== '1h') ev.win = Math.max(1, Math.ceil((now - ev.from) / 36e5));
   const rec = { id: 'spike:' + now, t: now, win: ev.win, kind: ev.kind, ...(ev.from ? { from: ev.from } : {}), day: d.day, hit: { [SPIKE_COIN]: ev.chg } };
   await env.CAL.put('x:spk', JSON.stringify({ ev: [...recent, rec].slice(-10) }));
