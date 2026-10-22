@@ -156,6 +156,7 @@ export function weekPost(wk, site) {
 // 急変動(v98) = BTC が直近60分で ±3% 以上(5分足の終値どうし。時計の区切りには合わせない)。投稿には同じ1時間の ETH・SOL・BNB・S&P500 も載せる。
 // v98: 急変動の投稿だけサイトの URL を付ける(X API は URL付き 1本 $0.20)。直近30日で SPIKE_LINK_MAX 回まで、超えたら URL なし。
 export const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_LINK_MAX = 10;
+export const SPIKE_TH = { 1: 3, 2: 2, 6: 3, 24: 3 };   // v196: 2時間は ±2%(Worker と同じ)
 export const CORR_DAYS = [30, 7];
 export function pearson(x, y) {
   const n = x.length; if (n < 3) return null;
@@ -213,7 +214,7 @@ export function spikeMoves(B, T, now, win = 1) {   // v121: win = 1 / 6(時間)
     const v = Math.max(...hit.map((c) => Math.abs(ch(c, e) ?? 0)));
     if (!best || v > best.v) best = { e, v };
   }
-  if (!best || best.v < SPIKE_PCT) return null;
+  if (!best || best.v < (SPIKE_TH[win] || SPIKE_PCT)) return null;
   const coins = {}; for (const [c] of COINS) { const v = ch(c, best.e); if (v != null) coins[c] = v; }
   const t1 = best.e + M5, t0 = t1 - win * H, span = win > 6 ? 576 : win > 1 ? 144 : 72, step = win > 6 ? 6 : 1;   // 画像: 1時間 = 直近6時間 / 6時間 = 直近12時間 / 24時間 = 直近48時間(30分おき)
   const ser = (k) => { const a = []; for (let e = best.e - span * M5; e <= best.e; e += step * M5) { const v = map[k] && map[k].get(e); a.push(v > 0 ? v : null); } return a; };   // v109: 直近6時間の5分足の終値(画像用)
@@ -404,7 +405,7 @@ export const PRE_AHEAD = 15 * 60000, PRE_WINDOW = 14 * 60000;   // v183: 発表�
 export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -501,3 +502,28 @@ export function volPost(v, link) {
   const ja = [`📊 BTCの値動きが普段の${r}倍に`, '', `直近24時間の1時間ごとの変動: ${f(v.now1)}`, `過去30日の平均: ${f(v.typ[1])}`, '', `24時間の値幅: ${v.range24.pct}%（${usd(v.range24.lo)}〜${usd(v.range24.hi)}）`].join('\n');
   return { id, sr: 'vol', due: v.at, en, ja, h: hashStr(en + ja), img: { v: 1, ratio: r, now1: v.now1, typ: v.typ, px: v.px, end: v.end, range24: v.range24 } };
 }
+
+// ---- v196: 似ている過去の値動き(tools/pattern.mjs の結果)。parent = 急変動の親(返信で出す時) ----
+const EVN = { CPI: ['CPI', 'CPI'], 雇用統計: ['NFP', '雇用統計'], PCE: ['PCE', 'PCE'], FOMC: ['FOMC', 'FOMC'], 日銀: ['BOJ', '日銀'], ECB: ['ECB', 'ECB'], 短観: ['Tankan', '日銀短観'], ADP: ['ADP', 'ADP雇用'], GDP: ['GDP', 'GDP'], PPI: ['PPI', 'PPI'] };
+export function evName(e, lang) {
+  const k = Object.keys(EVN).find((x) => (e.s || '').includes(x)), cb = /FOMC|日銀|ECB|短観/.test(e.s || '');
+  if (lang === 'en') return k ? (cb ? EVN[k][0] : `${REGION_EN[e.c] || ''} ${EVN[k][0]}`.trim()) : `${REGION_EN[e.c] || ''} data release`.trim();
+  return k ? (cb ? EVN[k][1] : (({ US: '米', JP: '日本', EU: 'ユーロ圏' })[e.c] || '') + EVN[k][1]) : (({ US: '米', JP: '日本', EU: 'ユーロ圏' })[e.c] || '') + (e.s || '指標');
+}
+export function patPost(r, parent) {
+  const m = r.top[0], q = r.q, up = q.chg > 0, h = r.win, sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  const evs = (lang) => m.ev && m.ev.length ? [...new Set(m.ev.map((e) => evName(e, lang)))].slice(0, 2).join(lang === 'en' ? ', ' : '・') + (lang === 'en' ? ' release' : 'の発表') : (lang === 'en' ? 'no scheduled release' : '指標の発表なし');
+  const jd = (t) => { const d = J(t); return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日 ${hm(t)}`; };
+  const ed = (t) => { const d = new Date(t); return `${ME3U[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} ${uhm(t)} UTC`; };
+  const en = [...(parent ? [] : [`${up ? '📈' : '📉'} BTC ${sg(q.chg)} in ${h}h (${usd(q.p0)}→${usd(q.p1)})`, '']),
+    `The closest match to this ${up ? 'move' : 'drop'} since 2017 (5m data):`, ed(m.t0), '',
+    `Same window back then: ${evs('en')}`, `24h after: ${sg(m.after24)}`,
+    ...(r.after && r.n > 1 ? ['', `All ${r.n} similar cases, 24h after: ${sg(r.after.min)} to ${sg(r.after.max)}`] : [])].join('\n');
+  const ja = [...(parent ? [] : [`${up ? '📈' : '📉'} BTC ${h}時間で ${sg(q.chg)}（${usd(q.p0)}→${usd(q.p1)}）`, '']),
+    `この${up ? '値動き' : '下げ方'}に一番似ているのは（2017年以降の5分足）`, jd(m.t0), '',
+    `その時の同じ時間帯: ${evs('ja')}`, `その後24時間: ${sg(m.after24)}`,
+    ...(r.after && r.n > 1 ? ['', `似た過去${r.n}件のその後24時間: ${sg(r.after.min)}〜${sg(r.after.max)}`] : [])].join('\n');
+  return { id: (parent ? parent + ':pat' : 'pat:' + q.t1), sr: 'pat', ...(parent ? { parent } : {}), due: parent ? undefined : r.at, en, ja, h: hashStr(en + ja),
+    img: { v: 1, win: h, q, top: r.top.map((x) => ({ t0: x.t0, chg: x.chg, d: x.d, path: x.path, after24: x.after24 })) } };
+}
+const ME3U = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

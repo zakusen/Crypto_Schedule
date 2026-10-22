@@ -480,11 +480,36 @@ function drawVol(g, im, lg, marks = null) {   // v195: marks = 今日の指標 [
     const nm = (en ? m.en : m.ja) || ''; txt(g, nm.length > 16 ? nm.slice(0, 15) + '…' : nm, x - 6, y0 + 8 + i * 22, { size: 15, w: 600, col: C.gold, align: 'right' }); });
   txt(g, en ? '48h · band = normal range from 24h ago' + (mk.length ? ' · dotted = today\'s releases' : '') : '48時間 · 帯 = 24時間前からの普段の幅' + (mk.length ? ' · 点線 = 本日の指標' : ''), x0, y1 + 30, { size: 15, col: C.mut, max: x1 - x0 });
 }
+
+// v196: 似ている過去の値動き。今(オレンジ太線)と過去の上位3件(細線。「今」より右 = その後は点線)を始まり 0% で重ねる
+function drawPat(g, im, lg) {
+  const en = lg === 'en', q = im.q, N = q.path.length - 1, top = (im.top || []).slice(0, 3), COL = [C.cyan, C.gold, '#9b8cd8'];
+  frame(g, en ? 'SIMILAR PAST MOVES' : '似ている過去の値動き', en ? 'Binance BTCUSDT 5m since 2017 · DTW on % path · same direction & similar size' : 'Binance BTCUSDT 5分足(2017年〜)· 始まりを0%にそろえたDTW · 向きと大きさが近いものだけ');
+  const sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  txt(g, sg(q.chg), 56, 190, { size: 72, w: 700, fam: MONO, col: q.chg < 0 ? C.dn : C.up });
+  txt(g, en ? `BTC in ${im.win}h · now` : `BTC ${im.win}時間 · 今回`, 56, 226, { size: 20, col: C.mut });
+  const dJ = (t) => { const d = new Date(t + 9 * 36e5); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+  const dU = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+  top.forEach((m, i) => { const y = 290 + i * 78; g.fillStyle = COL[i]; g.fillRect(56, y - 14, 18, 4);
+    txt(g, en ? dU(m.t0) + ' UTC' : dJ(m.t0), 84, y - 4, { size: 21, w: 600, col: C.tx });
+    txt(g, (en ? '24h after  ' : 'その後24時間  ') + sg(m.after24), 84, y + 26, { size: 18, col: m.after24 > 0 ? C.up : m.after24 < 0 ? C.dn : C.mut }); });
+  const x0 = 520, x1 = W - 56, y0 = 120, y1 = Hh - 110, L = N * 2;
+  const vals = [...q.path, ...top.flatMap((m) => m.path)], mx = Math.max(...vals) + 0.3, mn = Math.min(...vals) - 0.3;
+  const X = (i) => x0 + i / L * (x1 - x0), Y = (v) => y0 + (mx - v) / (mx - mn || 1) * (y1 - y0);
+  g.strokeStyle = C.grid; g.lineWidth = 1; for (let v = Math.ceil(mn); v <= Math.floor(mx); v++) { g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); txt(g, (v > 0 ? '+' : '') + v + '%', x0 - 10, Y(v) + 5, { size: 13, fam: MONO, col: C.mut, align: 'right' }); }
+  g.strokeStyle = 'rgba(232,235,240,0.5)'; g.setLineDash([4, 5]); g.beginPath(); g.moveTo(X(N), y0 - 6); g.lineTo(X(N), y1); g.stroke(); g.setLineDash([]);
+  txt(g, en ? 'now' : '今', X(N) + 6, y0 + 8, { size: 15, col: C.tx });
+  top.forEach((m, k) => { g.strokeStyle = COL[k]; g.globalAlpha = 0.9; g.lineWidth = 2; g.beginPath(); m.path.forEach((v, i) => { if (i === N + 1) { g.stroke(); g.setLineDash([6, 6]); g.beginPath(); g.moveTo(X(N), Y(m.path[N])); } i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); }); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; });
+  g.strokeStyle = '#f7931a'; g.lineWidth = 4; g.beginPath(); q.path.forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v))); g.stroke();
+  txt(g, en ? `−${im.win}h` : `−${im.win}時間`, x0, y1 + 26, { size: 14, col: C.mut });
+  txt(g, en ? `+${im.win}h (past: dotted = what came next)` : `+${im.win}時間(過去の点線 = その後)`, X(N) + 6, y1 + 26, { size: 14, col: C.mut });
+}
 export async function drawPost(p, lg) {
   await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   if (p.sr === 'daily') { if (!(p.img && p.img.vol && p.img.vol.px)) return null; drawVol(g, p.img.vol, lg, lg === 'en' && p.img.enl ? p.img.enl.today : p.img.today); }   // v195: ボラティリティ入りの日だけ画像あり                                     // v109: 毎朝の予定は画像なし(本文と同じ内容のため)
   else if (p.sr === 'arch') { if (p.img && p.img.v === 3) drawArch3(g, p.img, lg); else drawEvent(g, p.img, lg, false); }
+  else if (p.sr === 'pat') { if (p.img && p.img.q && p.img.q.path) drawPat(g, p.img, lg); else return null; }   // v196
   else if (p.sr === 'vol') { if (p.img && p.img.px) drawVol(g, p.img, lg); else return null; }   // v192
   else if (p.sr === 'pre') { if (p.img && p.img.v === 3) drawArch3(g, p.img, lg); else return null; }   // v181: 発表前の予告 = 前回の発表後の値動きの画像
   else if (p.sr === 'week') { if (p.img && p.img.v === 3 && p.img.btc) drawWeek3(g, p.img, lg); else drawWeek(g, p.img, lg); }

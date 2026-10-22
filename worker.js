@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-22-v195';
+const VERSION = '2026-10-22-v196';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1371,9 +1371,9 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl)$/;   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
+const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl|pt)$/;   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
 //   v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : 'rx:s:' + n.slice(1);
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : n === 'pt' ? 'pat:v1' : 'rx:s:' + n.slice(1);
 
 // === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
 //   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
@@ -1430,7 +1430,7 @@ async function ghDispatch(env, payload) {
 //   ±3% 以上なら x:spk に記録して「X post」を起こす(下書きは tools/x_notify.mjs が Pacifica の足で作り直し、ETH・SOL・BNB・S&P500 も載せる)。
 //   一度出したら6時間は出さない。ふだん(急変動なし)は KV の読み書きをしない。
 //   v121: 直近60分に加えて直近6時間でも見る(どちらも ±3%。60分を優先)。win = 1 / 6(時間)
-const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_COOL = 6 * 36e5, SPIKE_WINS = [1, 6, 24];   // v144: 24時間も(±3%)。短い期間を優先
+const SPIKE_PCT = 3, SPIKE_COIN = 'BTC', SPIKE_COOL = 6 * 36e5, SPIKE_WINS = [1, 2, 6, 24], SPIKE_TH = { 1: 3, 2: 2, 6: 3, 24: 3 };   // v196: 2時間は ±2%   // v144: 24時間も(±3%)。短い期間を優先
 // v145: 今の判定に使う値(60分・6時間・24時間の変化)を計算する。spikeCheck と /api/spike(確認用)で共通
 function spikeNow(store, now) {
   const e = store && store.tfs && store.tfs[SPIKE_COIN] && store.tfs[SPIKE_COIN]['5m'];
@@ -1447,9 +1447,9 @@ async function spikeStatus(env) {
   const now = Date.now(), store = await readPx(env), cur = spikeNow(store, now);
   let doc = null; try { doc = env.CAL ? await env.CAL.get('x:spk', { type: 'json' }) : null; } catch (_) {}
   const last = doc && doc.ev && doc.ev.length ? doc.ev[doc.ev.length - 1] : null;
-  const hit = Object.entries(cur.wins || {}).find(([, o]) => o && Math.abs(o.chg) >= SPIKE_PCT);
+  const hit = Object.entries(cur.wins || {}).find(([k, o]) => o && Math.abs(o.chg) >= (SPIKE_TH[parseInt(k)] || SPIKE_PCT));
   let disp = null; try { disp = env.CAL ? await env.CAL.get('x:disp:last', { type: 'json' }) : null; } catch (_) {}
-  return json({ now: new Date(now).toISOString(), threshold_pct: SPIKE_PCT, last_dispatch: disp ? { at: new Date(disp.at).toISOString(), status: disp.status, ok: disp.status === 204, body: disp.body || undefined, why: disp.why } : null, gh_repo: env.GH_REPO || null, gh_token_set: !!env.GH_DISPATCH_TOKEN, ...cur, would_trigger: hit ? hit[0] : null,
+  return json({ now: new Date(now).toISOString(), threshold_pct: SPIKE_TH, last_dispatch: disp ? { at: new Date(disp.at).toISOString(), status: disp.status, ok: disp.status === 204, body: disp.body || undefined, why: disp.why } : null, gh_repo: env.GH_REPO || null, gh_token_set: !!env.GH_DISPATCH_TOKEN, ...cur, would_trigger: hit ? hit[0] : null,
     last_spike: last ? { at: new Date(last.t).toISOString(), win: last.win || 1, chg: last.hit && last.hit[SPIKE_COIN] } : null,
     cooling_until: last && now - last.t < SPIKE_COOL ? new Date(last.t + SPIKE_COOL).toISOString() : null });
 }
@@ -1466,7 +1466,7 @@ async function spikeCheck(env) {
     if (w > 6) { const h = store.tfs[SPIKE_COIN]['1h']; const t = Math.floor((last[0] - w * 3600) / 3600) * 3600; base = h && h.bars && h.bars.find((b) => b[0] === t); }
     if (!base || !(base[1] > 0) || !(last[4] > 0)) continue;
     const c = Math.round((last[4] / base[1] - 1) * 1e4) / 100;
-    if (Math.abs(c) >= SPIKE_PCT) { chg = c; win = w; break; }
+    if (Math.abs(c) >= (SPIKE_TH[w] || SPIKE_PCT)) { chg = c; win = w; break; }
   }
   if (!win) return null;
   const doc = (await env.CAL.get('x:spk', { type: 'json' })) || {};
@@ -1998,6 +1998,7 @@ export default {
       const entry = store?.tfs?.BTC?.['5m'];
       return json({ sym: 'BTC', source: entry?.src || null, ...estimateGarch(entry?.bars) });
     }
+    if (url.pathname === '/api/pat') { let t = null; try { t = env.CAL ? await env.CAL.get('pat:v1') : null; } catch (_) {} const r = new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=120' } }); return r; }   // v196: 似ている過去の値動き
     if (url.pathname === '/api/vol') { const r = await volApi(env); r.headers.set('cache-control', 'public, max-age=120'); return r; }   // v192
     if (url.pathname === '/api/candles') {
       return cached(ctx, request, 60, () => candles(url, env, ctx));

@@ -14,6 +14,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { estimateGarch } from '../public/garch-model.mjs';   // v192
+import { loadBtc5m, findSimilar, addContext } from './pattern.mjs';   // v196
+import { recsFrom, liqFrom } from './pattern-ctx.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
@@ -242,7 +244,7 @@ try {
     const c = await corrNow();
     if (c) { corr = c; await site('/api/admin/rx-put?name=cr', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(c) }); console.log('[x] S&P500 相関を更新:', JSON.stringify(c.w)); }
   }
-  let liqH = null;   // v187
+  let liqH = null, PAT_S = null;   // v187 / v196
   for (const ev of pend) {
     // v148: 線を描く BTC と S&P500 だけ長く取る。ETH・SOL・BNB は始まりと終わりの前後だけ(取得の回数を減らす)。BTC 以外は取れなくても続ける
     const W = ev.win || 1, end = Math.min(NOW, ev.t + 15 * 60000), from = ev.t - (W > 6 ? 49 : W > 1 ? 13 : 7) * H, B = {};
@@ -271,6 +273,19 @@ try {
     } catch (e) { console.log('[x] 急変動: 清算が取れないので返信なし', e.message); }
     put(L.spikePost({ ...mv, id: ev.id, due: ev.t }, corr && corr.w ? corr : null, link, liq));
     if (liq) put(L.spikeLiqPost({ ...mv, id: ev.id, due: ev.t }, liq));
+    // v196: 似ている過去の値動き(2017年以降の5分足・DTW)。親への返信 + サイトのカード(pat:v1)。6時間までの急変動だけ
+    if ((ev.win || 1) <= 6 && !byId.has(ev.id + ':pat')) {
+      try {
+        if (!PAT_S) { console.log('[x] 似ている過去: 5分足を読み込みます'); PAT_S = await loadBtc5m(NOW); }
+        const res = findSimilar(PAT_S, mv.t1, ev.win || 1);
+        if (res && res.top.length) {
+          addContext(res, await recsFrom(site), await liqFrom(SITE));
+          await site('/api/admin/rx-put?name=pt', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(res) });
+          const pp = L.patPost(res, ev.id); pp.due = ev.t; put(pp);
+          console.log('[x] 似ている過去:', res.top.map((m) => new Date(m.t0).toISOString()).join(' / '));
+        }
+      } catch (e) { console.log('[x] 似ている過去: 作れませんでした', e.message); }
+    }
   }
 } catch (e) { console.log('[x] S&P500 相関・急変動でエラー(ほかの下書きは続けます):', e.message); }
 
