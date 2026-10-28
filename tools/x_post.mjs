@@ -44,6 +44,7 @@ if (DRY && !todo.length) {                 // 試しの時、投稿時刻のも�
 console.log(`[post] 投稿するもの ${todo.length}件${todo.length ? ' (' + todo.map((t) => t.p.id + ':' + t.lg).join(', ') + ')' : ''}${DRY ? ' / DRY' : ''}`);
 if (CHECK) {
   if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `need=${todo.length ? 'true' : 'false'}\n`);
+  if (!DRY && !todo.length) await writeDue();   // v209: 投稿が無い回も Worker の予定(x:due)を書き直す(反映直後に新しい種類の投稿を予定に入れるため)
   process.exit(0);
 }
 if (!todo.length) { await writeDue(); process.exit(0); }
