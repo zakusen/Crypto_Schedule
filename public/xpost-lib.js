@@ -418,7 +418,7 @@ export function dueList(posts, events, now) {
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
   for (const k of [0, 1]) { for (const [id, due] of sumDues(now + k * DAY)) if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v202: 夜のまとめ
   for (const g of groups((events || []).filter(isFomc))) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const id = fomcId(g[0].ts, n), due = g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告
-  for (const g of groups((events || []).filter(isFomc))) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const last = n === FOMC_SLOTS.length, id = fomcId(g[0].ts, last ? 'res' : 'res' + n), due = g[0].ts + FOMC_RES + (last ? 0 : n * 60000); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  for (const g of groups((events || []).filter(isFomc))) { const id = fomcId(g[0].ts, 'res'), due = g[0].ts + FOMC_RES; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(AUTOPOST))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
@@ -577,8 +577,8 @@ export function fomcDrafts(ts) {
   FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n), due = ts - sl, img = { t: ts, n };
     out.push({ id, sr: 'fomc', due, ...ph, h: 'fomc' + n, img });
     out.push({ id: id + ':c', sr: 'fomcc', parent: id, due, ...ph, h: 'fomcc' + n, img }); });
-  // v213: 結果は親子の4スレッドすべてに返信で付ける(子に「このスレッドに追記します」と書いているため)。1時間前のスレッドは今までの id のまま
-  FOMC_SLOTS.forEach((_, i) => { const n = i + 1, last = n === FOMC_SLOTS.length; out.push({ id: last ? fomcId(ts, 'res') : fomcId(ts, 'res' + n), sr: 'fomcres', due: ts + FOMC_RES + (last ? 0 : n * 60000), ...ph, h: 'fomcres' + n, img: { t: ts, n: 'res', after: fomcId(ts, n) + ':c' } }); });
+  // v214: 結果は単独の新しい投稿(返信だと分かりづらいため)。チャートで今回の発表後の動きを見せる
+  out.push({ id: fomcId(ts, 'res'), sr: 'fomcres', due: ts + FOMC_RES, ...ph, h: 'fomcres', img: { t: ts, n: 'res' } });
   return out;
 }
 // lv = weekmatch の fomcMatch の結果。kind = 'fomc'(親)/ 'fomcc'(子)/ 'fomcres'(結果)
@@ -591,10 +591,10 @@ export function fomcText(kind, lv, lg, now) {
     ? [`FOMC in ${leftEn}.`, `Closest past run-up: the ${dt(t[0].fomc)} FOMC.`, `BTC 1h after that release: ${sg(t[0].a1)}`, 'Cyan = now, dotted = what came next.', 'Did the other 2 move the same way?', 'Top 3 in the reply ↓', '*Match = shape, not probability', '#FOMC #BTC'].join('\n')
     : [`FOMCまで、あと${leftJa}。`, `発表前の値動きが今回に最も似ていたのは${dt(t[0].fomc)}のFOMC。`, `その回のBTCは発表後1時間で${sg(t[0].a1)}。`, '水色が今回、点線が過去のその後。', 'ほかの2回は同じ方向だったのか？', 'TOP3の比較は返信へ↓', '※一致率は上昇確率ではありません', '#FOMC #BTC'].join('\n');
   if (kind === 'fomcc') return en
-    ? ['BTC 1h after the 3 closest past FOMCs', ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), 'Compared: 24h before release to the same time left. Post-release moves not used.', 'Similar shape ≠ same outcome.', "Result will be added to this thread."].join('\n')
-    : ['似ていた過去3回の、発表後1時間のBTC', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), '比較は「発表24時間前〜今と同じ残り時間」まで。発表後の動きは選定に使っていません。', '似た形でも、その後が同じとは限りません。', '結果は発表後にこのスレッドに追記します。'].join('\n');
+    ? ['BTC 1h after the 3 closest past FOMCs', ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), 'Compared: 24h before release to the same time left. Post-release moves not used.', 'Similar shape ≠ same outcome.', "Result: a new post 1h after the release."].join('\n')
+    : ['似ていた過去3回の、発表後1時間のBTC', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), '比較は「発表24時間前〜今と同じ残り時間」まで。発表後の動きは選定に使っていません。', '似た形でも、その後が同じとは限りません。', '結果は発表1時間後に新しい投稿で出します。'].join('\n');
   const same = lv.a1 == null ? null : t.filter((x) => x.a1 != null && Math.sign(x.a1) === Math.sign(lv.a1)).length;
   return en
-    ? ['FOMC result: BTC 1h after the release', `This time: ${sg(lv.a1)}`, 'The 3 closest past FOMCs:', ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), '#FOMC #BTC'].join('\n')
-    : ['FOMCの結果（発表後1時間のBTC）', `今回：${sg(lv.a1)}`, '似ていた過去3回は', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), ...(same != null ? [`同じ方向に動いたのは3回中${same}回`] : []), '#FOMC #BTC'].join('\n');
+    ? [`🏦 FOMC result: BTC ${sg(lv.a1)} in the first hour`, '', 'The 3 past FOMCs whose run-up looked most like this one:', ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), 'Cyan = this time, dotted = what came next back then.', '#FOMC #BTC'].join('\n')
+    : [`🏦 FOMC 発表後1時間、BTCは${sg(lv.a1)}`, '', '発表前の動きが似ていた過去3回は', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), ...(same != null ? [`今回と同じ方向だったのは3回中${same}回`] : []), '水色が今回、点線が過去のその後。', '#FOMC #BTC'].join('\n');
 }

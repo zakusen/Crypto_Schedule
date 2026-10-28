@@ -171,7 +171,7 @@ for (const { p, lg } of todo) {
       if (!lv || (p.sr === 'fomcres' && lv.a1 == null)) { console.log('[post] FOMC: まだ計算できないので次の回', p.id); continue; }
       text = L.fomcText(p.sr, lv, lg, nowT);
       p.img = { ...p.img, live: { ...((p.img && p.img.live) || {}), [lg]: { ...lv, kind: p.sr === 'fomc' ? 'fomc1' : p.sr === 'fomcc' ? 'fomc3' : 'fomcres', now: nowT } } };
-      if (p.sr === 'fomcres' && !reply) { const ch = posts.find((x) => x.id === p.img.after), par = posts.find((x) => x.id === String(p.img.after).replace(/:c$/, '')); reply = (ch && ch.tw && ch.tw[lg]) || (par && par.tw && par.tw[lg]) || null; if (!reply) { console.log('[post] FOMC 結果: 返信先のスレッドが無いので出しません', p.id); continue; } }   // v213: 単独では出さない(そのスレッドが出ていなければ不要)
+      if (p.sr === 'fomcres') reply = null;   // v214: 結果は単独の新しい投稿
     } catch (e) { console.log('[post] FOMC を作れませんでした', p.id, e.message); continue; }
   }
   // v204: 毎朝・夜は BTC実況(7日)。v206: 発表前・発表後・急変動・清算も、期間を変えた BTC実況の画像にする
