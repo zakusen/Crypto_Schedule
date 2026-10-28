@@ -676,7 +676,7 @@ body{
   <div class="legend"><span style="color:var(--gold2)">● 指標</span><span style="color:var(--cyan)">● NEXT</span><span style="margin-left:auto" id="legPrice">現在価格 —</span></div>
 </div>
 
-<div class="u-card" id="patCard" style="margin-bottom:12px"></div>
+<div class="u-card" id="weekCard" style="display:none"></div><div class="u-card" id="patCard" style="margin-bottom:12px"></div>
 <a class="nxe" id="nxEntry" href="/next.html" aria-label="清算×指標を開く / Open Liquidations × Events">
   <section class="nxe-copy"><div class="nxe-tag"><i></i><span class="nx-ja">指標 × 清算データ</span><span class="nx-en">EVENTS × LIQUIDATIONS</span></div><div class="nxe-h"><span class="nx-ja">指標発表と<br><em>清算の関係</em></span><span class="nx-en">Events and<br><em>Liquidations</em></span></div><p class="nxe-desc"><span class="nx-ja">経済指標の発表前後で、ロング・ショートの清算推移を比較。過去のイベントも重ねて確認できます。</span><span class="nx-en">Compare long and short liquidations around economic releases, with past events overlaid.</span></p></section>
   <div class="nxe-visual" aria-hidden="true">
@@ -1540,4 +1540,4 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 upd();setInterval(upd,3000)})();
 </script>
 
-<script src="/vol-card.js" defer></script><script src="/pattern-card.js" defer></script></body></html>
+<script src="/vol-card.js" defer></script><script src="/pattern-card.js" defer></script><script src="/week-card.js" defer></script></body></html>

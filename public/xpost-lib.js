@@ -406,13 +406,14 @@ export const PRE_AHEAD = 15 * 60000, PRE_WINDOW = 14 * 60000;   // v183: 発表�
 export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
   for (const p of posts || []) { seen.add(p.id); if (!isAuto(p) || !p.due) continue; for (const lg of langsOf(p)) { const d = dueOf(p, lg); if (!(p.done && p.done[lg]) && d > now - winOf(p) && d < now + 8 * DAY) items.push({ id: p.id, due: d }); } }   // v173: 言語ごと
   for (const g of groups((events || []).filter(AUTOEV))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
+  for (const k of [0, 1]) { for (const [id, due] of sumDues(now + k * DAY)) if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v202: 夜のまとめ
   for (const g of groups((events || []).filter(AUTOEV))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
@@ -499,8 +500,8 @@ export function volStats(B, now) {
 }
 export function volPost(v, link) {
   const r = v.ratio, f = (x) => '±' + x.toFixed(2) + '%', id = 'vol:' + new Date(v.end).toISOString().slice(0, 13);
-  const en = [`📊 BTC volatility is ${r}x normal right now.`, '', `Last 24h, avg 1h move: ${f(v.now1)}`, `30-day normal: ${f(v.typ[1])}`, '', `24h range: ${v.range24.pct}% (${usd(v.range24.lo)}–${usd(v.range24.hi)})`].join('\n');
-  const ja = [`📊 BTCの値動きが普段の${r}倍に`, '', `直近24時間の1時間ごとの変動: ${f(v.now1)}`, `過去30日の平均: ${f(v.typ[1])}`, '', `24時間の値幅: ${v.range24.pct}%（${usd(v.range24.lo)}〜${usd(v.range24.hi)}）`].join('\n');
+  const en = [`📊 BTC volatility is ${r}x normal right now.`, ...(v.vm != null ? [`(${v.vm}x this morning)`] : []), '', `Last 24h, avg 1h move: ${f(v.now1)}`, `30-day normal: ${f(v.typ[1])}`, '', `24h range: ${v.range24.pct}% (${usd(v.range24.lo)}–${usd(v.range24.hi)})`].join('\n');
+  const ja = [`📊 BTCの値動きが普段の${r}倍に`, ...(v.vm != null ? [`（朝は普段の${v.vm}倍）`] : []), '', `直近24時間の1時間ごとの変動: ${f(v.now1)}`, `過去30日の平均: ${f(v.typ[1])}`, '', `24時間の値幅: ${v.range24.pct}%（${usd(v.range24.lo)}〜${usd(v.range24.hi)}）`].join('\n');
   return { id, sr: 'vol', due: v.at, en, ja, h: hashStr(en + ja), img: { v: 1, ratio: r, now1: v.now1, typ: v.typ, px: v.px, end: v.end, range24: v.range24 } };
 }
 
@@ -528,3 +529,32 @@ export function patPost(r, parent) {
     img: { v: 1, win: h, q, top: r.top.map((x) => ({ t0: x.t0, chg: x.chg, d: x.d, path: x.path, after24: x.after24 })) } };
 }
 const ME3U = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// ---- v202: 似ている過去の結果を画像用に小さくする(道のりを間引く。今と過去で同じ間隔) ----
+export function patImg(r, max = 120) {
+  const N = r.q.path.length - 1, st = Math.max(1, Math.ceil(N / max)), pick = (a) => a.filter((_, i) => i % st === 0 || i === a.length - 1);
+  const q = { ...r.q, path: r.q.path.filter((_, i) => i % st === 0 && i <= N).concat(N % st ? [r.q.path[N]] : []) };
+  return { v: 1, win: r.win, q, top: r.top.slice(0, 3).map((x) => ({ t0: x.t0, chg: x.chg, d: x.d, after24: x.after24, path: x.path.filter((_, i) => i % st === 0) })) };
+}
+export const patDateJa = (t) => { const d = J(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()} ${hm(t)}`; };
+export const patDateEn = (t) => { const d = new Date(t); return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`; };
+
+// ---- v202: 夜のまとめ(日誌スレッドの最後)。lang ごとに別の下書き(日本語 = 日本時間の今日 0:00〜22:00 / 英語 = UTC の今日 0:00〜23:30) ----
+// c = {lang, day(区切りの始まり), p0, p1, hi, lo, vm(朝の倍率), vn(今の倍率), ev:[{t, name, c60}], spikes, pat:{t0}|null, vol(画像用), marks}
+export function sumPost(c, id, due) {
+  const en = c.lang === 'en', sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', ch = c.p0 > 0 ? pct(c.p0, c.p1) : null;
+  const build = (o) => [en ? `🌙 BTC TODAY · ${dEnU(c.day)} · UTC` : `🌙 今日のBTC · ${dJaL(c.day)}`, '',
+    `${usd(c.p0)} → ${usd(c.p1)} (${sg(ch)})`, en ? `High ${usd(c.hi)} · Low ${usd(c.lo)}` : `高値 ${usd(c.hi)} · 安値 ${usd(c.lo)}`,
+    ...(c.vn != null ? ['', en ? `📊 Volatility: ${c.vm != null ? `${c.vm}x this morning → ` : ''}${c.vn}x normal now` : `📊 値動き: ${c.vm != null ? `朝 普段の${c.vm}倍 → ` : ''}今 普段の${c.vn}倍`] : []),
+    ...c.ev.slice(0, o.ev).map((e) => `${e.flag || '📅'} ${e.name} ${en ? uhm(e.t) : hm(e.t)} → ${en ? '1h ' : '1時間で '}${sg(e.c60)}`),
+    ...(c.ev.length > o.ev ? [en ? `+${c.ev.length - o.ev} more releases` : `ほか${c.ev.length - o.ev}件の指標`] : []),
+    ...(c.spikes ? [en ? `⚡ Sharp moves: ${c.spikes}` : `⚡ 急変動 ${c.spikes}回`] : []),
+    ...(c.pat && o.pat ? [en ? `🔁 Last 24h most resembles ${patDateEn(c.pat.t0)}` : `🔁 今の24時間に一番似ているのは ${patDateJa(c.pat.t0)}`] : [])].join('\n');
+  let text = null; for (let n = c.ev.length; n >= 0 && !text; n--) for (const pat of [1, 0]) { const t = build({ ev: n, pat }); if (xlen(t) <= 260) { text = t; break; } }
+  text = text || build({ ev: 0, pat: 0 });
+  return { id, sr: 'sum', due, langs: [c.lang], dues: { [c.lang]: due }, en: en ? text : '', ja: en ? '' : text, h: hashStr(text), img: c.vol ? { vol: c.vol, marks: c.marks || [] } : null };
+}
+
+// v202: 夜のまとめの id と投稿時刻(日本語 22:00 JST / 英語 23:30 UTC)
+export const SUM_JA = 22 * H, SUM_EN = 23.5 * H;
+export function sumDues(t) { const dj = dayStart(t), du = Math.floor(t / DAY) * DAY; return [['sum:ja:' + isoDay(dj), dj + SUM_JA], ['sum:en:' + new Date(du).toISOString().slice(0, 10), du + SUM_EN]]; }

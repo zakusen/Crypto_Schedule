@@ -7,7 +7,7 @@
 <title>CSA POSTS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Noto+Sans+JP:wght@400;700&family=Zen+Kaku+Gothic+New:wght@700;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 <style>
 /* v81: X 投稿の管理(運営者だけ)。カレンダーで「いつ・何を・済んだか」を見て、クリックで投稿/予約する */
 :root{--bg:#0a0e16;--panel:#111725;--panel2:#0d1320;--line:#1f2a3d;--tx:#e6e9ef;--mut:#8a94a7;--gold:#c9b37e;--cyan:#7fc8d8;--up:#5fa88a;--dn:#c2645f}
@@ -179,8 +179,8 @@ async function load() {
 }
 
 // 予定(下書き)と、まだ下書きの無い「発表後の値動き」をひとつの並びにする
-const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録', spike: '急変動(S&P500相関)', liq: '巨額清算の総括', liqday: '清算(毎朝)', liqimp: '清算の反応(指標)', pre: '発表前の予告', spikeliq: '急変動の返信(清算)', vol: 'ボラティリティ', pat: '似ている過去' };   // v95: spike
-const ICON = { daily: '🗓', arch: '📈', week: '📊', spike: '⚡', liq: '🔥', liqday: '🧹', liqimp: '🌊', pre: '⏰', spikeliq: '↩', vol: '📊', pat: '🔁' };
+const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録', spike: '急変動(S&P500相関)', liq: '巨額清算の総括', liqday: '清算(毎朝)', liqimp: '清算の反応(指標)', pre: '発表前の予告', spikeliq: '急変動の返信(清算)', vol: 'ボラティリティ', pat: '似ている過去', sum: '夜のまとめ' };   // v95: spike
+const ICON = { daily: '🗓', arch: '📈', week: '📊', spike: '⚡', liq: '🔥', liqday: '🧹', liqimp: '🌊', pre: '⏰', spikeliq: '↩', vol: '📊', pat: '🔁', sum: '🌙' };
 const dueOf = (p) => p.due || (p.sr === 'daily' ? L.dayStart(p.at) + L.DAILY_AT : p.at);
 function build() {
   // v85: その日にもその週の残りにも予定が無い「今日・今週の予定」は出さない(自動作成側も作らないが、作成済みの古い下書きをすぐ隠す)

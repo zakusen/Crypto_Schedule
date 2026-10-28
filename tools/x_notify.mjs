@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { estimateGarch } from '../public/garch-model.mjs';   // v192
 import { loadBtc5m, findSimilar, addContext } from './pattern.mjs';   // v196
+import { weekBoth } from './weekmatch.mjs';   // v204: BTC実況
 import { recsFrom, liqFrom, appendLog, fillLog } from './pattern-ctx.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -91,7 +92,25 @@ const prevOf = (g) => {                                                     // �
   for (const e of g) if (e.l === 'macro') for (const r of recs.get((e.s || e.t) + '|' + e.c) || []) if (r.t < g[0].ts - H && (!best || r.t > best.t)) best = r;
   return best;
 };
-function dailyPost(day, vol = null) {   // v195: vol = /api/vol(今日の分だけ。本文に1行・画像)
+// v202: 5分足(KV の年ごとの控え)と「今の24時間に似た過去」。必要になった時に1回だけ読む・計算する
+let PAT_S = null, NOW24 = null;
+const getS = async () => PAT_S || (PAT_S = await loadBtc5m(NOW, site));
+const REC_LIST = []; for (const doc of Object.values(dump.shards || {})) for (const r of (doc && doc.ev) || []) { const [s0, c0] = String(r.k || '').split('|'); if (r.t) REC_LIST.push({ t: r.t, s: s0, c: c0 }); }
+async function now24() {
+  if (NOW24 !== null) return NOW24;
+  try { const S = await getS(), r = findSimilar(S, NOW, 24, { n: 288 }); if (r && r.top.length) { addContext(r, REC_LIST, null); r.kind = 'now'; NOW24 = r; console.log('[x] 今の24時間に似た過去:', r.top.map((m) => new Date(m.t0).toISOString()).join(' / ')); } else NOW24 = false; }
+  catch (e) { console.log('[x] 今の24時間に似た過去: 作れませんでした', e.message); NOW24 = false; }
+  return NOW24;
+}
+// 昨日の朝の計測(記録の kind: now)の答え合わせ: 計測から24時間後の実際の変化
+async function yAnswer() {
+  try { const lg = (await (await site('/api/admin/rx-one?name=pl')).json()) || {}, S = await getS();
+    const y = (lg.ev || []).filter((x) => x.kind === 'now' && x.after && NOW - x.q.t1 > 24 * H && NOW - x.q.t1 < 34 * H).sort((a, b) => b.q.t1 - a.q.t1)[0]; if (!y) return null;
+    const i = S.t.indexOf(Math.floor((y.q.t1 + 24 * H) / 300000) * 300000 - 300000); if (i < 0) return null;
+    return { a24: Math.round((S.c[i] / y.q.p1 - 1) * 1e4) / 100, min: y.after.min, max: y.after.max };
+  } catch (_) { return null; }
+}
+function dailyPost(day, vol = null, ext = null) {   // v195: vol = /api/vol(今日の分だけ。本文に1行・画像)。v202: ext = {pat(今の24時間に似た過去), ans(昨日の答え合わせ)}
   // v104: 英語(UTC)は「今日」= 投稿時刻〜UTC の 24:00、「今週」= UTC の翌日〜月曜 0:00(UTC)。日本語は日本時間の今日・今週のまま
   const utc = isoDay(day) >= AUTO_DAILY_FROM, eh = utc ? uhm : hm, ed = utc ? uDay : enDay;
   const due = day + DAILY_AT, J9 = 9 * H, split = isoDay(day) >= L.SPLIT_FROM, enDue = day + J9 + L.EN_DAILY_AT;   // v173: 英語は 11:30 UTC                                   // day = 日本時間の0時。+9時間 = 同じ日付の UTC 0時
@@ -113,6 +132,11 @@ function dailyPost(day, vol = null) {   // v195: vol = /api/vol(今日の分だ�
   const dEn = (t) => { const d = new Date(utc ? t : t + J9); return `${String(d.getUTCDate()).padStart(2, '0')} ${ME3[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
   const dJa = (t) => { const d = new Date(t + J9); return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日（${WJ[d.getUTCDay()]}）`; };
   const nextOf = (lang) => { const end = lang === 'en' && utc ? day + J9 + DAY : day + DAY; return groups(events.filter((e) => e.ts >= end && e.ts < end + 14 * DAY))[0] || null; };
+  const SG = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  const EX = { en: [], ja: [] };   // v202: 追加の行(入る分だけ。上から優先)
+  if (vol) { EX.en.push(`📊 BTC volatility: ${vol.ratio}x normal`); EX.ja.push(`📊 BTCの値動き: 普段の${vol.ratio}倍`); }
+  if (ext && ext.pat) { EX.en.push(`🔁 Last 24h most resembles ${L.patDateEn(ext.pat.top[0].t0)}`); EX.ja.push(`🔁 直近24時間に一番似ているのは ${L.patDateJa(ext.pat.top[0].t0)}`); }
+  if (ext && ext.ans) { const a = ext.ans, inR = a.a24 >= a.min && a.a24 <= a.max; EX.en.push(`✅ Yesterday's check: ${SG(a.a24)} (${inR ? 'inside' : 'outside'} the similar range ${SG(a.min)} to ${SG(a.max)})`); EX.ja.push(`✅ 昨日の答え合わせ: 実際 ${SG(a.a24)}（似た過去の幅 ${SG(a.min)}〜${SG(a.max)} の${inR ? '中' : '外'}）`); }
   const text = (lang) => {
     const en = lang === 'en', tg = WN[lang].tg, nx = nextOf(lang);
     const ev = (g, cat) => {
@@ -128,18 +152,18 @@ function dailyPost(day, vol = null) {   // v195: vol = /api/vol(今日の分だ�
       return [...(o.brand ? [en ? '🔹 CRYPTO SIGNAL ARCHIVE' : '🔹 暗号資産シグナル・アーカイブ', ''] : []),
         en ? `🟢 TODAY · ${dEn(due)} · ${utc ? 'UTC' : 'JST'}` : `🟢 本日 · ${dJa(due)} · 日本時間`, rule, '',
         ...body, ...(rest > 0 ? ['', en ? `+${rest} more` : `ほか${rest}件`] : []), '', rule,
-        ...(o.vol && vol ? [en ? `📊 BTC volatility: ${vol.ratio}x normal` : `📊 BTCの値動き: 普段の${vol.ratio}倍`] : []),
+        ...(o.ex ? EX[lang].slice(0, o.ex) : []),
         ...(nx ? ['', en ? `🟢 NEXT SIGNAL · ${dEn(nx[0].ts)} · ${eh(nx[0].ts)}` : `🟢 次の予定 · ${dJa(nx[0].ts)} · ${hm(nx[0].ts)}`, `🟡 ${isCB(nx) ? '🏦' : (REG[nx[0].c] || ['📅'])[0]} ${en ? groupLine(nx, 'en').toUpperCase() : groupLine(nx, 'ja')}`] : []),
         '', tag].join('\n');
     };
     const OPT = [{ brand: 1, cat: 1, rule: 18 }, { brand: 1, cat: 1, rule: 10 }, { cat: 1, rule: 10 }, { rule: 10 }];
-    for (let tn = tg.length; tn >= 0; tn--) for (const o of OPT) { const t = mk(tn, o); if (xlen(t) <= 280) { const tv = vol ? mk(tn, { ...o, vol: 1 }) : null; return tv && xlen(tv) <= 280 ? tv : t; } }   // v195: 📊の行は指標より後回し
+    for (let tn = tg.length; tn >= 0; tn--) for (let k = EX[lang].length; k >= 0; k--) for (const o of OPT) { const t = mk(tn, { ...o, ex: k }); if (xlen(t) <= 260) return t; }   // 優先: 指標 > 追加の行 > ブランド行・線の長さ   // v195/v202: 追加の行(📊🔁✅)は指標より後回し。260 = 番号の行の分をあける   // v195: 📊の行は指標より後回し
     return mk(0, OPT[OPT.length - 1]);
   };
   const en = text('en'), ja = text('ja');
   const lists = (w) => ({ today: w.tg.map((g, i) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), pv: w.prev[i] ? w.prev[i].chg : null })), week: w.wk.map((g) => ({ t: g[0].ts, en: groupLine(g, 'en'), ja: groupLine(g, 'ja') })) });
-  return { id: 'daily:' + isoDay(day), sr: 'daily', due, ...(split ? { dues: { ja: due, en: enDue } } : {}), en, ja, h: hashStr(en + ja + (split ? 'split' : '') + (vol ? 'v' + vol.end : '')),
-    img: { day, next: WN.ja.next, ...lists(WN.ja), ...(utc ? { utc: 1, enl: { next: WN.en.next, ...lists(WN.en) } } : {}), ...(vol ? { vol: { ratio: vol.ratio, now1: vol.now1, typ: vol.typ, px: vol.px, end: vol.end, range24: vol.range24, g24: vol.garch ? vol.garch['24h'] : null } } : {}) } };   // enl = 英語の画像用(UTC の区切り)
+  return { id: 'daily:' + isoDay(day), sr: 'daily', due, ...(split ? { dues: { ja: due, en: enDue } } : {}), en, ja, h: hashStr(en + ja + (split ? 'split' : '') + (vol ? 'v' + vol.end : '') + (ext && ext.pat ? 'p' + ext.pat.q.t1 : '')),
+    img: { day, next: WN.ja.next, ...lists(WN.ja), ...(utc ? { utc: 1, enl: { next: WN.en.next, ...lists(WN.en) } } : {}), ...(vol ? { vol: { ratio: vol.ratio, now1: vol.now1, typ: vol.typ, px: vol.px, end: vol.end, range24: vol.range24, g24: vol.garch ? vol.garch['24h'] : null } } : {}), ...(ext && ext.pat ? { pat: L.patImg(ext.pat) } : {}), ...(vol || ext ? { ex: 1 } : {}) } };   // enl = 英語の画像用(UTC の区切り)
 }
 const drop = [...redo];                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
 // v195: 今日の分は、投稿の3時間前から(まだどちらの言語も出していなければ)ボラティリティを1回だけ入れて作り直す
@@ -147,12 +171,17 @@ let VOLNOW = null;
 try { const r = await fetch(SITE + '/api/vol', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(20000) }); const j = r.ok ? await r.json() : null; if (j && j.available && j.ratio != null && NOW - j.end < 3 * H) VOLNOW = j; } catch (_) {}
 for (let i = 0; i <= AHEAD; i++) {
   const day = today + i * DAY, o0 = byId.get('daily:' + isoDay(day));
-  const wantVol = i === 0 && VOLNOW && NOW >= day + DAILY_AT - 3 * H && !(o0 && o0.img && o0.img.vol) && !(o0 && o0.done && (o0.done.en || o0.done.ja));
-  const p = dailyPost(day, wantVol ? VOLNOW : null);
-  if (wantVol && (p.img.today.length || p.img.week.length)) { put(p); continue; }
+  const wantVol = i === 0 && NOW >= day + DAILY_AT - 3 * H && !(o0 && o0.img && (o0.img.vol || o0.img.ex)) && !(o0 && o0.done && (o0.done.en || o0.done.ja));
+  const ext = null;   // v204: 🔁(似ている24時間)と✅の行は BTC実況に置き換え(x_post が投稿時に1行と画像を足す)
+  const p = dailyPost(day, wantVol ? VOLNOW : null, ext && (ext.pat || ext.ans) ? ext : null);
+  if (wantVol && VOLNOW) {
+    put(p);
+    if (ext && ext.pat) { try { await appendLog(site, ext.pat); } catch (_) {} }   // 朝の計測を記録に残す(翌朝に答え合わせ)
+    continue;
+  }
   if (p.due < NOW && byId.has(p.id)) continue;
-  if (i === 0 && o0 && o0.img && o0.img.vol) continue;   // ボラティリティ入りで作った後は作り直さない                              // 投稿時刻を過ぎた分は作り直さない(今日の分が無ければ作る)
-  if (!p.img.today.length && !p.img.week.length) { if (byId.has(p.id)) drop.push(p.id); continue; }   // v85: その日もその週の残りも予定が無い日は作らない(曜日に関係なく)
+  if (i === 0 && o0 && o0.img && (o0.img.vol || o0.img.ex)) continue;   // ボラティリティ入りで作った後は作り直さない                              // 投稿時刻を過ぎた分は作り直さない(今日の分が無ければ作る)
+  // v204: 予定が無い日も作る(毎朝の BTC実況は必ず出す)   // v85: その日もその週の残りも予定が無い日は作らない(曜日に関係なく)
   put(p);
 }
 
@@ -184,6 +213,42 @@ for (const g of groups(events.filter((e) => L.AUTOEV(e) && NOW - e.ts >= ARCH_WA
   }
 }
 
+// ---- 2c) v202: 発表後の値動きに「発表後1時間の動きに一番似ている過去(全期間)」と「前回の同じ指標」を1行ずつ。まだ出していないものだけ ----
+for (const o of [...byId.values()]) {
+  if (o.sr !== 'arch' || (o.done && (o.done.en || o.done.ja)) || (o.img && o.img.pat1) || !(o.img && o.img.t) || NOW - o.img.t < 62 * 60000 || NOW - o.img.t > 4 * H) continue;
+  try {
+    const S = await getS(), t0 = Math.floor(o.img.t / 300000) * 300000, r = findSimilar(S, t0 + H, 1, { n: 12 });
+    if (!r || !r.top.length) continue;
+    const g = groups(events.filter((e) => Math.abs(e.ts - o.img.t) < 60000)), pv = g.length ? prevOf(g[0]) : null, SG = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+    const add = (txt, lines) => { let t = txt; for (const l of lines) if (xlen(t + '\n' + l) <= 260) t += '\n' + l; return t; };
+    const en = add(o.en, ['', ...(pv ? [`Last time: BTC ${SG(pv.chg)} in the first hour`] : []), `🔁 Closest past 1h move: ${L.patDateEn(r.top[0].t0)}`]);
+    const ja = add(o.ja, ['', ...(pv ? [`前回の発表: 1時間で ${SG(pv.chg)}`] : []), `🔁 発表後1時間の動きに一番似ているのは ${L.patDateJa(r.top[0].t0)}`]);
+    put({ ...o, en: en.replace(/\n\n$/, ''), ja: ja.replace(/\n\n$/, ''), img: { ...o.img, pat1: { t0: r.top[0].t0, d: r.top[0].d } }, h: hashStr(en + ja) });
+    console.log('[x] 発表後の値動き: 似ている過去を足しました', o.id);
+  } catch (e) { console.log('[x] 発表後の値動き: 似ている過去を足せませんでした', e.message); }
+}
+
+// ---- 2d) v202: 夜のまとめ(日本語 22:00 JST・英語 23:30 UTC)。投稿の3時間前から作る ----
+for (const [id, due] of L.sumDues(NOW)) {
+  if (byId.has(id) || NOW < due - 3 * H || NOW > due + 2 * H) continue;
+  try {
+    const lang = id.startsWith('sum:en') ? 'en' : 'ja', S = await getS(), day = lang === 'en' ? Math.floor(NOW / DAY) * DAY : dayStart(NOW);
+    let i0 = -1, hi = -Infinity, lo = Infinity; for (let i = S.t.length - 1; i >= 0 && S.t[i] >= day; i--) { i0 = i; hi = Math.max(hi, S.c[i]); lo = Math.min(lo, S.c[i]); }
+    if (i0 < 0) continue;
+    let vn = null, vol = null; try { const r = await fetch(SITE + '/api/vol', { signal: AbortSignal.timeout(20000) }); const j = r.ok ? await r.json() : null; if (j && j.available) { vn = j.ratio; vol = { ratio: j.ratio, now1: j.now1, typ: j.typ, px: j.px, end: j.end, range24: j.range24, g24: j.garch ? j.garch['24h'] : null }; } } catch (_) {}
+    const dp = byId.get('daily:' + isoDay(dayStart(NOW))), vm = dp && dp.img && dp.img.vol ? dp.img.vol.ratio : null;
+    const FLAG = { US: '🇺🇸', JP: '🇯🇵', EU: '🇪🇺' }, evs = [];
+    for (const g of groups(events.filter((e) => e.l === 'macro' && e.ts >= day && e.ts < NOW - ARCH_WAIT))) {
+      const a = byId.get(archId(g)), c60 = a && a.img && a.img.coins && a.img.coins.BTC ? a.img.coins.BTC.c60 : null;
+      if (c60 != null) evs.push({ t: g[0].ts, name: L.headName(g, lang), flag: FLAG[g[0].c], c60 });
+    }
+    const spikes = [...byId.values()].filter((p) => p.sr === 'spike' && p.due >= day && p.due <= NOW).length, pt = null;   // v204: 🔁の行は BTC実況に置き換え
+    const marks = evs.map((e) => ({ t: e.t, en: e.name, ja: e.name }));
+    put(L.sumPost({ lang, day, p0: S.c[i0], p1: S.c[S.c.length - 1], hi, lo, vm, vn, ev: evs, spikes, pat: pt ? pt.top[0] : null, vol, marks }, id, due));
+    console.log('[x] 夜のまとめ:', id);
+  } catch (e) { console.log('[x] 夜のまとめ: 作れませんでした', e.message); }
+}
+
 // ---- 3) 週間記録(v92: 土曜 7時以降に作成 → 10:00 投稿。期間 = 前の土曜0時〜金曜24時 JST) ----
 if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
   const we = dayStart(NOW), ws = we - 7 * DAY, id = 'week:' + isoDay(ws);
@@ -206,7 +271,14 @@ if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
         ev.push({ t: e0.ts, icon: k.icon, sen: k.short[0] || (e0.se || e0.te || e0.s), sja: k.short[1] || (e0.s || e0.t), en: groupLine(g, 'en'), ja: groupLine(g, 'ja'), btc, r: rank(g), a: avgAbs(g), major: g.some(MAJOR) });
       }
       ev.sort((x, y) => x.r - y.r || y.a - x.a || x.t - y.t);
-      put(weekPost({ ws, we, coins, ev, btc }, SITE));
+      const wp = weekPost({ ws, we, coins, ev, btc }, SITE);
+      try {   // v202: 今週の答え合わせ(似ている過去の記録のうち、今週に24時間がたったもの)
+        const lg = (await (await site('/api/admin/rx-one?name=pl')).json()) || {}, d = (lg.ev || []).filter((x) => x.a24 != null && x.after && x.q.t1 >= ws - DAY && x.q.t1 < we);
+        if (d.length) { const k = d.filter((x) => x.a24 >= x.after.min && x.a24 <= x.after.max).length;
+          const le = `✅ This week's check: ${k} of ${d.length} stayed inside the similar range`, lj = `✅ 今週の答え合わせ: ${d.length}回中${k}回が似た過去の幅の中`;
+          if (xlen(wp.en + '\n' + le) <= 260) wp.en += '\n' + le; if (xlen(wp.ja + '\n' + lj) <= 260) wp.ja += '\n' + lj; wp.h = hashStr(wp.en + wp.ja); }
+      } catch (_) {}
+      put(wp);
     } else console.log('[x] 週間記録: 1時間足が揃わないので次回');
   }
 }
@@ -244,7 +316,7 @@ try {
     const c = await corrNow();
     if (c) { corr = c; await site('/api/admin/rx-put?name=cr', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(c) }); console.log('[x] S&P500 相関を更新:', JSON.stringify(c.w)); }
   }
-  let liqH = null, PAT_S = null;   // v187 / v196
+  let liqH = null;   // v187
   for (const ev of pend) {
     // v148: 線を描く BTC と S&P500 だけ長く取る。ETH・SOL・BNB は始まりと終わりの前後だけ(取得の回数を減らす)。BTC 以外は取れなくても続ける
     const W = ev.win || 1, end = Math.min(NOW, ev.t + 15 * 60000), from = ev.t - (W > 6 ? 49 : W > 1 ? 13 : 7) * H, B = {};
@@ -276,8 +348,7 @@ try {
     // v196: 似ている過去の値動き(2017年以降の5分足・DTW)。親への返信 + サイトのカード(pat:v1)。6時間までの急変動だけ
     if (mv.t1 - mv.t0 <= 12 * H && !byId.has(ev.id + ':pat')) {
       try {
-        if (!PAT_S) { console.log('[x] 似ている過去: 5分足を読み込みます'); PAT_S = await loadBtc5m(NOW); }
-        const res = findSimilar(PAT_S, mv.t1, mv.win, { n: Math.round((mv.t1 - mv.t0) / 300000) });
+        const res = findSimilar(await getS(), mv.t1, mv.win, { n: Math.round((mv.t1 - mv.t0) / 300000) });
         if (res && res.top.length) {
           addContext(res, await recsFrom(site), await liqFrom(SITE));
           await site('/api/admin/rx-put?name=pt', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(res) });
@@ -312,10 +383,21 @@ try {
       vol = { ...v, garch: g.available ? g.sigma_pct : null, garchWhy: g.available ? null : g.reason, hist, acc: { n: done.length, hit: done.filter((x) => x.r <= x.f).length }, next };
       await site('/api/admin/rx-put?name=vl', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(vol) });
       console.log('[x] ボラティリティ: 普段の', v.ratio, '倍 / GARCH', g.available ? JSON.stringify(g.sigma_pct) : g.reason);
-      if (v.ratio != null && v.ratio >= L.VOL_ALERT && ![...byId.values(), ...out].some((p) => p.sr === 'vol' && NOW - (p.due || 0) < DAY)) { put(L.volPost(v)); console.log('[x] ボラティリティの投稿を作りました'); }
+      if (v.ratio != null && v.ratio >= L.VOL_ALERT && ![...byId.values(), ...out].some((p) => p.sr === 'vol' && NOW - (p.due || 0) < DAY)) { { const dp = byId.get('daily:' + isoDay(dayStart(NOW))); put(L.volPost({ ...v, vm: dp && dp.img && dp.img.vol ? dp.img.vol.ratio : null })); } console.log('[x] ボラティリティの投稿を作りました'); }
     }
   }
 } catch (e) { console.log('[x] ボラティリティでエラー(ほかの下書きは続けます):', e.message); }
+
+// ---- 4c) v202: サイトの「似ている過去の値動き」カードを今の24時間で更新(直近6時間に急変動の計測が無い時) ----
+try {
+  let cur = {}; try { cur = (await (await site('/api/admin/rx-one?name=pt')).json()) || {}; } catch (_) {}
+  const fresh = cur.q && cur.kind !== 'now' && NOW - (cur.at || 0) < 6 * H;
+  if (!fresh && (!cur.at || cur.kind !== 'now' || NOW - cur.at > 50 * 60000)) { const r = await now24(); if (r) { await site('/api/admin/rx-put?name=pt', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(r) }); console.log('[x] サイトのカードを今の24時間で更新'); } }
+} catch (e) { console.log('[x] サイトのカード(今の24時間)でエラー', e.message); }
+
+// ---- 4d) v204: サイトの BTC実況カード(今週となぞっている過去の週 TOP3) ----
+try { const S = await getS(), w = await weekBoth(S, NOW); if (w.ja || w.en) { await site('/api/admin/rx-put?name=wk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(w) }); console.log('[x] BTC実況のカードを更新', w.ja && w.ja.top.map((m) => new Date(m.w).toISOString().slice(0, 10) + ' ' + m.rate + '%').join(' / ')); } }
+catch (e) { console.log('[x] BTC実況のカードでエラー', e.message); }
 
 // ---- 5) 清算(v152) ----
 //   巨額清算の総括: Worker(LiqHub)が収まった時に x:liq へ記録した事象ごとに1本。6時間以内で、まだ下書きが無いものだけ作る。

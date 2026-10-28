@@ -12,6 +12,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
+import { loadBtc5m } from './pattern.mjs';
+import { weekMatch, liveLine } from './weekmatch.mjs';   // v204: BTC実況
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
@@ -81,7 +83,12 @@ async function render(p, lg) {
 // ---- 投稿 ----
 const OUT = path.join(process.cwd(), 'x_out');
 if (DRY) fs.mkdirSync(OUT, { recursive: true });
-let n = 0;
+
+// v202: 日誌スレッド(毎朝の予定を親に、その日の自動投稿を返信でつなぐ)
+const THREAD_SR = new Set(['pre', 'arch', 'spike', 'liq', 'liqday', 'liqimp', 'vol', 'sum', 'week', 'pat']);
+const latestRoot = (lg) => posts.filter((x) => x.sr === 'daily' && x.tw && x.tw[lg] && x.done && x.done[lg] && Date.now() - x.done[lg] < 26 * 36e5).sort((a, b) => b.done[lg] - a.done[lg])[0] || null;
+let n = 0, S5 = null;
+const LIVE = {};   // v204: サイトのカード用に保存する
 const tw = new Map();   // v187: この回に出した投稿のID(返信用)
 for (const { p, lg } of todo) {
   if (n >= MAX_POSTS && !p.parent) { console.log('[post] 1回の上限に達したので残りは次回'); break; }   // v188: 返信は上限でも親と一緒に出す(親だけ出て返信が捨てられるのを防ぐ)
@@ -95,7 +102,33 @@ for (const { p, lg } of todo) {
       continue;
     }
   }
-  const text = p[lg], png = p.parent ? null : await render(p, lg), name = `${p.id.replace(/[^a-z0-9-]+/gi, '-')}-${lg}`;
+  // v202: 日誌スレッド。毎朝の予定(daily)をその日の親にして、ほかの自動投稿はその日の最新の投稿への返信としてつなぐ。番号「10/26 · #3」を最後に付ける
+  let no = null;
+  if (!p.parent && (THREAD_SR.has(p.sr) || p.sr === 'daily')) {
+    const root = p.sr === 'daily' ? null : latestRoot(lg);
+    if (p.sr === 'daily') no = 1;
+    else if (root) {
+      const mem = posts.filter((x) => x.tw && x.tw[lg] && x.done && x.done[lg] >= root.done[lg] && x.id !== root.id);
+      const last = [root, ...mem].sort((a, b) => b.done[lg] - a.done[lg])[0];
+      reply = (tw.get(last.id + ':' + lg)) || last.tw[lg]; no = 1 + mem.filter((x) => !x.parent).length + 1;
+    }
+  }
+  let text = p[lg];
+  // v204: 毎朝・夜は BTC実況(投稿する時点の今週となぞっている過去の週 TOP3)。画像と1行を足す
+  if (p.sr === 'daily' || p.sr === 'sum') {
+    try {
+      if (!S5) S5 = await loadBtc5m(Date.now(), site);
+      const lv = weekMatch(S5, Date.now(), lg);
+      if (lv) {
+        p.img = { ...(p.img || {}), live: { ...((p.img && p.img.live) || {}), [lg]: lv } };
+        const ln = liveLine(lv, lg), i = text.lastIndexOf('\n\n#'), t2 = i > 0 ? text.slice(0, i) + '\n\n' + ln + text.slice(i) : text + '\n\n' + ln;
+        if (L.xlen(t2) <= 262) text = t2;
+        LIVE[lg] = lv;
+      }
+    } catch (e) { console.log('[post] BTC実況を作れませんでした(いつもの画像で出します):', e.message); }
+  }
+  if (no) { const d = lg === 'en' ? new Date(Date.now()) : new Date(Date.now() + 9 * 36e5), tag = `🔹 ${lg === 'en' ? ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getUTCMonth()] + ' ' + d.getUTCDate() : (d.getUTCMonth() + 1) + '/' + d.getUTCDate()} · #${no}`; if (L.xlen(text + '\n\n' + tag) <= 280) text += '\n\n' + tag; }
+  const png = await render(p, lg), name = `${p.id.replace(/[^a-z0-9-]+/gi, '-')}-${lg}`;
   if (DRY) {
     fs.writeFileSync(path.join(OUT, name + '.txt'), text + `\n\n(${L.xlen(text)}/280)\n`);
     if (png) fs.writeFileSync(path.join(OUT, name + '.png'), png);
@@ -110,8 +143,9 @@ for (const { p, lg } of todo) {
     }
     const res = await xapi('https://api.x.com/2/tweets', { text, ...(media ? { media: { media_ids: [String(media)] } } : {}), ...(reply ? { reply: { in_reply_to_tweet_id: String(reply) } } : {}) });
     if (res && res.data && res.data.id) tw.set(p.id + ':' + lg, res.data.id);
+    if (res && res.data && res.data.id) { p.tw = { ...(p.tw || {}), [lg]: String(res.data.id) }; if (no) p.no = { ...(p.no || {}), [lg]: no }; }
     console.log(`[post] 投稿しました ${p.id}:${lg} → ${res && res.data && res.data.id}${media ? ' (画像つき)' : ''}`);
-    await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true } }) });
+    await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true, tw: res && res.data && res.data.id, no } }) });
     p.done = p.done || {}; p.done[lg] = Date.now();
     n++;
     await new Promise((r) => setTimeout(r, 3000));
@@ -121,6 +155,7 @@ for (const { p, lg } of todo) {
   }
 }
 if (browser) await browser.close();
+if (!DRY && (LIVE.ja || LIVE.en)) { try { let o = {}; try { o = (await (await site('/api/admin/rx-one?name=wk')).json()) || {}; } catch (_) {} await site('/api/admin/rx-put?name=wk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ ...o, ...LIVE, at: Date.now() }) }); } catch (e) { console.log('[post] BTC実況をサイトに保存できませんでした', e.message); } }
 if (!DRY) await writeDue();
 console.log(`[post] ${DRY ? '試し(投稿なし)' : '投稿'} ${n}件`);
 

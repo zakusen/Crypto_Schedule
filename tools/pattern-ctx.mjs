@@ -19,7 +19,8 @@ export async function liqFrom(SITE) {
 export async function appendLog(site, res) {
   let d = {}; try { d = (await (await site('/api/admin/rx-one?name=pl')).json()) || {}; } catch (_) {}
   const ev = (d.ev || []).filter((x) => x.q && x.q.t1 !== res.q.t1);
-  ev.push({ q: res.q, win: res.win, n: res.n, after: res.after, top: res.top, at: res.at });
+  const { path, ...q } = res.q;   // v202: 記録は軽く(道のりは残さない)
+  ev.push({ q, kind: res.kind || 'move', win: res.win, n: res.n, after: res.after, top: res.top.map(({ path: _, ...m }) => m), at: res.at });
   await site('/api/admin/rx-put?name=pl', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ v: 1, ev: ev.slice(-500) }) });
 }
 // v201: 答え合わせ。記録した値動きの「その後24時間」(実際)を、24時間たったものから埋める。B = BTC 1時間足 [[開始ms, …, 終]]

@@ -29,26 +29,35 @@ async function zipRows(url) {
   const out = []; for (const line of csv.split('\n')) { const a = line.split(','); let t = +a[0]; if (!(t > 0)) continue; if (t > 1e14) t = Math.floor(t / 1000); out.push([t, +a[4]]); }
   return out;
 }
-// 2017-08 〜 今までの BTC 5分足の終値。月ごと(先月まで)+日ごと(今月)+ API(今日〜今)
-export async function loadBtc5m(now = Date.now()) {
-  const rows = new Map(), d = new Date(now), y1 = d.getUTCFullYear(), m1 = d.getUTCMonth();
-  const months = []; for (let y = 2017, m = 7; y * 12 + m < y1 * 12 + m1; m++) { if (m > 11) { m = 0; y++; } if (y * 12 + m < y1 * 12 + m1) months.push(`${y}-${String(m + 1).padStart(2, '0')}`); }
-  for (let i = 0; i < months.length; i += 8) {   // 8本ずつ並べて取る
-    const part = await Promise.all(months.slice(i, i + 8).map((ym) => zipRows(`${VISION}/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-${ym}.zip`)));
-    for (const a of part) for (const [t, c] of a) rows.set(t, c);
-  }
-  for (let day = Date.UTC(y1, m1, 1); day < Math.floor(now / DAY) * DAY; day += DAY) {
-    const ds = new Date(day).toISOString().slice(0, 10);
-    for (const [t, c] of await zipRows(`${VISION}/daily/klines/BTCUSDT/5m/BTCUSDT-5m-${ds}.zip`)) rows.set(t, c);
+// 2017-08 〜 今までの BTC 5分足の終値。
+// v202: site を渡すと、年ごとの控え(KV btc5m:YYYY。Float32 の終値を base64)を使い、足りない分だけ取って控えを更新する。
+//   控えが無い年 = 月ごと(先月まで)+ 日ごと(今月)の zip。最後に API で今まで。
+const Y0 = 2017;
+const enc = (y, rows) => { const t0 = Date.UTC(y, 0, 1), n = Math.round((Date.UTC(y + 1, 0, 1) - t0) / M5), f = new Float32Array(n).fill(NaN); for (const [t, c] of rows) if (t >= t0 && t < t0 + n * M5) f[(t - t0) / M5] = c; return { y, t0, n, c: Buffer.from(f.buffer).toString('base64') }; };
+const dec = (j, rows) => { const b = Buffer.from(j.c, 'base64'), f = new Float32Array(b.buffer, b.byteOffset, b.byteLength / 4); for (let i = 0; i < f.length; i++) if (f[i] > 0) rows.set(j.t0 + i * M5, f[i]); };
+async function yearZips(y, now, rows) {
+  const d = new Date(now), y1 = d.getUTCFullYear(), m1 = d.getUTCMonth(), months = [];
+  for (let m = y === 2017 ? 7 : 0; m < 12 && y * 12 + m < y1 * 12 + m1; m++) months.push(`${y}-${String(m + 1).padStart(2, '0')}`);
+  for (let i = 0; i < months.length; i += 8) { const part = await Promise.all(months.slice(i, i + 8).map((ym) => zipRows(`${VISION}/monthly/klines/BTCUSDT/5m/BTCUSDT-5m-${ym}.zip`))); for (const a of part) for (const [t, c] of a) rows.set(t, c); }
+  if (y === y1) for (let day = Date.UTC(y1, m1, 1); day < Math.floor(now / DAY) * DAY; day += DAY) for (const [t, c] of await zipRows(`${VISION}/daily/klines/BTCUSDT/5m/BTCUSDT-5m-${new Date(day).toISOString().slice(0, 10)}.zip`)) rows.set(t, c);
+}
+export async function loadBtc5m(now = Date.now(), site = null) {
+  const rows = new Map(), y1 = new Date(now).getUTCFullYear(), fresh = new Set();
+  for (let y = Y0; y <= y1; y++) {
+    let j = null; if (site) { try { j = await (await site('/api/admin/rx-one?name=b' + y)).json(); } catch (_) {} }
+    if (j && j.c && (y === y1 || j.full)) dec(j, rows); else { await yearZips(y, now, rows); fresh.add(y); }
   }
   // 足りない直近分は API(1回1000本)
-  let mxT = Date.UTC(y1, m1, 1); for (const k of rows.keys()) if (k > mxT) mxT = k;   // v197: 100万本あるので Math.max(...) は使わない(呼び出しの深さを超える)
-  let from = mxT + M5;
+  let mxT = Date.UTC(Y0, 7, 1); for (const k of rows.keys()) if (k > mxT) mxT = k;   // v197: 100万本あるので Math.max(...) は使わない
+  let from = mxT + M5, got = 0;
   while (from < now - M5) {
     let j = null; for (const b of API) { const r = await get(`${b}/api/v3/klines?symbol=BTCUSDT&interval=5m&startTime=${from}&limit=1000`, 20000); if (r) { j = await r.json(); break; } }
     if (!Array.isArray(j) || !j.length) break;
-    for (const k of j) rows.set(+k[0], +k[4]);
+    for (const k of j) rows.set(+k[0], +k[4]); got += j.length;
     from = +j[j.length - 1][0] + M5;
+  }
+  if (site) for (let y = Y0; y <= y1; y++) if (fresh.has(y) || (y === y1 && got)) {
+    try { const body = JSON.stringify({ ...enc(y, rows), full: y < y1 ? 1 : 0, at: now }); await site('/api/admin/rx-put?name=b' + y, { method: 'POST', headers: { 'content-type': 'text/plain' }, body }); } catch (e) { console.log('[pat] 5分足の控えを保存できませんでした', y, e.message); }
   }
   const t = [...rows.keys()].filter((x) => x + M5 <= now).sort((a, b) => a - b);
   return { t, c: t.map((x) => rows.get(x)) };
@@ -77,7 +86,8 @@ export function findSimilar(S, end, win = 2, opt = {}) {
   const is = ie - N, base = S.c[is], q = []; for (let i = is; i <= ie; i++) q.push((S.c[i] / base - 1) * 100);
   const qc = q[N], sign = Math.sign(qc), lo = Math.abs(qc) * 0.6, hi = Math.abs(qc) * 1.6, R = Math.max(2, Math.round(N / 8));
   const cand = [], stop = ie - 3 * 288, AFTER = 288;   // 直近3日は除く。その後24時間が取れるものだけ
-  for (let s = 0; s + N + AFTER < S.t.length && s + N < stop; s += 3) {
+  const STEP = opt.step || (N > 100 ? 6 : 3);   // v202: 24時間(288本)は30分ずつずらして探す
+  for (let s = 0; s + N + AFTER < S.t.length && s + N < stop; s += STEP) {
     const e = s + N; if (S.t[e] - S.t[s] !== N * M5) continue;   // 途中に欠けがあるものは使わない
     const tot = (S.c[e] / S.c[s] - 1) * 100; if (Math.sign(tot) !== sign || Math.abs(tot) < lo || Math.abs(tot) > hi) continue;
     const p = []; for (let i = s; i <= e; i++) p.push((S.c[i] / S.c[s] - 1) * 100);
@@ -129,7 +139,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   const win = +(arg('--win') || 2), now = Date.now();
   const site = async (p, o = {}) => { const r = await fetch(SITE + p, { ...o, headers: { 'x-admin-key': KEY, ...(o.headers || {}) }, signal: AbortSignal.timeout(60000) }); if (!r.ok) throw new Error(p + ' HTTP ' + r.status); return r; };
   console.log('[pat] 5分足を読み込みます…'); const t0 = Date.now();
-  const S = await loadBtc5m(now); console.log(`[pat] ${S.t.length}本 (${new Date(S.t[0]).toISOString().slice(0, 10)}〜) ${Math.round((Date.now() - t0) / 1000)}秒`);
+  const S = await loadBtc5m(now, KEY ? site : null); console.log(`[pat] ${S.t.length}本 (${new Date(S.t[0]).toISOString().slice(0, 10)}〜) ${Math.round((Date.now() - t0) / 1000)}秒`);
   // v199: 既定 = 日本時間の今日の高値からの下げ(安値からの上げ)が ±2.3% 以上の区間。--from と --end で区間を指定することもできる
   let rg = arg('--end') ? { end: Date.parse(arg('--end')), from: arg('--from') ? Date.parse(arg('--from')) : Date.parse(arg('--end')) - win * 3600000 } : autoRange(S, now, L.SPIKE_DAY || 2.3);
   if (!rg) { console.log('[pat] 今日、高値から(安値から)±2.3% 以上の値動きがありません'); process.exit(0); }
