@@ -13,7 +13,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { loadBtc5m } from './pattern.mjs';
-import { weekMatch, liveLine } from './weekmatch.mjs';   // v204: BTC実況
+import { weekMatch, liveMatch, liveLine } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
@@ -88,6 +88,43 @@ if (DRY) fs.mkdirSync(OUT, { recursive: true });
 const THREAD_SR = new Set(['pre', 'arch', 'spike', 'liq', 'liqday', 'liqimp', 'vol', 'sum', 'week', 'pat']);
 const latestRoot = (lg) => posts.filter((x) => x.sr === 'daily' && x.tw && x.tw[lg] && x.done && x.done[lg] && Date.now() - x.done[lg] < 26 * 36e5).sort((a, b) => b.done[lg] - a.done[lg])[0] || null;
 let n = 0, S5 = null, EVL = null;
+const LIVE_SR = new Set(['daily', 'sum', 'pre', 'arch', 'spike', 'liq']);
+const M5 = 300000, HR = 3600000, FLAG = { US: '🇺🇸', JP: '🇯🇵', EU: '🇪🇺' };
+const SG = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', COL = (v) => v < 0 ? '#ff4d66' : '#3cff9a', CCOL = (v) => v < 0 ? '#ff8a9a' : '#6fe3a8';
+const nameOf = (t, lg) => { const e = (EVL || []).find((x) => Math.abs(x.t - t) < 60000); return e ? `${FLAG[e.c] || '📅'} ${e[lg]}` : null; };
+const hmOf = (t, lg) => { const d = new Date(t + (lg === 'en' ? 0 : 9 * HR)); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+const mdOf = (t, lg) => { const d = new Date(t + (lg === 'en' ? 0 : 9 * HR)); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+// 投稿の種類ごとの期間と、真ん中の欄(事実の数字だけ)
+function liveFor(p, lg, now) {
+  const en = lg === 'en', im = p.img || {};
+  if (p.sr === 'daily' || p.sr === 'sum') return weekMatch(S5, now, lg, EVL);
+  if (p.sr === 'pre') {   // 発表の前後1日(15分刻み)
+    const E = +String(p.id).split(':')[1], nm = nameOf(E, lg) || p[lg].split('\n')[0].split(' · ')[0], pc = im.coins && im.coins.BTC ? im.coins.BTC.c60 : null;
+    const lv = liveMatch(S5, now, { ws: E - 24 * HR, N: 192, st: 15 * 60000, shift: HR, lang: lg }); if (!lv) return null;
+    return { ...lv, label: { ja: '発表前', en: 'BEFORE RELEASE' }, hl: { t0: E, ja: nm, en: nm },
+      stat: { head: { ja: `${nm} ${hmOf(E, lg)} · 前回の発表後1時間`, en: `${nm} ${hmOf(E, lg)} UTC · last time, 1h after` }, big: SG(pc), col: pc == null ? '#ffc94d' : COL(pc), chips: im.t ? [{ ja: `前回 ${mdOf(im.t, lg)}`, en: `Last: ${mdOf(im.t, lg)}` }] : [] } };
+  }
+  if (p.sr === 'arch') {   // 発表の1時間前〜2時間後(5分刻み)
+    const E = im.t || +String(p.id).split(':')[1], c = im.coins || {}, b = c.BTC ? c.BTC.c60 : im.chg, nm = nameOf(E, lg) || `${im.icon || ''} ${im[lg] || ''}`.trim();
+    const lv = liveMatch(S5, now, { ws: E - HR, N: 36, st: M5, shift: HR, lang: lg }); if (!lv) return null;
+    return { ...lv, label: { ja: '発表後の値動き', en: 'AFTER RELEASE' }, tone: b == null ? null : COL(b), hl: { t0: E, t1: E + HR, ja: `${nm} ${hmOf(E, lg)}`, en: `${nm} ${hmOf(E, lg)}` },
+      stat: { head: { ja: `${nm} 発表後1時間 BTC`, en: `${nm} · BTC 1h after` }, big: SG(b), col: b == null ? '#ffc94d' : COL(b), chips: ['ETH', 'SOL', 'BNB'].filter((k) => c[k] && c[k].c60 != null).map((k) => ({ ja: `${k} ${SG(c[k].c60)}`, en: `${k} ${SG(c[k].c60)}`, c: CCOL(c[k].c60) })) } };
+  }
+  if (p.sr === 'spike') {   // 前後3時間(5分刻み)
+    const t0 = im.t0, t1 = im.t1, c = im.coins || {}, b = c.BTC, w = im.win || 1;
+    const lv = liveMatch(S5, now, { ws: t1 - 3 * HR, N: 72, st: M5, shift: HR, lang: lg }); if (!lv) return null;
+    const ev = (EVL || []).filter((e) => e.t >= t0 - 15 * 60000 && e.t <= t1).map((e) => ({ ja: `同じ時間帯: ${FLAG[e.c] || ''}${e.ja} ${hmOf(e.t, lg)}`, en: `Same window: ${e.en} ${hmOf(e.t, lg)}` }));
+    return { ...lv, label: { ja: '急変動', en: 'SHARP MOVE' }, tone: COL(b), hl: { t0, t1, ja: `${w}時間`, en: `${w}h` },
+      stat: { head: { ja: `⚡ BTC ${w}時間で`, en: `⚡ BTC in ${w}h` }, big: SG(b), col: COL(b), chips: [...['ETH', 'SOL', 'BNB'].filter((k) => c[k] != null).map((k) => ({ ja: `${k} ${SG(c[k])}`, en: `${k} ${SG(c[k])}`, c: CCOL(c[k]) })), ...ev.slice(0, 1)] } };
+  }
+  if (p.sr === 'liq') {   // 終わりの6時間前〜6時間後(5分刻み)
+    let l = 0, s2 = 0; for (const k of Object.keys(im.coins || {})) { l += im.coins[k].long || 0; s2 += im.coins[k].short || 0; }
+    const lv = liveMatch(S5, now, { ws: im.end - 6 * HR, N: 144, st: M5, shift: 2 * HR, lang: lg }); if (!lv) return null;
+    return { ...lv, label: { ja: '清算', en: 'LIQUIDATIONS' }, tone: '#b49cff', hl: { t0: im.start, t1: im.end, ja: `清算 ${L.usdS(l + s2)}`, en: `Liq ${L.usdS(l + s2)}` },
+      stat: { head: { ja: '💥 清算', en: '💥 Liquidated' }, big: L.usdS(l + s2), col: '#b49cff', chips: [{ ja: `ロング ${L.usdS(l)}`, en: `Long ${L.usdS(l)}`, c: '#ff8a9a' }, { ja: `ショート ${L.usdS(s2)}`, en: `Short ${L.usdS(s2)}`, c: '#6fe3a8' }] } };
+  }
+  return null;
+}
 const LIVE = {};   // v204: サイトのカード用に保存する
 const tw = new Map();   // v187: この回に出した投稿のID(返信用)
 for (const { p, lg } of todo) {
@@ -114,17 +151,19 @@ for (const { p, lg } of todo) {
     }
   }
   let text = p[lg];
-  // v204: 毎朝・夜は BTC実況(投稿する時点の今週となぞっている過去の週 TOP3)。画像と1行を足す
-  if (p.sr === 'daily' || p.sr === 'sum') {
+  // v204: 毎朝・夜は BTC実況(7日)。v206: 発表前・発表後・急変動・清算も、期間を変えた BTC実況の画像にする
+  if (LIVE_SR.has(p.sr)) {
     try {
       if (!S5) S5 = await loadBtc5m(Date.now(), site);
       if (!EVL) { try { EVL = L.groups(L.pickEvents(await (await site('/api/cal')).json()).filter(L.AUTOEV)).map((g) => ({ t: g[0].ts, ja: L.headName(g, 'ja'), en: L.headName(g, 'en'), c: g[0].c })); } catch (_) { EVL = []; } }
-      const lv = weekMatch(S5, Date.now(), lg, EVL);
+      const lv = liveFor(p, lg, Date.now());
       if (lv) {
         p.img = { ...(p.img || {}), live: { ...((p.img && p.img.live) || {}), [lg]: lv } };
-        const ln = liveLine(lv, lg), i = text.lastIndexOf('\n\n#'), t2 = i > 0 ? text.slice(0, i) + '\n\n' + ln + text.slice(i) : text + '\n\n' + ln;
-        if (L.xlen(t2) <= 262) text = t2;
-        LIVE[lg] = lv;
+        if (p.sr === 'daily' || p.sr === 'sum') {
+          const ln = liveLine(lv, lg), i = text.lastIndexOf('\n\n#'), t2 = i > 0 ? text.slice(0, i) + '\n\n' + ln + text.slice(i) : text + '\n\n' + ln;
+          if (L.xlen(t2) <= 262) text = t2;
+          LIVE[lg] = lv;
+        }
       }
     } catch (e) { console.log('[post] BTC実況を作れませんでした(いつもの画像で出します):', e.message); }
   }

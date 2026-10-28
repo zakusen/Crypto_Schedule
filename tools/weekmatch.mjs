@@ -11,10 +11,10 @@ function at(S, t) {   // t 以前で一番近い5分足の終値(30分以上あ�
   while (lo < hi) { const m = (lo + hi + 1) >> 1; if (S.t[m] <= t) lo = m; else hi = m - 1; }
   return t - S.t[lo] <= M30 ? S.c[lo] : null;
 }
-function path(S, w, n) {
+function path(S, w, n, st = M30) {
   const b = at(S, w); if (!b) return null;
   const a = []; let miss = 0, last = 0;
-  for (let k = 0; k <= n; k++) { const v = at(S, w + k * M30); if (v == null) { miss++; a.push(last); } else { last = (v / b - 1) * 100; a.push(last); } }
+  for (let k = 0; k <= n; k++) { const v = at(S, w + k * st); if (v == null) { miss++; a.push(last); } else { last = (v / b - 1) * 100; a.push(last); } }
   return miss > n * 0.05 ? null : a;
 }
 function pearson(a, b) {
@@ -25,26 +25,32 @@ function pearson(a, b) {
 const rng = (a) => Math.max(...a) - Math.min(...a);
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// v205: 7日の窓(3日前の0時〜3日後の24時)。今日は常に左から4番目。過去は1日ずつずらした全ての7日間と比べる(TOP3 は7日以上離す)
-// S = loadBtc5m の結果 {t, c}。lang = 'ja' | 'en'。ev = [{t, ja, en, cb}](窓の中の主要な予定)
-export function weekMatch(S, now, lang = 'ja', ev = []) {
-  const off = lang === 'en' ? 0 : 9 * H, today = Math.floor((now + off) / DAY) * DAY - off, ws = today - 3 * DAY, end = Math.min(now, S.t[S.t.length - 1] + 300000);
-  const K = Math.floor((end - ws) / M30); if (K < 4) return null;
-  const cur = path(S, ws, K); if (!cur) return null;
-  const ra = rng(cur), cand = [];
-  for (let w = ws - WEEK; w >= S.t[0]; w -= DAY) {
-    const p = path(S, w, PTS); if (!p) continue;
+// v206: 期間を投稿ごとに変えられる共通の探し方。ws = 窓の始まり、N = 点の数、st = 刻み(ms)、shift = 過去をずらす幅
+export function liveMatch(S, now, o) {
+  const { ws, N, st, shift, lang = 'ja' } = o, end = Math.min(now, S.t[S.t.length - 1] + 300000);
+  const K = Math.min(N, Math.floor((end - ws) / st)); if (K < 4) return null;
+  const cur = path(S, ws, K, st); if (!cur) return null;
+  const span = N * st, ra = rng(cur), cand = [];
+  for (let w = ws - span; w >= S.t[0]; w -= shift) {
+    const p = path(S, w, N, st); if (!p) continue;
     const head = p.slice(0, K + 1), rb = rng(head);
     if (ra > 0.3 && (rb > ra * 2.5 || rb < ra / 2.5)) continue;   // 大きさが極端に違う期間は外す
     cand.push({ w, r: pearson(cur, head), path: p });
   }
   cand.sort((a, b) => b.r - a.r);
-  const pick = []; for (const c of cand) { if (pick.every((x) => Math.abs(x.w - c.w) >= WEEK)) pick.push(c); if (pick.length >= 3) break; }
-  const top = pick.map((c) => ({ w: c.w, day: c.w + 3 * DAY, rate: Math.max(0, Math.round(c.r * 100)), path: c.path.map(r2) }));
-  if (!top.length) return null;
-  const marks = [];
-  for (let d = 0; d < 4; d++) for (const s of SLOTS[lang]) { const t = ws + d * DAY + s; if (t <= now + 70 * 60000) marks.push({ t, k: Math.min(K, Math.max(0, Math.round((t - ws) / M30))) }); }
-  return { v: 2, lang, ws, today, end, K, cur: cur.map(r2), top, marks, ev: ev.filter((e) => e.t >= ws && e.t < ws + WEEK).slice(0, 10), n: cand.length };
+  const pick = []; for (const c of cand) { if (pick.every((x) => Math.abs(x.w - c.w) >= span)) pick.push(c); if (pick.length >= 3) break; }
+  if (!pick.length) return null;
+  const top = pick.map((c) => ({ w: c.w, day: c.w + (now - ws), rate: Math.max(0, Math.round(c.r * 100)), path: c.path.map(r2) }));
+  return { v: 3, lang, ws, N, st, end, K, cur: cur.map(r2), top, n: cand.length };
+}
+// 7日の窓(3日前の0時〜3日後の24時)。今日は常に左から4番目。過去は1日ずつずらす
+export function weekMatch(S, now, lang = 'ja', ev = []) {
+  const off = lang === 'en' ? 0 : 9 * H, today = Math.floor((now + off) / DAY) * DAY - off, ws = today - 3 * DAY;
+  const r = liveMatch(S, now, { ws, N: PTS, st: M30, shift: DAY, lang }); if (!r) return null;
+  r.today = today; r.top.forEach((m) => { m.day = m.w + 3 * DAY; });
+  r.marks = []; for (let d = 0; d < 4; d++) for (const s of SLOTS[lang]) { const t = ws + d * DAY + s; if (t <= now + 70 * 60000) r.marks.push({ t, k: Math.min(r.K, Math.max(0, Math.round((t - ws) / M30))) }); }
+  r.ev = ev.filter((e) => e.t >= ws && e.t < ws + WEEK).slice(0, 10);
+  return r;
 }
 
 export async function weekBoth(S, now, ev = []) { return { at: now, ja: weekMatch(S, now, 'ja', ev), en: weekMatch(S, now, 'en', ev) }; }
