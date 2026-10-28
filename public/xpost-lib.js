@@ -52,6 +52,7 @@ export function groups(list) {
 export const MAJOR = (e) => e.l === 'macro' && (/^(FOMC|日銀|ECB)$/.test(e.s || '') || (e.c === 'US' && /CPI|雇用統計|PCE/.test(e.s || '')) || (e.c === 'JP' && e.s === '短観'));   // v179: 日銀短観を追加
 // v185: 予告と発表後の値動きを出す対象 = 毎朝の予定に載る指標すべて(日米欧・重要度「高」)+ 主要指標
 export const AUTOEV = (e) => e.l === 'macro' && REGIONS.includes(e.c) && (MAJOR(e) || e.im === 'high');
+export const AUTOPOST = (e) => AUTOEV(e) && !isFomc(e);   // v211: 発表前の予告・発表後の値動きを出す指標(FOMC は親子ポストで出すので外す)
 export const archId = (g) => 'arch:' + g[0].ts + ':' + (g[0].c || g[0].l);
 
 // ---- 名前・タグ ----
@@ -406,17 +407,18 @@ export const PRE_AHEAD = 15 * 60000, PRE_WINDOW = 14 * 60000;   // v183: 発表�
 export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const isAuto = (p) => !p.man && (p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && (p.img.ja === 'FOMC' || p.img.en === 'FOMC')) || /FOMC/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
+export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
   for (const p of posts || []) { seen.add(p.id); if (!isAuto(p) || !p.due) continue; for (const lg of langsOf(p)) { const d = dueOf(p, lg); if (!(p.done && p.done[lg]) && d > now - winOf(p) && d < now + 8 * DAY) items.push({ id: p.id, due: d }); } }   // v173: 言語ごと
-  for (const g of groups((events || []).filter(AUTOEV))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  for (const g of groups((events || []).filter(AUTOPOST))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
   for (const k of [0, 1]) { for (const [id, due] of sumDues(now + k * DAY)) if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v202: 夜のまとめ
   for (const g of groups((events || []).filter(isFomc))) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const id = fomcId(g[0].ts, n), due = g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告
   for (const g of groups((events || []).filter(isFomc))) { const id = fomcId(g[0].ts, 'res'), due = g[0].ts + FOMC_RES; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
-  for (const g of groups((events || []).filter(AUTOEV))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
+  for (const g of groups((events || []).filter(AUTOPOST))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
 

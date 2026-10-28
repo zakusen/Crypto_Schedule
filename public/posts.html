@@ -187,12 +187,12 @@ function build() {
   const satEmpty = (p) => p.sr === 'daily' && !(p.img && p.img.today && p.img.today.length) && !(p.img && p.img.week && p.img.week.length) && !(p.done && (p.done.en || p.done.ja));
   const by = new Map(POSTS.filter((p) => LABEL[p.sr] && !satEmpty(p)).map((p) => [p.id, p]));
   const items = [...by.values()].map((p) => ({ id: p.id, sr: p.sr, due: dueOf(p), post: p }));
-  for (const g of L.groups(EVENTS.filter(L.AUTOEV))) {   // v185: 予定に載る指標すべて                     // これからの主要指標(下書きはまだ無い)
+  for (const g of L.groups(EVENTS.filter(L.AUTOPOST))) {   // v211: FOMC は親子ポスト。v185: 予定に載る指標すべて                     // これからの主要指標(下書きはまだ無い)
     const id = L.archId(g);
     if (by.has(id)) { by.get(id)._g = g; continue; }
     items.push({ id, sr: 'arch', due: g[0].ts + L.ARCH_WAIT, g, post: null });
   }
-  for (const g of L.groups(EVENTS.filter(L.AUTOEV))) {                    // v186: 発表前の予告(下書きは発表の3時間前から作られる)
+  for (const g of L.groups(EVENTS.filter(L.AUTOPOST))) {                    // v186: 発表前の予告(下書きは発表の3時間前から作られる)
     const id = L.preId(g);
     if (by.has(id)) { by.get(id)._g = g; continue; }
     items.push({ id, sr: 'pre', due: g[0].ts - L.PRE_AHEAD, g, post: null });
