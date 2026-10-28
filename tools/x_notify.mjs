@@ -228,6 +228,9 @@ for (const o of [...byId.values()]) {
   } catch (e) { console.log('[x] 発表後の値動き: 似ている過去を足せませんでした', e.message); }
 }
 
+// ---- 2e) v208: FOMC の臨時予告(親子ポスト)。中身なしの下書きを2日前から置く(本文と画像は x_post が投稿時に作る) ----
+for (const g of groups(events.filter(L.isFomc))) { if (g[0].ts - NOW > 2 * DAY || NOW - g[0].ts > 3 * H) continue; for (const p of L.fomcDrafts(g[0].ts)) if (!byId.has(p.id)) { put(p); console.log('[x] FOMC の下書き:', p.id); } }
+
 // ---- 2d) v202: 夜のまとめ(日本語 22:00 JST・英語 23:30 UTC)。投稿の3時間前から作る ----
 for (const [id, due] of L.sumDues(NOW)) {
   if (byId.has(id) || NOW < due - 3 * H || NOW > due + 2 * H) continue;

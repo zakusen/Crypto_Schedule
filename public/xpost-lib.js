@@ -257,7 +257,7 @@ export function spikePost(sp, corr, link, liq) {   // link = サイトの URL(�
   const LV = [{ brand: 1, rule: 18, dot: 1, tag: 1 }, { brand: 1, dot: 1, tag: 1 }, { dot: 1, tag: 1 }, { dot: 1 }, {}, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];   // 相関の目安の言葉は最後まで残す(時刻は画像にもある・投稿はすぐ出る)
   const fitS = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitS('en'), ja = fitS('ja');
-  return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, win: W, t0: sp.t0, t1: sp.t1, coins: sp.coins, spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
+  return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, win: W, t0: sp.t0, t1: sp.t1, coins: sp.coins, ...(liq ? { liq: { l: liq.l, s: liq.s, mult: liq.mult != null ? liq.mult : null } } : {}), spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
 }
 // v187: 急変動の返信(清算の内訳)。親(spike)を出した直後に、その返信として出す
 export function spikeLiqPost(sp, liq) {
@@ -406,7 +406,7 @@ export const PRE_AHEAD = 15 * 60000, PRE_WINDOW = 14 * 60000;   // v183: 発表�
 export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const isAuto = (p) => !p.man && (p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && (p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -414,6 +414,8 @@ export function dueList(posts, events, now) {
   for (const g of groups((events || []).filter(AUTOEV))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
   for (const k of [0, 1]) { for (const [id, due] of sumDues(now + k * DAY)) if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v202: 夜のまとめ
+  for (const g of groups((events || []).filter(isFomc))) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const id = fomcId(g[0].ts, n), due = g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告
+  for (const g of groups((events || []).filter(isFomc))) { const id = fomcId(g[0].ts, 'res'), due = g[0].ts + FOMC_RES; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(AUTOEV))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
@@ -558,3 +560,37 @@ export function sumPost(c, id, due) {
 // v202: 夜のまとめの id と投稿時刻(日本語 22:00 JST / 英語 23:30 UTC)
 export const SUM_JA = 22 * H, SUM_EN = 23.5 * H;
 export function sumDues(t) { const dj = dayStart(t), du = Math.floor(t / DAY) * DAY; return [['sum:ja:' + isoDay(dj), dj + SUM_JA], ['sum:en:' + new Date(du).toISOString().slice(0, 10), du + SUM_EN]]; }
+
+
+// ---- v208: FOMC の臨時予告(親子ポスト。日誌スレッドには入れない)。中身 = 事実の数字だけ ----
+//   発表の 14時間半前・9時間前・4時間前・1時間前に、親(一番似ていた過去のFOMC 1回)+ 子(返信。TOP3 の比較)。
+//   発表の65分後に、1時間前の子への返信で結果(今回の発表後1時間と TOP3 を並べる)。
+//   下書きは x_notify が中身なしで作り、本文と画像は x_post が投稿する時に計算して入れる(fomcText)。
+export const FOMC_SLOTS = [14.5 * H, 9 * H, 4 * H, 1 * H], FOMC_RES = 65 * 60000;
+export const isFomc = (e) => e.l === 'macro' && e.c === 'US' && e.s === 'FOMC';
+export const fomcId = (ts, n) => 'fomc:' + ts + ':' + n;
+export function fomcDrafts(ts) {
+  const out = [];
+  FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n), due = ts - sl, img = { t: ts, n };
+    out.push({ id, sr: 'fomc', due, en: '', ja: '', h: 'fomc' + n, img });
+    out.push({ id: id + ':c', sr: 'fomcc', parent: id, due, en: '', ja: '', h: 'fomcc' + n, img }); });
+  out.push({ id: fomcId(ts, 'res'), sr: 'fomcres', due: ts + FOMC_RES, en: '', ja: '', h: 'fomcres', img: { t: ts, n: 'res', after: fomcId(ts, FOMC_SLOTS.length) + ':c' } });
+  return out;
+}
+// lv = weekmatch の fomcMatch の結果。kind = 'fomc'(親)/ 'fomcc'(子)/ 'fomcres'(結果)
+export function fomcText(kind, lv, lg, now) {
+  const en = lg === 'en', sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  const dt = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };   // FOMC の日付は米国の開催日(FRB の日程どおり)
+  const left = Math.max(0, lv.E - now), hh = Math.round(left / H * 2) / 2, leftJa = hh >= 1 ? (Number.isInteger(hh) ? `${hh}時間` : `${Math.floor(hh)}時間半`) : `${Math.max(1, Math.round(left / 60000))}分`;
+  const leftEn = hh >= 1 ? `${hh}h` : `${Math.max(1, Math.round(left / 60000))} min`, t = lv.top, m = ['①', '②', '③'];
+  if (kind === 'fomc') return en
+    ? [`FOMC in ${leftEn}.`, `Closest past run-up: the ${dt(t[0].fomc)} FOMC.`, `BTC 1h after that release: ${sg(t[0].a1)}`, 'Cyan = now, dotted = what came next.', 'Did the other 2 move the same way?', 'Top 3 in the reply ↓', '*Match = shape, not probability', '#FOMC #BTC'].join('\n')
+    : [`FOMCまで、あと${leftJa}。`, `発表前の値動きが今回に最も似ていたのは${dt(t[0].fomc)}のFOMC。`, `その回のBTCは発表後1時間で${sg(t[0].a1)}。`, '水色が今回、点線が過去のその後。', 'ほかの2回は同じ方向だったのか？', 'TOP3の比較は返信へ↓', '※一致率は上昇確率ではありません', '#FOMC #BTC'].join('\n');
+  if (kind === 'fomcc') return en
+    ? ['BTC 1h after the 3 closest past FOMCs', ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), 'Compared: 24h before release to the same time left. Post-release moves not used.', 'Similar shape ≠ same outcome.', "Result will be added to this thread."].join('\n')
+    : ['似ていた過去3回の、発表後1時間のBTC', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), '比較は「発表24時間前〜今と同じ残り時間」まで。発表後の動きは選定に使っていません。', '似た形でも、その後が同じとは限りません。', '結果は発表後にこのスレッドに追記します。'].join('\n');
+  const same = lv.a1 == null ? null : t.filter((x) => x.a1 != null && Math.sign(x.a1) === Math.sign(lv.a1)).length;
+  return en
+    ? ['FOMC result: BTC 1h after the release', `This time: ${sg(lv.a1)}`, 'The 3 closest past FOMCs:', ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), '#FOMC #BTC'].join('\n')
+    : ['FOMCの結果（発表後1時間のBTC）', `今回：${sg(lv.a1)}`, '似ていた過去3回は', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), ...(same != null ? [`同じ方向に動いたのは3回中${same}回`] : []), '#FOMC #BTC'].join('\n');
+}

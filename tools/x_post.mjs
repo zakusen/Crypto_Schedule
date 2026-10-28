@@ -13,7 +13,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { loadBtc5m } from './pattern.mjs';
-import { weekMatch, liveMatch, liveLine } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
+import { weekMatch, liveMatch, liveLine, fomcMatch, fomcHist } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
@@ -88,40 +88,48 @@ if (DRY) fs.mkdirSync(OUT, { recursive: true });
 const THREAD_SR = new Set(['pre', 'arch', 'spike', 'liq', 'liqday', 'liqimp', 'vol', 'sum', 'week', 'pat']);
 const latestRoot = (lg) => posts.filter((x) => x.sr === 'daily' && x.tw && x.tw[lg] && x.done && x.done[lg] && Date.now() - x.done[lg] < 26 * 36e5).sort((a, b) => b.done[lg] - a.done[lg])[0] || null;
 let n = 0, S5 = null, EVL = null;
-const LIVE_SR = new Set(['daily', 'sum', 'pre', 'arch', 'spike', 'liq']);
+const LIVE_SR = new Set(['daily', 'sum', 'pre', 'arch', 'spike', 'liq']), FOMC_SR = new Set(['fomc', 'fomcc', 'fomcres']), FCACHE = new Map();
 const M5 = 300000, HR = 3600000, FLAG = { US: '🇺🇸', JP: '🇯🇵', EU: '🇪🇺' };
 const SG = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', COL = (v) => v < 0 ? '#ff4d66' : '#3cff9a', CCOL = (v) => v < 0 ? '#ff8a9a' : '#6fe3a8';
 const nameOf = (t, lg) => { const e = (EVL || []).find((x) => Math.abs(x.t - t) < 60000); return e ? `${FLAG[e.c] || '📅'} ${e[lg]}` : null; };
 const hmOf = (t, lg) => { const d = new Date(t + (lg === 'en' ? 0 : 9 * HR)); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
 const mdOf = (t, lg) => { const d = new Date(t + (lg === 'en' ? 0 : 9 * HR)); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
-// 投稿の種類ごとの期間と、真ん中の欄(事実の数字だけ)
-function liveFor(p, lg, now) {
+// 投稿の種類ごとの期間と、見出し・真ん中の欄(事実の数字だけ)。v207: 種類ごとに見出しを主役にした形
+let VOL1 = undefined;
+const usdL = (v, lg) => lg === 'en' ? L.usdS(v) : '$' + L.jaUsd(v).replace('ドル', '');
+const at5 = (t) => { let lo = 0, hi = S5.t.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (S5.t[m] <= t) lo = m; else hi = m - 1; } return S5.c[lo]; };
+async function liveFor(p, lg, now) {
   const en = lg === 'en', im = p.img || {};
-  if (p.sr === 'daily' || p.sr === 'sum') return weekMatch(S5, now, lg, EVL);
+  if (p.sr === 'daily' || p.sr === 'sum') { const r = weekMatch(S5, now, lg, EVL); return r && { ...r, kind: 'daily' }; }
   if (p.sr === 'pre') {   // 発表の前後1日(15分刻み)
     const E = +String(p.id).split(':')[1], nm = nameOf(E, lg) || p[lg].split('\n')[0].split(' · ')[0], pc = im.coins && im.coins.BTC ? im.coins.BTC.c60 : null;
+    if (VOL1 === undefined) { VOL1 = null; try { const j = await (await fetch(SITE + '/api/vol', { signal: AbortSignal.timeout(20000) })).json(); if (j && j.typ && j.typ[1] != null) VOL1 = j.typ[1]; } catch (_) {} }
     const lv = liveMatch(S5, now, { ws: E - 24 * HR, N: 192, st: 15 * 60000, shift: HR, lang: lg }); if (!lv) return null;
-    return { ...lv, label: { ja: '発表前', en: 'BEFORE RELEASE' }, hl: { t0: E, ja: nm, en: nm },
-      stat: { head: { ja: `${nm} ${hmOf(E, lg)} · 前回の発表後1時間`, en: `${nm} ${hmOf(E, lg)} UTC · last time, 1h after` }, big: SG(pc), col: pc == null ? '#ffc94d' : COL(pc), chips: im.t ? [{ ja: `前回 ${mdOf(im.t, lg)}`, en: `Last: ${mdOf(im.t, lg)}` }] : [] } };
+    const sameDay = mdOf(E, lg) === mdOf(now, lg);
+    return { ...lv, kind: 'pre', hl: { t0: E, ja: nm, en: nm },
+      stat: { name: nm, t: E, whenTxt: (sameDay ? (en ? 'today ' : '今日') : mdOf(E, lg) + ' ') + hmOf(E, lg) + (en ? ' UTC' : ''), lastDate: im.t ? mdOf(im.t, lg) : null, big: SG(pc), col: pc == null ? '#ffffff' : '#ffffff', typ: VOL1 != null ? '±' + VOL1.toFixed(2) + '%' : null } };
   }
   if (p.sr === 'arch') {   // 発表の1時間前〜2時間後(5分刻み)
     const E = im.t || +String(p.id).split(':')[1], c = im.coins || {}, b = c.BTC ? c.BTC.c60 : im.chg, nm = nameOf(E, lg) || `${im.icon || ''} ${im[lg] || ''}`.trim();
     const lv = liveMatch(S5, now, { ws: E - HR, N: 36, st: M5, shift: HR, lang: lg }); if (!lv) return null;
-    return { ...lv, label: { ja: '発表後の値動き', en: 'AFTER RELEASE' }, tone: b == null ? null : COL(b), hl: { t0: E, t1: E + HR, ja: `${nm} ${hmOf(E, lg)}`, en: `${nm} ${hmOf(E, lg)}` },
-      stat: { head: { ja: `${nm} 発表後1時間 BTC`, en: `${nm} · BTC 1h after` }, big: SG(b), col: b == null ? '#ffc94d' : COL(b), chips: ['ETH', 'SOL', 'BNB'].filter((k) => c[k] && c[k].c60 != null).map((k) => ({ ja: `${k} ${SG(c[k].c60)}`, en: `${k} ${SG(c[k].c60)}`, c: CCOL(c[k].c60) })) } };
+    return { ...lv, kind: 'arch', tone: b == null ? null : COL(b), hl: { t0: E, t1: E + HR, ja: `${nm} ${hmOf(E, lg)}`, en: `${nm} ${hmOf(E, lg)}` },
+      stat: { name: nm, big: SG(b), col: b == null ? '#ffffff' : (b < 0 ? '#ff6b7d' : '#3cff9a'), range: `${hmOf(E, lg)} → ${hmOf(E + HR, lg)}`, coins: ['BTC', 'ETH', 'SOL', 'BNB'].filter((k) => c[k] && c[k].c60 != null).map((k) => ({ k, v: c[k].c60 })) } };
   }
   if (p.sr === 'spike') {   // 前後3時間(5分刻み)
     const t0 = im.t0, t1 = im.t1, c = im.coins || {}, b = c.BTC, w = im.win || 1;
     const lv = liveMatch(S5, now, { ws: t1 - 3 * HR, N: 72, st: M5, shift: HR, lang: lg }); if (!lv) return null;
-    const ev = (EVL || []).filter((e) => e.t >= t0 - 15 * 60000 && e.t <= t1).map((e) => ({ ja: `同じ時間帯: ${FLAG[e.c] || ''}${e.ja} ${hmOf(e.t, lg)}`, en: `Same window: ${e.en} ${hmOf(e.t, lg)}` }));
-    return { ...lv, label: { ja: '急変動', en: 'SHARP MOVE' }, tone: COL(b), hl: { t0, t1, ja: `${w}時間`, en: `${w}h` },
-      stat: { head: { ja: `⚡ BTC ${w}時間で`, en: `⚡ BTC in ${w}h` }, big: SG(b), col: COL(b), chips: [...['ETH', 'SOL', 'BNB'].filter((k) => c[k] != null).map((k) => ({ ja: `${k} ${SG(c[k])}`, en: `${k} ${SG(c[k])}`, c: CCOL(c[k]) })), ...ev.slice(0, 1)] } };
+    const info = (EVL || []).filter((e) => e.t >= t0 - 15 * 60000 && e.t <= t1).slice(0, 1).map((e) => `${e[lg]} ${hmOf(e.t, lg)}`);
+    if (im.liq && im.liq.l + im.liq.s > 0) info.push(`${en ? 'Liq' : '清算'} ${usdL(im.liq.l + im.liq.s, lg)}`);
+    const p0 = at5(t0), p1 = at5(t1), $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
+    return { ...lv, kind: 'spike', tone: b < 0 ? '#ff4d66' : '#3cff9a', hl: { t0, t1, ja: `${w}時間`, en: `${w}h` },
+      stat: { head: en ? `BTC ${SG(b)} in ${w}h` : `BTC ${w}時間で ${SG(b)}`, px: p0 && p1 ? `${$(p0)} → ${$(p1)}` : null, info } };
   }
   if (p.sr === 'liq') {   // 終わりの6時間前〜6時間後(5分刻み)
     let l = 0, s2 = 0; for (const k of Object.keys(im.coins || {})) { l += im.coins[k].long || 0; s2 += im.coins[k].short || 0; }
     const lv = liveMatch(S5, now, { ws: im.end - 6 * HR, N: 144, st: M5, shift: 2 * HR, lang: lg }); if (!lv) return null;
-    return { ...lv, label: { ja: '清算', en: 'LIQUIDATIONS' }, tone: '#b49cff', hl: { t0: im.start, t1: im.end, ja: `清算 ${L.usdS(l + s2)}`, en: `Liq ${L.usdS(l + s2)}` },
-      stat: { head: { ja: '💥 清算', en: '💥 Liquidated' }, big: L.usdS(l + s2), col: '#b49cff', chips: [{ ja: `ロング ${L.usdS(l)}`, en: `Long ${L.usdS(l)}`, c: '#ff8a9a' }, { ja: `ショート ${L.usdS(s2)}`, en: `Short ${L.usdS(s2)}`, c: '#6fe3a8' }] } };
+    const mins = Math.round((im.end - im.start) / 60000), dur = mins >= 90 ? (en ? `${Math.round(mins / 60)}h` : `${Math.round(mins / 60)}時間`) : (en ? `${mins} min` : `${mins}分`);
+    return { ...lv, kind: 'liq', tone: '#b49cff', hl: { t0: im.start, t1: im.end, ja: `清算 ${usdL(l + s2, lg)}`, en: `Liq ${usdL(l + s2, lg)}` },
+      stat: { head: en ? `Liquidated in ${dur}` : `${dur}の清算`, big: usdL(l + s2, lg), long: l, short: s2, longTxt: usdL(l, lg), shortTxt: usdL(s2, lg), mult: null } };
   }
   return null;
 }
@@ -151,12 +159,26 @@ for (const { p, lg } of todo) {
     }
   }
   let text = p[lg];
+  // v208: FOMC の親子ポスト。本文と画像を投稿する時に作る(発表後の親子は出さない。計算できなければ次の回)
+  if (FOMC_SR.has(p.sr)) {
+    const E = p.img && p.img.t, nowT = Date.now();
+    if (!E || (p.sr !== 'fomcres' && nowT >= E)) continue;
+    try {
+      if (!S5) S5 = await loadBtc5m(nowT, site);
+      const key = E + ':' + (p.sr === 'fomcres' ? 'res' : p.img.n) + ':' + lg;
+      let lv = FCACHE.get(key); if (!lv) { lv = fomcMatch(S5, nowT, E, lg, p.sr === 'fomcres' ? E - L.FOMC_SLOTS[L.FOMC_SLOTS.length - 1] : Math.min(nowT, E - L.FOMC_SLOTS[p.img.n - 1])); if (lv) FCACHE.set(key, lv); }   // 選ぶ時点は予定の時刻にそろえる(親・子・結果で同じ TOP3)
+      if (!lv || (p.sr === 'fomcres' && lv.a1 == null)) { console.log('[post] FOMC: まだ計算できないので次の回', p.id); continue; }
+      text = L.fomcText(p.sr, lv, lg, nowT);
+      p.img = { ...p.img, live: { ...((p.img && p.img.live) || {}), [lg]: { ...lv, kind: p.sr === 'fomc' ? 'fomc1' : p.sr === 'fomcc' ? 'fomc3' : 'fomcres', now: nowT } } };
+      if (p.sr === 'fomcres' && !reply) { const ch = posts.find((x) => x.id === p.img.after), par = posts.find((x) => x.id === String(p.img.after).replace(/:c$/, '')); reply = (ch && ch.tw && ch.tw[lg]) || (par && par.tw && par.tw[lg]) || null; }
+    } catch (e) { console.log('[post] FOMC を作れませんでした', p.id, e.message); continue; }
+  }
   // v204: 毎朝・夜は BTC実況(7日)。v206: 発表前・発表後・急変動・清算も、期間を変えた BTC実況の画像にする
   if (LIVE_SR.has(p.sr)) {
     try {
       if (!S5) S5 = await loadBtc5m(Date.now(), site);
       if (!EVL) { try { EVL = L.groups(L.pickEvents(await (await site('/api/cal')).json()).filter(L.AUTOEV)).map((g) => ({ t: g[0].ts, ja: L.headName(g, 'ja'), en: L.headName(g, 'en'), c: g[0].c })); } catch (_) { EVL = []; } }
-      const lv = liveFor(p, lg, Date.now());
+      const lv = await liveFor(p, lg, Date.now());
       if (lv) {
         p.img = { ...(p.img || {}), live: { ...((p.img && p.img.live) || {}), [lg]: lv } };
         if (p.sr === 'daily' || p.sr === 'sum') {

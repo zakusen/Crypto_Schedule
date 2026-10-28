@@ -461,42 +461,40 @@ function loadFonts(sample) {
 const LJ = '"Zen Kaku Gothic New","Noto Sans JP",sans-serif', LN = '"Space Grotesk","Zen Kaku Gothic New","Noto Sans JP",sans-serif';
 const LCY = '#2ff3ff', LRK = ['#ff9f1c', '#3cff9a', '#b49cff'];
 function lt(g, s, x, y, o = {}) { g.font = `${o.w || 700} ${o.s || 24}px ${o.f || LJ}`; g.fillStyle = o.c || '#ffffff'; g.textAlign = o.a || 'left'; if (o.glow) { g.save(); g.shadowColor = o.glow; g.shadowBlur = o.b || 18; g.fillText(s, x, y); g.restore(); } else g.fillText(s, x, y); g.textAlign = 'left'; return g.measureText(s).width; }
-const LH = 800;   // v205: BTC実況は縦を伸ばして予定の欄を合体
-function drawLive(g, lv, lg) {
-  const en = lg === 'en', off = en ? 0 : 9 * 36e5, P = (n) => String(n).padStart(2, '0'), H2 = LH;
-  const WD = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : WJ, dd = (t) => new Date(t + off), md = (t) => { const d = dd(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, hmL = (t) => { const d = dd(t); return `${d.getUTCHours()}:${P(d.getUTCMinutes())}`; };
-  const bg = g.createLinearGradient(0, 0, 0, H2); bg.addColorStop(0, '#0b1424'); bg.addColorStop(1, '#070c17'); g.fillStyle = bg; g.fillRect(0, 0, W, H2);
-  const rule = (y) => { g.strokeStyle = 'rgba(160,190,220,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(26, y); g.lineTo(W - 26, y); g.stroke(); };
-  // 見出し
-  lt(g, '📡', 26, 42, { s: 26 }); const bw0 = lt(g, en ? 'BTC LIVE' : 'BTC実況', 66, 42, { s: 26, w: 900, c: LCY });
-  if (lv.label) { const b = lv.label[lg] || lv.label.ja; g.font = `900 20px ${LJ}`; const bw = g.measureText(b).width + 24; g.fillStyle = lv.tone || '#ffc94d'; g.beginPath(); g.roundRect(80 + bw0, 18, bw, 32, 8); g.fill(); lt(g, b, 92 + bw0, 41, { s: 20, w: 900, c: '#06101c' }); }
-  const de = dd(lv.end); lt(g, `${de.getUTCMonth() + 1}/${de.getUTCDate()}(${WD[de.getUTCDay()]}) ${hmL(lv.end)}${en ? ' UTC' : ''}`, W - 28, 42, { s: 24, w: 700, f: LN, a: 'right' });
-  rule(56);
-  g.font = `900 46px ${LJ}`; const T = en ? 'The past BTC is tracing now' : '今のBTCがなぞっている過去'; let ts = 46; while (g.measureText(T).width > W - 60 && ts > 28) { ts -= 2; g.font = `900 ${ts}px ${LJ}`; }
-  lt(g, T, 28, 110, { s: ts, w: 900 });
-  // グラフ(7日。今日 = 左から4番目)
-  const x0 = 92, x1 = W - 60, y0 = 165, y1 = 420, N = lv.N || 336, STP = lv.st || 1800000, K = lv.K, top = lv.top.slice(0, 3), WEEKV = N * STP >= 3 * 864e5;
+const LH = 800;   // v205: BTC実況は縦を伸ばして予定の欄を合体。v207: 種類ごとに見出しを主役にした形(kind = daily / pre / arch / spike / liq)
+const LP = (n) => String(n).padStart(2, '0');
+function liveChart(g, lv, lg, y0, y1, o = {}) {
+  const en = lg === 'en', off = en ? 0 : 9 * 36e5, dd = (t) => new Date(t + off), md = (t) => { const d = dd(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, hmL = (t) => { const d = dd(t); return `${d.getUTCHours()}:${LP(d.getUTCMinutes())}`; };
+  const WD = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : WJ;
+  const x0 = 92, x1 = W - 60, N = lv.N || 336, STP = lv.st || 1800000, K = lv.K, top = lv.top.slice(0, 3), WEEKV = N * STP >= 3 * 864e5;
   const all = [...lv.cur, ...top.flatMap((m) => m.path)], mx0 = Math.max(...all), mn0 = Math.min(...all), st = mx0 - mn0 > 8 ? 4 : mx0 - mn0 > 4 ? 2 : 1;
   const hi = Math.ceil((mx0 + 0.2) / st) * st, lo = Math.floor((mn0 - 0.2) / st) * st;
   const X = (k) => x0 + k / N * (x1 - x0), Y = (v) => y0 + (hi - v) / (hi - lo || 1) * (y1 - y0), Xt = (t) => X((t - lv.ws) / STP);
-  if (WEEKV) { g.fillStyle = 'rgba(47,243,255,.07)'; g.fillRect(X(144), y0 - 6, X(192) - X(144), y1 - y0 + 52); }   // 今日の列
+  if (WEEKV) { g.fillStyle = 'rgba(47,243,255,.07)'; g.fillRect(X(144), y0 - 6, X(192) - X(144), y1 - y0 + 46); }   // 今日の列
   g.setLineDash([2, 6]); g.strokeStyle = 'rgba(160,190,220,.22)'; g.lineWidth = 1;
   for (let v = lo; v <= hi + 1e-9; v += st) { g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); lt(g, (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v) + '%', x0 - 14, Y(v) + 8, { s: 22, w: 500, f: LN, c: '#d6e2ee', a: 'right' }); }
   g.setLineDash([]);
-  if (!WEEKV) { const span = N * STP / 60000, tk = [15, 30, 60, 120, 180, 360].find((m) => span / m <= 8) * 60000; for (let t = Math.ceil((lv.ws + off) / tk) * tk - off; t <= lv.ws + N * STP; t += tk) { const x = Xt(t); g.strokeStyle = 'rgba(160,190,220,.35)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y1); g.lineTo(x, y1 + 8); g.stroke(); const mid = dd(t).getUTCHours() === 0 && dd(t).getUTCMinutes() === 0; lt(g, mid ? md(t) : hmL(t), x, y1 + 34, { s: 22, w: mid ? 900 : 700, f: LN, a: 'center', c: mid ? LCY : '#ffffff' }); } }
+  const ay = y1 + 32;
+  if (!WEEKV) { const span = N * STP / 60000, tk = [15, 30, 60, 120, 180, 360].find((m) => span / m <= 8) * 60000;
+    for (let t = Math.ceil((lv.ws + off) / tk) * tk - off; t <= lv.ws + N * STP; t += tk) { const x = Xt(t); g.strokeStyle = 'rgba(160,190,220,.35)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, y1); g.lineTo(x, y1 + 8); g.stroke();
+      const mid = dd(t).getUTCHours() === 0 && dd(t).getUTCMinutes() === 0; lt(g, mid ? md(t) : hmL(t), x, ay, { s: 22, w: mid ? 900 : 700, f: LN, a: 'center', c: mid ? LCY : '#ffffff' }); } }
   else for (let i = 0; i < 7; i++) { const t = lv.ws + i * 864e5 + 12 * 36e5, d = dd(t), td = i === 3;
-    lt(g, `${d.getUTCMonth() + 1}/${d.getUTCDate()}`, X(i * 48 + 24) - (en ? 22 : 18), y1 + 34, { s: 24, w: 700, f: LN, c: td ? LCY : '#ffffff', a: 'center' });
-    lt(g, `(${WD[d.getUTCDay()]})`, X(i * 48 + 24) + (en ? 30 : 26), y1 + 34, { s: 18, w: 700, c: td ? LCY : '#c9d4e2', a: 'center' }); }
-  // 予定の縦線
-  const ev = (lv.ev || []).slice().sort((a, b) => a.t - b.t);
-  ev.forEach((e) => { const x = Xt(e.t); g.strokeStyle = e.t <= lv.end ? 'rgba(255,201,77,.35)' : 'rgba(255,201,77,.75)'; g.lineWidth = 1.5; g.setLineDash([3, 5]); g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); g.setLineDash([]); });
-  if (lv.hl) { const xa = Xt(lv.hl.t0), xb = Xt(lv.hl.t1 || lv.hl.t0); g.fillStyle = (lv.tone || '#ffc94d') + '22'; g.fillRect(xa, y0, Math.max(3, xb - xa), y1 - y0); g.strokeStyle = lv.tone || '#ffc94d'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(xa, y0); g.lineTo(xa, y1); g.stroke(); lt(g, lv.hl[lg] || lv.hl.ja, xa + 8, y0 + 24, { s: 20, w: 900, c: lv.tone || '#ffc94d' }); }
+    lt(g, md(t), X(i * 48 + 24) - (en ? 22 : 18), ay, { s: 24, w: 700, f: LN, c: td ? LCY : '#ffffff', a: 'center' });
+    lt(g, `(${WD[d.getUTCDay()]})`, X(i * 48 + 24) + (en ? 30 : 26), ay, { s: 18, w: 700, c: td ? LCY : '#c9d4e2', a: 'center' }); }
+  // 予定の縦線(daily: これからの予定に A・B・C…)
+  (o.letters || []).forEach((e) => { const x = Xt(e.t); g.strokeStyle = 'rgba(255,201,77,.8)'; g.lineWidth = 1.5; g.setLineDash([4, 5]); g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); g.setLineDash([]); lt(g, e.L, x, y0 - 10, { s: 22, w: 900, f: LN, c: '#ffc94d', a: 'center' }); });
+  // 出来事の帯(発表・急変動・清算)
+  if (lv.hl) { const tc = lv.tone || '#ffc94d', xa = Xt(lv.hl.t0), xb = Xt(lv.hl.t1 || lv.hl.t0);
+    if (xb - xa > 3) { g.fillStyle = tc + '22'; g.fillRect(xa, y0, xb - xa, y1 - y0); }
+    g.strokeStyle = tc; g.lineWidth = 2.5; g.beginPath(); g.moveTo(xa, y0 - 8); g.lineTo(xa, y1); g.stroke();
+    lt(g, lv.hl[lg] || lv.hl.ja, xa + 8, y0 + 4, { s: 20, w: 900, c: tc });
+    if (o.bracket && xb - xa > 60) { const yb = y0 + 34; g.strokeStyle = '#ffffff'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(xa + 4, yb); g.lineTo(xb - 4, yb); g.stroke(); g.beginPath(); g.moveTo(xa + 12, yb - 6); g.lineTo(xa + 4, yb); g.lineTo(xa + 12, yb + 6); g.moveTo(xb - 12, yb - 6); g.lineTo(xb - 4, yb); g.lineTo(xb - 12, yb + 6); g.stroke();
+      g.font = `700 20px ${LJ}`; const bt = o.bracket, bw = g.measureText(bt).width + 16; g.fillStyle = '#0b1424'; g.fillRect((xa + xb) / 2 - bw / 2, yb - 14, bw, 28); lt(g, bt, (xa + xb) / 2, yb + 7, { s: 20, w: 700, a: 'center' }); } }
   // 今の線
   const xn = X(K); g.strokeStyle = LCY; g.lineWidth = 2; g.setLineDash([6, 6]); g.beginPath(); g.moveTo(xn, y0 - 10); g.lineTo(xn, y1); g.stroke(); g.setLineDash([]);
-  lt(g, en ? 'NOW ▼' : '今 ▼', xn, y0 - 18, { s: 22, w: 900, c: LCY, a: 'center' });
+  lt(g, (en ? 'NOW' : '今') + (o.nowTime ? ' ' + hmL(lv.end) : '') + ' ▼', xn, y0 - 18, { s: 22, w: 900, c: LCY, a: 'center' });
   const line = (pts, col, w, dash) => { g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.setLineDash(dash || []); g.beginPath(); pts.forEach(([k, v], i) => i ? g.lineTo(X(k), Y(v)) : g.moveTo(X(k), Y(v))); g.stroke(); g.setLineDash([]); };
-  top.slice().reverse().forEach((m, j) => { const i = top.length - 1 - j, c = LRK[i];
-    line(m.path.slice(0, K + 1).map((v, k) => [k, v]), c, 2.2); line(m.path.slice(K).map((v, k) => [k + K, v]), c, 2.6, [7, 6]); });
+  top.slice().reverse().forEach((m, j) => { const i = top.length - 1 - j, c = LRK[i]; line(m.path.slice(0, K + 1).map((v, k) => [k, v]), c, 2.2); line(m.path.slice(K).map((v, k) => [k + K, v]), c, 2.6, [7, 6]); });
   g.save(); g.shadowColor = LCY; g.shadowBlur = 16; line(lv.cur.map((v, k) => [k, v]), LCY, 5); g.restore();
   (lv.marks || []).forEach((m, i) => { const last = i === lv.marks.length - 1, x = X(m.k), y = Y(lv.cur[m.k]);
     if (last) { g.save(); g.shadowColor = LCY; g.shadowBlur = 20; g.fillStyle = LCY; g.beginPath(); g.arc(x, y, 11, 0, 7); g.fill(); g.restore(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 11, 0, 7); g.stroke(); }
@@ -506,41 +504,192 @@ function drawLive(g, lv, lg) {
   for (let k = ends.length - 1; k >= 0; k--) if (ends[k].y > y1 + 10) { ends[k].y = y1 + 10; if (k) ends[k - 1].y = Math.min(ends[k - 1].y, ends[k].y - 40); }
   ends.forEach((e) => { const c = LRK[e.i], xe = X(N); g.fillStyle = c; g.beginPath(); g.arc(xe, e.y0, 5, 0, 7); g.fill(); g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); g.moveTo(xe, e.y0); g.lineTo(xe + 22, e.y); g.stroke();
     g.beginPath(); g.arc(xe + 36, e.y, 17, 0, 7); g.fill(); lt(g, String(e.i + 1), xe + 36, e.y + 8, { s: 22, w: 900, f: LN, c: '#06101c', a: 'center' }); });
-  // 予定の欄(グラフと同じ時間の位置に置く。重なる時は段を下げる)
-  const ly = 476;
-  if (lv.stat) { const sc = lv.stat, c = sc.col || '#ffc94d';
-    g.fillStyle = 'rgba(255,255,255,.04)'; g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); g.roundRect(26, ly - 4, W - 52, 124, 14); g.fill(); g.stroke();
-    let x = 50; x += lt(g, sc.head[lg] || sc.head.ja, x, ly + 46, { s: 34, w: 900 }) + 18; lt(g, sc.big, x, ly + 50, { s: 52, w: 700, f: LN, c, glow: c + '99', b: 16 });
-    let cx = 50; (sc.chips || []).forEach((ch) => { const t = ch[lg] || ch.ja; g.font = `700 22px ${LN}`; const w = g.measureText(t).width + 24; g.fillStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.roundRect(cx, ly + 70, w, 36, 8); g.fill(); lt(g, t, cx + 12, ly + 96, { s: 22, w: 700, f: LN, c: ch.c || '#ffffff' }); cx += w + 10; });
+}
+function liveLegend(g, lg, y, marks, x = 28) {
+  const en = lg === 'en'; g.strokeStyle = LCY; g.lineWidth = 5; g.beginPath(); g.moveTo(x, y); g.lineTo(x + 52, y); g.stroke(); x += 62; x += lt(g, en ? 'Now' : '今', x, y + 7, { s: 20, w: 700 }) + 36;
+  if (marks) { g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); x += 14; x += lt(g, en ? 'Past posts' : 'これまでの投稿', x, y + 7, { s: 20, w: 700, c: '#d6e2ee' }) + 36; }
+  g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.setLineDash([7, 6]); g.beginPath(); g.moveTo(x, y); g.lineTo(x + 56, y); g.stroke(); g.setLineDash([]); lt(g, en ? 'Dotted = what came next' : '点線＝過去のその後', x + 68, y + 7, { s: 20, w: 700, c: '#d6e2ee' });
+}
+function fitBig(g, text, maxW, size, w, fam) { g.font = `${w} ${size}px ${fam}`; let s2 = size; while (g.measureText(text).width > maxW && s2 > 24) { s2 -= 2; g.font = `${w} ${s2}px ${fam}`; } return s2; }
+
+// v208: FOMC の親子ポスト(fomc1 = 親: 一番似ていた1回 / fomc3 = 子: TOP3 / fomcres = 結果)。横軸 = 発表からの時間(−24h〜+4h)
+function fomcChart(g, lv, lg, y0, y1, o = {}) {
+  const en = lg === 'en', x0 = 96, x1 = W - 60, N = lv.N || 112, K = lv.K, kE = Math.round((lv.E - lv.ws) / lv.st), top = o.one ? lv.top.slice(0, 1) : lv.top.slice(0, 3);
+  const all = [...lv.cur, ...top.flatMap((m) => m.path.slice(0, N + 1))], mx0 = Math.max(...all), mn0 = Math.min(...all), st = mx0 - mn0 > 8 ? 4 : mx0 - mn0 > 3 ? 2 : 1;
+  const hi = Math.ceil((mx0 + 0.2) / st) * st, lo = Math.floor((mn0 - 0.2) / st) * st, X = (k) => x0 + k / N * (x1 - x0), Y = (v) => y0 + (hi - v) / (hi - lo || 1) * (y1 - y0);
+  const SG = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  lt(g, en ? 'Each meeting: 24h before release = 0%' : '各回の発表24時間前＝0%', x0 + 6, y0 - 14, { s: 18, w: 700, c: '#c9d4e2' });
+  g.strokeStyle = 'rgba(160,190,220,.2)'; g.lineWidth = 1;
+  for (let v = lo; v <= hi + 1e-9; v += st) { g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); lt(g, (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + '%', x0 - 12, Y(v) + 8, { s: 22, w: 700, f: LN, a: 'right' }); }
+  g.strokeStyle = 'rgba(200,215,230,.6)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0, y1); g.lineTo(x1, y1); g.stroke();
+  const kNow = Math.min(K, kE), ticks = [[0, '−24h'], [48, '−12h'], ...(o.res ? [] : [[kNow, `−${Math.round((kE - kNow) / 4 * 2) / 2}h`]]), [kE, '0'], [kE + 4, o.res ? '+1h' : null], [N, '+4h']].filter((x) => x[1]);
+  const used = []; ticks.forEach(([k, l]) => { const x = X(k); if (used.some((u) => Math.abs(u - x) < 46)) return; used.push(x); g.strokeStyle = 'rgba(160,190,220,.12)'; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); lt(g, l, x, y1 + 30, { s: 22, w: 700, f: LN, a: 'center' }); });
+  // 発表の線
+  g.strokeStyle = '#ffd23f'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(X(kE), y0 - 20); g.lineTo(X(kE), y1); g.stroke(); lt(g, en ? 'FOMC release' : 'FOMC発表', X(kE), y0 - 30, { s: 22, w: 900, c: '#ffd23f', a: 'center' });
+  if (!o.res) { g.strokeStyle = '#ffffff'; g.lineWidth = 1.5; g.setLineDash([5, 5]); g.beginPath(); g.moveTo(X(kNow), y0 - 6); g.lineTo(X(kNow), y1); g.stroke(); g.setLineDash([]); lt(g, en ? 'Now' : '今', X(kNow), y0 - 12, { s: 20, w: 900, a: 'center' }); }
+  const line = (pts, col, w, dash) => { g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.setLineDash(dash || []); g.beginPath(); pts.forEach(([k, v], i) => i ? g.lineTo(X(k), Y(v)) : g.moveTo(X(k), Y(v))); g.stroke(); g.setLineDash([]); };
+  const dot = (k, v, c, r = 7) => { g.fillStyle = c; g.beginPath(); g.arc(X(k), Y(v), r, 0, 7); g.fill(); };
+  const KS = lv.KS != null ? lv.KS : K;
+  top.slice().reverse().forEach((m, j) => { const i = top.length - 1 - j, c = LRK[i], P = m.path.slice(0, N + 1);
+    line(P.slice(0, KS + 1).map((v, k) => [k, v]), c, 2.4); line(P.slice(KS).map((v, k) => [k + KS, v]), c, 2.8, [7, 6]);
+    dot(kE, P[kE], c); dot(kE + 4, P[kE + 4], c); dot(N, P[N], c);
+    if (o.one && m.a1 != null) { const yy = Math.min(Y(P[kE + 4]), Y(P[kE])) - 40; lt(g, en ? '1h after' : '発表後1時間', X(kE + 4), yy - 26, { s: 18, w: 700, c, a: 'center' }); lt(g, SG(m.a1), X(kE + 4), yy, { s: 24, w: 900, f: LN, c, a: 'center' }); } });
+  g.save(); g.shadowColor = LCY; g.shadowBlur = 14; line(lv.cur.slice(0, N + 1).map((v, k) => [k, v]), LCY, 4.5); g.restore();
+  const kl = Math.min(K, N); g.fillStyle = LCY; g.beginPath(); g.arc(X(kl), Y(lv.cur[kl]), 10, 0, 7); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 2; g.stroke();
+  if (o.res && lv.cur[kE + 4] != null) { lt(g, (en ? 'This time ' : '今回 ') + SG(lv.a1), X(kE + 4), Y(lv.cur[kE + 4]) - 22, { s: 24, w: 900, f: LN, c: LCY, a: 'center' }); }
+}
+function drawFomc(g, lv, lg) {
+  const en = lg === 'en', off = en ? 0 : 9 * 36e5, H2 = LH, kind = lv.kind, SG = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', SC = (v) => v == null ? '#ffffff' : v < 0 ? '#ff6b7d' : '#ffffff';
+  const WD = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : WJ, dd = (t) => new Date(t + off), dl = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };   // FOMC の日付は米国の開催日
+  const bg = g.createLinearGradient(0, 0, 0, H2); bg.addColorStop(0, '#0d1d33'); bg.addColorStop(1, '#091526'); g.fillStyle = bg; g.fillRect(0, 0, W, H2);
+  const rule = (y, a = 26, b = W - 26, c = 'rgba(160,190,220,.28)') => { g.strokeStyle = c; g.lineWidth = 1.5; g.beginPath(); g.moveTo(a, y); g.lineTo(b, y); g.stroke(); };
+  const tw0 = lt(g, en ? 'CSA / BTC LIVE' : 'CSA / BTC実況', 26, 44, { s: 30, w: 900 });
+  const E = dd(lv.E), ht = `${E.getUTCMonth() + 1}/${E.getUTCDate()}(${WD[E.getUTCDay()]}) ${E.getUTCHours()}:${LP(E.getUTCMinutes())} ${en ? 'UTC' : 'JST'}`;
+  const hw = lt(g, (en ? 'Statement ' : '声明 ') + ht, W - 26, 44, { s: 24, w: 900, a: 'right' }); g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.beginPath(); g.moveTo(tw0 + 46, 50); g.lineTo(W - 26, 50); g.stroke();
+  const legend = (y, items) => { let w = 0; g.font = `700 22px ${LJ}`; items.forEach((it) => { w += 60 + g.measureText(it[0]).width + 36; }); let x = (W - w) / 2;
+    items.forEach(([t2, c, dash]) => { g.strokeStyle = c; g.lineWidth = dash ? 3 : 5; g.setLineDash(dash ? [8, 6] : []); g.beginPath(); g.moveTo(x, y - 7); g.lineTo(x + 48, y - 7); g.stroke(); g.setLineDash([]); x += 60; x += lt(g, t2, x, y, { s: 22, w: 700 }) + 36; }); };
+  const t1 = lv.top[0];
+  if (kind === 'fomc1') {
+    const left = Math.max(0, lv.E - (lv.now || lv.end)), hh = Math.round(left / 36e5 * 2) / 2, big = hh >= 1 ? (en ? `${hh}h` : (Number.isInteger(hh) ? `${hh}時間` : `${Math.floor(hh)}時間半`)) : (en ? `${Math.max(1, Math.round(left / 6e4))} min` : `${Math.max(1, Math.round(left / 6e4))}分`);
+    const pre = en ? 'FOMC in ' : 'FOMCまで、あと'; g.font = `900 92px ${LJ}`; let fs = 92; while (g.measureText(pre + big).width > W - 60 && fs > 50) { fs -= 4; g.font = `900 ${fs}px ${LJ}`; }
+    const pw = lt(g, pre, 26, 148, { s: fs, w: 900 }); lt(g, big, 26 + pw, 148, { s: fs, w: 900, c: LCY });
+    lt(g, en ? 'Overlaid with the most similar past FOMC' : '今回に最も似た過去のFOMCを重ねる', 28, 214, { s: 44, w: 900 });
+    fomcChart(g, lv, lg, 300, 490, { one: 1, dl });
+    legend(572, [[en ? 'This time' : '今回', LCY], [dl(t1.fomc), LRK[0]], [en ? 'Dotted = what came next' : '点線＝過去のその後', '#c9d4e2', 1]]);
+    rule(600);
+    let x = 40; x += lt(g, en ? 'Shape match' : '形状の一致率', x, 690, { s: 40, w: 900 }) + 24; lt(g, t1.rate + '%', x, 712, { s: 118, w: 900, f: LN, c: LCY });
+    g.strokeStyle = 'rgba(160,190,220,.5)'; g.beginPath(); g.moveTo(560, 620); g.lineTo(560, 720); g.stroke();
+    let x2 = 590; lt(g, dl(t1.fomc), x2, 652, { s: 26, w: 700, f: LN, c: '#c9d4e2' }); x2 += lt(g, en ? '1h after' : '発表後1時間', x2, 698, { s: 34, w: 900 }) + 20;
+    lt(g, SG(t1.a1), W - 30, 712, { s: 96, w: 900, f: LN, c: LRK[0], a: 'right' });
+    const rt = en ? 'Comparison with the other 2 in the reply ↓' : 'ほかの2回との比較は返信へ ↓'; const rw = lt(g, rt, W - 30, 752, { s: 26, w: 900, c: LCY, a: 'right' }); rule(762, W - 30 - rw, W - 30, LCY);
+    lt(g, en ? 'Match = shape similarity, not a probability of rising.' : '一致率は形状の近さであり、上昇確率ではありません。', 26, 788, { s: 18, w: 700, c: '#c9d4e2' });
   } else {
-  lt(g, en ? 'EVENTS' : '予定', 26, ly + 26, { s: 20, w: 900, c: '#ffc94d' });
-  if (!ev.length) lt(g, en ? 'No major releases in these 7 days' : 'この7日間に主要な指標はありません', x0 + 10, ly + 26, { s: 20, w: 700, c: '#c9d4e2' });
-  const FL = { US: '🇺🇸', JP: '🇯🇵', EU: '🇪🇺' }, rows = [-1e9, -1e9]; let hidden = 0;
-  ev.forEach((e) => { const nm = `${FL[e.c] || '📅'} ${en ? e.en : e.ja}`, tm = `${md(e.t)} ${hmL(e.t)}`; g.font = `900 20px ${LJ}`; const w = Math.max(g.measureText(nm).width, (g.font = `700 18px ${LN}`, g.measureText(tm).width)) + 20;
-    let x = Math.min(Math.max(Xt(e.t) - w / 2, x0 - 10), W - 26 - w), r = rows.findIndex((rx) => x >= rx + 8); if (r < 0) { r = rows[0] <= rows[1] ? 0 : 1; x = rows[r] + 8; if (x + w > W - 26) { hidden++; return; } } rows[r] = x + w;
-    const y = ly + r * 62, past = e.t <= lv.end, col = past ? 'rgba(255,201,77,.45)' : '#ffc94d';
-    g.fillStyle = past ? 'rgba(255,201,77,.06)' : 'rgba(255,201,77,.14)'; g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); g.roundRect(x, y, w, 54, 10); g.fill(); g.stroke();
-    lt(g, nm, x + 10, y + 24, { s: 20, w: 900, c: past ? '#c9d4e2' : '#ffffff' }); lt(g, tm, x + 10, y + 46, { s: 18, w: 700, f: LN, c: col }); });
-  if (hidden) lt(g, en ? `+${hidden} more` : `ほか${hidden}件`, W - 28, ly + 26, { s: 18, w: 700, c: '#c9d4e2', a: 'right' });
+    const res = kind === 'fomcres';
+    if (res) { const pw = lt(g, en ? 'FOMC · BTC 1h after ' : 'FOMC 発表後1時間 ', 26, 140, { s: 70, w: 900 }); lt(g, SG(lv.a1), 26 + pw, 142, { s: 76, w: 900, f: LN, c: lv.a1 < 0 ? '#ff6b7d' : LCY }); lt(g, en ? 'Side by side with the 3 closest past FOMCs' : '似ていた過去3回と並べて', 28, 200, { s: 38, w: 900 }); }
+    else { const pre = en ? 'The 3 closest past FOMCs, then ' : '似ていた過去3回、その後の'; g.font = `900 76px ${LJ}`; let fs = 76; while (g.measureText(pre + 'BTC').width > W - 60 && fs > 44) { fs -= 4; g.font = `900 ${fs}px ${LJ}`; } const pw = lt(g, pre, 26, 140, { s: fs, w: 900 }); lt(g, 'BTC', 26 + pw, 140, { s: fs, w: 900, f: LN, c: LCY }); lt(g, en ? 'Compared on 24h before release → now' : '発表24時間前〜今の値動きで比較', 28, 200, { s: 38, w: 900 }); }
+    fomcChart(g, lv, lg, 262, 416, { res, dl });
+    legend(486, [[en ? 'This time' : '今回', LCY], ...lv.top.slice(0, 3).map((m, i) => [['①', '②', '③'][i] + dl(m.fomc), LRK[i]]), [en ? 'After' : 'その後', '#c9d4e2', 1]]);
+    const cx = [26, 420, 790, W - 26], ty = 516; rule(ty - 10);
+    lt(g, en ? 'Past FOMC' : '過去のFOMC', (cx[0] + cx[1]) / 2, ty + 26, { s: 26, w: 900, a: 'center' }); lt(g, en ? 'Shape match' : '形状の一致率', (cx[1] + cx[2]) / 2, ty + 26, { s: 26, w: 900, a: 'center' }); lt(g, en ? '1h after release' : '発表後1時間', (cx[2] + cx[3]) / 2, ty + 26, { s: 26, w: 900, a: 'center' });
+    rule(ty + 42);
+    const rows = [...(res ? [{ me: 1 }] : []), ...lv.top.slice(0, 3)], rh = res ? 38 : 44;
+    rows.forEach((m, i) => { const y = ty + 42 + rh * (i + 1) - rh * 0.28;
+      if (m.me) { lt(g, en ? 'This time' : '今回', (cx[0] + cx[1]) / 2, y, { s: 28, w: 900, c: LCY, a: 'center' }); lt(g, '—', (cx[1] + cx[2]) / 2, y, { s: 28, w: 700, f: LN, c: '#c9d4e2', a: 'center' }); lt(g, SG(lv.a1), (cx[2] + cx[3]) / 2, y, { s: 34, w: 900, f: LN, c: lv.a1 < 0 ? '#ff6b7d' : LCY, a: 'center' }); }
+      else { const k = i - (res ? 1 : 0), c = LRK[k]; g.fillStyle = c; g.beginPath(); g.arc(cx[0] + 90, y - 10, 17, 0, 7); g.fill(); lt(g, String(k + 1), cx[0] + 90, y - 2, { s: 22, w: 900, f: LN, c: '#06101c', a: 'center' }); lt(g, dl(m.fomc), cx[0] + 120, y, { s: 30, w: 700, f: LN });
+        lt(g, m.rate + '%', (cx[1] + cx[2]) / 2, y, { s: 36, w: 900, f: LN, c: LCY, a: 'center' }); lt(g, SG(m.a1), (cx[2] + cx[3]) / 2, y, { s: 36, w: 900, f: LN, c: SC(m.a1), a: 'center' }); }
+      rule(ty + 42 + rh * (i + 1), 26, W - 26, 'rgba(160,190,220,.16)'); });
+    [cx[1], cx[2]].forEach((x) => { g.strokeStyle = 'rgba(160,190,220,.28)'; g.beginPath(); g.moveTo(x, ty - 6); g.lineTo(x, ty + 42 + rh * rows.length - 4); g.stroke(); });
+    const ny = ty + 42 + rh * rows.length + 28;
+    lt(g, en ? 'Compared: 24h before each release up to the same time left as now (moves after release not used).' : '比較：各回の発表24時間前から、今回と同じ残り時間まで（発表後の動きは選定に使っていません）。', 26, ny, { s: 18, w: 700, c: '#d6e2ee' });
+    lt(g, en ? '1h after = from the price at each release.' : '発表後1時間の騰落率は、各回の発表時点の価格を基準に計算。', 26, ny + 26, { s: 18, w: 700, c: '#d6e2ee' });
+    lt(g, en ? 'Match = shape similarity, not a probability.' : '一致率は形状の近さであり、上昇・下落の確率ではありません。', 26, 788, { s: 18, w: 700, c: '#c9d4e2' });
   }
-  // 凡例
-  const lg2 = 622; g.strokeStyle = LCY; g.lineWidth = 5; g.beginPath(); g.moveTo(28, lg2); g.lineTo(80, lg2); g.stroke(); lt(g, en ? 'Now' : '今', 90, lg2 + 7, { s: 20, w: 700 });
-  if ((lv.marks || []).length > 1) { g.fillStyle = '#fff'; g.beginPath(); g.arc(140, lg2, 6, 0, 7); g.fill(); lt(g, en ? 'Past posts' : 'これまでの投稿', 154, lg2 + 7, { s: 20, w: 700, c: '#d6e2ee' }); }
-  g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.setLineDash([7, 6]); g.beginPath(); g.moveTo(330, lg2); g.lineTo(386, lg2); g.stroke(); g.setLineDash([]); lt(g, en ? 'Dotted = what came next' : '点線＝過去のその後', 398, lg2 + 7, { s: 20, w: 700, c: '#d6e2ee' });
-  rule(644);
-  // 過去 TOP3(今日にあたる日)
-  lt(g, WEEKV ? (en ? 'SAME DAY IN THE PAST' : '過去の同じ日') : (en ? 'SAME MOMENT IN THE PAST' : '過去の同じ時刻'), 26, 672, { s: 18, w: 900, c: '#c9d4e2' });
+  lt(g, '@csa_archive', W - 26, 788, { s: 18, w: 700, f: LN, c: '#c9d4e2', a: 'right' });
+}
+function drawLive(g, lv, lg) {
+  if (String(lv.kind || '').startsWith('fomc')) return drawFomc(g, lv, lg);
+  const en = lg === 'en', off = en ? 0 : 9 * 36e5, H2 = LH, kind = lv.kind || (lv.N && lv.N * (lv.st || 0) < 3 * 864e5 ? 'short' : 'daily'), sc = lv.stat || {};
+  const WD = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : WJ, dd = (t) => new Date(t + off), md = (t) => { const d = dd(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, hmL = (t) => { const d = dd(t); return `${d.getUTCHours()}:${LP(d.getUTCMinutes())}`; };
+  const bg = g.createLinearGradient(0, 0, 0, H2); bg.addColorStop(0, '#0b1424'); bg.addColorStop(1, '#070c17'); g.fillStyle = bg; g.fillRect(0, 0, W, H2);
+  const rule = (y, x0 = 26, x1 = W - 26) => { g.strokeStyle = 'rgba(160,190,220,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke(); };
+  const T = en ? 'The past BTC is tracing now' : '今のBTCがなぞっている過去', tone = lv.tone || '#ffc94d';
+  // 上の帯
+  g.fillStyle = LCY; g.fillRect(26, 22, 6, 24); lt(g, en ? 'BTC LIVE' : 'BTC実況', 42, 42, { s: 24, w: 900, c: LCY });
+  const de = dd(lv.end); lt(g, `${de.getUTCMonth() + 1}/${de.getUTCDate()}(${WD[de.getUTCDay()]}) ${hmL(lv.end)}${en ? ' UTC' : ''}`, W - 28, 42, { s: 24, w: 700, f: LN, a: 'right' });
+  if (kind === 'spike') { g.strokeStyle = tone; g.lineWidth = 2; g.beginPath(); g.moveTo(170, 34); g.lineTo(W - 220, 34); g.stroke(); } else rule(56);
+  const badge = (txt, x, y, c) => { g.font = `900 26px ${LJ}`; const bw = g.measureText(txt).width + 28; g.fillStyle = c; g.beginPath(); g.roundRect(x, y - 34, bw, 46, 8); g.fill(); lt(g, txt, x + 14, y - 2, { s: 26, w: 900, c: '#06101c' }); return bw; };
+  let legendY = 0, marks = false;
+  if (kind === 'daily') {
+    lt(g, T, 28, 112, { s: fitBig(g, T, W - 60, 50, 900, LJ), w: 900 });
+    const fut = (lv.ev || []).filter((e) => e.t > lv.end).sort((a, b) => a.t - b.t).slice(0, 4).map((e, i) => ({ ...e, L: 'ABCD'[i] }));
+    liveChart(g, lv, lg, 168, 420, { letters: fut });
+    rule(470); lt(g, en ? 'UPCOMING' : '今後の主な予定', 28, 502, { s: 22, w: 900 });
+    const FL = { US: '🇺🇸', JP: '🇯🇵', EU: '🇪🇺' };
+    if (!fut.length) lt(g, en ? 'No major releases in the next days' : 'この先3日に主要な指標はありません', 60, 556, { s: 24, w: 700, c: '#c9d4e2' });
+    const cw = (W - 52) / Math.max(fut.length, 1);
+    fut.forEach((e, i) => { const x = 26 + i * cw; if (i) { g.strokeStyle = 'rgba(160,190,220,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 520); g.lineTo(x, 576); g.stroke(); }
+      let xx = x + 22; xx += lt(g, e.L, xx, 560, { s: 34, w: 700, f: LN, c: '#ffc94d' }) + 14;
+      const nm = en ? e.en : e.ja; xx += lt(g, nm, xx, 558, { s: fitBig(g, nm, cw - 200, 26, 900, LJ), w: 900 }) + 14;
+      lt(g, `${md(e.t)} ${hmL(e.t)}`, xx, 557, { s: 20, w: 500, f: LN, c: '#c9d4e2' }); });
+    rule(594); legendY = 620; marks = (lv.marks || []).length > 1;
+  } else if (kind === 'pre') {
+    const nm = sc.name || '', left = Math.max(0, (sc.t || lv.end) - lv.end), lm = Math.round(left / 60000);
+    const h1 = `${nm} ${sc.whenTxt || ''}`.trim(); const hs = fitBig(g, h1, 640, 68, 900, LJ); const hw = lt(g, h1, 28, 128, { s: hs, w: 900 });
+    badge(en ? 'BEFORE' : '発表前', 28 + hw + 24, 124, '#ffc94d');
+    if (lm > 0) { const big = lm >= 60 ? String(Math.round(lm / 60)) : String(lm), unit = lm >= 60 ? (en ? 'h' : '時間') : (en ? 'min' : '分');
+      g.font = `900 76px ${LN}`; const ub = (g.font = `900 52px ${LJ}`, g.measureText(unit).width); g.font = `900 76px ${LN}`; const bwid = g.measureText(big).width;
+      lt(g, unit, W - 28, 128, { s: 52, w: 900, c: '#ffc94d', a: 'right' }); lt(g, big, W - 28 - ub - 4, 130, { s: 76, w: 900, f: LN, c: '#ffc94d', a: 'right' }); lt(g, en ? 'in' : 'あと', W - 28 - ub - bwid - 14, 128, { s: 34, w: 900, c: '#ffc94d', a: 'right' }); }
+    lt(g, T, 30, 176, { s: 26, w: 900, c: '#d6e2ee' });
+    liveChart(g, lv, lg, 226, 430, {});
+    if (sc.hist && sc.hist.length) {   // v208: FOMC = 過去の発表後1時間を並べる
+      let hx = 28; hx += lt(g, en ? 'PAST FOMC · BTC 1h after' : '過去のFOMC · 発表後1時間のBTC', hx, 512, { s: 26, w: 900 }) + 20;
+      if (sc.fx && sc.fx.fc) lt(g, (en ? 'Forecast ' : '市場予想 ') + sc.fx.fc + (sc.fx.pv ? (en ? ` (prev ${sc.fx.pv})` : `（前回 ${sc.fx.pv}）`) : ''), W - 28, 512, { s: 22, w: 700, c: '#ffc94d', a: 'right' });
+      const hw2 = (W - 52) / sc.hist.length;
+      sc.hist.forEach((x, i) => { const cx = 26 + i * hw2; if (i) { g.strokeStyle = 'rgba(160,190,220,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, 540); g.lineTo(cx, 610); g.stroke(); }
+        lt(g, x.d, cx + hw2 / 2, 562, { s: 22, w: 700, f: LN, c: '#c9d4e2', a: 'center' }); lt(g, (x.v > 0 ? '+' : x.v < 0 ? '−' : '±') + Math.abs(x.v).toFixed(2) + '%', cx + hw2 / 2, 604, { s: 36, w: 700, f: LN, c: x.v < 0 ? '#ff6b7d' : '#3cff9a', a: 'center' }); });
+      rule(626);
+    } else {
+    lt(g, en ? 'LAST TIME' : '前回の反応', 28, 512, { s: 28, w: 900 }); if (sc.lastDate) { g.strokeStyle = 'rgba(160,190,220,.4)'; g.beginPath(); g.moveTo(196, 488); g.lineTo(196, 518); g.stroke(); lt(g, sc.lastDate, 212, 512, { s: 24, w: 500, f: LN }); } rule(500, 300);
+    let x = 28; x += lt(g, en ? '1h after release' : '発表後1時間', x, 584, { s: 26, w: 900 }) + 28; lt(g, sc.big || '—', x, 590, { s: 46, w: 700, f: LN, c: sc.col || '#ffffff' });
+    if (sc.typ) { const x2 = 470; g.strokeStyle = 'rgba(160,190,220,.4)'; g.beginPath(); g.moveTo(x2, 548); g.lineTo(x2, 604); g.stroke(); let x3 = x2 + 40; x3 += lt(g, en ? 'Normal hour' : '普段の1時間', x3, 584, { s: 26, w: 900 }) + 28; lt(g, sc.typ, x3, 590, { s: 46, w: 700, f: LN }); }
+    rule(626);
+    }
+  } else if (kind === 'arch') {
+    lt(g, '|', 194, 40, { s: 22, w: 400, c: 'rgba(160,190,220,.5)' }); lt(g, T, 214, 40, { s: 22, w: 700, c: '#d6e2ee' });
+    g.font = `700 92px ${LN}`; const bwid = g.measureText(sc.big || '').width; lt(g, sc.big || '', W - 28, 142, { s: 92, w: 700, f: LN, c: sc.col || '#fff', a: 'right', glow: (sc.col || '#fff') + '66', b: 18 });
+    const bl = lt(g, 'BTC', W - 28 - bwid - 18, 136, { s: 58, w: 700, f: LN, a: 'right' });
+    const h1 = sc.name ? `${sc.name} ${en ? '· 1h after' : '発表後1時間'}` : ''; lt(g, h1, 28, 140, { s: fitBig(g, h1, W - 120 - bwid - 140, 72, 900, LJ), w: 900 });
+    liveChart(g, lv, lg, 210, 400, { bracket: en ? '1h after release' : '発表後1時間', nowTime: 1 });
+    legendY = 462; rule(484);
+    lt(g, en ? '1h move after release' : '発表後1時間の騰落率', 28, 516, { s: 26, w: 900 }); if (sc.range) lt(g, `(${sc.range})`, 300, 514, { s: 20, w: 500, f: LN, c: '#c9d4e2' });
+    const cs = sc.coins || [], cw = (W - 52) / Math.max(cs.length, 1), mxa = Math.max(1, Math.ceil(Math.max(...cs.map((c) => Math.abs(c.v || 0))) * 2) / 2);
+    cs.forEach((c, i) => { const x = 26 + i * cw, col = c.v < 0 ? '#ff6b7d' : '#3cff9a'; if (i) { g.strokeStyle = 'rgba(160,190,220,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 530); g.lineTo(x, 626); g.stroke(); }
+      const xx = x + 20 + lt(g, c.k, x + 20, 566, { s: 30, w: 700, f: LN }) + 18; lt(g, (c.v > 0 ? '+' : c.v < 0 ? '−' : '±') + Math.abs(c.v).toFixed(2) + '%', xx, 566, { s: 32, w: 700, f: LN, c: col });
+      const ax0 = x + 30, ax1 = x + cw - 26, zx = (ax0 + ax1) / 2, sx = (v) => zx + v / mxa * (ax1 - ax0) / 2;
+      g.fillStyle = col; const xa = Math.min(zx, sx(c.v)), xw = Math.abs(sx(c.v) - zx); g.fillRect(xa, 580, Math.max(2, xw), 20);
+      g.strokeStyle = 'rgba(200,215,230,.6)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(ax0, 606); g.lineTo(ax1, 606); g.moveTo(zx, 576); g.lineTo(zx, 610); g.stroke();
+      [-mxa, 0, mxa].forEach((v) => lt(g, (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v) + '%', sx(v), 628, { s: 15, w: 500, f: LN, c: '#c9d4e2', a: 'center' })); });
+    rule(640);
+  } else if (kind === 'spike') {
+    lt(g, T, 30, 92, { s: 26, w: 900, c: '#d6e2ee' });
+    const h1 = sc.head || ''; g.font = `900 30px ${LJ}`; const bw0 = g.measureText(en ? 'SHARP MOVE' : '急変動').width + 28;
+    const hs = fitBig(g, h1, W - 90 - bw0, 96, 900, LN); const hw = lt(g, h1, 26, 180, { s: hs, w: 900, f: LN, c: tone, glow: tone + '55', b: 14 });
+    badge(en ? 'SHARP MOVE' : '急変動', 26 + hw + 22, 170, tone);
+    if (sc.px) lt(g, sc.px, 28, 240, { s: 50, w: 700, f: LN });
+    liveChart(g, lv, lg, sc.px ? 300 : 250, 480, {});
+    legendY = 540; rule(560);
+    lt(g, en ? 'Same window' : '同じ時間帯の情報', 46, 604, { s: 24, w: 900, c: '#d6e2ee' }); g.fillStyle = LCY; g.fillRect(28, 580, 4, 32);
+    const info = (sc.info || []).slice(0, 2); if (!info.length) lt(g, en ? 'No scheduled release' : '指標の発表なし', 340, 606, { s: 30, w: 900 });
+    info.forEach((t, i) => { const cx = 330 + i * 420; if (i) { g.strokeStyle = 'rgba(160,190,220,.35)'; g.beginPath(); g.moveTo(cx - 20, 578); g.lineTo(cx - 20, 622); g.stroke(); } lt(g, t, cx + 190, 610, { s: fitBig(g, t, 380, 36, 900, LJ), w: 900, a: 'center' }); });
+    rule(640);
+  } else if (kind === 'liq') {
+    lt(g, T, 30, 92, { s: 26, w: 900, c: '#d6e2ee' });
+    const pre = sc.head || (en ? 'Liquidated' : '清算'); const mw = sc.mult ? 230 : 0;
+    g.font = `900 92px ${LN}`; const nwid = g.measureText(sc.big || '').width; const ps = fitBig(g, pre, W - 70 - nwid - mw - 24, 84, 900, LJ);
+    const pw = lt(g, pre, 26, 190, { s: ps, w: 900 }); lt(g, sc.big || '', 26 + pw + 20, 192, { s: 92, w: 900, f: LN, c: tone, glow: tone + '66', b: 18 });
+    if (sc.mult) { g.strokeStyle = 'rgba(160,190,220,.4)'; g.beginPath(); g.moveTo(W - 240, 112); g.lineTo(W - 240, 196); g.stroke(); lt(g, en ? 'vs normal' : '普段の', W - 210, 140, { s: 28, w: 900 }); lt(g, sc.mult, W - 28, 194, { s: 56, w: 900, f: LN, a: 'right' }); }
+    const L0 = sc.long || 0, S0 = sc.short || 0, tot = L0 + S0, bx0 = 30, bx1 = W - 30, lw = tot > 0 ? (bx1 - bx0) * L0 / tot : (bx1 - bx0) / 2;
+    g.fillStyle = '#ff6b7d'; g.fillRect(bx0, 214, lw, 34); g.fillStyle = '#3cff9a'; g.fillRect(bx0 + lw, 214, bx1 - bx0 - lw, 34);
+    if (tot > 0) { const lp = Math.round(L0 / tot * 100); if (lw > 80) lt(g, lp + '%', bx0 + lw / 2, 240, { s: 22, w: 700, f: LN, a: 'center' }); if (bx1 - bx0 - lw > 80) lt(g, (100 - lp) + '%', bx0 + lw + (bx1 - bx0 - lw) / 2, 240, { s: 22, w: 700, f: LN, c: '#06101c', a: 'center' }); }
+    lt(g, `${en ? 'Long' : 'ロング'} ${sc.longTxt || ''}`, 30, 286, { s: 30, w: 900, c: '#ff8a9a' }); lt(g, `${en ? 'Short' : 'ショート'} ${sc.shortTxt || ''}`, W - 30, 286, { s: 30, w: 900, c: '#6fe3a8', a: 'right' });
+    liveChart(g, lv, lg, 340, 548, {});
+    legendY = 610; rule(632);
+  }
+  if (legendY) liveLegend(g, lg, legendY, marks);
+  // 過去 TOP3
+  const WEEKV = kind === 'daily', by = H2 - 150;
+  lt(g, lv.fomc ? (en ? 'CLOSEST PAST FOMC (BTC 1h after)' : 'FOMC前の動きが一番近い過去のFOMC（発表後1時間のBTC）') : WEEKV ? (en ? 'SAME DAY IN THE PAST' : '過去の同じ日') : (en ? 'SAME MOMENT IN THE PAST' : '過去の同じ時刻'), 26, by + 28, { s: 22, w: 900, c: '#ffffff' });
   const cw = (W - 52) / 3, MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  top.forEach((m, i) => { const cx = 26 + i * cw, c = LRK[i], d = dd(m.day != null ? m.day : m.w);
-    if (i) { g.strokeStyle = 'rgba(160,190,220,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, 662); g.lineTo(cx, 762); g.stroke(); }
-    const bx = cx + (i ? 46 : 70); g.fillStyle = c; g.beginPath(); g.arc(bx, 704, 20, 0, 7); g.fill(); lt(g, String(i + 1), bx, 713, { s: 24, w: 900, f: LN, c: '#06101c', a: 'center' });
-    const ds = (en ? `${MO[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}` : `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`) + (WEEKV ? '' : ' ' + hmL(m.day));
-    g.font = `700 34px ${LN}`; let fs = 34; const mw = cx + cw - bx - 40; while (g.measureText(ds).width > mw && fs > 22) { fs -= 2; g.font = `700 ${fs}px ${LN}`; }
-    lt(g, ds, bx + 32, 716, { s: fs, w: 700, f: LN });
-    const wl = lt(g, en ? 'Match' : '一致率', bx + 32, 762, { s: 24, w: 900 });
-    lt(g, m.rate + '%', bx + 32 + wl + 12, 764, { s: 44, w: 700, f: LN, c, glow: c + '99', b: 14 }); });
-  lt(g, '@csa_archive', 26, 790, { s: 18, w: 700, f: LN, c: '#9fb0c4' });
-  lt(g, en ? 'Past data · not a forecast' : '予測ではありません', W - 26, 790, { s: 16, w: 700, c: '#9fb0c4', a: 'right' });
+  lv.top.slice(0, 3).forEach((m, i) => { const cx = 26 + i * cw, c = LRK[i], d = dd(m.day != null ? m.day : m.w);
+    if (i) { g.strokeStyle = 'rgba(160,190,220,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, by + 16); g.lineTo(cx, by + 116); g.stroke(); }
+    const bx = cx + (i ? 46 : 70); g.fillStyle = c; g.beginPath(); g.arc(bx, by + 58, 20, 0, 7); g.fill(); lt(g, String(i + 1), bx, by + 67, { s: 24, w: 900, f: LN, c: '#06101c', a: 'center' });
+    const ds = (en ? `${MO[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}` : `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`) + (WEEKV || lv.fomc ? '' : ' ' + hmL(m.day));
+    const fs = fitBig(g, ds, cx + cw - bx - (lv.fomc ? 150 : 40), 34, 700, LN); const dw = lt(g, ds, bx + 32, by + 70, { s: fs, w: 700, f: LN });
+    if (lv.fomc && m.a1 != null) lt(g, (m.a1 > 0 ? '+' : m.a1 < 0 ? '−' : '±') + Math.abs(m.a1).toFixed(2) + '%', bx + 32 + dw + 12, by + 68, { s: 26, w: 700, f: LN, c: m.a1 < 0 ? '#ff6b7d' : '#3cff9a' });
+    const wl = lt(g, en ? 'Match' : '一致率', bx + 32, by + 116, { s: 24, w: 900 });
+    lt(g, m.rate + '%', bx + 32 + wl + 12, by + 118, { s: 44, w: 700, f: LN, c, glow: c + '99', b: 14 }); });
+  lt(g, '@csa_archive', 26, H2 - 10, { s: 18, w: 700, f: LN, c: '#9fb0c4' });
+  lt(g, en ? 'Past data · not a forecast' : '予測ではありません', W - 26, H2 - 10, { s: 16, w: 700, c: '#9fb0c4', a: 'right' });
 }
 export async function renderLive(lv, lg) {   // サイトのカード用
   await loadFonts('今のBTCがなぞっている過去月火水木金土日一致率点線＝のその後予測ではありません実況〜予定これまでの投稿同じ日主要な指標ほか件0123456789#%@csa_archive' + JSON.stringify(lv.ev || []));
@@ -610,7 +759,7 @@ function drawPat(g, im, lg, opt = {}) {   // v202: opt = {label, ratio}(毎朝�
   txt(g, en ? `+${im.win}h (dotted = what came next)` : `+${im.win}時間(点線 = 過去のその後)`, X(N) + 8, y1 + 24, { size: 14, col: C.mut });
 }
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件声明まで、あと時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   // v203: 色(上の帯・背景)を中身で決める。上げ = 緑・下げ = 赤・予定やまとめ = 青・値動きの大きさ = 金・清算の反応 = 紫
   const im = p.img || {}, sgn = (v) => v == null ? TONES.blue : v < 0 ? TONES.red : TONES.green;
