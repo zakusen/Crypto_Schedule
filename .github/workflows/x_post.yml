@@ -5,6 +5,10 @@ name: X post
 on:
   repository_dispatch:
     types: [x-post]
+  # v209: Cloudflare への公開が終わったら1回動かす(新しい版で下書きと投稿の予定 x:due を作り直す)
+  workflow_run:
+    workflows: ["Deploy to Cloudflare (更新を公開に反映)"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       dry:
@@ -15,6 +19,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   post:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
