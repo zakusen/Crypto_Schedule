@@ -760,3 +760,6 @@
 ## v209 (2026-10-28)
 - 反映の直後に自動投稿を1回動かす: .github/workflows/x_post.yml に workflow_run(「Deploy to Cloudflare」が成功したら)を追加(手で貼る)。新しい版で下書きと Worker の投稿予定(x:due)が作り直される。
 - x_post --check: 投稿するものが無い回も x:due を書き直す(今までは投稿があった回だけだった)。
+
+## v210 (2026-10-28)
+- /posts.html に FOMC の投稿を正しく出す: 名前(FOMC 親 / 子 / 結果)、投稿前の下書きは「投稿する時に作ります」と表示、投稿後は実際に出した本文を残す(posts の mark に text を足した。Worker が保存)。

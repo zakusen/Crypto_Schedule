@@ -570,11 +570,11 @@ export const FOMC_SLOTS = [14.5 * H, 9 * H, 4 * H, 1 * H], FOMC_RES = 65 * 60000
 export const isFomc = (e) => e.l === 'macro' && e.c === 'US' && e.s === 'FOMC';
 export const fomcId = (ts, n) => 'fomc:' + ts + ':' + n;
 export function fomcDrafts(ts) {
-  const out = [];
+  const out = [], ph = { ja: '（投稿する時に、その時点の計算で本文と画像を作ります）', en: '(Text and image are made at posting time.)' };
   FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n), due = ts - sl, img = { t: ts, n };
-    out.push({ id, sr: 'fomc', due, en: '', ja: '', h: 'fomc' + n, img });
-    out.push({ id: id + ':c', sr: 'fomcc', parent: id, due, en: '', ja: '', h: 'fomcc' + n, img }); });
-  out.push({ id: fomcId(ts, 'res'), sr: 'fomcres', due: ts + FOMC_RES, en: '', ja: '', h: 'fomcres', img: { t: ts, n: 'res', after: fomcId(ts, FOMC_SLOTS.length) + ':c' } });
+    out.push({ id, sr: 'fomc', due, ...ph, h: 'fomc' + n, img });
+    out.push({ id: id + ':c', sr: 'fomcc', parent: id, due, ...ph, h: 'fomcc' + n, img }); });
+  out.push({ id: fomcId(ts, 'res'), sr: 'fomcres', due: ts + FOMC_RES, ...ph, h: 'fomcres', img: { t: ts, n: 'res', after: fomcId(ts, FOMC_SLOTS.length) + ':c' } });
   return out;
 }
 // lv = weekmatch の fomcMatch の結果。kind = 'fomc'(親)/ 'fomcc'(子)/ 'fomcres'(結果)

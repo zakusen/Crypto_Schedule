@@ -179,8 +179,8 @@ async function load() {
 }
 
 // 予定(下書き)と、まだ下書きの無い「発表後の値動き」をひとつの並びにする
-const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録', spike: '急変動(S&P500相関)', liq: '巨額清算の総括', liqday: '清算(毎朝)', liqimp: '清算の反応(指標)', pre: '発表前の予告', fomc: 'FOMCの臨時予告', spikeliq: '急変動の返信(清算)', vol: 'ボラティリティ', pat: '似ている過去', sum: '夜のまとめ' };   // v95: spike
-const ICON = { daily: '🗓', arch: '📈', week: '📊', spike: '⚡', liq: '🔥', liqday: '🧹', liqimp: '🌊', pre: '⏰', fomc: '🏦', spikeliq: '↩', vol: '📊', pat: '🔁', sum: '🌙' };
+const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録', spike: '急変動(S&P500相関)', liq: '巨額清算の総括', liqday: '清算(毎朝)', liqimp: '清算の反応(指標)', pre: '発表前の予告', fomc: 'FOMC 親(似ていた過去)', fomcc: 'FOMC 子(TOP3)', fomcres: 'FOMC 結果', spikeliq: '急変動の返信(清算)', vol: 'ボラティリティ', pat: '似ている過去', sum: '夜のまとめ' };   // v95: spike
+const ICON = { daily: '🗓', arch: '📈', week: '📊', spike: '⚡', liq: '🔥', liqday: '🧹', liqimp: '🌊', pre: '⏰', fomc: '🏦', fomcc: '↩', fomcres: '✅', spikeliq: '↩', vol: '📊', pat: '🔁', sum: '🌙' };
 const dueOf = (p) => p.due || (p.sr === 'daily' ? L.dayStart(p.at) + L.DAILY_AT : p.at);
 function build() {
   // v85: その日にもその週の残りにも予定が無い「今日・今週の予定」は出さない(自動作成側も作らないが、作成済みの古い下書きをすぐ隠す)

@@ -208,7 +208,7 @@ for (const { p, lg } of todo) {
     if (res && res.data && res.data.id) tw.set(p.id + ':' + lg, res.data.id);
     if (res && res.data && res.data.id) { p.tw = { ...(p.tw || {}), [lg]: String(res.data.id) }; if (no) p.no = { ...(p.no || {}), [lg]: no }; }
     console.log(`[post] 投稿しました ${p.id}:${lg} → ${res && res.data && res.data.id}${media ? ' (画像つき)' : ''}`);
-    await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true, tw: res && res.data && res.data.id, no } }) });
+    await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true, tw: res && res.data && res.data.id, no, ...(FOMC_SR.has(p.sr) ? { text } : {}) } }) });   // v210: FOMC は実際に出した本文を残す
     p.done = p.done || {}; p.done[lg] = Date.now();
     n++;
     await new Promise((r) => setTimeout(r, 3000));

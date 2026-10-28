@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-28-v209';
+const VERSION = '2026-10-28-v210';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1407,7 +1407,7 @@ async function postsApi(request, env) {
   if (Array.isArray(q.remove) && q.remove.length) { const rm = new Set(q.remove.filter((id) => { const o = have.get(id); return o && !(o.done && (o.done.en || o.done.ja)); })); if (rm.size) { doc.posts = doc.posts.filter((p) => !rm.has(p.id)); removed = rm.size; } }
   if (q.accept && have.has(q.accept)) { const o = have.get(q.accept); if (o.upd) { Object.assign(o, o.upd); delete o.upd; changed++; } }
   const m = q.mark;                                                   // 印を付ける/外す {id, lang:'en'|'ja', v:true|false}
-  if (m && have.has(m.id) && (m.lang === 'en' || m.lang === 'ja')) { const p = have.get(m.id); p.done = p.done || {}; p.done[m.lang] = m.v ? Date.now() : 0; if (m.tw && /^\d{1,25}$/.test(String(m.tw))) { p.tw = { ...(p.tw || {}), [m.lang]: String(m.tw) }; if (m.no) p.no = { ...(p.no || {}), [m.lang]: +m.no || 0 }; } changed++; }   // v202: tw = X の投稿ID(日誌スレッドの返信先)/ no = その日の何本目
+  if (m && have.has(m.id) && (m.lang === 'en' || m.lang === 'ja')) { const p = have.get(m.id); p.done = p.done || {}; p.done[m.lang] = m.v ? Date.now() : 0; if (m.tw && /^\d{1,25}$/.test(String(m.tw))) { p.tw = { ...(p.tw || {}), [m.lang]: String(m.tw) }; if (m.no) p.no = { ...(p.no || {}), [m.lang]: +m.no || 0 }; } if (m.v && typeof m.text === 'string' && m.text.length <= 4000) p[m.lang] = m.text; changed++; }   // v210: text = 実際に出した本文(投稿時に作る FOMC など。/posts.html に残す)   // v202: tw = X の投稿ID(日誌スレッドの返信先)/ no = その日の何本目
   if (!added && !changed && !flagged && !removed) return json({ ok: true, added, changed, flagged, removed });
   const now = Date.now(), keyT = (p) => Math.max(p.due || 0, p.at || 0);
   doc.posts = doc.posts.filter((p) => now - keyT(p) < POSTS_KEEP).sort((a, b) => keyT(b) - keyT(a)).slice(0, POSTS_MAX);
