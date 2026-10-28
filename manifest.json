@@ -1,0 +1,275 @@
+{
+  "version": "v67",
+  "files": [
+    {
+      "path": "auth.js",
+      "sha256": "5fdd8f3084d57d64a5d4e238d3fd1fe7513c724c83590d96f2e10cad681d6041",
+      "size": 9230
+    },
+    {
+      "path": "calendar.css",
+      "sha256": "4fe0acb0b0288ce1f4b1df753113555a8f3e521f5a6cbb78a09f78950efa3fd7",
+      "size": 5474
+    },
+    {
+      "path": "calendar.js",
+      "sha256": "47f7387258e69404ac189531d176085dca76e9edd717e90947b7aec0eaf39a8c",
+      "size": 10207
+    },
+    {
+      "path": "coach-sync.js",
+      "sha256": "b1160c2b3db129709b7e8e329ec536c4e0ad3a3ac1703f75a5d856e53e85f6c4",
+      "size": 11265
+    },
+    {
+      "path": "coach.js",
+      "sha256": "b3c54d555e9dfaaf4c061ff357985de60abe36b79e08f6658add52a5c8aff565",
+      "size": 86189
+    },
+    {
+      "path": "core.js",
+      "sha256": "697d0c816fbe7f6ad0d49b5af4dc8e4b7bf343525a7056a6a0c82ceb05fa9c40",
+      "size": 39017
+    },
+    {
+      "path": "covers.js",
+      "sha256": "31abafdd7023a884fa2d209a39269e621166949ff4d14e847423ca12fbf2f9de",
+      "size": 819
+    },
+    {
+      "path": "data.js",
+      "sha256": "b70a77dd7e2922f9f2d60dcee7d20bb6cf7f67825cac8533f9923c0c5c8c651f",
+      "size": 14532
+    },
+    {
+      "path": "diary-v54.js",
+      "sha256": "af4ef00f3a19185924c8d876f96ba35f1c7085da3ebb3ee928917d226e99ab1c",
+      "size": 5340
+    },
+    {
+      "path": "diary-v56.js",
+      "sha256": "471c305f16b5ee8943e8e3e9b394b69a450f6a286180d74d800520c9c2e27292",
+      "size": 15266
+    },
+    {
+      "path": "fuwa.css",
+      "sha256": "8fbc6b5ef284077bcdd289b5de136cd15193608d965640a232bf324babeb649b",
+      "size": 1366
+    },
+    {
+      "path": "fuwa.js",
+      "sha256": "bca434d22d852446607901e706623ab82a71c418bb61d95eeeb164b187c95805",
+      "size": 10598
+    },
+    {
+      "path": "handoff.js",
+      "sha256": "00d52de137f9fe37cf7668a8af125045f6078fca60f723409b1e6854632f9d52",
+      "size": 55625
+    },
+    {
+      "path": "index.html",
+      "sha256": "69776b8e4a6a5ce536edb3daf46a40e3bec04e96db078f63d9eaadde40e34197",
+      "size": 6006
+    },
+    {
+      "path": "knowledge.js",
+      "sha256": "04e83c80926aaf47a3330805af5eb2dc4dcf8167864a9b84b41c594450f90ddb",
+      "size": 24522
+    },
+    {
+      "path": "ledger.js",
+      "sha256": "85a0e23075e9e31117cf57a9bb55d1d329259434fb924f2931a684b1afe8645c",
+      "size": 9657
+    },
+    {
+      "path": "prompt.js",
+      "sha256": "517159a18bfe81cf27a7ad8f39d0cb3e02bdd1f8aca860985ddab6c838862b26",
+      "size": 37914
+    },
+    {
+      "path": "pwa.js",
+      "sha256": "8413755cdc1981f289d880e9a8146210b80529838a786d06952e0b31c09c654d",
+      "size": 5003
+    },
+    {
+      "path": "record.js",
+      "sha256": "bedb283ca4db16b26172cde7aaf6554acc9749a3fb8571f2a24934ef855cfbb1",
+      "size": 56633
+    },
+    {
+      "path": "report-v57.js",
+      "sha256": "bbfecbf2eb81c5268b6bb6a320d032ce8342da3e7e54a7936dce4ddb3dcc9c72",
+      "size": 20810
+    },
+    {
+      "path": "schedule.css",
+      "sha256": "c62229aec17306a4561f7a2f499753b37da2685dbcb05594c0fc9042ff194b64",
+      "size": 5752
+    },
+    {
+      "path": "schedule.js",
+      "sha256": "c1cf02a5e7f43583242eba046ba288e08dddafbe63ce6bbfc2b9cb784d8110c3",
+      "size": 20780
+    },
+    {
+      "path": "settings.js",
+      "sha256": "be33d325d4988400b9b1d3b09856313665e132793fb2e0f443fa4c96082c4584",
+      "size": 16074
+    },
+    {
+      "path": "style.css",
+      "sha256": "fd6b67163aaa54f12deda18bd873487727b73f8c4fcf80cc0fcffe05777e16cc",
+      "size": 144411
+    },
+    {
+      "path": "today.js",
+      "sha256": "939404c977de2de1ce64ef22e3e3547d2f4d4639ac82581cc1f8cf6b182a29af",
+      "size": 23761
+    },
+    {
+      "path": "update.js",
+      "sha256": "ec63d6ce0d6de9e671fec28782340adf6fa68d601cc186df2bd5dacb57e04032",
+      "size": 20496
+    },
+    {
+      "path": "v54.css",
+      "sha256": "46c49ee7d93466bf3bc0584fe8d6c63f7d7001b310f77d837d984b181ca8ffc0",
+      "size": 3929
+    },
+    {
+      "path": "v56.css",
+      "sha256": "b5e0ed003348f0d99814c7d49e26f0f1c53d1dd2b868a4bda33e898756ba824b",
+      "size": 8305
+    },
+    {
+      "path": "v57.css",
+      "sha256": "fb0bf5c6812ed09c29d66da072caea4105143bedd137e38f6229f4f9e4487912",
+      "size": 4976
+    },
+    {
+      "path": "v58.css",
+      "sha256": "258729ca6be6ddd471836ce5c889b969c1654600c78d693575df66fab7407630",
+      "size": 1757
+    },
+    {
+      "path": "v59.css",
+      "sha256": "5931981a6cde2ddeccf10a66fea55a5b35b53fcbdddefc7ce299c9737729e302",
+      "size": 720
+    },
+    {
+      "path": "v64.css",
+      "sha256": "b6ae348140d096b7cb8cf94d88c6d55ca0b204b47c6d3c170c2b81bba4ec277f",
+      "size": 51060
+    },
+    {
+      "path": "v64.js",
+      "sha256": "551eed0326adf551e2b1f6823324e4a41497c5dc95ff79caebe8437d096238fc",
+      "size": 22188
+    },
+    {
+      "path": "covers/analects.webp",
+      "sha256": "589e484a40300af75408f41e9fcfdc417994a4539992cf89fa0b7c976292e748",
+      "size": 54474
+    },
+    {
+      "path": "covers/failure.webp",
+      "sha256": "c139454804b60c3f236c4ec03f0802c2ee729cec9aeb433614b6007c4ede27bd",
+      "size": 73364
+    },
+    {
+      "path": "covers/lancer.webp",
+      "sha256": "d91d12be9197de268e54cc449d9d6e1f858f899c3b098a22bc0e512b6f897ffc",
+      "size": 66552
+    },
+    {
+      "path": "covers/war.webp",
+      "sha256": "41df1fa1ecc6d6fbe1014dce64b6c77bf3a5c0f0344a545fd0144dc099b1abbe",
+      "size": 35240
+    },
+    {
+      "path": "crystal/focus-background-stars.js",
+      "sha256": "e212ceec978ef479c92ff864d2b4a5b7762cade8351274821028847c800f3120",
+      "size": 8342
+    },
+    {
+      "path": "crystal/focus-caustics.js",
+      "sha256": "af502001bc819750e80925f58d933aa8d04fed9c6f4d069f93540fc686c4134f",
+      "size": 6537
+    },
+    {
+      "path": "crystal/focus-geometry.js",
+      "sha256": "9ec4469badf9caa88a4bd17edaa793fe17e6dda2300a7063d48515da5fc67e6c",
+      "size": 6023
+    },
+    {
+      "path": "crystal/focus-halo.js",
+      "sha256": "21360ee8139ade1c7530176f634b379e07d515e207b7130a8d1275c6ce1160c1",
+      "size": 4659
+    },
+    {
+      "path": "crystal/focus-lighting.js",
+      "sha256": "40ebdf664536669bfa7deff3f33325c9a1e93fb51eae3c26b5051d43ec1526bb",
+      "size": 20959
+    },
+    {
+      "path": "crystal/focus-transform-model.js",
+      "sha256": "bd806ef506e59b1939ac888dba6e59461a4454eed0e2244fe7e6b93689262b5d",
+      "size": 1293
+    },
+    {
+      "path": "crystal/geometry.js",
+      "sha256": "b4cbf4875bdf12e122c563761cfe272e997a8d2507b9f8b389846dccdc748245",
+      "size": 4318
+    },
+    {
+      "path": "crystal/shared-crystal.js",
+      "sha256": "6fae3df68e4395991b004de1bb4c3132bc05d27c8df27943fac76a2c955d90bb",
+      "size": 56109
+    },
+    {
+      "path": "icons/apple-touch-icon.png",
+      "sha256": "94bf1f7176f81789618ab33c11c6b7cacb10fe2459b53526c1b25165d523c3e9",
+      "size": 70797
+    },
+    {
+      "path": "icons/icon-192.png",
+      "sha256": "28e64cacfcc50ecde62214d33fefdafd81874e6c18d289b4f903bc61e343773c",
+      "size": 79551
+    },
+    {
+      "path": "icons/icon-512.png",
+      "sha256": "322155432dcb072f711d5add2488e5ca4975019b35174957072f143863f522d9",
+      "size": 471092
+    },
+    {
+      "path": "icons/icon-maskable-512.png",
+      "sha256": "636ce6e3f964fd7b61f60038a39e16fb26411ba771344812545247e79cfa8b2b",
+      "size": 353378
+    },
+    {
+      "path": "vendor/LineMaterial.js",
+      "sha256": "9cd98010254971e18032048d579045872ea268c0a4637c95d093276900722ecc",
+      "size": 14032
+    },
+    {
+      "path": "vendor/LineSegments2.js",
+      "sha256": "85d045a03169ea720efa4cd5ecbe4ad1c63fcdd0cf5188f98028979aec3e4409",
+      "size": 11489
+    },
+    {
+      "path": "vendor/LineSegmentsGeometry.js",
+      "sha256": "591b56de3c6874180953e6b561fe6edf4197c5c3c5029453509c3b4c8362a124",
+      "size": 6905
+    },
+    {
+      "path": "vendor/three.core.js",
+      "sha256": "9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6",
+      "size": 1458113
+    },
+    {
+      "path": "vendor/three.module.js",
+      "sha256": "9052042d676cb0fdc1ddfefe193053f34b7ac0513a616fdac4535d49987812ea",
+      "size": 662772
+    }
+  ]
+}

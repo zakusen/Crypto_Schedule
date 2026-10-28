@@ -1,0 +1,63 @@
+/* AIコーチ v63 — 予定タブ（v62 の今日画面の予定から移した） */
+.sc-wrap{padding:18px 16px 24px;max-width:860px;margin:0 auto;min-width:0}
+.sc-kick{font-size:10.5px;letter-spacing:.2em;color:var(--cyan,#f1c15f);opacity:.85}
+.sc-h1{margin:4px 0 2px;font-size:28px}
+.sc-sub{font-size:12.5px;margin:0 0 12px}
+.sc-daynav{display:flex;align-items:center;gap:8px;margin:6px 0 4px}
+.sc-daynav b{font-size:16px;flex:0 1 auto}
+.sc-daynav button{min-height:38px;min-width:42px;border-radius:12px;border:1px solid var(--line,#282c32);background:transparent;color:var(--tx,#f2f4f7);font-size:18px;padding:0 10px}
+.sc-daynav .sc-tbtn{font-size:12.5px;margin-left:auto}
+.sc-today{font-size:11px;color:var(--cyan,#f1c15f);border:1px solid var(--cyan,#f1c15f);border-radius:999px;padding:1px 8px;margin-left:4px;vertical-align:2px}
+.sc-card{margin:12px 0 4px;padding:14px 16px;border-radius:16px;border:1px solid #282c32;background:rgba(12,14,17,.6);min-width:0}
+.sc-ch{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.sc-ch .mono{font-size:11px;letter-spacing:.1em;color:#8e97a3}
+.sc-newbtn{border:1px solid #3c434c;background:none;color:#f0f2f5;border-radius:9px;padding:6px 10px;font-size:12px;cursor:pointer;min-height:34px}
+.sc-list{display:flex;flex-direction:column}
+.sc-row{display:flex;gap:12px;padding:9px 2px;border-bottom:1px solid rgba(60,67,76,.35);align-items:flex-start;min-width:0}
+.sc-row:last-child{border-bottom:0}
+.sc-row.past{opacity:.45}
+.sc-time{font-size:12px;color:#8e97a3;flex:0 0 92px;padding-top:2px;white-space:nowrap}
+.sc-main{flex:1;min-width:0}
+.sc-main>b{font-size:14px;color:#f2f4f7;font-weight:600;overflow-wrap:anywhere}
+.sc-main>small{display:block;font-size:11.5px;color:#8e97a3;margin-top:2px}
+.sc-row.exam .sc-main>b{color:#ffd9a0}
+.sc-row.study{border:1px dashed rgba(60,67,76,.6);border-radius:12px;padding:10px 8px;margin:6px 0}
+.sc-row.free{display:block;border-bottom:0;padding:2px 0}
+.sc-add{margin-top:8px;border:1px solid #3c434c;background:none;color:#f0f2f5;border-radius:9px;padding:6px 10px;font-size:12px;cursor:pointer;min-height:34px}
+/* 予定したタスク：時刻の行と名前の行を分ける（v62 はスマホで名前が1文字ずつ縦に並んでいた） */
+.sc-plan{display:grid;grid-template-columns:1fr auto;grid-template-areas:"t b" "n b";gap:2px 8px;align-items:center;margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(241,193,95,.08);border:1px solid rgba(241,193,95,.35);min-width:0}
+.sc-pt{grid-area:t;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.sc-pt .sc-time{flex:0 0 auto;padding:0}
+.sc-pt small{font-size:11px;color:#f4cc7c}
+.sc-pn{grid-area:n;font-size:14px;color:#f2f4f7;font-weight:600;overflow-wrap:anywhere;min-width:0}
+.sc-pb{grid-area:b;display:flex;gap:2px;align-items:center}
+.sc-play{border:1px solid #3c434c;background:none;color:#f2f4f7;border-radius:8px;width:36px;height:36px;cursor:pointer}
+.sc-x{border:0;background:none;color:#8e97a3;width:30px;height:36px;cursor:pointer}
+.sc-note{font-size:12px;color:#8e97a3;padding:8px 2px}
+.sc-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}
+.sc-form.hide,.sc-paste.hide{display:none}
+.sc-form #scTitle{flex:1 1 100%;min-width:0;height:40px;border-radius:10px;border:1px solid #282c32;background:#060708;color:#f2f4f7;padding:0 10px}
+.sc-form label{font-size:12px;color:#8e97a3;display:flex;gap:6px;align-items:center}
+.sc-form input[type="time"],.sc-form select{height:38px;border-radius:10px;border:1px solid #282c32;background:#060708;color:#f2f4f7;padding:0 8px;width:auto;min-height:0}
+.sc-form .p{height:38px;padding:0 16px;margin-left:auto}
+.sc-ex{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid rgba(60,67,76,.3);font-size:13.5px}
+.sc-ex:last-child{border-bottom:0}
+.sc-ex b{overflow-wrap:anywhere}.sc-ex .mono{font-size:12px;color:#8e97a3}
+.sc-left{font-size:12px;color:#f0f2f5;border:1px solid #3c434c;border-radius:999px;padding:1px 9px;white-space:nowrap}
+.sc-left.near{color:#ffd9a0;border-color:#a8763c}
+.sc-st{font-size:13.5px;margin:0 0 4px}.sc-st .warn{color:var(--amber,#ffb86b)}
+.sc-help{font-size:11.5px;margin:0 0 10px;line-height:1.6}
+.sc-ttb{display:flex;flex-wrap:wrap;gap:6px}
+.sc-ttb button,.sc-file{flex:1 1 140px;min-height:40px;border-radius:12px;border:1px solid var(--line,#282c32);background:transparent;color:var(--tx,#f2f4f7);font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0 10px;text-align:center}
+.sc-file input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.sc-file:focus-within{outline:2px solid var(--cyan,#f1c15f);outline-offset:2px}
+.sc-paste{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.sc-paste textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.sc-msg{font-size:12.5px;margin-top:8px;color:#f4cc7c;line-height:1.6}.sc-msg.bad{color:var(--amber,#ffb86b)}
+.sc-hist,.sc-fmt{margin-top:10px;font-size:12.5px}
+.sc-hist summary,.sc-fmt summary{cursor:pointer;color:#8e97a3;min-height:32px;display:flex;align-items:center}
+.sc-hr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0}
+.sc-hr button{min-height:32px;font-size:12px}
+.sc-fmt pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;background:#060708;border:1px solid #282c32;border-radius:10px;padding:10px;color:#f0f2f5}
+/* スマホ：時刻を上の行に出して、名前に幅を使う */
+@media (max-width:520px){.sc-row{flex-wrap:wrap;gap:2px 8px}.sc-row>.sc-time{flex-basis:100%}.sc-row.study{padding:8px}.sc-wrap{padding:16px 12px 24px}.sc-card{padding:12px}}

@@ -1,0 +1,37 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#060708"><link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=67"><link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=67"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="AIコーチ"><title>AIコーチ v67</title><link rel="stylesheet" href="/app/style.css?v=67">
+<script src="/app/core.js?v=67" defer></script>
+<script src="/app/auth.js?v=67" defer></script>
+<script src="/app/covers.js?v=67" defer></script>
+<script src="/app/prompt.js?v=67" defer></script>
+<script src="/app/data.js?v=67" defer></script>
+<script src="/app/coach-sync.js?v=67" defer></script>
+<script src="/app/today.js?v=67" defer></script>
+<script src="/app/record.js?v=67" defer></script>
+<script src="/app/ledger.js?v=67" defer></script>
+<script src="/app/diary-v54.js?v=67" defer></script><script src="/app/diary-v56.js?v=67" defer></script><script src="/app/report-v57.js?v=67" defer></script>
+<script src="/app/handoff.js?v=67" defer></script>
+<script src="/app/coach.js?v=67" defer></script>
+<script src="/app/settings.js?v=67" defer></script>
+<script src="/app/update.js?v=67" defer></script>
+<script src="/app/pwa.js?v=67" defer></script>
+
+<script src="/app/schedule.js?v=67" defer></script>
+<script src="/app/calendar.js?v=67" defer></script>
+<script src="/app/fuwa.js?v=67" defer></script><script src="/app/v64.js?v=67" defer></script>
+<script src="/app/knowledge.js?v=67" defer></script>
+<link rel="stylesheet" href="/app/v54.css?v=67"><link rel="stylesheet" href="/app/v56.css?v=67"><link rel="stylesheet" href="/app/v58.css?v=67"><link rel="stylesheet" href="/app/v59.css?v=67"><link rel="stylesheet" href="/app/fuwa.css?v=67"><link rel="stylesheet" href="/app/schedule.css?v=67">
+<link rel="stylesheet" href="/app/calendar.css?v=67"><link rel="stylesheet" href="/app/v57.css?v=67"><link rel="stylesheet" href="/app/v64.css?v=67">
+</head><body>
+<div class="tick"><div id="tk"></div></div>
+<div class="hd"><div class="brand"><span class="clogo" style="--s:30px"><img src="/icon-512.png?v=67" alt="" onerror="this.parentNode.classList.add('cl-noimg')"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="cl-dash" cx="50" cy="50" r="41" fill="none" stroke="#f4cc7c" stroke-opacity=".55" stroke-width=".5" stroke-dasharray="1.2 2.4"/><g class="cl-glowg"><circle class="cl-arc" cx="50" cy="50" r="38" fill="none" stroke="#f0f2f5" stroke-width="1.1" stroke-linecap="round" stroke-dasharray="22 217"/><circle class="cl-arc2" cx="50" cy="50" r="33.5" fill="none" stroke="#f0f2f5" stroke-opacity=".8" stroke-width=".7" stroke-linecap="round" stroke-dasharray="12 199"/></g></svg><span class="cl-core"></span></span><b class="brand-name"><em>AI</em>コーチ</b></div><button id="btnSettings" class="hd-set" aria-label="設定"><span>プロトタイプ v67</span><i>⚙</i></button></div>
+<div class="col">
+<div id="vToday"></div>
+<div id="vPlan" class="hide"></div><div id="vLog" class="hide"></div>
+<div id="vDash" class="hide"></div>
+<div id="vLab" class="hide"></div>
+</div>
+<nav class="nav"><div><button id="tToday" class="on">今日<small>集中する</small></button><button id="tPlan">予定<small>時間割・予定</small></button><button id="tLog">ログ<small>記録・日記</small></button><button id="tDash">ダッシュボード<small>数字で見る</small></button><button id="tSettings">コーチ<small>選ぶ・渡す</small></button></div></nav>
+<div id="gate" class="gate"><div class="card"><div class="gate-logo"><span class="clogo cl-full" style="--s:132px"><img src="/icon-512.png?v=67" alt="" onerror="this.parentNode.classList.add('cl-noimg')"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="cl-dash" cx="50" cy="50" r="41" fill="none" stroke="#f4cc7c" stroke-opacity=".55" stroke-width=".5" stroke-dasharray="1.2 2.4"/><g class="cl-glowg"><circle class="cl-arc" cx="50" cy="50" r="38" fill="none" stroke="#f0f2f5" stroke-width="1.1" stroke-linecap="round" stroke-dasharray="22 217"/><circle class="cl-arc2" cx="50" cy="50" r="33.5" fill="none" stroke="#f0f2f5" stroke-opacity=".8" stroke-width=".7" stroke-linecap="round" stroke-dasharray="12 199"/></g></svg><span class="cl-core"></span><span class="cl-sp" style="left:50%;top:6%;animation-delay:0s"></span><span class="cl-sp" style="left:94%;top:50%;animation-delay:1s"></span><span class="cl-sp" style="left:50%;top:94%;animation-delay:2s"></span><span class="cl-sp" style="left:6%;top:50%;animation-delay:3s"></span></span><div class="gate-title"><em>AI</em>コーチ</div><div class="gate-bar"></div><div class="gate-cap">YOUR DAILY COACH</div></div><div id="pwBox" class="hide"><div class="lb">パスワード</div><input id="pw" type="password" placeholder="パスワード"><div class="row" style="margin-top:12px"><button class="p" id="pwBtn" style="height:44px">入る</button></div><div class="mu" style="margin-top:10px">※パスワードはサーバー側で確認します。</div></div><div id="cogBox" class="hide"><div class="row"><button class="p" id="cogBtn" style="height:44px">ログイン（Amazon Cognito）</button></div><div class="row" style="margin-top:8px"><button id="cogOut" style="height:36px">別のアカウントで入る</button></div></div><div class="mu" id="pwMsg" style="margin-top:10px">確認しています…</div></div></div>
+<script>setTimeout(function(){if(!window.__acAuth){var b=document.getElementById('pwBox');if(b)b.classList.remove('hide');var m=document.getElementById('pwMsg');if(m)m.textContent='';}},5000)</script>
+<div id="sheet" class="sheet hide"><div id="sheetBody"></div></div><div id="toast" class="toast"></div>
+</body></html>

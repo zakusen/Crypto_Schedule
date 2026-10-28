@@ -1,0 +1,15 @@
+/* v58 コーチの棚：右のパネルは端的なキーワード、くわしい説明は棚の下 */
+#vLab .shelf-kw{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+#vLab .shelf-kw span{font-size:12.5px;font-weight:600;color:var(--tx);padding:3px 10px;border-radius:8px;border:1px solid color-mix(in srgb,var(--tc) 55%,var(--line));background:color-mix(in srgb,var(--tc) 10%,transparent);line-height:1.5}
+#vLab .shelf-detail{margin-top:14px;border:1px solid color-mix(in srgb,var(--tc) 26%,var(--line));border-radius:18px;padding:16px;background:linear-gradient(180deg,rgba(11,13,16,.9),rgba(7,8,10,.96))}
+#vLab .shelf-detail[hidden]{display:none}
+#vLab .shelf-dh{margin:0 0 12px;font-size:17px;font-weight:700;overflow-wrap:anywhere}#vLab .shelf-dh small{font-size:10px;letter-spacing:.18em;color:var(--mu);margin-left:8px}
+#vLab .shelf-dg{display:grid;grid-template-columns:1fr;gap:12px}
+#vLab .shelf-ds{min-width:0;border-top:1px solid var(--line);padding-top:10px}
+#vLab .shelf-ds h4{margin:0 0 6px;font-size:11px;letter-spacing:.12em;color:var(--tc);font-weight:600}#vLab .shelf-ds h4 small{letter-spacing:0;font-weight:400}
+#vLab .shelf-ds ul{margin:0;padding-left:1.1em;font-size:13.5px;line-height:1.8}
+#vLab .shelf-ds p{margin:0 0 4px;font-size:13.5px;line-height:1.8;overflow-wrap:anywhere}
+#vLab .shelf-ds .shelf-lead{font-size:15px}
+#vLab .shelf-ds .shelf-sc{font-size:12px;color:var(--mu)}
+#vLab .shelf-ds blockquote{margin:4px 0 6px;padding:8px 12px;border-left:2px solid var(--tc);background:color-mix(in srgb,var(--tc) 7%,transparent);border-radius:0 10px 10px 0;font-size:13.5px;line-height:1.85;overflow-wrap:anywhere}
+@media(min-width:760px){#vLab .shelf-dg{grid-template-columns:1fr 1fr}#vLab .shelf-ds.wide{grid-column:1/-1}}

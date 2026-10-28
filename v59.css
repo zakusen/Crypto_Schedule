@@ -1,0 +1,6 @@
+/* v59 日記：その日のクリスタル（台紙の見出しの下に1行。色と名前と集中の分数） */
+.ob-crys{--ct:#8e97a3;display:flex;align-items:center;gap:7px;margin-top:7px;font-size:12.5px;color:var(--ob-mu,#8e97a3);line-height:1.4}
+.ob-crys b{color:var(--ct);font-weight:700;letter-spacing:.04em}
+.ob-crys .mono{font-size:11px;color:var(--ob-mu,#8e97a3)}
+.ob-cdot{display:inline-block;flex:0 0 auto;width:11px;height:14px;background:linear-gradient(145deg,#fff 0,var(--ct) 52%,color-mix(in srgb,var(--ct) 55%,#000) 100%);clip-path:polygon(50% 0,100% 28%,78% 100%,25% 85%,0 30%);filter:drop-shadow(0 0 4px var(--ct))}
+.ob-crys.off .ob-cdot{background:var(--ob-line,#282c32);filter:none;opacity:.7}

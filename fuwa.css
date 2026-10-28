@@ -1,0 +1,26 @@
+/* AIコーチ v60 試作 — ふわの付箋（今日画面の上部に出る提案カード） */
+.fuwa-note{
+  margin:14px 0 4px;padding:14px 16px;border-radius:16px;
+  border:1.5px solid rgba(241,193,95,.55);
+  background:linear-gradient(135deg,rgba(241,193,95,.13),rgba(241,193,98,.10));
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+.fuwa-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.fuwa-from{font-weight:800;font-size:12px;letter-spacing:.1em;color:#f4cc7c}
+.fuwa-when{font-size:11px;color:#8e97a3}
+.fuwa-talk{margin-left:auto;font-size:11.5px;color:#f0f2f5;text-decoration:none}
+.fuwa-talk:hover{text-decoration:underline}
+.fuwa-text{margin:0;font-size:14px;line-height:1.7;color:#f2f4f7;white-space:pre-wrap;overflow-wrap:anywhere}
+.fuwa-btns{display:flex;gap:8px;margin-top:12px}
+.fuwa-main{
+  flex:1;height:42px;border:0;border-radius:11px;cursor:pointer;
+  background:linear-gradient(100deg,#f1c15f,#f1c162);color:#080a0c;font-weight:800;font-size:14px;
+}
+.fuwa-sub{
+  height:42px;padding:0 18px;border-radius:11px;cursor:pointer;
+  background:none;border:1px solid #3c434c;color:#8e97a3;font-size:13px;
+}
+
+/* v62：予定案（day_plan）の中身 */
+.fuwa-blocks{margin-top:10px;border-top:1px solid rgba(241,193,95,.3);padding-top:8px;font-size:13px;line-height:1.8;color:#f2f4f7}
+.fuwa-blocks .mono{color:#f4cc7c;margin-right:6px}
