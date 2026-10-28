@@ -418,7 +418,7 @@ export function dueList(posts, events, now) {
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
   for (const k of [0, 1]) { for (const [id, due] of sumDues(now + k * DAY)) if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v202: 夜のまとめ
   for (const g of groups((events || []).filter(isFomc))) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const id = fomcId(g[0].ts, n), due = g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告
-  for (const g of groups((events || []).filter(isFomc))) { const id = fomcId(g[0].ts, 'res'), due = g[0].ts + FOMC_RES; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  for (const g of groups((events || []).filter(isFomc))) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const last = n === FOMC_SLOTS.length, id = fomcId(g[0].ts, last ? 'res' : 'res' + n), due = g[0].ts + FOMC_RES + (last ? 0 : n * 60000); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(AUTOPOST))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
@@ -577,7 +577,8 @@ export function fomcDrafts(ts) {
   FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n), due = ts - sl, img = { t: ts, n };
     out.push({ id, sr: 'fomc', due, ...ph, h: 'fomc' + n, img });
     out.push({ id: id + ':c', sr: 'fomcc', parent: id, due, ...ph, h: 'fomcc' + n, img }); });
-  out.push({ id: fomcId(ts, 'res'), sr: 'fomcres', due: ts + FOMC_RES, ...ph, h: 'fomcres', img: { t: ts, n: 'res', after: fomcId(ts, FOMC_SLOTS.length) + ':c' } });
+  // v213: 結果は親子の4スレッドすべてに返信で付ける(子に「このスレッドに追記します」と書いているため)。1時間前のスレッドは今までの id のまま
+  FOMC_SLOTS.forEach((_, i) => { const n = i + 1, last = n === FOMC_SLOTS.length; out.push({ id: last ? fomcId(ts, 'res') : fomcId(ts, 'res' + n), sr: 'fomcres', due: ts + FOMC_RES + (last ? 0 : n * 60000), ...ph, h: 'fomcres' + n, img: { t: ts, n: 'res', after: fomcId(ts, n) + ':c' } }); });
   return out;
 }
 // lv = weekmatch の fomcMatch の結果。kind = 'fomc'(親)/ 'fomcc'(子)/ 'fomcres'(結果)
