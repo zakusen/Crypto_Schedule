@@ -512,6 +512,7 @@ function liveLegend(g, lg, y, marks, x = 28) {
 }
 function fitBig(g, text, maxW, size, w, fam) { g.font = `${w} ${size}px ${fam}`; let s2 = size; while (g.measureText(text).width > maxW && s2 > 24) { s2 -= 2; g.font = `${w} ${s2}px ${fam}`; } return s2; }
 
+const BIGN = { fomc: ['FOMC', 'FOMC', 'Statement ', '声明 '], cpi: ['米CPI', 'US CPI', 'Release ', '発表 '], nfp: ['米雇用統計', 'US jobs report', 'Release ', '発表 '], pce: ['米PCE', 'US PCE', 'Release ', '発表 '] };   // v215
 // v208: FOMC の親子ポスト(fomc1 = 親: 一番似ていた1回 / fomc3 = 子: TOP3 / fomcres = 結果)。横軸 = 発表からの時間(−24h〜+4h)
 function fomcChart(g, lv, lg, y0, y1, o = {}) {
   const en = lg === 'en', x0 = 96, x1 = W - 60, N = lv.N || 112, K = lv.K, kE = Math.round((lv.E - lv.ws) / lv.st), top = o.one ? lv.top.slice(0, 1) : lv.top.slice(0, 3);
@@ -525,7 +526,7 @@ function fomcChart(g, lv, lg, y0, y1, o = {}) {
   const kNow = Math.min(K, kE), ticks = [[0, '−24h'], [48, '−12h'], ...(o.res ? [] : [[kNow, `−${Math.round((kE - kNow) / 4 * 2) / 2}h`]]), [kE, '0'], [kE + 4, o.res ? '+1h' : null], [N, '+4h']].filter((x) => x[1]);
   const used = []; ticks.forEach(([k, l]) => { const x = X(k); if (used.some((u) => Math.abs(u - x) < 46)) return; used.push(x); g.strokeStyle = 'rgba(160,190,220,.12)'; g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y1); g.stroke(); lt(g, l, x, y1 + 30, { s: 22, w: 700, f: LN, a: 'center' }); });
   // 発表の線
-  g.strokeStyle = '#ffd23f'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(X(kE), y0 - 20); g.lineTo(X(kE), y1); g.stroke(); lt(g, en ? 'FOMC release' : 'FOMC発表', X(kE), y0 - 30, { s: 22, w: 900, c: '#ffd23f', a: 'center' });
+  g.strokeStyle = '#ffd23f'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(X(kE), y0 - 20); g.lineTo(X(kE), y1); g.stroke(); lt(g, (en ? (BIGN[lv.k || 'fomc'] || BIGN.fomc)[1] + ' release' : (BIGN[lv.k || 'fomc'] || BIGN.fomc)[0] + '発表'), X(kE), y0 - 30, { s: 22, w: 900, c: '#ffd23f', a: 'center' });
   if (!o.res) { g.strokeStyle = '#ffffff'; g.lineWidth = 1.5; g.setLineDash([5, 5]); g.beginPath(); g.moveTo(X(kNow), y0 - 6); g.lineTo(X(kNow), y1); g.stroke(); g.setLineDash([]); lt(g, en ? 'Now' : '今', X(kNow), y0 - 12, { s: 20, w: 900, a: 'center' }); }
   const line = (pts, col, w, dash) => { g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.setLineDash(dash || []); g.beginPath(); pts.forEach(([k, v], i) => i ? g.lineTo(X(k), Y(v)) : g.moveTo(X(k), Y(v))); g.stroke(); g.setLineDash([]); };
   const dot = (k, v, c, r = 7) => { g.fillStyle = c; g.beginPath(); g.arc(X(k), Y(v), r, 0, 7); g.fill(); };
@@ -539,21 +540,22 @@ function fomcChart(g, lv, lg, y0, y1, o = {}) {
   if (o.res && lv.cur[kE + 4] != null) { lt(g, (en ? 'This time ' : '今回 ') + SG(lv.a1), X(kE + 4), Y(lv.cur[kE + 4]) - 22, { s: 24, w: 900, f: LN, c: LCY, a: 'center' }); }
 }
 function drawFomc(g, lv, lg) {
+  const BN = BIGN[lv.k || 'fomc'] || BIGN.fomc, NM = lg === 'en' ? BN[1] : BN[0];
   const en = lg === 'en', off = en ? 0 : 9 * 36e5, H2 = LH, kind = lv.kind, SG = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', SC = (v) => v == null ? '#ffffff' : v < 0 ? '#ff6b7d' : '#ffffff';
-  const WD = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : WJ, dd = (t) => new Date(t + off), dl = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };   // FOMC の日付は米国の開催日
+  const WD = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : WJ, dd = (t) => new Date(t + off), dl = (t) => { const d = new Date(t - 4 * 36e5); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };   // FOMC の日付は米国の開催日
   const bg = g.createLinearGradient(0, 0, 0, H2); bg.addColorStop(0, '#0d1d33'); bg.addColorStop(1, '#091526'); g.fillStyle = bg; g.fillRect(0, 0, W, H2);
   const rule = (y, a = 26, b = W - 26, c = 'rgba(160,190,220,.28)') => { g.strokeStyle = c; g.lineWidth = 1.5; g.beginPath(); g.moveTo(a, y); g.lineTo(b, y); g.stroke(); };
   const tw0 = lt(g, en ? 'CSA / BTC LIVE' : 'CSA / BTC実況', 26, 44, { s: 30, w: 900 });
   const E = dd(lv.E), ht = `${E.getUTCMonth() + 1}/${E.getUTCDate()}(${WD[E.getUTCDay()]}) ${E.getUTCHours()}:${LP(E.getUTCMinutes())} ${en ? 'UTC' : 'JST'}`;
-  const hw = lt(g, (en ? 'Statement ' : '声明 ') + ht, W - 26, 44, { s: 24, w: 900, a: 'right' }); g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.beginPath(); g.moveTo(tw0 + 46, 50); g.lineTo(W - 26, 50); g.stroke();
+  const hw = lt(g, (en ? BN[2] : BN[3]) + ht, W - 26, 44, { s: 24, w: 900, a: 'right' }); g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.beginPath(); g.moveTo(tw0 + 46, 50); g.lineTo(W - 26, 50); g.stroke();
   const legend = (y, items) => { let w = 0; g.font = `700 22px ${LJ}`; items.forEach((it) => { w += 60 + g.measureText(it[0]).width + 36; }); let x = (W - w) / 2;
     items.forEach(([t2, c, dash]) => { g.strokeStyle = c; g.lineWidth = dash ? 3 : 5; g.setLineDash(dash ? [8, 6] : []); g.beginPath(); g.moveTo(x, y - 7); g.lineTo(x + 48, y - 7); g.stroke(); g.setLineDash([]); x += 60; x += lt(g, t2, x, y, { s: 22, w: 700 }) + 36; }); };
   const t1 = lv.top[0];
   if (kind === 'fomc1') {
     const left = Math.max(0, lv.E - (lv.now || lv.end)), hh = Math.round(left / 36e5 * 2) / 2, big = hh >= 1 ? (en ? `${hh}h` : (Number.isInteger(hh) ? `${hh}時間` : `${Math.floor(hh)}時間半`)) : (en ? `${Math.max(1, Math.round(left / 6e4))} min` : `${Math.max(1, Math.round(left / 6e4))}分`);
-    const pre = en ? 'FOMC in ' : 'FOMCまで、あと'; g.font = `900 92px ${LJ}`; let fs = 92; while (g.measureText(pre + big).width > W - 60 && fs > 50) { fs -= 4; g.font = `900 ${fs}px ${LJ}`; }
+    const pre = en ? NM + ' in ' : NM + 'まで、あと'; g.font = `900 92px ${LJ}`; let fs = 92; while (g.measureText(pre + big).width > W - 60 && fs > 40) { fs -= 4; g.font = `900 ${fs}px ${LJ}`; }
     const pw = lt(g, pre, 26, 148, { s: fs, w: 900 }); lt(g, big, 26 + pw, 148, { s: fs, w: 900, c: LCY });
-    lt(g, en ? 'Overlaid with the most similar past FOMC' : '今回に最も似た過去のFOMCを重ねる', 28, 214, { s: 44, w: 900 });
+    { const sub = en ? `Overlaid with the most similar past ${NM}` : `今回に最も似た過去の${NM}を重ねる`; lt(g, sub, 28, 214, { s: fitBig(g, sub, W - 60, 44, 900, LJ), w: 900 }); }
     fomcChart(g, lv, lg, 300, 490, { one: 1, dl });
     legend(572, [[en ? 'This time' : '今回', LCY], [dl(t1.fomc), LRK[0]], [en ? 'Dotted = what came next' : '点線＝過去のその後', '#c9d4e2', 1]]);
     rule(600);
@@ -565,12 +567,12 @@ function drawFomc(g, lv, lg) {
     lt(g, en ? 'Match = shape similarity, not a probability of rising.' : '一致率は形状の近さであり、上昇確率ではありません。', 26, 788, { s: 18, w: 700, c: '#c9d4e2' });
   } else {
     const res = kind === 'fomcres';
-    if (res) { const pw = lt(g, en ? 'FOMC · BTC 1h after ' : 'FOMC 発表後1時間 ', 26, 140, { s: 70, w: 900 }); lt(g, SG(lv.a1), 26 + pw, 142, { s: 76, w: 900, f: LN, c: lv.a1 < 0 ? '#ff6b7d' : LCY }); lt(g, en ? 'Side by side with the 3 closest past FOMCs' : '似ていた過去3回と並べて', 28, 200, { s: 38, w: 900 }); }
-    else { const pre = en ? 'The 3 closest past FOMCs, then ' : '似ていた過去3回、その後の'; g.font = `900 76px ${LJ}`; let fs = 76; while (g.measureText(pre + 'BTC').width > W - 60 && fs > 44) { fs -= 4; g.font = `900 ${fs}px ${LJ}`; } const pw = lt(g, pre, 26, 140, { s: fs, w: 900 }); lt(g, 'BTC', 26 + pw, 140, { s: fs, w: 900, f: LN, c: LCY }); lt(g, en ? 'Compared on 24h before release → now' : '発表24時間前〜今の値動きで比較', 28, 200, { s: 38, w: 900 }); }
+    if (res) { const t0r = en ? NM + ' · BTC 1h after ' : NM + ' 発表後1時間 '; const fr = fitBig(g, t0r + '−0.00%', W - 60, 70, 900, LJ); const pw = lt(g, t0r, 26, 140, { s: fr, w: 900 }); lt(g, SG(lv.a1), 26 + pw, 142, { s: fr + 6, w: 900, f: LN, c: lv.a1 < 0 ? '#ff6b7d' : LCY }); lt(g, en ? 'Side by side with the 3 closest past releases' : '似ていた過去3回と並べて', 28, 200, { s: 38, w: 900 }); }
+    else { const pre = en ? 'The 3 closest past releases, then ' : '似ていた過去3回、その後の'; g.font = `900 76px ${LJ}`; let fs = 76; while (g.measureText(pre + 'BTC').width > W - 60 && fs > 44) { fs -= 4; g.font = `900 ${fs}px ${LJ}`; } const pw = lt(g, pre, 26, 140, { s: fs, w: 900 }); lt(g, 'BTC', 26 + pw, 140, { s: fs, w: 900, f: LN, c: LCY }); lt(g, en ? 'Compared on 24h before release → now' : '発表24時間前〜今の値動きで比較', 28, 200, { s: 38, w: 900 }); }
     fomcChart(g, lv, lg, 262, 416, { res, dl });
     legend(486, [[en ? 'This time' : '今回', LCY], ...lv.top.slice(0, 3).map((m, i) => [['①', '②', '③'][i] + dl(m.fomc), LRK[i]]), [en ? 'After' : 'その後', '#c9d4e2', 1]]);
     const cx = [26, 420, 790, W - 26], ty = 516; rule(ty - 10);
-    lt(g, en ? 'Past FOMC' : '過去のFOMC', (cx[0] + cx[1]) / 2, ty + 26, { s: 26, w: 900, a: 'center' }); lt(g, en ? 'Shape match' : '形状の一致率', (cx[1] + cx[2]) / 2, ty + 26, { s: 26, w: 900, a: 'center' }); lt(g, en ? '1h after release' : '発表後1時間', (cx[2] + cx[3]) / 2, ty + 26, { s: 26, w: 900, a: 'center' });
+    lt(g, en ? 'Past ' + NM : '過去の' + NM, (cx[0] + cx[1]) / 2, ty + 26, { s: 26, w: 900, a: 'center' }); lt(g, en ? 'Shape match' : '形状の一致率', (cx[1] + cx[2]) / 2, ty + 26, { s: 26, w: 900, a: 'center' }); lt(g, en ? '1h after release' : '発表後1時間', (cx[2] + cx[3]) / 2, ty + 26, { s: 26, w: 900, a: 'center' });
     rule(ty + 42);
     const rows = [...(res ? [{ me: 1 }] : []), ...lv.top.slice(0, 3)], rh = res ? 38 : 44;
     rows.forEach((m, i) => { const y = ty + 42 + rh * (i + 1) - rh * 0.28;

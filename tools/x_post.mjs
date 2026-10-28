@@ -166,8 +166,8 @@ for (const { p, lg } of todo) {
     if (!E || (p.sr !== 'fomcres' && nowT >= E)) continue;
     try {
       if (!S5) S5 = await loadBtc5m(nowT, site);
-      const key = E + ':' + (p.sr === 'fomcres' ? 'res' : p.img.n) + ':' + lg;
-      let lv = FCACHE.get(key); if (!lv) { lv = fomcMatch(S5, nowT, E, lg, p.sr === 'fomcres' ? E - L.FOMC_SLOTS[L.FOMC_SLOTS.length - 1] : Math.min(nowT, E - L.FOMC_SLOTS[p.img.n - 1])); if (lv) FCACHE.set(key, lv); }   // 選ぶ時点は予定の時刻にそろえる(親・子・結果で同じ TOP3)
+      const BK = p.img.k || 'fomc', key = BK + ':' + E + ':' + (p.sr === 'fomcres' ? 'res' : p.img.n) + ':' + lg;
+      let lv = FCACHE.get(key); if (!lv) { lv = fomcMatch(S5, nowT, E, lg, p.sr === 'fomcres' ? E - L.FOMC_SLOTS[L.FOMC_SLOTS.length - 1] : Math.min(nowT, E - L.FOMC_SLOTS[p.img.n - 1]), BK); if (lv) FCACHE.set(key, lv); }   // 選ぶ時点は予定の時刻にそろえる(親・子・結果で同じ TOP3)
       if (!lv || (p.sr === 'fomcres' && lv.a1 == null)) { console.log('[post] FOMC: まだ計算できないので次の回', p.id); continue; }
       text = L.fomcText(p.sr, lv, lg, nowT);
       p.img = { ...p.img, live: { ...((p.img && p.img.live) || {}), [lg]: { ...lv, kind: p.sr === 'fomc' ? 'fomc1' : p.sr === 'fomcc' ? 'fomc3' : 'fomcres', now: nowT } } };

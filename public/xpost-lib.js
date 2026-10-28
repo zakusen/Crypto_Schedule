@@ -53,7 +53,12 @@ export const MAJOR = (e) => e.l === 'macro' && (/^(FOMC|日銀|ECB)$/.test(e.s |
 // v185: 予告と発表後の値動きを出す対象 = 毎朝の予定に載る指標すべて(日米欧・重要度「高」)+ 主要指標
 export const AUTOEV = (e) => e.l === 'macro' && REGIONS.includes(e.c) && (MAJOR(e) || e.im === 'high');
 export const isFomcAny = (e) => e.l === 'macro' && e.c === 'US' && /FOMC|Fed Chair|Powell|パウエル|FRB議長/i.test([e.s, e.t, e.se, e.te].filter(Boolean).join(' '));   // v212: FOMC の声明・会見など名前が違うものも
-export const AUTOPOST = (e) => AUTOEV(e) && !isFomcAny(e);   // v211: 発表前の予告・発表後の値動きを出す指標(FOMC は親子ポストで出すので外す)
+export const AUTOPOST = (e) => AUTOEV(e) && !isFomcAny(e) && !bigOf(e);
+// v215: 大型指標(FOMC・米CPI・米雇用統計・米PCE)は親子ポストで出す。同じ時刻のほかの指標もまとめて外す
+export const bigOf = (e) => { if (!(e.l === 'macro' && e.c === 'US')) return null; if (e.s === 'FOMC') return 'fomc'; const s = [e.s, e.t, e.se, e.te].filter(Boolean).join(' '); return /PCE/.test(s) ? 'pce' : /CPI/.test(s) && !/PPI/.test(s) ? 'cpi' : /雇用統計|Non ?farm|Payroll/i.test(s) && !/ADP/i.test(s) ? 'nfp' : null; };
+export const bigOfG = (g) => (g.some((e) => e.s === 'FOMC') ? 'fomc' : g.map(bigOf).find(Boolean)) || null;
+export const bigGroups = (events) => groups((events || []).filter((e) => bigOf(e))).map((g) => ({ g, k: bigOfG(g) })).filter((x) => x.k);
+export const autoGroups = (events) => { const big = new Set(bigGroups(events).map((x) => x.g[0].ts)); return groups((events || []).filter(AUTOEV)).filter((g) => !big.has(g[0].ts) && !g.some(isFomcAny)); };   // v211: 発表前の予告・発表後の値動きを出す指標(FOMC は親子ポストで出すので外す)
 export const archId = (g) => 'arch:' + g[0].ts + ':' + (g[0].c || g[0].l);
 
 // ---- 名前・タグ ----
@@ -414,12 +419,12 @@ export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'fomc' || p.sr =
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
   for (const p of posts || []) { seen.add(p.id); if (!isAuto(p) || !p.due) continue; for (const lg of langsOf(p)) { const d = dueOf(p, lg); if (!(p.done && p.done[lg]) && d > now - winOf(p) && d < now + 8 * DAY) items.push({ id: p.id, due: d }); } }   // v173: 言語ごと
-  for (const g of groups((events || []).filter(AUTOPOST))) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  for (const g of autoGroups(events)) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
   for (const k of [0, 1]) { for (const [id, due] of sumDues(now + k * DAY)) if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v202: 夜のまとめ
-  for (const g of groups((events || []).filter(isFomc))) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const id = fomcId(g[0].ts, n), due = g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告
-  for (const g of groups((events || []).filter(isFomc))) { const id = fomcId(g[0].ts, 'res'), due = g[0].ts + FOMC_RES; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
-  for (const g of groups((events || []).filter(AUTOPOST))) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
+  for (const { g, k } of bigGroups(events)) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const id = fomcId(g[0].ts, n, k), due = g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告
+  for (const { g, k } of bigGroups(events)) { const id = fomcId(g[0].ts, 'res', k), due = g[0].ts + FOMC_RES; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  for (const g of autoGroups(events)) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
 
@@ -571,30 +576,32 @@ export function sumDues(t) { const dj = dayStart(t), du = Math.floor(t / DAY) * 
 //   下書きは x_notify が中身なしで作り、本文と画像は x_post が投稿する時に計算して入れる(fomcText)。
 export const FOMC_SLOTS = [14.5 * H, 9 * H, 4 * H, 1 * H], FOMC_RES = 65 * 60000;
 export const isFomc = (e) => e.l === 'macro' && e.c === 'US' && e.s === 'FOMC';
-export const fomcId = (ts, n) => 'fomc:' + ts + ':' + n;
-export function fomcDrafts(ts) {
+export const fomcId = (ts, n, k = 'fomc') => k + ':' + ts + ':' + n;   // v215: k = fomc / cpi / nfp / pce
+export const BIG_NAME = { fomc: { ja: 'FOMC', en: 'FOMC', tag: { ja: '#FOMC #BTC', en: '#FOMC #BTC' } }, cpi: { ja: '米CPI', en: 'US CPI', tag: { ja: '#CPI #BTC', en: '#CPI #BTC' } }, nfp: { ja: '米雇用統計', en: 'US jobs report', tag: { ja: '#雇用統計 #BTC', en: '#NFP #BTC' } }, pce: { ja: '米PCE', en: 'US PCE', tag: { ja: '#PCE #BTC', en: '#PCE #BTC' } } };
+export function fomcDrafts(ts, k = 'fomc') {
   const out = [], ph = { ja: '（投稿する時に、その時点の計算で本文と画像を作ります）', en: '(Text and image are made at posting time.)' };
-  FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n), due = ts - sl, img = { t: ts, n };
+  FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n, k), due = ts - sl, img = { t: ts, n, k };
     out.push({ id, sr: 'fomc', due, ...ph, h: 'fomc' + n, img });
     out.push({ id: id + ':c', sr: 'fomcc', parent: id, due, ...ph, h: 'fomcc' + n, img }); });
   // v214: 結果は単独の新しい投稿(返信だと分かりづらいため)。チャートで今回の発表後の動きを見せる
-  out.push({ id: fomcId(ts, 'res'), sr: 'fomcres', due: ts + FOMC_RES, ...ph, h: 'fomcres', img: { t: ts, n: 'res' } });
+  out.push({ id: fomcId(ts, 'res', k), sr: 'fomcres', due: ts + FOMC_RES, ...ph, h: 'fomcres', img: { t: ts, n: 'res', k } });
   return out;
 }
 // lv = weekmatch の fomcMatch の結果。kind = 'fomc'(親)/ 'fomcc'(子)/ 'fomcres'(結果)
 export function fomcText(kind, lv, lg, now) {
+  const B = BIG_NAME[lv.k || 'fomc'] || BIG_NAME.fomc, NM = B[lg === 'en' ? 'en' : 'ja'], TG = B.tag[lg === 'en' ? 'en' : 'ja'];
   const en = lg === 'en', sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
-  const dt = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };   // FOMC の日付は米国の開催日(FRB の日程どおり)
+  const dt = (t) => { const d = new Date(t - 4 * H); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };   // 日付は米国の発表日(米東部時間)
   const left = Math.max(0, lv.E - now), hh = Math.round(left / H * 2) / 2, leftJa = hh >= 1 ? (Number.isInteger(hh) ? `${hh}時間` : `${Math.floor(hh)}時間半`) : `${Math.max(1, Math.round(left / 60000))}分`;
   const leftEn = hh >= 1 ? `${hh}h` : `${Math.max(1, Math.round(left / 60000))} min`, t = lv.top, m = ['①', '②', '③'];
   if (kind === 'fomc') return en
-    ? [`FOMC in ${leftEn}.`, `Closest past run-up: the ${dt(t[0].fomc)} FOMC.`, `BTC 1h after that release: ${sg(t[0].a1)}`, 'Cyan = now, dotted = what came next.', 'Did the other 2 move the same way?', 'Top 3 in the reply ↓', '*Match = shape, not probability', '#FOMC #BTC'].join('\n')
-    : [`FOMCまで、あと${leftJa}。`, `発表前の値動きが今回に最も似ていたのは${dt(t[0].fomc)}のFOMC。`, `その回のBTCは発表後1時間で${sg(t[0].a1)}。`, '水色が今回、点線が過去のその後。', 'ほかの2回は同じ方向だったのか？', 'TOP3の比較は返信へ↓', '※一致率は上昇確率ではありません', '#FOMC #BTC'].join('\n');
+    ? [`${NM} in ${leftEn}.`, `Closest past run-up: ${NM} on ${dt(t[0].fomc)}.`, `BTC 1h after that release: ${sg(t[0].a1)}`, 'Cyan = now, dotted = what came next.', 'Did the other 2 move the same way?', 'Top 3 in the reply ↓', '*Match = shape, not probability', TG].join('\n')
+    : [`${NM}まで、あと${leftJa}。`, `発表前の値動きが今回に最も似ていたのは${dt(t[0].fomc)}の${NM}。`, `その回のBTCは発表後1時間で${sg(t[0].a1)}。`, '水色が今回、点線が過去のその後。', 'ほかの2回は同じ方向だったのか？', 'TOP3の比較は返信へ↓', '※一致率は上昇確率ではありません', TG].join('\n');
   if (kind === 'fomcc') return en
-    ? ['BTC 1h after the 3 closest past FOMCs', ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), 'Compared: 24h before release to the same time left. Post-release moves not used.', 'Similar shape ≠ same outcome.', "Result: a new post 1h after the release."].join('\n')
+    ? [`BTC 1h after the 3 closest past ${NM} releases`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), 'Compared: 24h before release to the same time left. Post-release moves not used.', 'Similar shape ≠ same outcome.', "Result: a new post 1h after the release."].join('\n')
     : ['似ていた過去3回の、発表後1時間のBTC', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), '比較は「発表24時間前〜今と同じ残り時間」まで。発表後の動きは選定に使っていません。', '似た形でも、その後が同じとは限りません。', '結果は発表1時間後に新しい投稿で出します。'].join('\n');
   const same = lv.a1 == null ? null : t.filter((x) => x.a1 != null && Math.sign(x.a1) === Math.sign(lv.a1)).length;
   return en
-    ? [`🏦 FOMC result: BTC ${sg(lv.a1)} in the first hour`, '', 'The 3 past FOMCs whose run-up looked most like this one:', ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), 'Cyan = this time, dotted = what came next back then.', '#FOMC #BTC'].join('\n')
-    : [`🏦 FOMC 発表後1時間、BTCは${sg(lv.a1)}`, '', '発表前の動きが似ていた過去3回は', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), ...(same != null ? [`今回と同じ方向だったのは3回中${same}回`] : []), '水色が今回、点線が過去のその後。', '#FOMC #BTC'].join('\n');
+    ? [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} result: BTC ${sg(lv.a1)} in the first hour`, '', `The 3 past ${NM} releases whose run-up looked most like this one:`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), 'Cyan = this time, dotted = what came next back then.', TG].join('\n')
+    : [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} 発表後1時間、BTCは${sg(lv.a1)}`, '', '発表前の動きが似ていた過去3回は', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), ...(same != null ? [`今回と同じ方向だったのは3回中${same}回`] : []), '水色が今回、点線が過去のその後。', TG].join('\n');
 }

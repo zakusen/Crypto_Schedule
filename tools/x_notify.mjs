@@ -165,7 +165,8 @@ function dailyPost(day, vol = null, ext = null) {   // v195: vol = /api/vol(今�
   return { id: 'daily:' + isoDay(day), sr: 'daily', due, ...(split ? { dues: { ja: due, en: enDue } } : {}), en, ja, h: hashStr(en + ja + (split ? 'split' : '') + (vol ? 'v' + vol.end : '') + (ext && ext.pat ? 'p' + ext.pat.q.t1 : '')),
     img: { day, next: WN.ja.next, ...lists(WN.ja), ...(utc ? { utc: 1, enl: { next: WN.en.next, ...lists(WN.en) } } : {}), ...(vol ? { vol: { ratio: vol.ratio, now1: vol.now1, typ: vol.typ, px: vol.px, end: vol.end, range24: vol.range24, g24: vol.garch ? vol.garch['24h'] : null } } : {}), ...(ext && ext.pat ? { pat: L.patImg(ext.pat) } : {}), ...(vol || ext ? { ex: 1 } : {}) } };   // enl = 英語の画像用(UTC の区切り)
 }
-const drop = [...redo, ...[...byId.values()].filter((p) => L.fomcOld(p) && !(p.done && (p.done.en || p.done.ja))).map((p) => p.id)];   // v211: FOMC の古い形(予告・値動き)の下書きは消す                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
+const BIGTS = new Set(L.bigGroups(events).map((x) => x.g[0].ts));   // v215
+const drop = [...redo, ...[...byId.values()].filter((p) => (L.fomcOld(p) || ((p.sr === 'pre' || p.sr === 'arch') && BIGTS.has(+String(p.id).split(':')[1]))) && !(p.done && (p.done.en || p.done.ja))).map((p) => p.id)];   // v211: FOMC の古い形(予告・値動き)の下書きは消す                                                            // 作らない日の古い下書きは消す(済みの印が無いものだけ)
 // v195: 今日の分は、投稿の3時間前から(まだどちらの言語も出していなければ)ボラティリティを1回だけ入れて作り直す
 let VOLNOW = null;
 try { const r = await fetch(SITE + '/api/vol', { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(20000) }); const j = r.ok ? await r.json() : null; if (j && j.available && j.ratio != null && NOW - j.end < 3 * H) VOLNOW = j; } catch (_) {}
@@ -186,7 +187,7 @@ for (let i = 0; i <= AHEAD; i++) {
 }
 
 // ---- 2) 発表後の値動き(予備) ----
-for (const g of groups(events.filter((e) => L.AUTOPOST(e) && NOW - e.ts >= ARCH_WAIT && NOW - e.ts < ARCH_MAX))) {
+for (const g of L.autoGroups(events).filter((g) => NOW - g[0].ts >= ARCH_WAIT && NOW - g[0].ts < ARCH_MAX)) {   // v215: 大型指標は外す
   if (byId.has(archId(g))) continue;
   const mv = {};                                                             // v91: BTC・ETH・SOL・BNB の1時間後(BTCは必須)
   for (const [c, sym] of COINS) { const bars = await klines(sym, '5m', barsStart(g[0].ts), 25); mv[c] = bars && moves(bars, g[0].ts); }
@@ -196,7 +197,7 @@ for (const g of groups(events.filter((e) => L.AUTOPOST(e) && NOW - e.ts >= ARCH_
 
 // ---- 2b) v181: 発表前の予告(v182: 主要指標の15分前。前回の同じ指標の「発表後の値動き」の画像を付ける) ----
 {
-  const soon = groups(events.filter((e) => L.AUTOPOST(e) && e.ts - NOW > 60000 && e.ts - NOW <= 3 * H));
+  const soon = L.autoGroups(events).filter((g) => g[0].ts - NOW > 60000 && g[0].ts - NOW <= 3 * H);
   if (soon.length) {
     let corr = null; try { corr = await (await site('/api/admin/rx-one?name=cr')).json(); } catch (_) {}
     const archs = [...byId.values()].filter((p) => p.sr === 'arch' && p.img && p.img.v === 3 && p.img.coins && p.img.coins.BTC);
@@ -229,7 +230,7 @@ for (const o of [...byId.values()]) {
 }
 
 // ---- 2e) v208: FOMC の臨時予告(親子ポスト)。中身なしの下書きを2日前から置く(本文と画像は x_post が投稿時に作る) ----
-for (const g of groups(events.filter(L.isFomc))) { if (g[0].ts - NOW > 2 * DAY || NOW - g[0].ts > 3 * H) continue; for (const p of L.fomcDrafts(g[0].ts)) if (!byId.has(p.id)) { put(p); console.log('[x] FOMC の下書き:', p.id); } }
+for (const { g, k } of L.bigGroups(events)) { if (g[0].ts - NOW > 2 * DAY || NOW - g[0].ts > 3 * H) continue; for (const p of L.fomcDrafts(g[0].ts, k)) if (!byId.has(p.id)) { put(p); console.log('[x] 大型指標の下書き:', p.id); } }   // v215: FOMC・米CPI・米雇用統計・米PCE
 
 // ---- 2d) v202: 夜のまとめ(日本語 22:00 JST・英語 23:30 UTC)。投稿の3時間前から作る ----
 for (const [id, due] of L.sumDues(NOW)) {
