@@ -52,7 +52,8 @@ export function groups(list) {
 export const MAJOR = (e) => e.l === 'macro' && (/^(FOMC|日銀|ECB)$/.test(e.s || '') || (e.c === 'US' && /CPI|雇用統計|PCE/.test(e.s || '')) || (e.c === 'JP' && e.s === '短観'));   // v179: 日銀短観を追加
 // v185: 予告と発表後の値動きを出す対象 = 毎朝の予定に載る指標すべて(日米欧・重要度「高」)+ 主要指標
 export const AUTOEV = (e) => e.l === 'macro' && REGIONS.includes(e.c) && (MAJOR(e) || e.im === 'high');
-export const AUTOPOST = (e) => AUTOEV(e) && !isFomc(e);   // v211: 発表前の予告・発表後の値動きを出す指標(FOMC は親子ポストで出すので外す)
+export const isFomcAny = (e) => e.l === 'macro' && e.c === 'US' && /FOMC|Fed Chair|Powell|パウエル|FRB議長/i.test([e.s, e.t, e.se, e.te].filter(Boolean).join(' '));   // v212: FOMC の声明・会見など名前が違うものも
+export const AUTOPOST = (e) => AUTOEV(e) && !isFomcAny(e);   // v211: 発表前の予告・発表後の値動きを出す指標(FOMC は親子ポストで出すので外す)
 export const archId = (g) => 'arch:' + g[0].ts + ':' + (g[0].c || g[0].l);
 
 // ---- 名前・タグ ----
@@ -407,7 +408,7 @@ export const PRE_AHEAD = 15 * 60000, PRE_WINDOW = 14 * 60000;   // v183: 発表�
 export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
-export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && (p.img.ja === 'FOMC' || p.img.en === 'FOMC')) || /FOMC/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
+export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
 export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
