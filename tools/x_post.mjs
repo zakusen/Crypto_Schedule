@@ -87,7 +87,7 @@ if (DRY) fs.mkdirSync(OUT, { recursive: true });
 // v202: 日誌スレッド(毎朝の予定を親に、その日の自動投稿を返信でつなぐ)
 const THREAD_SR = new Set(['pre', 'arch', 'spike', 'liq', 'liqday', 'liqimp', 'vol', 'sum', 'week', 'pat']);
 const latestRoot = (lg) => posts.filter((x) => x.sr === 'daily' && x.tw && x.tw[lg] && x.done && x.done[lg] && Date.now() - x.done[lg] < 26 * 36e5).sort((a, b) => b.done[lg] - a.done[lg])[0] || null;
-let n = 0, S5 = null;
+let n = 0, S5 = null, EVL = null;
 const LIVE = {};   // v204: サイトのカード用に保存する
 const tw = new Map();   // v187: この回に出した投稿のID(返信用)
 for (const { p, lg } of todo) {
@@ -118,7 +118,8 @@ for (const { p, lg } of todo) {
   if (p.sr === 'daily' || p.sr === 'sum') {
     try {
       if (!S5) S5 = await loadBtc5m(Date.now(), site);
-      const lv = weekMatch(S5, Date.now(), lg);
+      if (!EVL) { try { EVL = L.groups(L.pickEvents(await (await site('/api/cal')).json()).filter(L.AUTOEV)).map((g) => ({ t: g[0].ts, ja: L.headName(g, 'ja'), en: L.headName(g, 'en'), c: g[0].c })); } catch (_) { EVL = []; } }
+      const lv = weekMatch(S5, Date.now(), lg, EVL);
       if (lv) {
         p.img = { ...(p.img || {}), live: { ...((p.img && p.img.live) || {}), [lg]: lv } };
         const ln = liveLine(lv, lg), i = text.lastIndexOf('\n\n#'), t2 = i > 0 ? text.slice(0, i) + '\n\n' + ln + text.slice(i) : text + '\n\n' + ln;

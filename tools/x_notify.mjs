@@ -396,7 +396,7 @@ try {
 } catch (e) { console.log('[x] サイトのカード(今の24時間)でエラー', e.message); }
 
 // ---- 4d) v204: サイトの BTC実況カード(今週となぞっている過去の週 TOP3) ----
-try { const S = await getS(), w = await weekBoth(S, NOW); if (w.ja || w.en) { await site('/api/admin/rx-put?name=wk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(w) }); console.log('[x] BTC実況のカードを更新', w.ja && w.ja.top.map((m) => new Date(m.w).toISOString().slice(0, 10) + ' ' + m.rate + '%').join(' / ')); } }
+try { const S = await getS(), w = await weekBoth(S, NOW, groups(events.filter(L.AUTOEV)).map((g) => ({ t: g[0].ts, ja: L.headName(g, 'ja'), en: L.headName(g, 'en'), c: g[0].c }))); if (w.ja || w.en) { await site('/api/admin/rx-put?name=wk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(w) }); console.log('[x] BTC実況のカードを更新', w.ja && w.ja.top.map((m) => new Date(m.w).toISOString().slice(0, 10) + ' ' + m.rate + '%').join(' / ')); } }
 catch (e) { console.log('[x] BTC実況のカードでエラー', e.message); }
 
 // ---- 5) 清算(v152) ----

@@ -1,5 +1,5 @@
 /* v204: BTC実況カード(トップ)。/api/week を読み、X の毎朝・夜の投稿と同じ画像(xpost-draw.js の renderLive)を描く。
-   今週の BTC と、同じ時点までの形が近い過去の週 TOP3(一致率 = 相関係数×100)。点線は過去の事実の記録で、予測ではない。 */
+   今の BTC(日付の7日窓)と、同じ時点までの形が近い過去 TOP3(一致率 = 相関係数×100)。点線は過去の事実の記録で、予測ではない。 */
 (() => {
   const box = document.getElementById('weekCard'); if (!box) return;
   if (!document.querySelector('link[data-live-font]')) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.dataset.liveFont = '1'; l.href = 'https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@700;900&family=Space+Grotesk:wght@500;700&family=Noto+Sans+JP:wght@400;700&display=swap'; document.head.appendChild(l); }
@@ -14,8 +14,8 @@
       M = M || await import('/xpost-draw.js');
       const cv = await M.renderLive(lv, EN() && D.en ? 'en' : 'ja');
       box.innerHTML = css + `<img alt="BTC" src="${cv.toDataURL('image/png')}"><div class="wn">${EN()
-        ? `This week's BTC path (every 30 min, from Monday 00:00 UTC) compared with every past week since 2017 up to the same point. Match = correlation × 100. Dotted lines are what actually happened next in those weeks — not a forecast.`
-        : '今週の BTC の道のり(30分ごと・月曜0時から)を、2017年以降の過去の週の同じ時点までと比べた結果。一致率 = 相関係数×100。点線はその週に実際に起きたその後で、予測ではありません。'}</div>`;
+        ? `BTC over 7 days (3 days ago to 3 days ahead, UTC; today is the 4th day), every 30 min, compared with every past 7-day span since 2017 up to the same point. Match = correlation × 100. Dotted lines are what actually happened next back then — not a forecast. Yellow = major scheduled releases.`
+        : '3日前〜3日後の7日間(今日は左から4番目)の BTC の道のり(30分ごと)を、2017年以降の過去の7日間の同じ時点までと比べた結果。一致率 = 相関係数×100。点線は当時実際に起きたその後で、予測ではありません。黄色 = 主要な指標の予定。'}</div>`;
     } catch (e) { box.style.display = 'none'; }
   }
   fetch('/api/week').then((r) => r.json()).then((j) => { D = j; draw(); }).catch(() => {});

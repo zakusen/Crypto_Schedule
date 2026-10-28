@@ -1,8 +1,7 @@
-// v204: BTC実況(今週のBTCがなぞっている過去の週 TOP3)。
-//   今週(日本語 = 日本時間の月曜0時から / 英語 = UTC の月曜0時から)の BTC の道のり(30分ごと・週初を0%)と、
-//   2017年以降の過去の週の「同じ時点まで」の道のりを比べ、相関係数が高い順に3つ。一致率 = 相関係数×100。
-//   過去の週の残り(その後)は事実の記録。予測ではない。
-// 投稿の番号(#1〜#14)は、毎朝(日本語 9:30 / 英語 11:30 UTC)と夜(日本語 22:00 / 英語 23:30 UTC)の決まった時刻から決める(保存しない)。
+// v204: BTC実況(今のBTCがなぞっている過去 TOP3)。v205: 曜日ではなく日付の7日窓。
+//   7日の窓(3日前の0時〜3日後の24時。日本語 = 日本時間 / 英語 = UTC。今日は常に左から4番目)の BTC の道のり(30分ごと・窓の始まりを0%)と、
+//   2017年以降の過去の7日間(1日ずつずらす)の「同じ時点まで」を比べ、相関係数が高い順に3つ(7日以上離す)。一致率 = 相関係数×100。
+//   過去の残り(その後)は事実の記録。予測ではない。点 = これまでの定時投稿(毎朝・夜)の時刻。
 const M30 = 1800000, H = 3600000, DAY = 86400000, WEEK = 7 * DAY, PTS = 7 * 48;
 export const SLOTS = { ja: [9.5 * H, 22 * H], en: [11.5 * H, 23.5 * H] };
 export const wkStart = (t, off) => { const d = Math.floor((t + off) / DAY) * DAY - off; return d - ((new Date(d + off).getUTCDay() + 6) % 7) * DAY; };
@@ -26,32 +25,34 @@ function pearson(a, b) {
 const rng = (a) => Math.max(...a) - Math.min(...a);
 const r2 = (v) => Math.round(v * 100) / 100;
 
-// S = loadBtc5m の結果 {t, c}。lang = 'ja' | 'en'。返り値 = 画像・カード用のデータ(足りなければ null)
-export function weekMatch(S, now, lang = 'ja') {
-  const off = lang === 'en' ? 0 : 9 * H, ws = wkStart(now, off), end = Math.min(now, S.t[S.t.length - 1] + 300000);
+// v205: 7日の窓(3日前の0時〜3日後の24時)。今日は常に左から4番目。過去は1日ずつずらした全ての7日間と比べる(TOP3 は7日以上離す)
+// S = loadBtc5m の結果 {t, c}。lang = 'ja' | 'en'。ev = [{t, ja, en, cb}](窓の中の主要な予定)
+export function weekMatch(S, now, lang = 'ja', ev = []) {
+  const off = lang === 'en' ? 0 : 9 * H, today = Math.floor((now + off) / DAY) * DAY - off, ws = today - 3 * DAY, end = Math.min(now, S.t[S.t.length - 1] + 300000);
   const K = Math.floor((end - ws) / M30); if (K < 4) return null;
   const cur = path(S, ws, K); if (!cur) return null;
   const ra = rng(cur), cand = [];
-  for (let w = ws - WEEK; w >= S.t[0]; w -= WEEK) {
+  for (let w = ws - WEEK; w >= S.t[0]; w -= DAY) {
     const p = path(S, w, PTS); if (!p) continue;
     const head = p.slice(0, K + 1), rb = rng(head);
-    if (ra > 0.3 && (rb > ra * 2.5 || rb < ra / 2.5)) continue;   // 大きさが極端に違う週は外す
+    if (ra > 0.3 && (rb > ra * 2.5 || rb < ra / 2.5)) continue;   // 大きさが極端に違う期間は外す
     cand.push({ w, r: pearson(cur, head), path: p });
   }
   cand.sort((a, b) => b.r - a.r);
-  const top = cand.slice(0, 3).map((c) => ({ w: c.w, rate: Math.max(0, Math.round(c.r * 100)), path: c.path.map(r2) }));
+  const pick = []; for (const c of cand) { if (pick.every((x) => Math.abs(x.w - c.w) >= WEEK)) pick.push(c); if (pick.length >= 3) break; }
+  const top = pick.map((c) => ({ w: c.w, day: c.w + 3 * DAY, rate: Math.max(0, Math.round(c.r * 100)), path: c.path.map(r2) }));
   if (!top.length) return null;
   const marks = [];
-  for (let d = 0; d < 7; d++) for (const s of SLOTS[lang]) { const t = ws + d * DAY + s; if (t <= now + 70 * 60000) marks.push({ n: marks.length + 1, t, k: Math.min(K, Math.max(0, Math.round((t - ws) / M30))) }); }
-  return { v: 1, lang, ws, end, K, cur: cur.map(r2), top, marks, no: marks.length, n: cand.length };
+  for (let d = 0; d < 4; d++) for (const s of SLOTS[lang]) { const t = ws + d * DAY + s; if (t <= now + 70 * 60000) marks.push({ t, k: Math.min(K, Math.max(0, Math.round((t - ws) / M30))) }); }
+  return { v: 2, lang, ws, today, end, K, cur: cur.map(r2), top, marks, ev: ev.filter((e) => e.t >= ws && e.t < ws + WEEK).slice(0, 10), n: cand.length };
 }
 
-export async function weekBoth(S, now) { return { at: now, ja: weekMatch(S, now, 'ja'), en: weekMatch(S, now, 'en') }; }
+export async function weekBoth(S, now, ev = []) { return { at: now, ja: weekMatch(S, now, 'ja', ev), en: weekMatch(S, now, 'en', ev) }; }
 
 // 本文に足す1行
 export function liveLine(lv, lang) {
   if (!lv || !lv.top || !lv.top.length) return '';
-  const d = new Date(lv.top[0].w + (lang === 'en' ? 0 : 9 * H)), M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  return lang === 'en' ? `📡 This week's BTC is tracing the week of ${M[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} (match ${lv.top[0].rate}%)`
-    : `📡 今週のBTCがなぞっている過去: ${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}〜の週（一致率${lv.top[0].rate}%）`;
+  const d = new Date(lv.top[0].day + (lang === 'en' ? 0 : 9 * H)), M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return lang === 'en' ? `📡 BTC is tracing the days around ${M[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} (match ${lv.top[0].rate}%)`
+    : `📡 今のBTCがなぞっている過去: ${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}前後（一致率${lv.top[0].rate}%）`;
 }
