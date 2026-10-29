@@ -680,14 +680,14 @@ function drawLive(g, lv, lg) {
   if (legendY) liveLegend(g, lg, legendY, marks);
   // 過去 TOP3
   const WEEKV = kind === 'daily', by = H2 - 150;
-  lt(g, lv.fomc ? (en ? 'CLOSEST PAST FOMC (BTC 1h after)' : 'FOMC前の動きが一番近い過去のFOMC（発表後1時間のBTC）') : WEEKV ? (en ? 'SAME DAY IN THE PAST' : '過去の同じ日') : (en ? 'SAME MOMENT IN THE PAST' : '過去の同じ時刻'), 26, by + 28, { s: 22, w: 900, c: '#ffffff' });
+  lt(g, lv.spk ? (en ? `CLOSEST PAST ${lv.dir < 0 ? 'DROPS' : 'JUMPS'} (BTC next 3h) · ${lv.n} since 2017` : `似ていた過去の${lv.dir < 0 ? '急落' : '急騰'}（その後3時間のBTC）· 2017年以降${lv.n}回`) : lv.fomc ? (en ? 'CLOSEST PAST FOMC (BTC 1h after)' : 'FOMC前の動きが一番近い過去のFOMC（発表後1時間のBTC）') : WEEKV ? (en ? 'SAME DAY IN THE PAST' : '過去の同じ日') : (en ? 'SAME MOMENT IN THE PAST' : '過去の同じ時刻'), 26, by + 28, { s: 22, w: 900, c: '#ffffff' });
   const cw = (W - 52) / 3, MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   lv.top.slice(0, 3).forEach((m, i) => { const cx = 26 + i * cw, c = LRK[i], d = dd(m.day != null ? m.day : m.w);
     if (i) { g.strokeStyle = 'rgba(160,190,220,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, by + 16); g.lineTo(cx, by + 116); g.stroke(); }
     const bx = cx + (i ? 46 : 70); g.fillStyle = c; g.beginPath(); g.arc(bx, by + 58, 20, 0, 7); g.fill(); lt(g, String(i + 1), bx, by + 67, { s: 24, w: 900, f: LN, c: '#06101c', a: 'center' });
     const ds = (en ? `${MO[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}` : `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`) + (WEEKV || lv.fomc ? '' : ' ' + hmL(m.day));
-    const fs = fitBig(g, ds, cx + cw - bx - (lv.fomc ? 150 : 40), 34, 700, LN); const dw = lt(g, ds, bx + 32, by + 70, { s: fs, w: 700, f: LN });
-    if (lv.fomc && m.a1 != null) lt(g, (m.a1 > 0 ? '+' : m.a1 < 0 ? '−' : '±') + Math.abs(m.a1).toFixed(2) + '%', bx + 32 + dw + 12, by + 68, { s: 26, w: 700, f: LN, c: m.a1 < 0 ? '#ff6b7d' : '#3cff9a' });
+    const fs = fitBig(g, ds, cx + cw - bx - (lv.fomc || lv.spk ? 150 : 40), 34, 700, LN); const dw = lt(g, ds, bx + 32, by + 70, { s: fs, w: 700, f: LN });
+    if ((lv.fomc || lv.spk) && m.a1 != null) lt(g, (m.a1 > 0 ? '+' : m.a1 < 0 ? '−' : '±') + Math.abs(m.a1).toFixed(2) + '%', bx + 32 + dw + 12, by + 68, { s: 26, w: 700, f: LN, c: m.a1 < 0 ? '#ff6b7d' : '#3cff9a' });
     const wl = lt(g, en ? 'Match' : '一致率', bx + 32, by + 116, { s: 24, w: 900 });
     lt(g, m.rate + '%', bx + 32 + wl + 12, by + 118, { s: 44, w: 700, f: LN, c, glow: c + '99', b: 14 }); });
   lt(g, '@csa_archive', 26, H2 - 10, { s: 18, w: 700, f: LN, c: '#9fb0c4' });

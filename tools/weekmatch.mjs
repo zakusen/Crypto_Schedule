@@ -127,3 +127,30 @@ export function fomcMatch(S, now, E, lang = 'ja', sel = now, k = 'fomc') {   // 
   if (!top.length) return null;
   return { v: 3, lang, ws, N, st, end, K, KS, E, cur: cur.map(r2), top, n: cand.length, fomc: 1, k, a1: end >= E + H ? chgAt(S, E, E + H) : null };
 }
+
+// ---- v217: 急変動の時、過去の急変動(同じ向き)だけと比べる ----
+// 過去の急変動 = 2017年以降の5分足で、1時間の変化が th% 以上(同じ向き)になった時。12時間以内は一番大きい1回にまとめる。
+// 比べる区間 = 急変動の終わりの3時間前〜今(5分刻み)。図は終わりの3時間後まで。その後3時間 = 終わりから3時間の変化(事実)
+export function spikeEvents(S, dir, th) {
+  const out = [], n = S.t.length;
+  for (let j = 12; j < n; j++) {
+    if (S.t[j] - S.t[j - 12] !== 12 * 300000) continue;
+    const v = (S.c[j] / S.c[j - 12] - 1) * 100;
+    if (dir < 0 ? v > -th : v < th) continue;
+    const last = out[out.length - 1];
+    if (last && S.t[j] - last.t < 12 * H) { if (Math.abs(v) > Math.abs(last.v)) { last.t = S.t[j]; last.v = v; } continue; }
+    out.push({ t: S.t[j], v });
+  }
+  return out;
+}
+export function spikeMatch(S, now, t1, mv, lang = 'ja') {
+  const st = 300000, N = 72, ws = t1 - 3 * H, end = Math.min(now, S.t[S.t.length - 1] + 300000), dir = mv < 0 ? -1 : 1, th = Math.max(2, Math.min(3, Math.abs(mv) * 0.75));
+  const K = Math.min(N, Math.floor((end - ws) / st)); if (K < 4) return null;
+  const cur = path(S, ws, K, st); if (!cur) return null;
+  const ev = spikeEvents(S, dir, th).filter((e) => e.t < t1 - 12 * H), cand = [];
+  for (const e of ev) { const p = path(S, e.t - 3 * H, N, st); if (!p) continue; cand.push({ e, r: pearson(cur, p.slice(0, K + 1)), path: p }); }
+  cand.sort((a, b) => b.r - a.r);
+  const top = cand.slice(0, 3).map((c) => ({ w: c.e.t - 3 * H, day: c.e.t, mv: r2(c.e.v), a1: chgAt(S, c.e.t, c.e.t + 3 * H), rate: Math.max(0, Math.round(c.r * 100)), path: c.path.map(r2) }));
+  if (!top.length) return null;
+  return { v: 3, lang, ws, N, st, end, K, cur: cur.map(r2), top, n: ev.length, th: r2(th), dir, spk: 1 };
+}

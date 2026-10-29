@@ -13,7 +13,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { loadBtc5m } from './pattern.mjs';
-import { weekMatch, liveMatch, liveLine, fomcMatch, fomcHist } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
+import { weekMatch, liveMatch, liveLine, fomcMatch, fomcHist, spikeMatch } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
@@ -118,7 +118,7 @@ async function liveFor(p, lg, now) {
   }
   if (p.sr === 'spike') {   // 前後3時間(5分刻み)
     const t0 = im.t0, t1 = im.t1, c = im.coins || {}, b = c.BTC, w = im.win || 1;
-    const lv = liveMatch(S5, now, { ws: t1 - 3 * HR, N: 72, st: M5, shift: HR, lang: lg }); if (!lv) return null;
+    const lv = spikeMatch(S5, now, t1, b, lg) || liveMatch(S5, now, { ws: t1 - 3 * HR, N: 72, st: M5, shift: HR, lang: lg }); if (!lv) return null;   // v217: 過去の急変動(同じ向き)だけと比べる
     const info = (EVL || []).filter((e) => e.t >= t0 - 15 * 60000 && e.t <= t1).slice(0, 1).map((e) => `${e[lg]} ${hmOf(e.t, lg)}`);
     if (im.liq && im.liq.l + im.liq.s > 0) info.push(`${en ? 'Liq' : '清算'} ${usdL(im.liq.l + im.liq.s, lg)}`);
     const p0 = at5(t0), p1 = at5(t1), $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
@@ -182,6 +182,11 @@ for (const { p, lg } of todo) {
       const lv = await liveFor(p, lg, Date.now());
       if (lv) {
         p.img = { ...(p.img || {}), live: { ...((p.img && p.img.live) || {}), [lg]: lv } };
+        if (p.sr === 'spike' && lv.spk && lv.top[0] && lv.top[0].a1 != null) {   // v217: 似ていた過去の急変動を1行
+          const m0 = lv.top[0], d = new Date(m0.day + (lg === 'en' ? 0 : 9 * HR)), ds = `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+          const ln = lg === 'en' ? `🔁 Closest past ${lv.dir < 0 ? 'drop' : 'jump'}: ${ds} (next 3h ${SG(m0.a1)})` : `🔁 似ていた過去の${lv.dir < 0 ? '急落' : '急騰'}：${ds}（その後3時間 ${SG(m0.a1)}）`;
+          const i = text.lastIndexOf('\n#'), t2 = i > 0 ? text.slice(0, i) + '\n' + ln + text.slice(i) : text + '\n' + ln; if (L.xlen(t2) <= 280) text = t2;
+        }
         if (p.sr === 'daily' || p.sr === 'sum') {
           const ln = liveLine(lv, lg), i = text.lastIndexOf('\n\n#'), t2 = i > 0 ? text.slice(0, i) + '\n\n' + ln + text.slice(i) : text + '\n\n' + ln;
           if (L.xlen(t2) <= 262) text = t2;
