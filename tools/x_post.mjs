@@ -86,7 +86,7 @@ const OUT = path.join(process.cwd(), 'x_out');
 if (DRY) fs.mkdirSync(OUT, { recursive: true });
 
 // v202: 日誌スレッド(毎朝の予定を親に、その日の自動投稿を返信でつなぐ)
-const THREAD_SR = new Set(['pre', 'arch', 'spike', 'liq', 'liqday', 'liqimp', 'vol', 'sum', 'week', 'pat']);
+const THREAD_SR = new Set(['pre', 'arch', 'liqday', 'liqimp', 'vol', 'sum', 'week', 'pat']);   // v216: 急変動(spike)と巨額清算(liq)は単独の新しい投稿(返信だとタイムラインに流れないため)
 const latestRoot = (lg) => posts.filter((x) => x.sr === 'daily' && x.tw && x.tw[lg] && x.done && x.done[lg] && Date.now() - x.done[lg] < 26 * 36e5).sort((a, b) => b.done[lg] - a.done[lg])[0] || null;
 let n = 0, S5 = null, EVL = null;
 const LIVE_SR = new Set(['daily', 'sum', 'pre', 'arch', 'spike', 'liq']), FOMC_SR = new Set(['fomc', 'fomcc', 'fomcres']), FCACHE = new Map();
