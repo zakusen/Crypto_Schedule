@@ -182,3 +182,21 @@ export function moveMatch(S, now, lang = 'ja', hrs = 5) {
   const p0 = at(S, ws), p1 = at(S, end - 1);
   return { v: 3, lang, ws, N, st, end, K: B, cur: cur.map(r2), top, n: ev.length, th: r2(th), dir, mv: r2(mv), hrs, p0, p1, spk: 1, kind: 'spkcmp', stats };
 }
+
+// ---- v221: 大型ハッキングの後のBTC(発生の時刻でそろえて重ねる)。時刻は公式発表・報道で確かめたもの(UTC) ----
+export const HACKS = [
+  { id: 'coincheck2018', t: Date.UTC(2018, 0, 25, 18, 0), ja: 'Coincheck', en: 'Coincheck', note: '流出' },
+  { id: 'binance2019', t: Date.UTC(2019, 4, 7, 17, 15), ja: 'Binance', en: 'Binance', note: '侵害の発見' },
+  { id: 'kucoin2020', t: Date.UTC(2020, 8, 25, 19, 5), ja: 'KuCoin', en: 'KuCoin', note: '大口出金の検知' },
+  { id: 'dmm2024', t: Date.UTC(2024, 4, 31, 4, 26), ja: 'DMM Bitcoin', en: 'DMM Bitcoin', note: '流出の発表' },
+  { id: 'bybit2025', t: Date.UTC(2025, 1, 21, 14, 16), ja: 'Bybit', en: 'Bybit', note: '流出' },
+  { id: 'binance2026', t: Date.UTC(2026, 9, 29, 20, 24), ja: 'Binance', en: 'Binance', note: 'ウォレットから大量流出(ハッキングの疑い・未確認)', cur: 1 },
+];
+// 発生の6時間前〜24時間後(15分刻み・発生 = 0%)。今回は今まで
+export function hackMatch(S, now, ev = HACKS.find((h) => h.cur)) {
+  const st = 15 * 60000, B = 24, N = B + 96, end = Math.min(now, S.t[S.t.length - 1] + 300000), base = (t) => at(S, t);
+  const mk = (h, lim) => { const b = base(h.t); if (!b) return null; const a = []; for (let k = 0; k <= N; k++) { const t = h.t - 6 * H + k * st; if (t > lim) break; const v = at(S, t); a.push(v ? r2((v / b - 1) * 100) : (a.length ? a[a.length - 1] : 0)); } return a; };
+  const past = HACKS.filter((h) => !h.cur && h.t < ev.t).map((h) => ({ ...h, path: mk(h, Infinity), a24: chgAt(S, h.t, h.t + DAY) })).filter((h) => h.path && h.path.length > N);
+  const cur = mk(ev, end); if (!cur || cur.length < B + 2) return null;
+  return { v: 1, kind: 'hack', ev: { ...ev }, end, N, B, st, cur, past, nowChg: chgAt(S, ev.t, end) };
+}

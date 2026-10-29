@@ -15,7 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { estimateGarch } from '../public/garch-model.mjs';   // v192
 import { loadBtc5m, findSimilar, addContext } from './pattern.mjs';   // v196
-import { weekBoth } from './weekmatch.mjs';   // v204: BTC実況
+import { weekBoth, HACKS } from './weekmatch.mjs';   // v204: BTC実況
 import { recsFrom, liqFrom, appendLog, fillLog } from './pattern-ctx.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -397,6 +397,9 @@ for (const sp of [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.
   const id = 'spkcmp:' + sp.id; if (byId.has(id) || out.some((p) => p.id === id)) continue;
   put(L.spkcmpDraft(sp, NOW)); console.log('[x] 過去の急変動との比較の下書き:', id);
 }
+
+// ---- 4b3) v221: 大型ハッキング(HACKS の cur)。発生から12時間以内に1本 ----
+for (const ev of HACKS.filter((h) => h.cur && NOW - h.t >= 0 && NOW - h.t < 12 * H)) { const id = 'hack:' + ev.id; if (!byId.has(id)) { put(L.hackDraft(ev, NOW)); console.log('[x] 大型ハッキングの下書き:', id); } }
 
 // ---- 4c) v202: サイトの「似ている過去の値動き」カードを今の24時間で更新(直近6時間に急変動の計測が無い時) ----
 try {

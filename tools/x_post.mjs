@@ -13,7 +13,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { loadBtc5m } from './pattern.mjs';
-import { weekMatch, liveMatch, liveLine, fomcMatch, fomcHist, spikeMatch, moveMatch } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
+import { weekMatch, liveMatch, liveLine, fomcMatch, fomcHist, spikeMatch, moveMatch, hackMatch, HACKS } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
@@ -161,6 +161,15 @@ for (const { p, lg } of todo) {
     }
   }
   let text = p[lg];
+  // v221: 大型ハッキング。過去の大型ハッキングと重ねた画像と本文を投稿時に作る
+  if (p.sr === 'hack') {
+    try {
+      if (!S5) S5 = await loadBtc5m(Date.now(), site);
+      const ev = HACKS.find((h) => h.id === (p.img && p.img.hack)), hv = ev && hackMatch(S5, Date.now(), ev);
+      if (!hv) { console.log('[post] 大型ハッキング: 計算できないので出しません', p.id); continue; }
+      text = L.hackText(hv, lg); p.img = { ...p.img, live: { ...((p.img && p.img.live) || {}), [lg]: hv } };
+    } catch (e) { console.log('[post] 大型ハッキングを作れませんでした', e.message); continue; }
+  }
   // v208: FOMC の親子ポスト。本文と画像を投稿する時に作る(発表後の親子は出さない。計算できなければ次の回)
   if (FOMC_SR.has(p.sr)) {
     const E = p.img && p.img.t, nowT = Date.now();
@@ -211,7 +220,7 @@ for (const { p, lg } of todo) {
     if (res && res.data && res.data.id) tw.set(p.id + ':' + lg, res.data.id);
     if (res && res.data && res.data.id) { p.tw = { ...(p.tw || {}), [lg]: String(res.data.id) }; if (no) p.no = { ...(p.no || {}), [lg]: no }; }
     console.log(`[post] 投稿しました ${p.id}:${lg} → ${res && res.data && res.data.id}${media ? ' (画像つき)' : ''}`);
-    await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true, tw: res && res.data && res.data.id, no, ...(FOMC_SR.has(p.sr) || p.sr === 'spkcmp' ? { text } : {}) } }) });   // v210: FOMC は実際に出した本文を残す
+    await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true, tw: res && res.data && res.data.id, no, ...(FOMC_SR.has(p.sr) || p.sr === 'spkcmp' || p.sr === 'hack' ? { text } : {}) } }) });   // v210: FOMC は実際に出した本文を残す
     p.done = p.done || {}; p.done[lg] = Date.now();
     n++;
     await new Promise((r) => setTimeout(r, 3000));

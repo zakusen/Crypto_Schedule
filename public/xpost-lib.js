@@ -414,7 +414,7 @@ export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
-export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -619,3 +619,17 @@ export function spkText(lv, lg) {   // v220: 「戻ったのか？」に過去�
     : [`⚡ BTC 直近${lv.hrs}時間で${sg(lv.mv)}。戻るのか？`, `2017年以降の似た${dn ? '急落' : '急騰'}${st.n}回（${lv.hrs}時間で${dn ? '−' : '+'}${th}%以上）`, `${dn ? '下げる' : '上げる'}前の価格に戻ったのは`, `・3時間以内：${st.r3}%`, `・24時間以内：${st.r24}%`, `・7日以内：${st.r7}%`, ...(st.med != null ? [`戻るまで（中央値）：${durTxt(st.med, lg)}`] : []), ...(t0 && cl ? [`一番似た回（${dt(t0.day)}）は${r0}`] : []), '※過去の記録。予測ではありません', '#ビットコイン #BTC'].join('\n'));
   const t1 = mk(1); return xlen(t1) <= 280 ? t1 : mk(0);
 }
+
+
+// ---- v221: 大型ハッキングの後のBTC(過去の大型ハッキングと発生の時刻でそろえて重ねる)。本文と画像は x_post が投稿時に作る ----
+export function hackText(hv, lg) {
+  const en = lg === 'en', sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', ev = hv.ev;
+  const ym = (t) => { const d = new Date(t + (en ? 0 : 9 * H)); return `${String(d.getUTCFullYear()).slice(2)}/${d.getUTCMonth() + 1}`; };
+  const hrs = Math.round((hv.end - ev.t) / H * 10) / 10;
+  const mk = (n) => (en
+    ? [`⚡ Big outflow from ${ev.en} (suspected hack, unconfirmed)`, 'BTC 24h after past exchange hacks:', ...hv.past.slice(-n).map((h) => `${h.en} ${ym(h.t)}: ${sg(h.a24)}`), `Now (${hrs}h in): ${sg(hv.nowChg)}`, '*Past record, not a forecast', '#Bitcoin #Binance']
+    : [`⚡ ${ev.ja}から大量流出（ハッキングの疑い・未確認）`, '過去の大型ハッキング、発生から24時間のBTC', ...hv.past.slice(-n).map((h) => `${h.ja} ${ym(h.t)}：${sg(h.a24)}`), `今回（${hrs}時間後）：${sg(hv.nowChg)}`, '※過去の記録。予測ではありません', '#ビットコイン #Binance']).join('\n');
+  for (let n = hv.past.length; n >= 1; n--) { const t = mk(n); if (xlen(t) <= 280) return t; }
+  return mk(1);
+}
+export const hackDraft = (ev, now) => ({ id: 'hack:' + ev.id, sr: 'hack', due: now - 60000, ja: '（投稿する時に、その時点の計算で本文と画像を作ります）', en: '(Text and image are made at posting time.)', h: 'hack', img: { hack: ev.id } });
