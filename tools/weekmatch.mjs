@@ -154,3 +154,31 @@ export function spikeMatch(S, now, t1, mv, lang = 'ja') {
   if (!top.length) return null;
   return { v: 3, lang, ws, N, st, end, K, cur: cur.map(r2), top, n: ev.length, th: r2(th), dir, spk: 1 };
 }
+
+// ---- v219: 「直近5時間」の急変動を、過去の同じくらいの5時間の動き(同じ向き)と比べる(投稿する時点が基準) ----
+// 過去の候補 = 5時間の変化が今回の75%以上(最低2%)・同じ向き。24時間以内は一番大きい1回。図 = 直近5時間 + その後3時間(5分刻み)
+export function moveMatch(S, now, lang = 'ja', hrs = 5) {
+  const st = 300000, B = hrs * 12, N = B + 36, n = S.t.length, end = Math.min(now, S.t[n - 1] + st), ws = Math.floor(end / st) * st - hrs * H;
+  const cur = path(S, ws, B, st); if (!cur) return null;
+  const mv = cur[B], dir = mv < 0 ? -1 : 1, th = Math.max(2, Math.abs(mv) * 0.75), ev = [];
+  for (let j = B; j < n; j++) {
+    if (S.t[j] > end - DAY || S.t[j] - S.t[j - B] !== B * st) continue;
+    const v = (S.c[j] / S.c[j - B] - 1) * 100; if (dir < 0 ? v > -th : v < th) continue;
+    const last = ev[ev.length - 1];
+    if (last && S.t[j] - last.t < DAY) { if (Math.abs(v) > Math.abs(last.v)) { last.t = S.t[j]; last.v = v; } continue; }
+    ev.push({ t: S.t[j], v });
+  }
+  // v220: 下げる(上げる)前の価格(5時間前)に戻るまでの時間(最長30日)。戻らなければ null
+  const idxOf = (t) => { let lo = 0, hi = n - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (S.t[m] < t) lo = m + 1; else hi = m; } return lo; };
+  for (const e of ev) { const p0 = at(S, e.t - hrs * H); e.rec = null; if (!p0) continue; for (let i = idxOf(e.t) + 1; i < n && S.t[i] <= e.t + 30 * DAY; i++) if (dir < 0 ? S.c[i] >= p0 : S.c[i] <= p0) { e.rec = S.t[i] - e.t; break; } }
+  const done = ev.filter((e) => S.t[n - 1] - e.t >= 30 * DAY), rate = (h) => done.length ? Math.round(done.filter((e) => e.rec != null && e.rec <= h).length / done.length * 100) : null;
+  const recs = done.filter((e) => e.rec != null).map((e) => e.rec).sort((a, b) => a - b), med = recs.length ? recs[Math.floor(recs.length / 2)] : null;
+  const stats = { n: done.length, r3: rate(3 * H), r24: rate(DAY), r7: rate(7 * DAY), med, never: done.length ? Math.round(done.filter((e) => e.rec == null).length / done.length * 100) : null };
+  const cand = [];
+  for (const e of ev) { const p = path(S, e.t - hrs * H, N, st); if (!p) continue; cand.push({ e, r: pearson(cur, p.slice(0, B + 1)), path: p }); }
+  cand.sort((a, b) => b.r - a.r);
+  const top = cand.slice(0, 3).map((c) => ({ w: c.e.t - hrs * H, day: c.e.t, mv: r2(c.e.v), rec: c.e.rec, a1: chgAt(S, c.e.t, c.e.t + 3 * H), rate: Math.max(0, Math.round(c.r * 100)), path: c.path.map(r2) }));
+  if (!top.length) return null;
+  const p0 = at(S, ws), p1 = at(S, end - 1);
+  return { v: 3, lang, ws, N, st, end, K: B, cur: cur.map(r2), top, n: ev.length, th: r2(th), dir, mv: r2(mv), hrs, p0, p1, spk: 1, kind: 'spkcmp', stats };
+}

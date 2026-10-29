@@ -414,7 +414,7 @@ export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
-export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -604,4 +604,18 @@ export function fomcText(kind, lv, lg, now) {
   return en
     ? [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} result: BTC ${sg(lv.a1)} in the first hour`, '', `The 3 past ${NM} releases whose run-up looked most like this one:`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), 'Cyan = this time, dotted = what came next back then.', TG].join('\n')
     : [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} 発表後1時間、BTCは${sg(lv.a1)}`, '', '発表前の動きが似ていた過去3回は', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), ...(same != null ? [`今回と同じ方向だったのは3回中${same}回`] : []), '水色が今回、点線が過去のその後。', TG].join('\n');
+}
+
+
+// ---- v217: 急変動の「過去の急変動との比較」(急変動とは別の単独の投稿。急変動の20分後)。本文と画像は x_post が投稿時に作る ----
+export const spkcmpDraft = (sp, now) => ({ id: 'spkcmp:' + sp.id, sr: 'spkcmp', due: Math.max((sp.due || now) + 20 * 60000, now - 60000), ja: '（投稿する時に、その時点の計算で本文と画像を作ります）', en: '(Text and image are made at posting time.)', h: 'spkcmp', img: { ...(sp.img || {}) } });
+export const durTxt = (ms, lg) => { if (ms == null) return null; const m = ms / 60000; return lg === 'en' ? (m < 60 ? `${Math.round(m)} min` : m < 48 * 60 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)} days`) : (m < 60 ? `${Math.round(m)}分` : m < 48 * 60 ? `${Math.round(m / 60)}時間` : `${Math.round(m / 1440)}日`); };
+export function spkText(lv, lg) {   // v220: 「戻ったのか？」に過去の記録で答える(予測ではない)
+  const en = lg === 'en', sg = (v) => (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', dn = lv.dir < 0, st = lv.stats || {}, th = Math.round(lv.th * 10) / 10;
+  const dt = (t) => { const d = new Date(t + (en ? 0 : 9 * H)); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, t0 = lv.top[0];
+  const r0 = t0 ? (t0.rec != null ? (en ? `back in ${durTxt(t0.rec, lg)}` : `${durTxt(t0.rec, lg)}で回復`) : (en ? 'not back within 30 days' : '30日以内に戻らず')) : null;
+  const mk = (cl) => (en
+    ? [`⚡ BTC ${sg(lv.mv)} in the last ${lv.hrs}h. Does it come back?`, `Since 2017, ${st.n} similar ${dn ? 'drops' : 'jumps'} (${dn ? '−' : '+'}${th}%+ in ${lv.hrs}h).`, `Back to the pre-${dn ? 'drop' : 'jump'} price:`, `· within 3h: ${st.r3}%`, `· within 24h: ${st.r24}%`, `· within 7 days: ${st.r7}%`, ...(st.med != null ? [`Median time: ${durTxt(st.med, lg)}`] : []), ...(t0 && cl ? [`Closest (${dt(t0.day)}): ${r0}`] : []), '*Past record, not a forecast', '#Bitcoin #BTC'].join('\n')
+    : [`⚡ BTC 直近${lv.hrs}時間で${sg(lv.mv)}。戻るのか？`, `2017年以降の似た${dn ? '急落' : '急騰'}${st.n}回（${lv.hrs}時間で${dn ? '−' : '+'}${th}%以上）`, `${dn ? '下げる' : '上げる'}前の価格に戻ったのは`, `・3時間以内：${st.r3}%`, `・24時間以内：${st.r24}%`, `・7日以内：${st.r7}%`, ...(st.med != null ? [`戻るまで（中央値）：${durTxt(st.med, lg)}`] : []), ...(t0 && cl ? [`一番似た回（${dt(t0.day)}）は${r0}`] : []), '※過去の記録。予測ではありません', '#ビットコイン #BTC'].join('\n'));
+  const t1 = mk(1); return xlen(t1) <= 280 ? t1 : mk(0);
 }

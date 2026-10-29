@@ -13,7 +13,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import { loadBtc5m } from './pattern.mjs';
-import { weekMatch, liveMatch, liveLine, fomcMatch, fomcHist, spikeMatch } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
+import { weekMatch, liveMatch, liveLine, fomcMatch, fomcHist, spikeMatch, moveMatch } from './weekmatch.mjs';   // v204: BTC実況。v206: 全ての投稿で期間を変えて使う
 const here = path.dirname(fileURLToPath(import.meta.url));
 const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(here, '..', 'public', 'xpost-lib.js'))).toString('base64'));
 const SITE = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
@@ -89,7 +89,7 @@ if (DRY) fs.mkdirSync(OUT, { recursive: true });
 const THREAD_SR = new Set(['pre', 'arch', 'liqday', 'liqimp', 'vol', 'sum', 'week', 'pat']);   // v216: 急変動(spike)と巨額清算(liq)は単独の新しい投稿(返信だとタイムラインに流れないため)
 const latestRoot = (lg) => posts.filter((x) => x.sr === 'daily' && x.tw && x.tw[lg] && x.done && x.done[lg] && Date.now() - x.done[lg] < 26 * 36e5).sort((a, b) => b.done[lg] - a.done[lg])[0] || null;
 let n = 0, S5 = null, EVL = null;
-const LIVE_SR = new Set(['daily', 'sum', 'pre', 'arch', 'spike', 'liq']), FOMC_SR = new Set(['fomc', 'fomcc', 'fomcres']), FCACHE = new Map();
+const LIVE_SR = new Set(['daily', 'sum', 'pre', 'arch', 'spike', 'spkcmp', 'liq']), FOMC_SR = new Set(['fomc', 'fomcc', 'fomcres']), FCACHE = new Map();
 const M5 = 300000, HR = 3600000, FLAG = { US: '🇺🇸', JP: '🇯🇵', EU: '🇪🇺' };
 const SG = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', COL = (v) => v < 0 ? '#ff4d66' : '#3cff9a', CCOL = (v) => v < 0 ? '#ff8a9a' : '#6fe3a8';
 const nameOf = (t, lg) => { const e = (EVL || []).find((x) => Math.abs(x.t - t) < 60000); return e ? `${FLAG[e.c] || '📅'} ${e[lg]}` : null; };
@@ -116,9 +116,10 @@ async function liveFor(p, lg, now) {
     return { ...lv, kind: 'arch', tone: b == null ? null : COL(b), hl: { t0: E, t1: E + HR, ja: `${nm} ${hmOf(E, lg)}`, en: `${nm} ${hmOf(E, lg)}` },
       stat: { name: nm, big: SG(b), col: b == null ? '#ffffff' : (b < 0 ? '#ff6b7d' : '#3cff9a'), range: `${hmOf(E, lg)} → ${hmOf(E + HR, lg)}`, coins: ['BTC', 'ETH', 'SOL', 'BNB'].filter((k) => c[k] && c[k].c60 != null).map((k) => ({ k, v: c[k].c60 })) } };
   }
+  if (p.sr === 'spkcmp') { const lv = moveMatch(S5, now, lg, 5); return lv && { ...lv, tone: lv.dir < 0 ? '#ff4d66' : '#3cff9a' }; }   // v219: 投稿する時点の直近5時間を、過去の同じくらいの5時間と比べる
   if (p.sr === 'spike') {   // 前後3時間(5分刻み)
     const t0 = im.t0, t1 = im.t1, c = im.coins || {}, b = c.BTC, w = im.win || 1;
-    const lv = spikeMatch(S5, now, t1, b, lg) || liveMatch(S5, now, { ws: t1 - 3 * HR, N: 72, st: M5, shift: HR, lang: lg }); if (!lv) return null;   // v217: 過去の急変動(同じ向き)だけと比べる
+    const lv = liveMatch(S5, now, { ws: t1 - 3 * HR, N: 72, st: M5, shift: HR, lang: lg }); if (!lv) return null;   // v217: 比較の投稿は過去の急変動(同じ向き)だけと比べる
     const info = (EVL || []).filter((e) => e.t >= t0 - 15 * 60000 && e.t <= t1).slice(0, 1).map((e) => `${e[lg]} ${hmOf(e.t, lg)}`);
     if (im.liq && im.liq.l + im.liq.s > 0) info.push(`${en ? 'Liq' : '清算'} ${usdL(im.liq.l + im.liq.s, lg)}`);
     const p0 = at5(t0), p1 = at5(t1), $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
@@ -182,11 +183,7 @@ for (const { p, lg } of todo) {
       const lv = await liveFor(p, lg, Date.now());
       if (lv) {
         p.img = { ...(p.img || {}), live: { ...((p.img && p.img.live) || {}), [lg]: lv } };
-        if (p.sr === 'spike' && lv.spk && lv.top[0] && lv.top[0].a1 != null) {   // v217: 似ていた過去の急変動を1行
-          const m0 = lv.top[0], d = new Date(m0.day + (lg === 'en' ? 0 : 9 * HR)), ds = `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
-          const ln = lg === 'en' ? `🔁 Closest past ${lv.dir < 0 ? 'drop' : 'jump'}: ${ds} (next 3h ${SG(m0.a1)})` : `🔁 似ていた過去の${lv.dir < 0 ? '急落' : '急騰'}：${ds}（その後3時間 ${SG(m0.a1)}）`;
-          const i = text.lastIndexOf('\n#'), t2 = i > 0 ? text.slice(0, i) + '\n' + ln + text.slice(i) : text + '\n' + ln; if (L.xlen(t2) <= 280) text = t2;
-        }
+        if (p.sr === 'spkcmp') text = L.spkText(lv, lg);   // v217: 過去の急変動との比較(別の投稿)
         if (p.sr === 'daily' || p.sr === 'sum') {
           const ln = liveLine(lv, lg), i = text.lastIndexOf('\n\n#'), t2 = i > 0 ? text.slice(0, i) + '\n\n' + ln + text.slice(i) : text + '\n\n' + ln;
           if (L.xlen(t2) <= 262) text = t2;
@@ -194,6 +191,7 @@ for (const { p, lg } of todo) {
         }
       }
     } catch (e) { console.log('[post] BTC実況を作れませんでした(いつもの画像で出します):', e.message); }
+    if (p.sr === 'spkcmp' && !(p.img && p.img.live && p.img.live[lg])) { console.log('[post] 過去の急変動との比較: 計算できないので出しません', p.id); continue; }
   }
   if (no) { const d = lg === 'en' ? new Date(Date.now()) : new Date(Date.now() + 9 * 36e5), tag = `🔹 ${lg === 'en' ? ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getUTCMonth()] + ' ' + d.getUTCDate() : (d.getUTCMonth() + 1) + '/' + d.getUTCDate()} · #${no}`; if (L.xlen(text + '\n\n' + tag) <= 280) text += '\n\n' + tag; }
   const png = await render(p, lg), name = `${p.id.replace(/[^a-z0-9-]+/gi, '-')}-${lg}`;
@@ -213,7 +211,7 @@ for (const { p, lg } of todo) {
     if (res && res.data && res.data.id) tw.set(p.id + ':' + lg, res.data.id);
     if (res && res.data && res.data.id) { p.tw = { ...(p.tw || {}), [lg]: String(res.data.id) }; if (no) p.no = { ...(p.no || {}), [lg]: no }; }
     console.log(`[post] 投稿しました ${p.id}:${lg} → ${res && res.data && res.data.id}${media ? ' (画像つき)' : ''}`);
-    await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true, tw: res && res.data && res.data.id, no, ...(FOMC_SR.has(p.sr) ? { text } : {}) } }) });   // v210: FOMC は実際に出した本文を残す
+    await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true, tw: res && res.data && res.data.id, no, ...(FOMC_SR.has(p.sr) || p.sr === 'spkcmp' ? { text } : {}) } }) });   // v210: FOMC は実際に出した本文を残す
     p.done = p.done || {}; p.done[lg] = Date.now();
     n++;
     await new Promise((r) => setTimeout(r, 3000));

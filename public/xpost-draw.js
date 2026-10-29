@@ -588,7 +588,52 @@ function drawFomc(g, lv, lg) {
   }
   lt(g, '@csa_archive', W - 26, 788, { s: 18, w: 700, f: LN, c: '#c9d4e2', a: 'right' });
 }
+
+// v219/v220: 急変動の「戻るのか？」。今回の動き → 過去の記録で戻った割合(3時間・24時間・7日)を大きく → 似ていた3回が戻るまでの時間
+function drawSpkCmp(g, lv, lg) {
+  const en = lg === 'en', off = en ? 0 : 9 * 36e5, H2 = LH, dn = lv.dir < 0, tone = dn ? '#ff4d66' : '#2fe38a', st = lv.stats || {}, SG = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%';
+  const WD = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : WJ, dd = (t) => new Date(t + off), hmL = (t) => { const d = dd(t); return `${d.getUTCHours()}:${LP(d.getUTCMinutes())}`; }, dl = (t) => { const d = dd(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+  const dur = (ms) => { if (ms == null) return null; const m = ms / 60000; return en ? (m < 60 ? `${Math.round(m)} min` : m < 2880 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)} days`) : (m < 60 ? `${Math.round(m)}分` : m < 2880 ? `${Math.round(m / 60)}時間` : `${Math.round(m / 1440)}日`); };
+  const bg = g.createLinearGradient(0, 0, 0, H2); bg.addColorStop(0, '#0b1424'); bg.addColorStop(1, '#070c17'); g.fillStyle = bg; g.fillRect(0, 0, W, H2);
+  g.fillStyle = tone; g.fillRect(0, 0, W, 8);
+  lt(g, en ? 'CSA / BTC LIVE' : 'CSA / BTC実況', 26, 50, { s: 26, w: 900, c: LCY });
+  const de = dd(lv.end); lt(g, `${de.getUTCMonth() + 1}/${de.getUTCDate()}(${WD[de.getUTCDay()]}) ${hmL(lv.end)}${en ? ' UTC' : ''}`, W - 26, 50, { s: 24, w: 700, f: LN, a: 'right' });
+  // 今回の動き
+  const pre = en ? `BTC · last ${lv.hrs}h ` : `BTC 直近${lv.hrs}時間で `; const pw = lt(g, pre, 26, 136, { s: 46, w: 900 });
+  const mw = lt(g, SG(lv.mv), 26 + pw, 142, { s: 96, w: 700, f: LN, c: tone, glow: tone + '66', b: 20 });
+  if (lv.p0 && lv.p1) lt(g, `$${Math.round(lv.p0).toLocaleString('en-US')} → $${Math.round(lv.p1).toLocaleString('en-US')}`, W - 26, 132, { s: 30, w: 700, f: LN, c: '#d6e2ee', a: 'right' });
+  // 問い
+  g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(0, 168, W, 64);
+  const q = en ? `Did past ${dn ? 'drops' : 'jumps'} like this come back?` : `過去の同じような${dn ? '急落' : '急騰'}、${dn ? '下げる' : '上げる'}前の価格に戻った？`;
+  lt(g, q, W / 2, 214, { s: fitBig(g, q, W - 60, 40, 900, LJ), w: 900, a: 'center' });
+  // 答え(割合)
+  const bars = [[en ? 'within 3h' : '3時間以内', st.r3], [en ? 'within 24h' : '24時間以内', st.r24], [en ? 'within 7 days' : '7日以内', st.r7]];
+  const bw = (W - 52 - 40) / 3;
+  bars.forEach(([lab, v], i) => { const x = 26 + i * (bw + 20), y = 254, hl = i === 1;
+    g.fillStyle = hl ? 'rgba(47,243,255,.10)' : 'rgba(255,255,255,.04)'; g.strokeStyle = hl ? LCY : 'rgba(160,190,220,.35)'; g.lineWidth = hl ? 3 : 1.5; g.beginPath(); g.roundRect(x, y, bw, 200, 14); g.fill(); g.stroke();
+    lt(g, lab, x + bw / 2, y + 44, { s: 30, w: 900, a: 'center' });
+    lt(g, v == null ? '—' : v + '%', x + bw / 2, y + 140, { s: 96, w: 700, f: LN, c: hl ? LCY : '#ffffff', a: 'center', glow: hl ? LCY + '66' : null, b: 16 });
+    g.fillStyle = 'rgba(255,255,255,.1)'; g.fillRect(x + 24, y + 166, bw - 48, 12); g.fillStyle = hl ? LCY : '#c9d4e2'; g.fillRect(x + 24, y + 166, (bw - 48) * (v || 0) / 100, 12); });
+  const meta = en ? `${st.n} cases since 2017 (${dn ? '−' : '+'}${Math.round(lv.th * 10) / 10}%+ in ${lv.hrs}h)${st.med != null ? ` · median ${dur(st.med)}` : ''}` : `2017年以降の${st.n}回（${lv.hrs}時間で${dn ? '−' : '+'}${Math.round(lv.th * 10) / 10}%以上）${st.med != null ? `・戻るまでの中央値 ${dur(st.med)}` : ''}`;
+  lt(g, meta, W / 2, 494, { s: 24, w: 700, c: '#d6e2ee', a: 'center' });
+  // 似ていた3回
+  g.strokeStyle = 'rgba(160,190,220,.3)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(26, 516); g.lineTo(W - 26, 516); g.stroke();
+  lt(g, en ? 'The 3 closest in shape' : '形が近かった3回', 26, 552, { s: 26, w: 900 });
+  const top = lv.top.slice(0, 3), cw = (W - 52 - 36) / 3, cy = 570, ch = 186, B = lv.K, N = lv.N;
+  top.forEach((m, i) => { const cx = 26 + i * (cw + 18), c = LRK[i];
+    g.fillStyle = 'rgba(255,255,255,.04)'; g.strokeStyle = c; g.lineWidth = 2; g.beginPath(); g.roundRect(cx, cy, cw, ch, 12); g.fill(); g.stroke();
+    lt(g, dl(m.day), cx + 16, cy + 34, { s: 24, w: 700, f: LN });
+    const x0 = cx + 16, x1 = cx + cw - 16, y0 = cy + 48, y1 = cy + 112, all = [...lv.cur, ...m.path], hi = Math.max(...all) + 0.2, lo = Math.min(...all) - 0.2, X = (k) => x0 + k / N * (x1 - x0), Y = (v) => y0 + (hi - v) / (hi - lo || 1) * (y1 - y0);
+    g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; g.beginPath(); g.moveTo(X(B), y0); g.lineTo(X(B), y1); g.stroke();
+    const ln = (pts, col, w, dash) => { g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.setLineDash(dash || []); g.beginPath(); pts.forEach(([k, v], j) => j ? g.lineTo(X(k), Y(v)) : g.moveTo(X(k), Y(v))); g.stroke(); g.setLineDash([]); };
+    ln(m.path.slice(0, B + 1).map((v, k) => [k, v]), c, 2); ln(m.path.slice(B).map((v, k) => [k + B, v]), c, 2.6, [5, 4]); ln(lv.cur.map((v, k) => [k, v]), LCY, 3);
+    const rt = m.rec != null ? (en ? `back in ${dur(m.rec)}` : `${dur(m.rec)}で回復`) : (en ? 'not back in 30 days' : '30日以内に戻らず');
+    lt(g, rt, cx + cw / 2, cy + 162, { s: fitBig(g, rt, cw - 24, 40, 900, LJ), w: 900, c: m.rec != null ? '#3cff9a' : '#ff6b7d', a: 'center' }); });
+  lt(g, en ? 'Past record, not a forecast · cyan = now' : '過去の記録で、予測ではありません・水色＝今回', 26, 786, { s: 18, w: 700, c: '#9fb0c4' });
+  lt(g, '@csa_archive', W - 26, 786, { s: 18, w: 700, f: LN, c: '#9fb0c4', a: 'right' });
+}
 function drawLive(g, lv, lg) {
+  if (lv.kind === 'spkcmp') return drawSpkCmp(g, lv, lg);   // v219
   if (String(lv.kind || '').startsWith('fomc')) return drawFomc(g, lv, lg);
   const en = lg === 'en', off = en ? 0 : 9 * 36e5, H2 = LH, kind = lv.kind || (lv.N && lv.N * (lv.st || 0) < 3 * 864e5 ? 'short' : 'daily'), sc = lv.stat || {};
   const WD = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : WJ, dd = (t) => new Date(t + off), md = (t) => { const d = dd(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, hmL = (t) => { const d = dd(t); return `${d.getUTCHours()}:${LP(d.getUTCMinutes())}`; };
@@ -654,9 +699,9 @@ function drawLive(g, lv, lg) {
     rule(640);
   } else if (kind === 'spike') {
     lt(g, T, 30, 92, { s: 26, w: 900, c: '#d6e2ee' });
-    const h1 = sc.head || ''; g.font = `900 30px ${LJ}`; const bw0 = g.measureText(en ? 'SHARP MOVE' : '急変動').width + 28;
+    const h1 = sc.head || ''; g.font = `900 30px ${LJ}`; const bdg = sc.badge || (en ? 'SHARP MOVE' : '急変動'), bw0 = g.measureText(bdg).width + 28;
     const hs = fitBig(g, h1, W - 90 - bw0, 96, 900, LN); const hw = lt(g, h1, 26, 180, { s: hs, w: 900, f: LN, c: tone, glow: tone + '55', b: 14 });
-    badge(en ? 'SHARP MOVE' : '急変動', 26 + hw + 22, 170, tone);
+    badge(bdg, 26 + hw + 22, 170, tone);
     if (sc.px) lt(g, sc.px, 28, 240, { s: 50, w: 700, f: LN });
     liveChart(g, lv, lg, sc.px ? 300 : 250, 480, {});
     legendY = 540; rule(560);
@@ -761,7 +806,7 @@ function drawPat(g, im, lg, opt = {}) {   // v202: opt = {label, ratio}(毎朝�
   txt(g, en ? `+${im.win}h (dotted = what came next)` : `+${im.win}時間(点線 = 過去のその後)`, X(N) + 8, y1 + 24, { size: 14, col: C.mut });
 }
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件声明まで、あと時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   // v203: 色(上の帯・背景)を中身で決める。上げ = 緑・下げ = 赤・予定やまとめ = 青・値動きの大きさ = 金・清算の反応 = 紫
   const im = p.img || {}, sgn = (v) => v == null ? TONES.blue : v < 0 ? TONES.red : TONES.green;

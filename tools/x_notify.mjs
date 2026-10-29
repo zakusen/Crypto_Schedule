@@ -392,6 +392,12 @@ try {
   }
 } catch (e) { console.log('[x] ボラティリティでエラー(ほかの下書きは続けます):', e.message); }
 
+// ---- 4b2) v217: 急変動の「過去の急変動との比較」(別の投稿)。直近6時間の急変動ごとに1本 ----
+for (const sp of [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.img && p.img.t1 && NOW - (p.due || 0) < 12 * H)) {   // v219: 12時間以内の急変動
+  const id = 'spkcmp:' + sp.id; if (byId.has(id) || out.some((p) => p.id === id)) continue;
+  put(L.spkcmpDraft(sp, NOW)); console.log('[x] 過去の急変動との比較の下書き:', id);
+}
+
 // ---- 4c) v202: サイトの「似ている過去の値動き」カードを今の24時間で更新(直近6時間に急変動の計測が無い時) ----
 try {
   let cur = {}; try { cur = (await (await site('/api/admin/rx-one?name=pt')).json()) || {}; } catch (_) {}
