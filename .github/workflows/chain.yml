@@ -20,7 +20,7 @@ on:
         default: '5'
       max:
         description: '調べるアドレスの上限'
-        default: '500'
+        default: '300'
       draft:
         description: '/posts.html に下書きを置く(1 = 置く)'
         default: '0'
@@ -37,7 +37,8 @@ jobs:
         with:
           node-version: 22
       - name: Build ledger
-        run: node tools/chain-ledger.mjs --case "${{ github.event.inputs.case || 'binance2026' }}" --hours "${{ github.event.inputs.hours || '168' }}" --depth "${{ github.event.inputs.depth || '5' }}" --max "${{ github.event.inputs.max || '500' }}" --draft "${{ github.event.inputs.draft || '0' }}"
+        timeout-minutes: 15
+        run: node tools/chain-ledger.mjs --case "${{ github.event.inputs.case || 'binance2026' }}" --hours "${{ github.event.inputs.hours || '168' }}" --depth "${{ github.event.inputs.depth || '5' }}" --max "${{ github.event.inputs.max || '300' }}" --draft "${{ github.event.inputs.draft || '0' }}"
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
           RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
@@ -50,7 +51,7 @@ jobs:
           CHAINS=$(node -e "import('./tools/chain/cases.mjs').then(m=>console.log((m.CASES['$C'].chains||[]).join(' ')))")
           for ch in $CHAINS; do
             echo "=== chain $ch ==="
-            node tools/chain-ledger.mjs --case "$C" --chain "$ch" --seeds "$(cat x_out/seeds-$C.txt)" --hours "${{ github.event.inputs.hours || '168' }}" --depth 4 --max 200 || echo "chain $ch は失敗(無料の範囲で使えないチェーンの可能性)"
+            timeout 180 node tools/chain-ledger.mjs --case "$C" --chain "$ch" --seeds "$(cat x_out/seeds-$C.txt)" --hours "${{ github.event.inputs.hours || '168' }}" --depth 4 --max 200 || echo "chain $ch は失敗(無料の範囲で使えないチェーンの可能性)"
           done
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
@@ -58,6 +59,7 @@ jobs:
           SITE_URL: ${{ secrets.SITE_URL }}
       - name: Bitcoin
         if: always()
+        timeout-minutes: 6
         run: node tools/chain-btc.mjs --case "${{ github.event.inputs.case || 'binance2026' }}" || echo "Bitcoin は失敗"
         env:
           RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
