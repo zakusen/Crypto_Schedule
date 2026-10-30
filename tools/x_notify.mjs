@@ -409,7 +409,7 @@ try {
     // v239: 定期投稿。前回の投稿から決まった間隔(2時間/4時間)が過ぎたら、変化が無くても出す。変化があれば見出しに出す
     const lastDue = mine.length ? Math.max(...mine.map((p) => p.due || 0)) : 0, gap = L.BN.every(NOW);
     const c = prev && prev.asof >= snap.asof ? null : (NOW - lastDue >= gap - 10 * 60000 && NOW < L.BN.until ? (L.bnChange(snap, prev) || { kind: 'same' }) : null);
-    if (c) { const d = L.bnDraft(snap, c, NOW, prev); if (!byId.has(d.id)) { put(d); console.log('[x] Binance流出の現況の下書き:', d.id, L.bnHead(snap, c, 'ja')); } }
+    if (c) { const [d, r] = L.bnDraft(snap, c, NOW, prev); if (!byId.has(d.id)) { put(d); put(r); console.log('[x] Binance流出の現況の下書き(＋返信の詳細):', d.id, L.bnHead(snap, c, 'ja')); } }
     else console.log('[x] Binance流出の現況: 次の投稿まで', Math.round((lastDue + gap - NOW) / 60000), '分');
   }
 } catch (e) { console.log('[x] Binance流出の現況: 失敗', e.message); }

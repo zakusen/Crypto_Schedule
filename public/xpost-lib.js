@@ -414,7 +414,7 @@ export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
-export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'bnstatus' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -745,8 +745,17 @@ export function bnText(s, c, lg) {
     : [`🧊 Binance流出：${bnHead(s, c, 'ja')}`, `発生から${s.hrs}時間のオンチェーン記録`, `・凍結 USDT・USDC：${jaN2(s.fz)}ドル`, `・未凍結のETH：約${jaN2(s.eth)}`, b ? `・未凍結のBTC：${b.held.toLocaleString('en-US')}（${b.ws.length}ウォレット・${b.moved ? b.moved + 'つから出金' : '出金0回'}）` : '', s.sold ? `・ETHを売る交換：${jaN2(s.sold)} ETH` : '・ETHを売る交換：0件', '#Binance #バイナンス #仮想通貨 #ビットコイン'];
   return L2.filter(Boolean).join('\n');
 }
+// v240: 返信欄の詳細(親の投稿にぶら下げる)。保有アドレス・Aave・サイトの詳細ページ
+export function bnReply(s, lg) {
+  const en = lg === 'en', sh = (a) => a.slice(0, 6) + '…' + a.slice(-4), url = 'https://crypto-schedule.signalarchive.workers.dev/track.html';
+  const hold = s.holders.slice(0, 3).map(([a, v]) => `${sh(a)} ${en ? enN2(v) : jaN2(v)}`).join(en ? ', ' : '／');
+  return (en
+    ? ['Details (on-chain):', `• ETH held: ${hold}`, s.aave ? `• ${enN2(s.aave)} USDT was deposited to Aave from a separate address (not part of the frozen total)` : '', '• Exchange deposits ≠ proof of sale', `All addresses & timeline: ${url}`]
+    : ['詳細（オンチェーンの記録）', `・ETHの保有：${hold}`, s.aave ? `・Aaveに預けたUSDT ${jaN2(s.aave)}は別のアドレスから（凍結額に含まない）` : '', '・取引所への入金は売却の証拠ではありません', `全アドレスと時系列：${url}`]).filter(Boolean).join('\n');
+}
 export function bnDraft(s, c, now, prev) {
   s = { ...s, checks: [...((prev && prev.checks) || []), s.asof].slice(-8) };
   const id = 'bnstatus:' + Math.floor(s.asof / 36e5), ja = bnText(s, c, 'ja'), en = bnText(s, c, 'en');
-  return { id, sr: 'bnstatus', due: now, ja, en, h: hashStr(ja + en), img: { bn: s, ch: c } };
+  const rj = bnReply(s, 'ja'), re = bnReply(s, 'en');
+  return [{ id, sr: 'bnstatus', due: now, ja, en, h: hashStr(ja + en), img: { bn: s, ch: c } }, { id: id + ':r', sr: 'bnreply', parent: id, due: now, ja: rj, en: re, h: hashStr(rj + re) }];
 }
