@@ -13,6 +13,7 @@ export const CASES = {
     // v232: ほかの EVM チェーンを探す起点。Ethereum の台帳の「ガス代の補充」の送り先と最初の受取先に、ここを足す
     seeds: ['0x7c8601d4645b93cea45f71e118a729332e6b5ca0'],   // 送金を始めたアドレス(Etherscan で確認・ラベルなし)
     chains: [42161, 43114, 56, 8453, 10, 137],
+    btcRoot: 'bc1q0mtc2f5agpkvlq6hhahmfr3hlr55kyfjhl2mnm',   // v233: Bitcoin の最初の受取先(CoinDesk の追跡。約18,270 BTC を受け取り19個のウォレットへ分散)
   },
 };
 // v225: 追うトークン = 本物の契約アドレスで見分ける(名前だけ同じ偽トークン・スパムを除く)。Ethereum メインネット。[記号, 追う最小の量]

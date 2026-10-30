@@ -175,10 +175,11 @@ const hmU = (iso) => { const d = new Date(iso); return `${d.getUTCMonth() + 1}/$
 async function fig(el, post) { el.innerHTML = ''; const cv = await drawPost(post, LG); if (cv) el.appendChild(cv); }
 // v230: chain.yml(1時間おき)が置いたまとめ(/api/track)で、数字・時系列・アドレスの状態・比較の棒を自動で新しくする。無ければ上の TRACK のまま
 let LIVE = null, OTHER = [];
-const OCH = [42161, 43114, 56, 8453, 10, 137];   // v232: ほかの EVM チェーン
+const OCH = [42161, 43114, 56, 8453, 10, 137];
+const OKEY = ['btc', ...OCH.map((c) => 'c' + c)];   // v233: Bitcoin を先頭に   // v232: ほかの EVM チェーン
 try { const j = await (await fetch('/api/track?case=binance2026', { cache: 'no-store' })).json(); if (j && j.asof && Array.isArray(j.events)) LIVE = j; } catch (_) {}
-await Promise.all(OCH.map(async (c) => { try { const j = await (await fetch('/api/track?case=binance2026c' + c, { cache: 'no-store' })).json(); if (j && j.edges && j.edges.length) OTHER.push(j); } catch (_) {} }));
-OTHER.sort((a, b) => OCH.indexOf(a.chain) - OCH.indexOf(b.chain));
+await Promise.all(OKEY.map(async (c) => { try { const j = await (await fetch('/api/track?case=binance2026' + c, { cache: 'no-store' })).json(); if (j && j.edges && j.edges.length) OTHER.push(j); } catch (_) {} }));
+OTHER.sort((a, b) => [0, ...OCH].indexOf(a.chain) - [0, ...OCH].indexOf(b.chain));
 const jaN = (v) => v >= 1e8 ? (+(v / 1e8).toFixed(2)) + '億' : v >= 1e4 ? (+(v / 1e4).toFixed(v >= 1e6 ? 0 : 1)) + '万' : Math.round(v).toLocaleString('en-US');
 const enN = (v) => v >= 1e9 ? (+(v / 1e9).toFixed(2)) + 'B' : v >= 1e6 ? (+(v / 1e6).toFixed(1)) + 'M' : v >= 1e4 ? (+(v / 1e3).toFixed(0)) + 'k' : Math.round(v).toLocaleString('en-US');
 const N = (v) => LG === 'en' ? enN(v) : jaN(v);
@@ -211,15 +212,22 @@ function liveTimeline() {
 }
 
 // v231: 行き先の図を、台帳のつながり(edges)から動的に描く。列 = 最初の受取先から何段目か。線の太さ = 量の目安。手で直す所は無い
-const PXV = { AVAX: 25, BNB: 600, POL: 0.5, ARB: 0.5, ETH: 2315, WETH: 2315, stETH: 2315, wstETH: 2315, mETH: 2315, cmETH: 2315, rETH: 2315, WBTC: 70000, cbBTC: 70000 };   // 線の太さを決めるためだけの目安
+const PXV = { BTC: 70000, AVAX: 25, BNB: 600, POL: 0.5, ARB: 0.5, ETH: 2315, WETH: 2315, stETH: 2315, wstETH: 2315, mETH: 2315, cmETH: 2315, rETH: 2315, WBTC: 70000, cbBTC: 70000 };   // 線の太さを決めるためだけの目安
 const usdOf = (k, v) => v * (PXV[k] || (/USD|DAI/.test(k) ? 1 : 0));
-const colOf = (k) => /USD|DAI/.test(k) ? '#5ee9c8' : /ETH$/i.test(k) ? '#f2c94c' : '#a78bfa';
+const colOf = (k) => k === 'BTC' ? '#f7931a' : /USD|DAI/.test(k) ? '#5ee9c8' : /ETH$/i.test(k) ? '#f2c94c' : '#a78bfa';
 function treeSvg(L2 = LIVE) {
   const en = LG === 'en', NT = L2.nat || 'ETH', RT = L2.roots && L2.roots.length ? L2.roots : [L2.root], st = new Map((L2.status || []).map((r) => [r.a, r])), nd = new Map(L2.nodes.map((n) => [n.a, n]));
   // 送り元・送り先ごとにまとめる。DEX の小さな交換先(コントラクトで2,000万ドル未満)は線にせず、送り元の「交換」にまとめる
   const pair = new Map();
   for (const e of L2.edges) { const k = e.f + '|' + e.to; const o = pair.get(k) || { f: e.f, to: e.to, a: {}, v: 0, t: e.t }; o.a[e.asset] = (o.a[e.asset] || 0) + e.amt; o.v += usdOf(e.asset, e.amt); o.t = Math.min(o.t, e.t); pair.set(k, o); }
   const ed = [...pair.values()].filter((o) => !(nd.get(o.to) && nd.get(o.to).c && o.v < 2e7));
+  // v233: 先へ送っていない送り先が1つの送り元に6個以上ある時は、大きい3個を残して残りを1つの箱にまとめる(BTC の 1,000 BTC × 17 など)
+  const fromSet = new Set(ed.map((o) => o.f)), byF = new Map(); for (const o of ed) { if (!byF.has(o.f)) byF.set(o.f, []); byF.get(o.f).push(o); }
+  const GRP = new Map();
+  for (const [f, arr] of byF) { const lv = arr.filter((o) => !fromSet.has(o.to)).sort((x, y) => y.v - x.v); if (lv.length < 6) continue;
+    const rest = lv.slice(3), g = 'grp:' + f, a2 = {}; let v2 = 0, t2 = Infinity, hb = 0;
+    for (const o of rest) { for (const [k, q] of Object.entries(o.a)) a2[k] = (a2[k] || 0) + q; v2 += o.v; t2 = Math.min(t2, o.t); const r0 = st.get(o.to); if (r0 && r0.ETH) hb += r0.ETH; ed.splice(ed.indexOf(o), 1); }
+    ed.push({ f, to: g, a: a2, v: v2, t: t2 }); GRP.set(g, { n: rest.length, held: hb }); }
   const kids = new Map(); for (const o of ed) { if (!kids.has(o.f)) kids.set(o.f, []); kids.get(o.f).push(o); }
   const depth = new Map(RT.map((r) => [r, 0])), order = [], seen = new Set();
   const walk = (a, d) => { if (seen.has(a)) return; seen.add(a); depth.set(a, d); order.push(a); for (const o of (kids.get(a) || []).sort((x, y) => y.v - x.v)) walk(o.to, d + 1); };
@@ -237,9 +245,14 @@ function treeSvg(L2 = LIVE) {
     const lab = Object.entries(e.a).map(([k, v]) => `${N(v)} ${k}`).join(' + ');
     o += `<path d="${d}" stroke="${c}" stroke-width="${w + 6}" fill="none" opacity=".25" filter="url(#glw)"/><path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" stroke-linecap="round"><title>${esc(lab)} · ${hmT(e.t)}</title></path>`; }
   for (const a of order) { if (!Y.has(a)) continue; const n = nd.get(a) || { c: false, st: '' }, r = st.get(a), x = X(a), y = Y.get(a), ie = inE.get(a);
+    if (GRP.has(a)) { const gq = GRP.get(a), x2 = x, y2 = y; const gt = ie ? Object.entries(ie.a).map(([k, v]) => `${N(v)} ${k}`).join(' + ') : '';
+      o += `<rect x="${x2}" y="${y2}" width="${CW}" height="${CH}" rx="10" fill="#0c1729" stroke="#f2c94c" stroke-width="2"/><rect x="${x2 + 5}" y="${y2 + 5}" width="${CW}" height="${CH}" rx="10" fill="none" stroke="#f2c94c55"/>`;
+      o += `<text x="${x2 + 12}" y="${y2 + 22}" font-size="13" font-weight="800" fill="#e8eef7">${en ? `${gq.n} more addresses` : `ほか${gq.n}アドレス`}</text><text x="${x2 + 12}" y="${y2 + 46}" font-size="16" font-weight="900" fill="${colOf(Object.keys(ie.a)[0])}">${esc(gt)}</text>`;
+      if (gq.held) o += `<text x="${x2 + 12}" y="${y2 + 68}" font-size="12.5" font-weight="800" fill="#f2c94c">${NT} ${N(gq.held)} ${en ? 'held' : '保有'}</text>`;
+      continue; }
     const fz = r && ((r.USDTFrozen && r.USDT > 0) || (r.USDCFrozen && r.USDC > 0)), held = r && r.ETH >= 1 && !fz;
-    const name = a === L2.root && !L2.roots ? (en ? 'First recipient' : '最初の受取先') : RT.includes(a) && a === '0x7c8601d4645b93cea45f71e118a729332e6b5ca0' ? (en ? 'Address that started the transfers' : '送金を始めたアドレス') : RT.includes(a) && L2.chain && L2.chain !== 1 ? (en ? 'Start ' : '起点 ') + a.slice(0, 6) + '…' + a.slice(-4) : ROLE.get(a) && !(L2.chain && L2.chain !== 1) ? (en ? ROLE.get(a)[1] : ROLE.get(a)[0]) : (n.c ? (en ? 'Contract ' : 'コントラクト ') : '') + a.slice(0, 6) + '…' + a.slice(-4);
-    const got = ie ? Object.entries(ie.a).sort((p, q) => usdOf(q[0], q[1]) - usdOf(p[0], p[1])).slice(0, 2).map(([k, v]) => `${N(v)} ${k}`).join(' + ') : L2.chain && L2.chain !== 1 ? (en ? 'Starting point' : '起点') : (en ? '~$3.2B received' : '約32億ドル分を受け取り');
+    const name = a === L2.root && !L2.roots ? (en ? 'First recipient' : '最初の受取先') : RT.includes(a) && a === '0x7c8601d4645b93cea45f71e118a729332e6b5ca0' ? (en ? 'Address that started the transfers' : '送金を始めたアドレス') : RT.includes(a) && L2.chain === 0 ? (en ? 'First recipient (Bitcoin)' : '最初の受取先（Bitcoin）') : RT.includes(a) && (L2.chain != null && L2.chain !== 1) ? (en ? 'Start ' : '起点 ') + a.slice(0, 6) + '…' + a.slice(-4) : ROLE.get(a) && !((L2.chain != null && L2.chain !== 1)) ? (en ? ROLE.get(a)[1] : ROLE.get(a)[0]) : (n.c ? (en ? 'Contract ' : 'コントラクト ') : '') + a.slice(0, 6) + '…' + a.slice(-4);
+    const got = ie ? Object.entries(ie.a).sort((p, q) => usdOf(q[0], q[1]) - usdOf(p[0], p[1])).slice(0, 2).map(([k, v]) => `${N(v)} ${k}`).join(' + ') : (L2.chain != null && L2.chain !== 1) ? (() => { const sm = {}; for (const q of L2.edges) if (q.f === a) sm[q.asset] = (sm[q.asset] || 0) + q.amt; const k = Object.keys(sm)[0]; return k ? `${N(sm[k])} ${k} ${en ? 'sent out' : 'を送り出し'}` : (en ? 'Starting point' : '起点'); })() : (en ? '~$3.2B received' : '約32億ドル分を受け取り');
     let stt = '', sc = '#9fb0c8';
     if (fz) { stt = '🔒 ' + ['USDT', 'USDC'].filter((k) => r[k + 'Frozen'] && r[k] > 0).map((k) => `${k} ${N(r[k])}`).join(' + '); sc = '#bfe9ff'; }
     else if (held) { stt = `${NT} ${N(r.ETH)} ${en ? 'held' : '保有'}`; sc = '#f2c94c'; }
@@ -278,7 +291,7 @@ async function render() {
     $('flowNote').innerHTML = `<span class="tlg"><span><i style="background:#5ee9c8"></i>${en ? 'Stablecoins' : 'ステーブルコイン'}</span><span><i style="background:#f2c94c"></i>ETH</span><span><i style="background:#a78bfa"></i>${en ? 'Other (WBTC etc.)' : 'その他（WBTCなど）'}</span><span>${en ? 'Line width = size (rough). ⇄ = swaps at that address. Tap a box for Etherscan.' : '線の太さ＝量の目安。⇄＝そのアドレスでの交換。箱を押すとEtherscanが開きます。'}</span></span>`;
   } else await fig($('figFlow'), { sr: 'chainflow', img: { chainflow: CHAINFLOW }, ja: '', en: '' });
   // v232: ほかの EVM チェーン(動きが見つかったチェーンだけ)
-  $('other').innerHTML = OTHER.length ? `<h2>${en ? 'Other EVM chains' : 'ほかのチェーン（EVM）'}<small>${en ? 'Searched from the addresses that received gas on Ethereum and the address that started the transfers' : 'Ethereumでガス代を受け取ったアドレスと、送金を始めたアドレスから探しています'}</small></h2>` + OTHER.map((d) => `<h3 style="margin:18px 0 8px;font-size:17px">${d.chainName}<small style="color:var(--mut);font-weight:600;margin-left:8px">${en ? 'checked' : '確認'} ${hmT(d.asof)}</small></h3><div class="fig"><div class="tree">${treeSvg(d)}</div></div>`).join('') : '';
+  $('other').innerHTML = OTHER.length ? `<h2>${en ? 'Other chains' : 'ほかのチェーン'}<small>${en ? 'Bitcoin: from the first recipient reported by CoinDesk. EVM: from addresses that received gas on Ethereum' : 'Bitcoin：CoinDeskが報じた最初の受取先から／EVM：Ethereumでガス代を受け取ったアドレスなどから'}</small></h2>` + OTHER.map((d) => `<h3 style="margin:18px 0 8px;font-size:17px">${d.chainName}${d.heldBtc != null ? `<span style="color:#f7931a;margin-left:10px">${en ? 'Not moved: ' : '動いていない：'}${N(d.heldBtc)} BTC</span>` : ''}<small style="color:var(--mut);font-weight:600;margin-left:8px">${en ? 'checked' : '確認'} ${hmT(d.asof)}</small></h3><div class="fig"><div class="tree">${treeSvg(d)}</div></div>`).join('') : '';
   await fig($('figCmp'), { sr: 'chaincmp', img: { chaincmp: CHAINCMP }, ja: '', en: '' });
 }
 for (const [id, lg] of [['bja', 'ja'], ['ben', 'en']]) $(id).onclick = () => { LG = lg; try { localStorage.setItem('csa-lang', lg); } catch {} render(); };
