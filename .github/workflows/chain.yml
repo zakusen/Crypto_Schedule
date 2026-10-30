@@ -1,32 +1,41 @@
 name: Chain ledger
-# v222: 資金の台帳を作る(手で動かす)。結果は成果物 x_out(chain-<事案>.json / .md)
-# v223: /posts.html に手動投稿の下書き(資金の追跡)も置く。自動では投稿しない
+# v222: 資金の台帳を作る。結果は成果物 x_out(chain-<事案>.json / .md / track-<事案>.json)
+# v230: 1時間おきに自動で binance2026 を回し、/track.html のまとめ(/api/track)を新しくする。
+#        /posts.html の下書きは、手で動かして draft を 1 にした時だけ置く
 on:
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       case:
         description: '事案(bybit2025 / binance2026)'
-        default: 'bybit2025'
+        default: 'binance2026'
       hours:
         description: '発生から何時間分'
-        default: '24'
+        default: '168'
       depth:
         description: '何段先までたどるか'
         default: '5'
       max:
         description: '調べるアドレスの上限'
         default: '500'
+      draft:
+        description: '/posts.html に下書きを置く(1 = 置く)'
+        default: '0'
+concurrency:
+  group: chain-${{ github.event.inputs.case || 'binance2026' }}
+  cancel-in-progress: false
 jobs:
   ledger:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Build ledger
-        run: node tools/chain-ledger.mjs --case "${{ github.event.inputs.case }}" --hours "${{ github.event.inputs.hours }}" --depth "${{ github.event.inputs.depth }}" --max "${{ github.event.inputs.max }}"
+        run: node tools/chain-ledger.mjs --case "${{ github.event.inputs.case || 'binance2026' }}" --hours "${{ github.event.inputs.hours || '168' }}" --depth "${{ github.event.inputs.depth || '5' }}" --max "${{ github.event.inputs.max || '500' }}" --draft "${{ github.event.inputs.draft || '0' }}"
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
           RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
@@ -35,5 +44,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: chain-${{ github.event.inputs.case }}
+          name: chain-${{ github.event.inputs.case || 'binance2026' }}
           path: x_out/
+          retention-days: 3
