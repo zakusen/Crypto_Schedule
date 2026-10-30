@@ -56,6 +56,20 @@ h2 small{color:var(--mut);font-size:13px;font-weight:600;margin-left:8px}
 .note li{margin:4px 0}
 .tree{overflow-x:auto;padding:12px}.tree svg{display:block}.tree text{font-family:inherit}
 .tlg{display:flex;gap:14px;flex-wrap:wrap;color:var(--mut);font-size:12px;margin:8px 2px 0}.tlg i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.dash{display:grid;grid-template-columns:1.45fr 1fr;gap:14px;margin:20px 0}
+.dc{border-radius:16px;padding:16px 18px;border:1px solid;position:relative;overflow:hidden}
+.dc h3{margin:0 0 4px;font-size:19px;font-weight:900}.dc .sub2{color:var(--mut);font-size:13px;font-weight:700}
+.dc.e{grid-column:1/-1;background:linear-gradient(180deg,#1c1a14,#0b0e16);border-color:#f5b94299}.dc.e h3{color:#ffd27a;text-shadow:0 0 12px #f5b94266}
+.dc.i{background:linear-gradient(180deg,#0f1d36,#090f1c);border-color:#7cc4ff99}.dc.i h3{color:#9ad3ff;text-shadow:0 0 12px #7cc4ff55}
+.dc.b{background:linear-gradient(180deg,#22160b,#0d0c10);border-color:#f7931a99}.dc.b h3{color:#ffb35c;text-shadow:0 0 12px #f7931a55}
+.eg{display:grid;grid-template-columns:1fr 250px;gap:16px;align-items:start}.eg svg{width:100%;height:auto;display:block}
+.big{font-size:clamp(26px,4vw,38px);font-weight:900;line-height:1.1;margin:6px 0 2px}
+.wl{list-style:none;margin:8px 0 0;padding:0}.wl li{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #ffffff12;font-weight:800}
+.wl code{font-size:13px;color:#e8d3a8}.wl b{color:#ffd27a}
+.note2{margin-top:10px;padding:10px 12px;border-radius:10px;background:#ffffff08;border:1px solid #ffffff1f;font-weight:800;font-size:14px;text-align:center}
+.bars .row{margin:8px 0}.bars .lb{display:flex;justify-content:space-between;font-size:13px;font-weight:800;color:#dbeeff}.bars .tr{height:12px;border-radius:6px;background:#ffffff10;margin-top:4px;overflow:hidden}.bars .fl{height:100%;border-radius:6px}
+.blk{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0}.blk a{display:flex;align-items:center;justify-content:center;border-radius:5px;background:#f7931a;color:#2a1400;font-size:11px;font-weight:900;text-decoration:none}
+@media (max-width:820px){.dash{grid-template-columns:1fr}.eg{grid-template-columns:1fr}}
 footer{margin-top:36px;color:var(--mut);font-size:12px}
 @media (max-width:720px){.stats{grid-template-columns:repeat(2,1fr)}.tbl .hide{display:none}}
 </style>
@@ -71,6 +85,7 @@ footer{margin-top:36px;color:var(--mut);font-size:12px}
 <p class="sub" id="sub"></p>
 <p class="asof" id="asof"></p>
 
+<div class="dash" id="dash"></div>
 <div class="stats" id="stats"></div>
 
 <h2 id="h2a"></h2>
@@ -278,12 +293,53 @@ function treeSvg(L2 = LIVE) {
     o += '</a>'; }
   return o + '</svg>';
 }
+
+// v236: 現況ダッシュボード(未凍結ETHの積み上げ＋交換回数／凍結／BTC)。毎時のまとめ(/api/track)から自動で描く
+function dashHtml() {
+  if (!LIVE) return '';
+  const en = LG === 'en', st = LIVE.status || [], t0 = LIVE.t0, now = LIVE.asof, H = 36e5;
+  const holders = st.filter((r) => r.depth > 0 && (r.ETH || 0) >= 100).sort((a, b) => b.ETH - a.ETH), hs = new Set(holders.map((r) => r.a));
+  const ethNow = holders.reduce((a, r) => a + r.ETH, 0) + (st.find((r) => r.depth === 0) || {}).ETH || 0;
+  const arr = (LIVE.events || []).filter((e) => e.kind === 'move' && /^W?ETH$/.test(e.asset) && hs.has(e.to)).sort((a, b) => a.t - b.t);
+  // SVG: 横 = 発生からの時間、左 = 保有ETH(枚)、右 = 1時間ごとの交換回数
+  const W = 800, Hh = 300, x0 = 56, x1 = 740, y0 = 250, y1 = 30, tE = now, X = (t) => x0 + (t - t0) / (tE - t0) * (x1 - x0);
+  const mx = Math.max(ethNow, arr.reduce((a, e) => a + e.amt, 0)) * 1.1 || 1, Y = (v) => y0 - v / mx * (y0 - y1);
+  const sw = (LIVE.hourly || []).map((b) => b.swaps), smx = Math.max(10, ...sw) * 1.15, Ys = (n) => y0 - n / smx * (y0 - y1);
+  let c = 0, pts = [[X(t0), Y(0)]]; for (const e of arr) { pts.push([X(e.t), Y(c)]); c += e.amt; pts.push([X(e.t), Y(c)]); } pts.push([X(tE), Y(c)]); pts.push([X(tE), Y(ethNow)]);
+  let g = `<svg viewBox="0 0 ${W} ${Hh}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="dg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8a33c" stop-opacity=".85"/><stop offset="1" stop-color="#4a2a08" stop-opacity=".2"/></linearGradient><filter id="dgl"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  for (const f of [0, .5, 1]) { const v = mx / 1.1 * f; g += `<line x1="${x0}" y1="${Y(v)}" x2="${x1}" y2="${Y(v)}" stroke="#ffffff12"/><text x="${x0 - 8}" y="${Y(v) + 4}" font-size="12" fill="#8ea2bf" font-weight="700" text-anchor="end">${v ? N(v) : 0}</text>`; }
+  const hrs = Math.floor((tE - t0) / H); for (let h = 0; h <= hrs; h += Math.max(1, Math.round(hrs / 6))) g += `<text x="${X(t0 + h * H)}" y="${y0 + 18}" font-size="12" fill="#cfd8e6" font-weight="800" text-anchor="middle">${h}h</text><text x="${X(t0 + h * H)}" y="${y0 + 33}" font-size="11" fill="#8ea2bf" text-anchor="middle">${hmT(t0 + h * H)}</text>`;
+  g += `<polygon points="${pts.map((p) => p.join(',')).join(' ')} ${X(tE)},${Y(0)}" fill="url(#dg)"/><polyline points="${pts.map((p) => p.join(',')).join(' ')}" fill="none" stroke="#ffcf6b" stroke-width="2.6" filter="url(#dgl)"/>`;
+  const sp = sw.map((n, i) => [X(t0 + i * H + H / 2), Ys(n), n]).filter((p) => p[0] <= x1);
+  g += `<polyline points="${sp.map((p) => p[0] + ',' + p[1]).join(' ')}" fill="none" stroke="#fff3c4" stroke-width="2" stroke-dasharray="4 4"/>` + sp.map(([x, y, n]) => `<circle cx="${x}" cy="${y}" r="3.5" fill="#fff3c4"/>${n ? `<text x="${x}" y="${y - 8}" font-size="11" fill="#fff3c4" font-weight="800" text-anchor="middle">${n}</text>` : ''}`).join('');
+  g += `<circle cx="${X(tE)}" cy="${Y(ethNow)}" r="6" fill="#ffd27a" filter="url(#dgl)"/><text x="${X(tE) - 10}" y="${Y(ethNow) - 12}" font-size="22" font-weight="900" fill="#ffd27a" text-anchor="end">${en ? '~' : '約'}${N(ethNow)} ETH</text></svg>`;
+  const ethSold = (LIVE.events || []).filter((e) => e.kind === 'swap').reduce((a, e) => a + ((e.in || {}).ETH || 0) + ((e.in || {}).WETH || 0), 0);
+  const ethGot = (LIVE.events || []).filter((e) => e.kind === 'swap').reduce((a, e) => a + ((e.out || {}).ETH || 0), 0);
+  const E1 = `<div class="dc e"><h3>${en ? 'Unfrozen ETH' : '未凍結のETH'}</h3><div class="sub2">${en ? 'Gold = ETH held by the receiving addresses (count) · dotted = swaps per hour' : '金＝送り先が保有するETH（枚）・点線＝1時間ごとの交換回数'}</div>
+    <div class="eg"><div>${g}</div><div><div class="sub2">${en ? 'Addresses holding ETH' : 'ETHを持つアドレス'}</div><ul class="wl">${holders.slice(0, 6).map((r) => `<li><a href="${ES + r.a}" target="_blank" rel="noopener"><code>${r.a.slice(0, 6)}…${r.a.slice(-4)}</code></a><b>${N(r.ETH)} ETH</b></li>`).join('')}</ul>
+    <div class="note2">${ethSold < 1 ? (en ? `All swaps were into ETH<br><span style="color:#ff8a8a">Swaps selling ETH: 0</span>` : `交換はすべてETHに替える方向<br><span style="color:#ff8a8a">ETHを売る交換 0件</span>`) : (en ? `ETH sold in swaps: ${N(ethSold)} ETH` : `ETHを売った交換：${N(ethSold)} ETH`)}</div></div></div></div>`;
+  // 凍結
+  const fz = st.filter((r) => (r.USDTFrozen && r.USDT > 1) || (r.USDCFrozen && r.USDC > 1)).flatMap((r) => ['USDT', 'USDC'].filter((k) => r[k + 'Frozen'] && r[k] > 1).map((k) => [r.a, k, r[k]])).sort((a, b) => b[2] - a[2]);
+  const fzSum = fz.reduce((a, q) => a + q[2], 0), aave = (LIVE.edges || []).filter((e) => e.to && e.to.startsWith('0x23878914') && /USD/.test(e.asset)).reduce((a, e) => a + e.amt, 0);
+  const bar = (l, v, c) => `<div class="row"><div class="lb"><span>${l}</span><span>${N(v)}</span></div><div class="tr"><div class="fl" style="width:${Math.max(.6, v / fzSum * 100)}%;background:${c}"></div></div></div>`;
+  const F = `<div class="dc i"><h3>🔒 ${en ? 'Frozen (USDT, USDC)' : '凍結（USDT・USDC）'}</h3><div class="big" style="color:#fff">${en ? '$' + enN(fzSum) : jaN(fzSum) + 'ドル'}</div><div class="sub2">${en ? 'Checked on the token contracts at ' : 'USDT・USDCのコントラクトで確認 '}${hmT(now)}</div>
+    <div class="bars">${fz.map(([a, k, v]) => bar(`${ROLE.get(a) ? (en ? ROLE.get(a)[1] : ROLE.get(a)[0]) : a.slice(0, 6) + '…'} · ${k}`, v, '#5aa9f5')).join('')}${aave ? bar(en ? 'Deposited to Aave (separate address, not frozen total)' : 'Aaveに預けたUSDT（別のアドレス・凍結額には含まない）', aave, '#5ee9c8') : ''}</div></div>`;
+  // BTC
+  const bt = OTHER.find((d) => d.chain === 0);
+  let Bh = '';
+  if (bt) { const ws = (bt.status || []).filter((r) => r.depth > 0 && r.ETH >= 1).sort((a, b) => b.ETH - a.ETH), outs = new Set((bt.edges || []).map((e) => e.f)), moved = ws.filter((r) => outs.has(r.a)).length, mxb = Math.max(...ws.map((r) => r.ETH), 1);
+    Bh = `<div class="dc b"><h3>${en ? 'Unfrozen BTC' : '未凍結のBTC'}</h3><div class="big" style="color:#fff">${(bt.heldBtc || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })} BTC</div><div class="sub2">${en ? `${ws.length} wallets · ` : `${ws.length}のウォレット・`}${moved ? (en ? `${moved} have sent out` : `${moved}個から出金あり`) : (en ? 'no outgoing transfer' : '出金0回')} · ${hmT(bt.asof)}</div>
+      <div class="blk">${ws.map((r) => { const z = Math.round(18 + 22 * Math.sqrt(r.ETH / mxb)); return `<a href="https://mempool.space/address/${r.a}" target="_blank" rel="noopener" title="${r.a} · ${r.ETH} BTC" style="width:${z}px;height:${z}px">${r.ETH >= 1000 ? '1k' : Math.round(r.ETH)}</a>`; }).join('')}</div>
+      <div class="sub2">${en ? 'Each square = one wallet (size = amount). Tap to open mempool.space.' : '四角1つ＝ウォレット1つ（大きさ＝量）。押すとmempool.spaceが開きます。'}</div></div>`; }
+  return E1 + F + Bh;
+}
 liveApply();
 async function render() {
   const T = TX[LG], en = LG === 'en', S = TRACK.stats;
   document.documentElement.lang = LG; $('bja').classList.toggle('on', !en); $('ben').classList.toggle('on', en);
   $('h1').textContent = T.title; $('sub').textContent = T.sub; $('asof').innerHTML = T.asof(en ? hmU(TRACK.asof) : hmJ(TRACK.asof), TRACK.hrs);
   const v = [[T.st[0], en ? S.recv[1] : S.recv[0], ''], [T.st[1], (en ? S.frozen[1] : S.frozen[0]) + `<small style="font-size:.5em;color:var(--mut)"> (${S.frozenPct}%)</small>`, 'ice'], [T.st[2], en ? S.eth[1] : S.eth[0], ''], [T.st[3], T.hrs(TRACK.hrs), '']];
+  $('dash').innerHTML = dashHtml(); $('stats').style.display = LIVE ? 'none' : '';
   $('stats').innerHTML = v.map(([l, x, c], i) => `<div class="st ${c}"><div class="l">${c ? '🔒 ' : ''}${l}</div><div class="v" style="color:${['var(--tx)', 'var(--i)', 'var(--p)', 'var(--r)'][i]}">${x}</div></div>`).join('');
   $('h2a').textContent = T.h2a; $('h2b').innerHTML = `${T.h2b}<small>${T.h2bs}</small>`; $('h2c').innerHTML = `${T.h2c}<small>${T.h2cs}</small>`; $('h2d').innerHTML = `${T.h2d}<small>${T.h2ds}</small>`; $('h2e').textContent = T.h2e;
   const TLR = LIVE ? liveTimeline() : TRACK.tl.map(([t, ja, e2, c]) => [t, en ? e2 : ja, c]);
