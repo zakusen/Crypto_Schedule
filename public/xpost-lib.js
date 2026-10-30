@@ -738,12 +738,21 @@ export function bnHead(s, c, lg) {   // 画像と本文の一番上に出す「�
   if (!c || c.kind === 'first' || c.kind === 'same') return en ? (c && c.kind === 'same' ? 'No change since last check' : 'Where the funds are now') : (c && c.kind === 'same' ? '前回から変化なし' : '資金の現況');
   return c.ch.map(([k, v]) => k === 'fz' ? (en ? `Frozen ${sg(v)}$${enN2(v)}` : `凍結 ${sg(v)}${jaN2(v)}ドル`) : k === 'eth' ? (en ? `Unfrozen ETH ${sg(v)}${enN2(v)}` : `未凍結のETH ${sg(v)}${jaN2(v)}`) : k === 'btc' ? (s.btc && s.btc.moved ? (en ? `BTC: ${s.btc.moved} wallets sent out` : `BTC：${s.btc.moved}つのウォレットから出金`) : (en ? `BTC ${sg(v)}${enN2(v)}` : `BTC ${sg(v)}${jaN2(v)}`)) : (en ? `ETH sold in swaps: ${enN2(v)}` : `ETHを売る交換：${jaN2(v)} ETH`)).join(en ? ' / ' : '／');
 }
-export function bnText(s, c, lg) {
-  const en = lg === 'en', b = s.btc;
+// v241: 冒頭の1行に一番強い事実を置く。ハッシュタグは2つ。最後に次の更新の目安
+export function bnLead(s, c, lg) {
+  const en = lg === 'en', b = s.btc, h = s.hrs;
+  if (c && c.kind === 'change') return en ? `Binance outflow, ${h}h in. Changed since last check: ${bnHead(s, c, 'en')}` : `Binance流出から${h}時間。前回から動きあり：${bnHead(s, c, 'ja')}`;
+  const still = !s.sold && (!b || !b.moved);
+  return en
+    ? `Binance outflow, ${h}h in. ~${enN2(s.eth)} unfrozen ETH${b ? ` and ${enN2(b.held)} BTC` : ''} ${still ? '— no swaps selling ETH, no BTC withdrawals' : 'remain at the receiving addresses'}.`
+    : `Binance流出から${h}時間。未凍結のETH 約${jaN2(s.eth)}${b ? `・BTC ${jaN2(b.held)}` : ''}は${still ? '、ETHを売る交換0件・BTCの出金0回のまま' : '、送り先に残ったまま'}。`;
+}
+export function bnText(s, c, lg, next) {
+  const en = lg === 'en', b = s.btc, nx = Math.round((next || 2 * 36e5) / 36e5);
   const L2 = en
-    ? [`🧊 Binance outflow: ${bnHead(s, c, 'en')}`, `On-chain, ${s.hrs}h after the first transfer:`, `• Frozen USDT/USDC: $${enN2(s.fz)}`, `• Unfrozen ETH: ~${enN2(s.eth)}`, b ? `• Unfrozen BTC: ${b.held.toLocaleString('en-US')} (${b.ws.length} wallets, ${b.moved ? b.moved + ' sent out' : 'no outgoing transfer'})` : '', s.sold ? `• ETH sold in swaps: ${enN2(s.sold)}` : '• Swaps selling ETH: 0', '#Binance #crypto #Bitcoin #ETH']
-    : [`🧊 Binance流出：${bnHead(s, c, 'ja')}`, `発生から${s.hrs}時間のオンチェーン記録`, `・凍結 USDT・USDC：${jaN2(s.fz)}ドル`, `・未凍結のETH：約${jaN2(s.eth)}`, b ? `・未凍結のBTC：${b.held.toLocaleString('en-US')}（${b.ws.length}ウォレット・${b.moved ? b.moved + 'つから出金' : '出金0回'}）` : '', s.sold ? `・ETHを売る交換：${jaN2(s.sold)} ETH` : '・ETHを売る交換：0件', '#Binance #バイナンス #仮想通貨 #ビットコイン'];
-  return L2.filter(Boolean).join('\n');
+    ? [bnLead(s, c, 'en'), '', `• Frozen USDT/USDC: $${enN2(s.fz)}`, s.sold ? `• ETH sold in swaps: ${enN2(s.sold)}` : '• Swaps selling ETH: 0', b ? `• BTC withdrawals: ${b.moved ? b.moved + ' wallets' : '0'} (${b.ws.length} wallets)` : '', '', `Next update in ~${nx}h. On-chain records.`, '#Binance #Bitcoin']
+    : [bnLead(s, c, 'ja'), '', `・凍結 USDT・USDC：${jaN2(s.fz)}ドル`, s.sold ? `・ETHを売る交換：${jaN2(s.sold)} ETH` : '・ETHを売る交換：0件', b ? `・BTCの出金：${b.moved ? b.moved + 'ウォレット' : '0回'}（${b.ws.length}ウォレット）` : '', '', `続きは約${nx}時間後に更新します（オンチェーンの記録）`, '#Binance #ビットコイン'];
+  return L2.filter((x, i, a) => x || (a[i - 1] && a[i + 1] !== undefined)).join('\n');
 }
 // v240: 返信欄の詳細(親の投稿にぶら下げる)。保有アドレス・Aave・サイトの詳細ページ
 export function bnReply(s, lg) {
@@ -755,7 +764,7 @@ export function bnReply(s, lg) {
 }
 export function bnDraft(s, c, now, prev) {
   s = { ...s, checks: [...((prev && prev.checks) || []), s.asof].slice(-8) };
-  const id = 'bnstatus:' + Math.floor(s.asof / 36e5), ja = bnText(s, c, 'ja'), en = bnText(s, c, 'en');
+  const nx = BN.every(now), id = 'bnstatus:' + Math.floor(s.asof / 36e5), ja = bnText(s, c, 'ja', nx), en = bnText(s, c, 'en', nx), dues = { ja: now, en: now + 30 * 60000 };   // v241: 英語は30分ずらす
   const rj = bnReply(s, 'ja'), re = bnReply(s, 'en');
-  return [{ id, sr: 'bnstatus', due: now, ja, en, h: hashStr(ja + en), img: { bn: s, ch: c } }, { id: id + ':r', sr: 'bnreply', parent: id, due: now, ja: rj, en: re, h: hashStr(rj + re) }];
+  return [{ id, sr: 'bnstatus', due: now, dues, ja, en, h: hashStr(ja + en), img: { bn: s, ch: c } }, { id: id + ':r', sr: 'bnreply', parent: id, due: now, dues, ja: rj, en: re, h: hashStr(rj + re) }];
 }
