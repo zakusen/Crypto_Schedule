@@ -846,3 +846,4 @@
 - v227: 今回の流出(Binance)の行き先と時系列の投稿(sr: chainflow)を追加。横軸を時刻にした枝分かれの図で、凍結は氷の箱。数字は xpost-lib.js の CHAINFLOW。chaincmp と同じく手で投稿(man: 1)。chaincmp と chainflow の本文を、話題の言葉を先頭に出しハッシュタグ4つ(#Binance #バイナンス #仮想通貨 #ビットコイン、英語は #Binance ほか)に変更。
   - /posts.html に chaincmp(⚖️)・chainflow(🧊) の名前を追加(名前のない種類は表示されないため)。比較の id を v2 に。古い資金の追跡の下書き(sr: chain と比較の v1)は x_notify が投稿済みの印を付ける(実際には投稿していない)。
   - 13:11 JST(04:11 UTC)の台帳で数字を更新(発生から7.8時間)。比較は v3・行き先の図は v2。古い v1・v2 は投稿済みの印を付ける。
+- v228: 資金の追跡のページ /track.html を追加(Binanceの大量流出・ハッキングの疑い・未確認)。数字のまとめ、行き先と時系列の図、時系列の一覧、Bybitとの比較の図、アドレス(Etherscanへのリンク)、読み方と注意。図は X の画像と同じ描き方(xpost-draw.js)で、数字は xpost-lib.js の CHAINFLOW・CHAINCMP と track.html の TRACK。日本語・英語の切り替えあり。sitemap.xml に追加。

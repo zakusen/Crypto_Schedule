@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<meta name="theme-color" content="#050b17">
+<title>資金の追跡：Binanceの大量流出 | CRYPTO SIGNAL ARCHIVE</title>
+<meta name="description" content="Binanceのウォレットからの大量流出（ハッキングの疑い・未確認）について、資金の行き先・凍結・時系列をオンチェーンの記録だけで追跡。過去最大のBybit（2025）とも比較。">
+<meta property="og:type" content="article"><meta property="og:site_name" content="CRYPTO SIGNAL ARCHIVE">
+<meta property="og:title" content="資金の追跡：Binanceの大量流出（ハッキングの疑い・未確認）">
+<meta property="og:description" content="資金の行き先・凍結・時系列をオンチェーンの記録だけで追跡。">
+<meta property="og:url" content="https://crypto-schedule.signalarchive.workers.dev/track.html">
+<meta name="twitter:card" content="summary">
+<style>
+:root{--bg:#050b17;--pan:#0b1628;--line:#1e3354;--tx:#e8f0fb;--mut:#8ea2bf;--g:#5ee9c8;--e:#f2c94c;--p:#a78bfa;--i:#8fd8ff;--r:#ff5c7a}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:radial-gradient(ellipse 1200px 700px at 50% 0,#10213e 0,var(--bg) 100%) no-repeat,var(--bg);color:var(--tx);font-family:"Zen Kaku Gothic New","Noto Sans JP",system-ui,sans-serif;line-height:1.6}
+a{color:var(--i)}
+.wrap{max-width:1080px;margin:0 auto;padding:16px 16px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.logo{font-weight:900;letter-spacing:.06em;text-decoration:none;color:var(--tx)}
+.logo small{color:var(--mut);font-weight:600;margin-left:8px;font-size:12px}
+.lang button{background:none;border:1px solid var(--line);color:var(--mut);padding:4px 12px;border-radius:999px;cursor:pointer;font:inherit;font-size:13px}
+.lang button.on{border-color:var(--i);color:var(--tx)}
+h1{font-size:clamp(22px,4.4vw,34px);line-height:1.3;margin:22px 0 6px}
+.sub{color:#7dd3fc;font-weight:700;margin:0}
+.asof{color:var(--mut);font-size:14px;margin:6px 0 0}
+.asof b{color:var(--r)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:22px 0}
+.st{background:var(--pan);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.st .l{color:var(--mut);font-size:13px;font-weight:700}
+.st .v{font-size:clamp(22px,3.4vw,30px);font-weight:900;line-height:1.2;margin-top:4px}
+.st.ice{background:linear-gradient(135deg,rgba(43,90,134,.55),rgba(22,49,79,.7));border-color:var(--i);box-shadow:0 0 18px rgba(143,216,255,.18)}
+h2{font-size:20px;margin:34px 0 10px}
+h2 small{color:var(--mut);font-size:13px;font-weight:600;margin-left:8px}
+.fig{background:var(--pan);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.fig canvas,.fig img{display:block;width:100%;height:auto}
+.tl{list-style:none;margin:0;padding:0;border-left:2px solid var(--line);margin-left:8px}
+.tl li{position:relative;padding:6px 0 14px 22px}
+.tl li::before{content:"";position:absolute;left:-7px;top:12px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:3px solid var(--c,var(--g))}
+.tl .t{font-weight:900;font-family:"Space Grotesk",monospace;color:var(--mut);margin-right:10px}
+.tl .x{font-weight:800}
+.tl .fz{color:var(--i)}
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl th{color:var(--mut);font-weight:700;font-size:12px}
+.tbl code{font-size:12px;word-break:break-all}
+.tag{display:inline-block;font-size:12px;font-weight:800;padding:1px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.tag.fz{border-color:var(--i);color:var(--i)}
+.tag.held{border-color:var(--e);color:var(--e)}
+.tag.ct{color:var(--mut)}
+.scroll{overflow-x:auto}
+.note{color:var(--mut);font-size:13px}
+.note li{margin:4px 0}
+footer{margin-top:36px;color:var(--mut);font-size:12px}
+@media (max-width:720px){.stats{grid-template-columns:repeat(2,1fr)}.tbl .hide{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <a class="logo" href="/">CSA<small>CRYPTO SIGNAL ARCHIVE</small></a>
+  <div class="lang"><button id="bja" class="on">日本語</button> <button id="ben">English</button></div>
+</header>
+
+<h1 id="h1"></h1>
+<p class="sub" id="sub"></p>
+<p class="asof" id="asof"></p>
+
+<div class="stats" id="stats"></div>
+
+<h2 id="h2a"></h2>
+<div class="fig" id="figFlow"></div>
+
+<h2 id="h2b"></h2>
+<ul class="tl" id="tl"></ul>
+
+<h2 id="h2c"></h2>
+<div class="fig" id="figCmp"></div>
+
+<h2 id="h2d"></h2>
+<div class="scroll"><table class="tbl" id="adr"></table></div>
+
+<h2 id="h2e"></h2>
+<ul class="note" id="notes"></ul>
+
+<footer id="foot"></footer>
+</div>
+
+<script type="module">
+// v228: 資金の追跡のページ。数字は xpost-lib.js の CHAINFLOW / CHAINCMP と、下の TRACK(アドレスと時系列)の1か所だけ。X の画像と同じ描き方(xpost-draw.js)で図を出す
+import { CHAINFLOW, CHAINCMP } from './xpost-lib.js';
+import { drawPost } from './xpost-draw.js';
+
+const ES = 'https://etherscan.io/address/';
+const TRACK = {
+  t0: '2026-10-29T20:24:23Z', asof: '2026-10-30T04:11:38Z', hrs: 7.8,
+  stats: { recv: ['約32億ドル', '~$3.2B'], frozen: ['21.7億ドル', '$2.17B'], frozenPct: 68, eth: ['約34万 ETH', '~340k ETH'] },
+  // 時系列(日本時間の 時:分)。c = 色
+  tl: [
+    ['5:24', '「Binance 14」などのウォレット（Etherscanの表示）から、最初の受取先へ約32億ドル分', 'About $3.2B moved from wallets labeled "Binance 14" etc. (Etherscan) to the first recipient', 'g'],
+    ['5:30', 'USDT 5億を次のアドレスへ', '500M USDT sent to the next address', 'g'],
+    ['5:33', 'USDT 2億を別のアドレスへ', '200M USDT sent to another address', 'g'],
+    ['5:38', 'ETH 19.5万を送金（10:14に2,000ETHを追加）', '195,460 ETH sent (2,000 ETH more at 01:14 UTC)', 'e'],
+    ['5:36〜5:48', 'USDT 3.25億をETHへ交換', '325M USDT swapped to ETH', 'e'],
+    ['6:01', 'USDT 1.9億が名前のないコントラクトへ', '190M USDT sent into unnamed contracts', 'g'],
+    ['6:08', 'USDT 1.75億が次の送り先に届く（その後、凍結を確認）', '175M USDT reached the next address (later confirmed frozen)', 'i'],
+    ['6:47', '交換したETH 12.2万が別のアドレスへ', '122,310 ETH from the swap sent to another address', 'e'],
+    ['7:41〜7:56', 'WBTC 167・USDe 971万を送金', '167 WBTC and 9.7M USDe sent', 'p'],
+    ['8:18', 'WBTC・USDeを交換したETH 5,700が別のアドレスへ', '5,700 ETH from WBTC/USDe swaps sent to another address', 'e'],
+    ['8〜11時', 'USDe・USDCをUniswapで小分けに交換（数百回）', 'USDe/USDC swapped in small pieces on Uniswap (hundreds of swaps)', 'p'],
+    ['11:54', '最初の受取先がDAI 約14万をETHへ交換', 'First recipient swapped ~137k DAI to ETH', 'p'],
+    ['13:11', '最後に確認：USDT・USDC 21.7億ドル分が凍結のまま', 'Last check: $2.17B in USDT/USDC still frozen', 'i'],
+  ],
+  adr: [
+    ['最初の受取先', 'First recipient', '0x5227f603c1ee34ce3c06efe6477003bdfccb2f8c', 'fz', 'USDT 11.75億・USDC 8.23億 凍結／ETH 1.73万', 'Frozen: 1,175M USDT + 823M USDC / 17,263 ETH'],
+    ['USDT 5億の送り先', '500M USDT recipient', '0x9749292d74fd460982d0912ea9515ea24736c762', 'fz', 'USDT残高0（凍結の対象）', 'USDT balance 0 (on freeze list)'],
+    ['USDT 1.75億の送り先', '175M USDT recipient', '0xaa246bf639586a6ba46762d378ce50ca4fc654a0', 'fz', 'USDT 1.75億 凍結', 'Frozen: 175M USDT'],
+    ['交換したETH 12.2万の送り先', '122k ETH (from swap) recipient', '0xc887af690e0301cd4edbbce8f8d31b4ec65b286a', 'held', '受け取り 122,310 ETH・出金の記録なし', 'Received 122,310 ETH, no outgoing transfer seen'],
+    ['ETH 19.7万の送り先', '197k ETH recipient', '0x8532fa14acaf483729c449b8458aeddb900543d4', 'held', '受け取り 197,460 ETH・出金の記録なし', 'Received 197,460 ETH, no outgoing transfer seen'],
+    ['USDT 2億の送り先', '200M USDT recipient', '0x0ddf0480016e6bcb2c1f5d190d221fba1320697e', 'fz', 'USDT残高0（凍結の対象）', 'USDT balance 0 (on freeze list)'],
+    ['コントラクト（名前なし）', 'Contract (unnamed)', '0xbeef02961503351625926ea9a11ae13b29f5c555', 'ct', 'USDT 1.45億を受け取り・以後は未追跡', 'Received 145M USDT, not traced further'],
+    ['コントラクト（名前なし）', 'Contract (unnamed)', '0x77edef23fbd05921c26fe29fcc3a65e14d2ac3eb', 'ct', 'USDT 1.3億・ETH 2.3万を受け取り・以後は未追跡', 'Received 130M USDT + 23k ETH, not traced further'],
+    ['WBTC・USDeの送り先', 'WBTC/USDe recipient', '0xb3ddec0ccc5c3ba733fcdf5a15f98c95ec5a5fdb', 'fz', 'USDC 3.3万 凍結', 'Frozen: 33k USDC'],
+    ['交換したETH 5,700の送り先', '5,700 ETH recipient', '0x79e70d139fc05aa75f75611fdf2680e9952b544a', 'held', '受け取り 5,700 ETH・出金の記録なし', 'Received 5,700 ETH, no outgoing transfer seen'],
+  ],
+};
+const TX = {
+  ja: {
+    title: '資金の追跡：Binanceの大量流出', sub: 'ハッキングの疑い・未確認（Binanceはハッキングと認めていません）',
+    asof: (t, h) => `最後に確認：<b>${t} 日本時間</b>（発生から${h}時間）`,
+    st: ['確認できた受け取り', '凍結されている', 'ETHのまま', '発生から'], hrs: (h) => `${h}時間`,
+    h2a: '資金の行き先と時系列', h2b: '時系列', h2bs: '日本時間', h2c: '過去最大のBybit（2025）との比較', h2cs: '発生からの経過時間をそろえて', h2d: 'アドレス', h2ds: 'Etherscanで確かめられます',
+    th: ['役割', 'アドレス', '状態'], tag: { fz: '凍結', held: '保有', ct: '未追跡' },
+    h2e: '読み方と注意',
+    notes: [
+      'Ethereum上で確認できた分だけです。ほかのチェーンや、追っていない種類のトークンは入っていません（報道の流出額20億〜59億ドルとの差の理由は確かめていません）。',
+      '凍結は、USDTとUSDCのコントラクトに直接問い合わせて確かめた状態です。凍結が始まった時刻は分かりません。',
+      '「出金の記録なし」は、追跡した範囲で出ていく送金が見つからなかったという意味です。今の残高そのものではありません。',
+      'アドレスの持ち主は書きません。Etherscanのラベルは、Etherscan側の表示です。',
+      '取引所への入金は、売却や換金の証拠ではありません。',
+      '事実の記録で、予測や売買の助言ではありません。',
+    ],
+    foot: '出典：Etherscan（オンチェーンの記録）・CSAの台帳（最初の受取先から2段目まで追跡）',
+  },
+  en: {
+    title: 'Tracking the funds: large outflow from Binance', sub: 'Suspected hack, unconfirmed (Binance has not confirmed a hack)',
+    asof: (t, h) => `Last checked: <b>${t} UTC</b> (${h}h after the first transfer)`,
+    st: ['Confirmed received', 'Frozen', 'Still in ETH', 'Hours since start'], hrs: (h) => `${h}h`,
+    h2a: 'Where the funds went, hour by hour', h2b: 'Timeline', h2bs: 'JST (UTC+9)', h2c: 'Compared with Bybit 2025, the largest on record', h2cs: 'Same hours since the first transfer', h2d: 'Addresses', h2ds: 'Check on Etherscan',
+    th: ['Role', 'Address', 'Status'], tag: { fz: 'Frozen', held: 'Held', ct: 'Not traced' },
+    h2e: 'How to read this',
+    notes: [
+      'Ethereum only, as confirmed on-chain. Other chains and untracked tokens are not included (we have not verified why reported totals of $2B–$5.9B differ).',
+      'Freezes were checked directly on the USDT and USDC contracts. When the freezes began is unknown.',
+      '"No outgoing transfer seen" means none was found within the traced range. It is not a live balance.',
+      'We do not name address owners. Etherscan labels are Etherscan\'s own.',
+      'An exchange deposit is not proof of a sale or cash-out.',
+      'A factual record. Not a forecast or trading advice.',
+    ],
+    foot: 'Sources: Etherscan (on-chain records) and the CSA ledger (traced two hops from the first recipient)',
+  },
+};
+let LG = (() => { try { return localStorage.getItem('csa-lang') === 'en' ? 'en' : 'ja'; } catch { return 'ja'; } })();
+const $ = (id) => document.getElementById(id);
+const hmJ = (iso) => { const d = new Date(Date.parse(iso) + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+const hmU = (iso) => { const d = new Date(iso); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+async function fig(el, post) { el.innerHTML = ''; const cv = await drawPost(post, LG); if (cv) el.appendChild(cv); }
+async function render() {
+  const T = TX[LG], en = LG === 'en', S = TRACK.stats;
+  document.documentElement.lang = LG; $('bja').classList.toggle('on', !en); $('ben').classList.toggle('on', en);
+  $('h1').textContent = T.title; $('sub').textContent = T.sub; $('asof').innerHTML = T.asof(en ? hmU(TRACK.asof) : hmJ(TRACK.asof), TRACK.hrs);
+  const v = [[T.st[0], en ? S.recv[1] : S.recv[0], ''], [T.st[1], (en ? S.frozen[1] : S.frozen[0]) + `<small style="font-size:.5em;color:var(--mut)"> (${S.frozenPct}%)</small>`, 'ice'], [T.st[2], en ? S.eth[1] : S.eth[0], ''], [T.st[3], T.hrs(TRACK.hrs), '']];
+  $('stats').innerHTML = v.map(([l, x, c], i) => `<div class="st ${c}"><div class="l">${c ? '🔒 ' : ''}${l}</div><div class="v" style="color:${['var(--tx)', 'var(--i)', 'var(--p)', 'var(--r)'][i]}">${x}</div></div>`).join('');
+  $('h2a').textContent = T.h2a; $('h2b').innerHTML = `${T.h2b}<small>${T.h2bs}</small>`; $('h2c').innerHTML = `${T.h2c}<small>${T.h2cs}</small>`; $('h2d').innerHTML = `${T.h2d}<small>${T.h2ds}</small>`; $('h2e').textContent = T.h2e;
+  $('tl').innerHTML = TRACK.tl.map(([t, ja, e2, c]) => `<li style="--c:var(--${c})"><span class="t">${t}</span><span class="x ${c === 'i' ? 'fz' : ''}">${en ? e2 : ja}</span></li>`).join('');
+  $('adr').innerHTML = `<tr><th>${T.th[0]}</th><th>${T.th[1]}</th><th>${T.th[2]}</th></tr>` + TRACK.adr.map(([rj, re, a, k, sj, se]) => `<tr><td>${en ? re : rj}</td><td><a href="${ES + a}" target="_blank" rel="noopener"><code>${a.slice(0, 10)}…${a.slice(-6)}</code></a></td><td><span class="tag ${k}">${k === 'fz' ? '🔒 ' : ''}${T.tag[k]}</span> ${en ? se : sj}</td></tr>`).join('');
+  $('notes').innerHTML = T.notes.map((n) => `<li>${n}</li>`).join(''); $('foot').textContent = T.foot;
+  await fig($('figFlow'), { sr: 'chainflow', img: { chainflow: CHAINFLOW }, ja: '', en: '' });
+  await fig($('figCmp'), { sr: 'chaincmp', img: { chaincmp: CHAINCMP }, ja: '', en: '' });
+}
+for (const [id, lg] of [['bja', 'ja'], ['ben', 'en']]) $(id).onclick = () => { LG = lg; try { localStorage.setItem('csa-lang', lg); } catch {} render(); };
+render();
+</script>
+</body>
+</html>
