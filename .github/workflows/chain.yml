@@ -1,6 +1,7 @@
 name: Chain ledger
 # v222: 資金の台帳を作る。結果は成果物 x_out(chain-<事案>.json / .md / track-<事案>.json)
 # v232: そのあと、ほかの EVM チェーン(Arbitrum・Avalanche・BNB・Base・Optimism・Polygon)も、Ethereum で見つけた起点から探す
+# v233: Bitcoin も mempool.space(キー不要)で探す
 # v230: 1時間おきに自動で binance2026 を回し、/track.html のまとめ(/api/track)を新しくする。
 #        /posts.html の下書きは、手で動かして draft を 1 にした時だけ置く
 on:
@@ -53,6 +54,12 @@ jobs:
           done
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+      - name: Bitcoin
+        if: always()
+        run: node tools/chain-btc.mjs --case "${{ github.event.inputs.case || 'binance2026' }}" || echo "Bitcoin は失敗"
+        env:
           RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
           SITE_URL: ${{ secrets.SITE_URL }}
       - name: Save
