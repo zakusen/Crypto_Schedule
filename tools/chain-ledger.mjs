@@ -21,6 +21,8 @@ const KEY2 = CASE + (CH === C0.chainid ? '' : 'c' + CH);   // サイトに置く
 // トークン: Ethereum は TOKENS。ほかのチェーンは USDT・USDC。どちらも「起点に資金を送った相手から受け取ったトークン」を自動で足す(偽トークン・スパムは起点に送ってくる相手が違う)
 const TK = CH === 1 ? { ...TOKENS } : Object.fromEntries((STABLES[CH] || []).map((a, i) => a && [a, [i ? 'USDC' : 'USDT', 10000]]).filter(Boolean));
 const SRC = new Set(), DYNBIG = {};
+// v234: 自動で足したトークンのうち、先までたどるのは大口になりやすいもの(ステーブル・金・ステーキングETH)だけ。ほかは「最初の受取先から出た送金」を記録するだけで追わない(全部たどると数千アドレスに広がるため)
+const FOLLOW = /^(RLUSD|USD1|USDS|PYUSD|wBETH|PAXG|XAUt|WLFI)$/;
 const H = 3600000, t0 = C.t0, t1 = Math.min(Date.now(), t0 + HOURS * H), lc = (a) => String(a || '').toLowerCase();
 const sb = await blockAt(C.chainid, Math.floor(t0 / 1000) - 600, 'before'), eb = await blockAt(C.chainid, Math.floor(t1 / 1000), 'before');
 console.log(`[chain] ${CASE} 発生 ${new Date(t0).toISOString()} 〜 ${new Date(t1).toISOString()} / ブロック ${sb}〜${eb}`);
@@ -45,7 +47,7 @@ async function moves(a) {   // a に出入りした送金(発生〜終わりの�
     for (const x of [...n, ...i]) if (lc(x.to) === lc(a) && x.value !== '0' && amt(x.value, 18) >= MIN(NAT)) SRC.add(lc(x.from));
     for (const x of t) if (lc(x.to) === lc(a) && TK[lc(x.contractAddress)]) SRC.add(lc(x.from));
     const got = new Map(); for (const x of t) if (lc(x.to) === lc(a) && SRC.has(lc(x.from)) && !TK[lc(x.contractAddress)] && x.tokenSymbol && /^[A-Za-z0-9.$-]{1,12}$/.test(x.tokenSymbol)) { const k = lc(x.contractAddress); got.set(k, [x.tokenSymbol, (got.get(k) || [0, 0])[1] + amt(x.value, +x.tokenDecimal)]); }
-    for (const [k, [sym, v]] of got) { const s3 = Object.values(TK).some((q) => q[0] === sym) ? sym + '*' : sym; TK[k] = [s3, v / 100]; DYNBIG[s3] = v / 20; console.log('[chain] 出どころから受け取ったトークンを追加:', sym, k); }
+    for (const [k, [sym, v]] of got) { const s3 = Object.values(TK).some((q) => q[0] === sym) ? sym + '*' : sym; TK[k] = [s3, FOLLOW.test(sym) ? v / 20 : Infinity]; DYNBIG[s3] = v / 20; console.log('[chain] 出どころから受け取ったトークンを追加:', sym, k); }
   }
   for (const x of t) { const tk = TK[lc(x.contractAddress)]; if (!tk) continue; const s = tk[0]; out.push({ t: +x.timeStamp * 1000, hash: x.hash, from: lc(x.from), to: lc(x.to), asset: s, amt: amt(x.value, +x.tokenDecimal), id: x.hash + ':t:' + (x.logIndex || x.from + x.to + x.value) }); }
   return out.filter((m) => m.t >= t0 - 600000 && m.t <= t1);
