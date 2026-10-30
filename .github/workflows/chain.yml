@@ -15,11 +15,11 @@ on:
         default: '5'
       max:
         description: '調べるアドレスの上限'
-        default: '250'
+        default: '500'
 jobs:
   ledger:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
