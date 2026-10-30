@@ -54,6 +54,8 @@ h2 small{color:var(--mut);font-size:13px;font-weight:600;margin-left:8px}
 .scroll{overflow-x:auto}
 .note{color:var(--mut);font-size:13px}
 .note li{margin:4px 0}
+.tree{overflow-x:auto;padding:12px}.tree svg{display:block}.tree text{font-family:inherit}
+.tlg{display:flex;gap:14px;flex-wrap:wrap;color:var(--mut);font-size:12px;margin:8px 2px 0}.tlg i{display:inline-block;width:18px;height:4px;border-radius:2px;vertical-align:middle;margin-right:5px}
 footer{margin-top:36px;color:var(--mut);font-size:12px}
 @media (max-width:720px){.stats{grid-template-columns:repeat(2,1fr)}.tbl .hide{display:none}}
 </style>
@@ -73,6 +75,7 @@ footer{margin-top:36px;color:var(--mut);font-size:12px}
 
 <h2 id="h2a"></h2>
 <div class="fig" id="figFlow"></div>
+<p class="note" id="flowNote"></p>
 
 <h2 id="h2b"></h2>
 <ul class="tl" id="tl"></ul>
@@ -132,7 +135,7 @@ const TX = {
     title: '資金の追跡：Binanceの大量流出', sub: 'ハッキングの疑い・未確認（Binanceはハッキングと認めていません）',
     asof: (t, h) => `最後に確認：<b>${t} 日本時間</b>（発生から${h}時間）`,
     st: ['確認できた受け取り', '凍結されている', 'ETHのまま', '発生から'], hrs: (h) => `${h}時間`,
-    h2a: '資金の行き先と時系列', h2b: '時系列', h2bs: '日本時間', h2c: '過去最大のBybit（2025）との比較', h2cs: '発生からの経過時間をそろえて', h2d: 'アドレス', h2ds: 'Etherscanで確かめられます',
+    h2a: '資金の行き先と時系列', h2b: '時系列', h2bs: '日本時間・1時間おきに自動で更新', h2c: '過去最大のBybit（2025）との比較', h2cs: '発生からの経過時間をそろえて', h2d: 'アドレス', h2ds: 'Etherscanで確かめられます',
     th: ['役割', 'アドレス', '状態'], tag: { fz: '凍結', held: '保有', ct: '未追跡' },
     h2e: '読み方と注意',
     notes: [
@@ -149,7 +152,7 @@ const TX = {
     title: 'Tracking the funds: large outflow from Binance', sub: 'Suspected hack, unconfirmed (Binance has not confirmed a hack)',
     asof: (t, h) => `Last checked: <b>${t} UTC</b> (${h}h after the first transfer)`,
     st: ['Confirmed received', 'Frozen', 'Still in ETH', 'Hours since start'], hrs: (h) => `${h}h`,
-    h2a: 'Where the funds went, hour by hour', h2b: 'Timeline', h2bs: 'JST (UTC+9)', h2c: 'Compared with Bybit 2025, the largest on record', h2cs: 'Same hours since the first transfer', h2d: 'Addresses', h2ds: 'Check on Etherscan',
+    h2a: 'Where the funds went, hour by hour', h2b: 'Timeline', h2bs: 'UTC · updated hourly', h2c: 'Compared with Bybit 2025, the largest on record', h2cs: 'Same hours since the first transfer', h2d: 'Addresses', h2ds: 'Check on Etherscan',
     th: ['Role', 'Address', 'Status'], tag: { fz: 'Frozen', held: 'Held', ct: 'Not traced' },
     h2e: 'How to read this',
     notes: [
@@ -168,6 +171,92 @@ const $ = (id) => document.getElementById(id);
 const hmJ = (iso) => { const d = new Date(Date.parse(iso) + 9 * 36e5); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
 const hmU = (iso) => { const d = new Date(iso); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
 async function fig(el, post) { el.innerHTML = ''; const cv = await drawPost(post, LG); if (cv) el.appendChild(cv); }
+// v230: chain.yml(1時間おき)が置いたまとめ(/api/track)で、数字・時系列・アドレスの状態・比較の棒を自動で新しくする。無ければ上の TRACK のまま
+let LIVE = null;
+try { const j = await (await fetch('/api/track?case=binance2026', { cache: 'no-store' })).json(); if (j && j.asof && Array.isArray(j.events)) LIVE = j; } catch (_) {}
+const jaN = (v) => v >= 1e8 ? (+(v / 1e8).toFixed(2)) + '億' : v >= 1e4 ? (+(v / 1e4).toFixed(v >= 1e6 ? 0 : 1)) + '万' : Math.round(v).toLocaleString('en-US');
+const enN = (v) => v >= 1e9 ? (+(v / 1e9).toFixed(2)) + 'B' : v >= 1e6 ? (+(v / 1e6).toFixed(1)) + 'M' : v >= 1e4 ? (+(v / 1e3).toFixed(0)) + 'k' : Math.round(v).toLocaleString('en-US');
+const N = (v) => LG === 'en' ? enN(v) : jaN(v);
+const ROLE = new Map(TRACK.adr.map(([rj, re, a]) => [a, [rj, re]]));
+const nm = (a) => { const r = ROLE.get(a); return r ? (LG === 'en' ? r[1] : r[0]) : `<a href="${ES + a}" target="_blank" rel="noopener"><code>${a.slice(0, 6)}…${a.slice(-4)}</code></a>`; };
+const hmT = (t) => { const d = new Date(t + (LG === 'en' ? 0 : 9 * 36e5)); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+function liveApply() {
+  if (!LIVE) return;
+  const st = LIVE.status || [], fz = st.reduce((s, r) => s + (r.USDTFrozen ? r.USDT || 0 : 0) + (r.USDCFrozen ? r.USDC || 0 : 0), 0), eth = st.reduce((s, r) => s + (r.ETH || 0), 0);
+  TRACK.asof = new Date(LIVE.asof).toISOString(); TRACK.hrs = Math.round((LIVE.asof - LIVE.t0) / 36e5 * 10) / 10;
+  TRACK.stats.frozen = [jaN(fz) + 'ドル', '$' + enN(fz)]; TRACK.stats.frozenPct = Math.round(fz / 3.2e9 * 100); TRACK.stats.eth = ['約' + jaN(eth) + ' ETH', '~' + enN(eth) + ' ETH'];
+  CHAINCMP.cur.bars = LIVE.hourly.slice(0, 12).map((b) => b.newAddr); CHAINCMP.cur.end = Math.min(12, TRACK.hrs);
+  { const d = new Date(LIVE.asof + 9 * 36e5); CHAINCMP.nowJa = `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')} JST`; const u = new Date(LIVE.asof); CHAINCMP.nowEn = `${String(u.getUTCHours()).padStart(2, '0')}:${String(u.getUTCMinutes()).padStart(2, '0')} UTC`; }
+  CHAINCMP.stat = [['凍結 ' + jaN(fz) + 'ドル', 'Frozen $' + enN(fz), 'fz'], ['ETHのまま 約' + jaN(eth), 'Still in ETH ~' + enN(eth), 'eth']];
+  const by = new Map(st.map((r) => [r.a, r]));
+  TRACK.adr = TRACK.adr.map((row) => { const r = by.get(row[2]); if (!r) return row; const fj = [], fe = []; let k = row[3];
+    for (const c of ['USDT', 'USDC']) if (r[c] != null) { if (r[c + 'Frozen'] && r[c] > 0) { fj.push(`${c} ${jaN(r[c])} 凍結`); fe.push(`Frozen ${enN(r[c])} ${c}`); k = 'fz'; } else if (r[c + 'Frozen']) { fj.push(`${c}残高0（凍結の対象）`); fe.push(`${c} balance 0 (on freeze list)`); k = 'fz'; } else if (r[c] > 0) { fj.push(`${c} ${jaN(r[c])}`); fe.push(`${enN(r[c])} ${c}`); } }
+    if (r.ETH != null) { fj.push(`ETH ${jaN(r.ETH)}`); fe.push(`${enN(r.ETH)} ETH`); if (k !== 'fz') k = r.ETH >= 1 ? 'held' : k; }
+    return [row[0], row[1], row[2], k, fj.join('／') || row[4], fe.join(' / ') || row[5]]; });
+}
+function liveTimeline() {
+  const en = LG === 'en', out = [[hmT(LIVE.t0), en ? 'About $3.2B moved from wallets labeled "Binance 14" etc. (Etherscan) to the first recipient' : '「Binance 14」などのウォレット（Etherscanの表示）から、最初の受取先へ約32億ドル分', 'g']];
+  for (const e of LIVE.events) {
+    if (e.kind === 'move') out.push([hmT(e.t), `${nm(e.from)} → ${nm(e.to)}：${N(e.amt)} ${e.asset}${e.n > 1 ? (en ? ` (${e.n} transfers)` : `（${e.n}回）`) : ''}`, e.asset === 'ETH' || e.asset === 'WETH' ? 'e' : /USD|DAI/.test(e.asset) ? 'g' : 'p']);
+    else { const net = (o, p2) => Object.entries(o).filter(([a, v]) => v - (p2[a] || 0) > 0.0001 * v).map(([a, v]) => `${N(v - (p2[a] || 0))} ${a}`).join(en ? ' + ' : '・');
+      out.push([hmT(e.t), `${nm(e.a)}${en ? ' swapped ' : 'が交換'}${en ? '' : '：'}${net(e.in, e.out)} → ${net(e.out, e.in)}${en ? ` (${e.n} swaps)` : `（${e.n}回）`}`, 'p']); }
+  }
+  out.push([hmT(LIVE.asof), en ? `Last check: ${TRACK.stats.frozen[1]} in USDT/USDC frozen` : `最後に確認：USDT・USDC ${TRACK.stats.frozen[0]}分が凍結`, 'i']);
+  return out;
+}
+
+// v231: 行き先の図を、台帳のつながり(edges)から動的に描く。列 = 最初の受取先から何段目か。線の太さ = 量の目安。手で直す所は無い
+const PXV = { ETH: 2315, WETH: 2315, stETH: 2315, wstETH: 2315, mETH: 2315, cmETH: 2315, rETH: 2315, WBTC: 70000, cbBTC: 70000 };   // 線の太さを決めるためだけの目安
+const usdOf = (k, v) => v * (PXV[k] || (/USD|DAI/.test(k) ? 1 : 0));
+const colOf = (k) => /USD|DAI/.test(k) ? '#5ee9c8' : PXV[k] && PXV[k] < 10000 ? '#f2c94c' : '#a78bfa';
+function treeSvg() {
+  const en = LG === 'en', L2 = LIVE, st = new Map((L2.status || []).map((r) => [r.a, r])), nd = new Map(L2.nodes.map((n) => [n.a, n]));
+  // 送り元・送り先ごとにまとめる。DEX の小さな交換先(コントラクトで2,000万ドル未満)は線にせず、送り元の「交換」にまとめる
+  const pair = new Map();
+  for (const e of L2.edges) { const k = e.f + '|' + e.to; const o = pair.get(k) || { f: e.f, to: e.to, a: {}, v: 0, t: e.t }; o.a[e.asset] = (o.a[e.asset] || 0) + e.amt; o.v += usdOf(e.asset, e.amt); o.t = Math.min(o.t, e.t); pair.set(k, o); }
+  const ed = [...pair.values()].filter((o) => !(nd.get(o.to) && nd.get(o.to).c && o.v < 2e7));
+  const kids = new Map(); for (const o of ed) { if (!kids.has(o.f)) kids.set(o.f, []); kids.get(o.f).push(o); }
+  const depth = new Map([[L2.root, 0]]), order = [], seen = new Set();
+  const walk = (a, d) => { if (seen.has(a)) return; seen.add(a); depth.set(a, d); order.push(a); for (const o of (kids.get(a) || []).sort((x, y) => y.v - x.v)) walk(o.to, d + 1); };
+  walk(L2.root, 0);
+  const inE = new Map(); for (const o of ed) if (!inE.has(o.to) || depth.get(o.f) < depth.get(inE.get(o.to).f)) inE.set(o.to, o);
+  const CW = 222, GAP = 42, CH = 96, VG = 14, maxD = Math.max(...depth.values());
+  // 縦の位置: 葉を順に積み、親は子の中央
+  const Y = new Map(); let row = 0;
+  const place = (a) => { const ks = (kids.get(a) || []).filter((o) => inE.get(o.to) === o).map((o) => o.to); if (!ks.length) { Y.set(a, row++ * (CH + VG)); return; } ks.forEach(place); Y.set(a, (Y.get(ks[0]) + Y.get(ks[ks.length - 1])) / 2); };
+  place(L2.root);
+  const W2 = (maxD + 1) * CW + maxD * GAP + 4, H3 = row * (CH + VG) + 4, X = (a) => depth.get(a) * (CW + GAP) + 2;
+  const maxV = Math.max(...ed.map((o) => o.v), 1), esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  let o = `<svg width="${W2}" height="${H3}" viewBox="0 0 ${W2} ${H3}" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="icg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b5a86"/><stop offset="1" stop-color="#16314f"/></linearGradient><filter id="glw"><feGaussianBlur stdDeviation="4"/></filter></defs>`;
+  for (const e of ed) { if (!Y.has(e.f) || !Y.has(e.to)) continue; const x1 = X(e.f) + CW, y1 = Y.get(e.f) + CH / 2, x2 = X(e.to), y2 = Y.get(e.to) + CH / 2, mx = (x1 + x2) / 2, top = Object.entries(e.a).sort((a, b) => usdOf(b[0], b[1]) - usdOf(a[0], a[1]))[0][0], c = colOf(top), w = 2 + 12 * Math.sqrt(e.v / maxV), d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+    const lab = Object.entries(e.a).map(([k, v]) => `${N(v)} ${k}`).join(' + ');
+    o += `<path d="${d}" stroke="${c}" stroke-width="${w + 6}" fill="none" opacity=".25" filter="url(#glw)"/><path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" stroke-linecap="round"><title>${esc(lab)} · ${hmT(e.t)}</title></path>`; }
+  for (const a of order) { if (!Y.has(a)) continue; const n = nd.get(a) || { c: false, st: '' }, r = st.get(a), x = X(a), y = Y.get(a), ie = inE.get(a);
+    const fz = r && ((r.USDTFrozen && r.USDT > 0) || (r.USDCFrozen && r.USDC > 0)), held = r && r.ETH >= 1 && !fz;
+    const name = a === L2.root ? (en ? 'First recipient' : '最初の受取先') : ROLE.get(a) ? (en ? ROLE.get(a)[1] : ROLE.get(a)[0]) : (n.c ? (en ? 'Contract ' : 'コントラクト ') : '') + a.slice(0, 6) + '…' + a.slice(-4);
+    const got = ie ? Object.entries(ie.a).sort((p, q) => usdOf(q[0], q[1]) - usdOf(p[0], p[1])).slice(0, 2).map(([k, v]) => `${N(v)} ${k}`).join(' + ') : (en ? '~$3.2B received' : '約32億ドル分を受け取り');
+    let stt = '', sc = '#9fb0c8';
+    if (fz) { stt = '🔒 ' + ['USDT', 'USDC'].filter((k) => r[k + 'Frozen'] && r[k] > 0).map((k) => `${k} ${N(r[k])}`).join(' + '); sc = '#bfe9ff'; }
+    else if (held) { stt = `ETH ${N(r.ETH)} ${en ? 'held' : '保有'}`; sc = '#f2c94c'; }
+    else if (n.c) stt = en ? 'Contract · not traced further' : 'コントラクト・以後未追跡';
+    else if (n.st === 'held') { stt = en ? 'No outgoing transfer seen' : '出金の記録なし'; sc = '#f2c94c'; }
+    else if (n.st === 'moved') stt = en ? 'Sent onward' : '先へ送金済み';
+    else if (n.st === 'untracked') stt = en ? 'Not traced further' : '以後は未追跡';
+    const st2 = r && r.ETH >= 1 && fz ? `ETH ${N(r.ETH)}` : '';
+    const sw = n.sw && n.sw.n ? (() => { const net = (p, q) => Object.entries(p).filter(([k, v]) => v - (q[k] || 0) > 1e-4 * v).sort((u, w) => usdOf(w[0], w[1] - (q[w[0]] || 0)) - usdOf(u[0], u[1] - (q[u[0]] || 0)))[0]; const i = net(n.sw.in, n.sw.out), q2 = net(n.sw.out, n.sw.in); return i && q2 ? `⇄ ${N(i[1] - (n.sw.out[i[0]] || 0))} ${i[0]} → ${N(q2[1] - (n.sw.in[q2[0]] || 0))} ${q2[0]}` : ''; })() : '';
+    const fill = fz ? 'url(#icg)' : '#0c1729', bc = fz ? '#8fd8ff' : held || n.st === 'held' ? '#f2c94c' : a === L2.root ? '#ff9aac' : n.c ? '#3b4d6b' : '#2a4466';
+    o += `<a href="${ES + a}" target="_blank" rel="noopener"><rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="10" fill="${fill}" stroke="${bc}" stroke-width="${fz || held ? 2 : 1.3}" ${n.c ? 'stroke-dasharray="5 4"' : ''}/>`;
+    if (fz) o += `<rect x="${x + CW - 78}" y="${y - 9}" width="72" height="18" rx="9" fill="#0d3a5c" stroke="#8fd8ff"/><text x="${x + CW - 42}" y="${y + 4}" font-size="11" font-weight="900" fill="#e6f7ff" text-anchor="middle">❄ FROZEN</text>`;
+    o += `<text x="${x + 12}" y="${y + 22}" font-size="13" font-weight="800" fill="#e8f0fb">${esc(name)}</text>`;
+    if (ie) o += `<text x="${x + CW - 10}" y="${y + 68}" font-size="12" font-weight="700" fill="#8ea2bf" text-anchor="end">${fz ? '' : hmT(ie.t)}</text>`;
+    o += `<text x="${x + 12}" y="${y + 46}" font-size="16" font-weight="900" fill="${ie ? colOf(Object.keys(ie.a)[0]) : '#fff'}">${esc(got)}</text>`;
+    o += `<text x="${x + 12}" y="${y + 68}" font-size="12.5" font-weight="800" fill="${sc}">${esc(stt)}</text>`;
+    if (st2) o += `<text x="${x + CW - 10}" y="${y + 87}" font-size="12" font-weight="800" fill="#c9b8ff" text-anchor="end">${esc(st2)}</text>`;
+    if (sw) o += `<text x="${x + 12}" y="${y + 87}" font-size="12" font-weight="700" fill="#c9b8ff">${esc(sw)}</text>`;
+    o += '</a>'; }
+  return o + '</svg>';
+}
+liveApply();
 async function render() {
   const T = TX[LG], en = LG === 'en', S = TRACK.stats;
   document.documentElement.lang = LG; $('bja').classList.toggle('on', !en); $('ben').classList.toggle('on', en);
@@ -175,10 +264,14 @@ async function render() {
   const v = [[T.st[0], en ? S.recv[1] : S.recv[0], ''], [T.st[1], (en ? S.frozen[1] : S.frozen[0]) + `<small style="font-size:.5em;color:var(--mut)"> (${S.frozenPct}%)</small>`, 'ice'], [T.st[2], en ? S.eth[1] : S.eth[0], ''], [T.st[3], T.hrs(TRACK.hrs), '']];
   $('stats').innerHTML = v.map(([l, x, c], i) => `<div class="st ${c}"><div class="l">${c ? '🔒 ' : ''}${l}</div><div class="v" style="color:${['var(--tx)', 'var(--i)', 'var(--p)', 'var(--r)'][i]}">${x}</div></div>`).join('');
   $('h2a').textContent = T.h2a; $('h2b').innerHTML = `${T.h2b}<small>${T.h2bs}</small>`; $('h2c').innerHTML = `${T.h2c}<small>${T.h2cs}</small>`; $('h2d').innerHTML = `${T.h2d}<small>${T.h2ds}</small>`; $('h2e').textContent = T.h2e;
-  $('tl').innerHTML = TRACK.tl.map(([t, ja, e2, c]) => `<li style="--c:var(--${c})"><span class="t">${t}</span><span class="x ${c === 'i' ? 'fz' : ''}">${en ? e2 : ja}</span></li>`).join('');
+  const TLR = LIVE ? liveTimeline() : TRACK.tl.map(([t, ja, e2, c]) => [t, en ? e2 : ja, c]);
+  $('tl').innerHTML = TLR.map(([t, x, c]) => `<li style="--c:var(--${c})"><span class="t">${t}</span><span class="x ${c === 'i' ? 'fz' : ''}">${x}</span></li>`).join('');
   $('adr').innerHTML = `<tr><th>${T.th[0]}</th><th>${T.th[1]}</th><th>${T.th[2]}</th></tr>` + TRACK.adr.map(([rj, re, a, k, sj, se]) => `<tr><td>${en ? re : rj}</td><td><a href="${ES + a}" target="_blank" rel="noopener"><code>${a.slice(0, 10)}…${a.slice(-6)}</code></a></td><td><span class="tag ${k}">${k === 'fz' ? '🔒 ' : ''}${T.tag[k]}</span> ${en ? se : sj}</td></tr>`).join('');
   $('notes').innerHTML = T.notes.map((n) => `<li>${n}</li>`).join(''); $('foot').textContent = T.foot;
-  await fig($('figFlow'), { sr: 'chainflow', img: { chainflow: CHAINFLOW }, ja: '', en: '' });
+  if (LIVE && LIVE.edges && LIVE.nodes) {
+    $('figFlow').innerHTML = `<div class="tree">${treeSvg()}</div>`;
+    $('flowNote').innerHTML = `<span class="tlg"><span><i style="background:#5ee9c8"></i>${en ? 'Stablecoins' : 'ステーブルコイン'}</span><span><i style="background:#f2c94c"></i>ETH</span><span><i style="background:#a78bfa"></i>${en ? 'Other (WBTC etc.)' : 'その他（WBTCなど）'}</span><span>${en ? 'Line width = size (rough). ⇄ = swaps at that address. Tap a box for Etherscan.' : '線の太さ＝量の目安。⇄＝そのアドレスでの交換。箱を押すとEtherscanが開きます。'}</span></span>`;
+  } else await fig($('figFlow'), { sr: 'chainflow', img: { chainflow: CHAINFLOW }, ja: '', en: '' });
   await fig($('figCmp'), { sr: 'chaincmp', img: { chaincmp: CHAINCMP }, ja: '', en: '' });
 }
 for (const [id, lg] of [['bja', 'ja'], ['ben', 'en']]) $(id).onclick = () => { LG = lg; try { localStorage.setItem('csa-lang', lg); } catch {} render(); };

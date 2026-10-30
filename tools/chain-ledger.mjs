@@ -10,7 +10,7 @@ import { CASES, TOKENS, ETH_MIN, GAS_MAX } from './chain/cases.mjs';
 import { blockAt, txlist, txinternal, tokentx, isContract, callCount, contractName, tokenBalance, ethBalance, isFrozen } from './chain/etherscan.mjs';
 
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
-const CASE = arg('case', 'bybit2025'), HOURS = +arg('hours', 24), DEPTH = +arg('depth', 5), MAX = +arg('max', 500);
+const CASE = arg('case', 'bybit2025'), HOURS = +arg('hours', 24), DEPTH = +arg('depth', 5), MAX = +arg('max', 500), DRAFT = arg('draft', '0') === '1';   // v230: draft = /posts.html に下書きを置く(手で動かした時だけ)
 const C = CASES[CASE]; if (!C) { console.log('[chain] 事案が無い:', CASE); process.exit(1); }
 const H = 3600000, t0 = C.t0, t1 = Math.min(Date.now(), t0 + HOURS * H), lc = (a) => String(a || '').toLowerCase();
 const sb = await blockAt(C.chainid, Math.floor(t0 / 1000) - 600, 'before'), eb = await blockAt(C.chainid, Math.floor(t1 / 1000), 'before');
@@ -76,6 +76,10 @@ for (const A of [...addrs.values()].filter((x) => !x.contract && (x.depth === 0 
   if (A.depth === 0) { const b = await ethBalance(C.chainid, A.a); row.ETH = b == null ? null : amt(b, 18); }
   status.push(row);
 }
+// v230: ETH を受け取って出していないアドレス(保有)の、今の ETH 残高
+for (const A of [...addrs.values()].filter((x) => x.depth > 0 && !x.contract && x.done && !Object.keys(x.outflow).length && (x.inflow.ETH || 0) >= 1000).slice(0, 20)) {
+  const b = await ethBalance(C.chainid, A.a); let row = status.find((r) => r.a === A.a); if (!row) { row = { a: A.a, depth: A.depth, at: now }; status.push(row); } row.ETH = b == null ? null : amt(b, 18);
+}
 
 // 葉(これ以上たどっていない所)の状態
 const leaves = [...addrs.values()].filter((A) => A.depth > 0 && (A.contract || !A.done || A.depth === DEPTH || !Object.keys(A.outflow).length)).map((A) => ({
@@ -97,8 +101,37 @@ const md = [`# ${C.ja}：発生から${HOURS}時間の台帳(第1段)`, '', `- �
   '', `## 今時点の残高と凍結(${new Date(now).toISOString()})`, ...status.map((r) => `- ${r.a}${r.depth === 0 ? '(最初の受取先)' : ''}: ${['ETH', 'USDT', 'USDC'].filter((k) => r[k] != null).map((k) => `${k} ${f(r[k])}${r[k + 'Frozen'] === true ? '(凍結中)' : r[k + 'Frozen'] === false ? '' : ''}`).join(' / ')}`),
   '', `## ガス代の補充(0.01〜${GAS_MAX} ETH・追跡はしない): ${gas.length}件`].join('\n');
 fs.writeFileSync(path.join(dir, `chain-${CASE}.md`), md + '\n');
-// v223: /posts.html に手動投稿の下書きを置く(自動投稿しない)。RX_ADMIN_KEY がある時だけ
+// v230: サイトの /track.html 用のまとめ(1時間ごとの集計・大きな動き・今の残高と凍結)を置く。RX_ADMIN_KEY がある時だけ
+const BIG = { ETH: 1000, WETH: 1000, stETH: 1000, wstETH: 1000, mETH: 1000, cmETH: 1000, rETH: 1000, USDT: 5e6, USDC: 5e6, DAI: 5e6, USDe: 5e6, FDUSD: 5e6, WBTC: 50, cbBTC: 50 };
+const tracked = (a) => addrs.has(a) && !addrs.get(a).contract;
+const mv = new Map(), sw2 = new Map();
+for (const e of events) {
+  const hb = Math.floor((e.t - t0) / H);
+  if (e.kind === 'swap') { const k = hb + '|' + e.from; const o = sw2.get(k) || { t: e.t, kind: 'swap', a: e.from, n: 0, in: {}, out: {} }; o.n++; for (const [a, v] of e.in) o.in[a] = (o.in[a] || 0) + v; for (const [a, v] of e.out) o.out[a] = (o.out[a] || 0) + v; sw2.set(k, o); continue; }
+  if (!tracked(e.from) || e.from === e.to || !BIG[e.asset]) continue;
+  const k = hb + '|' + e.from + '|' + e.to + '|' + e.asset; const o = mv.get(k) || { t: e.t, kind: 'move', from: e.from, to: e.to, asset: e.asset, amt: 0, n: 0 }; o.amt += e.amt; o.n++; mv.set(k, o);
+}
+const bigEv = [...[...mv.values()].filter((o) => o.amt >= BIG[o.asset]), ...[...sw2.values()].filter((o) => Object.entries(o.in).some(([a, v]) => BIG[a] && v >= BIG[a] / 5) || o.n >= 20)].sort((x, y) => x.t - y.t).slice(-80);
+// v231: サイトの動的な図のための送金のつながり(追跡しているアドレスから出た分を、送り元・送り先・資産ごとに合計)と、アドレスごとの交換の合計
+const eg = new Map(), swn = new Map();
+for (const e of events) {
+  if (e.kind === 'swap') { const o = swn.get(e.from) || { n: 0, in: {}, out: {}, t: e.t }; o.n++; for (const [k, v] of e.in) o.in[k] = (o.in[k] || 0) + v; for (const [k, v] of e.out) o.out[k] = (o.out[k] || 0) + v; swn.set(e.from, o); continue; }
+  if (!tracked(e.from) || e.from === e.to || !BIG[e.asset] || e.amt < BIG[e.asset] / 50) continue;
+  const k = e.from + '|' + e.to + '|' + e.asset; const o = eg.get(k) || { f: e.from, to: e.to, asset: e.asset, amt: 0, n: 0, t: e.t }; o.amt += e.amt; o.n++; eg.set(k, o);
+}
+const edges = [...eg.values()].filter((o) => o.amt >= BIG[o.asset] / 5).sort((x, y) => x.t - y.t).slice(0, 200);
+const leafSt = new Map(leaves.map((l) => [l.a, l.status]));
+const nodes = [...new Set(edges.flatMap((o) => [o.f, o.to]).concat([C.root]))].map((a) => { const A = addrs.get(a); return { a, c: !!(A && A.contract), st: a === C.root ? 'root' : leafSt.get(a) || (A && A.done ? 'moved' : 'untracked'), sw: swn.get(a) || null }; });
+const track = { v: 2, case: CASE, t0, t1, asof: now, root: C.root, nodes, edges, hourly: hourly.map(({ h, newAddr, sends, swaps }) => ({ h, newAddr, sends, swaps })), events: bigEv, status, held: leaves.filter((l) => l.status === 'held').map((l) => ({ a: l.a, got: l.inflow })) };
 if (process.env.RX_ADMIN_KEY) {
+  const SITE0 = (process.env.SITE_URL || 'https://crypto-schedule.signalarchive.workers.dev').replace(/\/+$/, '');
+  const r = await fetch(SITE0 + '/api/admin/track', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin-key': process.env.RX_ADMIN_KEY }, body: JSON.stringify(track) });
+  console.log('[chain] /track.html 用のまとめを置きました', r.status, '大きな動き', bigEv.length, '件');
+}
+fs.writeFileSync(path.join(dir, `track-${CASE}.json`), JSON.stringify(track));
+
+// v223: /posts.html に手動投稿の下書きを置く(自動投稿しない)。RX_ADMIN_KEY があって --draft 1 の時だけ(v230)
+if (process.env.RX_ADMIN_KEY && DRAFT) {
   const L = await import('data:text/javascript;base64,' + Buffer.from(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'public', 'xpost-lib.js'))).toString('base64'));
   const sw = events.filter((e) => e.kind === 'swap').sort((x, y) => x.t - y.t)[0];
   const im = { case: CASE, ja: C.ja, en: C.en, confirmed: !!C.confirmed, t0, t1, hours: HOURS, root: C.root,

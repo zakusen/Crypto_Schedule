@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-10-30-v229';
+const VERSION = '2026-10-30-v231';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -2058,6 +2058,13 @@ export default {
       if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
       const r = await liqImpactApi(env, url); r.headers.set('cache-control', 'no-store'); return r;
     }
+    if (url.pathname === '/api/admin/track' && request.method === 'POST') {   // v230: 資金の追跡のまとめを置く(chain.yml から。合言葉つき)
+      if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
+      const t = await request.text(); let j = null; try { j = JSON.parse(t); } catch (_) {}
+      if (!j || !/^[a-z0-9]{3,32}$/.test(String(j.case || '')) || t.length > 400000) return json({ error: 'bad' }, 400);
+      await env.CAL.put('track:' + j.case, t); return json({ ok: true });
+    }
+    if (url.pathname === '/api/track') { const c = String(url.searchParams.get('case') || ''); let t = null; if (/^[a-z0-9]{3,32}$/.test(c)) { try { t = env.CAL ? await env.CAL.get('track:' + c) : null; } catch (_) {} } return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=60' } }); }   // v230
     if (url.pathname === '/api/admin/posts') { const r = await postsApi(request, env); r.headers.set('cache-control', 'no-store'); return r; }   // v73
     if (url.pathname === '/api/rx') { const r = await rxApi(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/auth/nonce') { const r = await authNonce(url, env); r.headers.set('cache-control', 'no-store'); return r; }
