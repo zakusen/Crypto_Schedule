@@ -34,3 +34,13 @@ export const tokentx = (chainid, address, sb, eb) => pages({ chainid, module: 'a
 export async function isContract(chainid, address) {
   const c = await get({ chainid, module: 'proxy', action: 'eth_getCode', address, tag: 'latest' }); return typeof c === 'string' && c.length > 2;
 }
+
+// v225: コントラクトの名前(検証済みのものだけ)・トークン残高・ETH 残高・凍結の状態(今時点)
+export async function contractName(chainid, address) { try { const r = await get({ chainid, module: 'contract', action: 'getsourcecode', address }); return (Array.isArray(r) && r[0] && r[0].ContractName) || null; } catch (_) { return null; } }
+export async function tokenBalance(chainid, contract, address) { try { return await get({ chainid, module: 'account', action: 'tokenbalance', contractaddress: contract, address, tag: 'latest' }); } catch (_) { return null; } }
+export async function ethBalance(chainid, address) { try { return await get({ chainid, module: 'account', action: 'balance', address, tag: 'latest' }); } catch (_) { return null; } }
+// USDT: isBlackListed(address) = 0xe47d6060 / USDC: isBlacklisted(address) = 0xfe575a87(どちらも読むだけの呼び出し)
+export async function isFrozen(chainid, token, address) {
+  const sel = { '0xdac17f958d2ee523a2206206994597c13d831ec7': '0xe47d6060', '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': '0xfe575a87' }[token]; if (!sel) return null;
+  try { const r = await get({ chainid, module: 'proxy', action: 'eth_call', to: token, data: sel + address.slice(2).padStart(64, '0'), tag: 'latest' }); return typeof r === 'string' && r.startsWith('0x') ? BigInt(r) !== 0n : null; } catch (_) { return null; }
+}
