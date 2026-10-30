@@ -655,13 +655,13 @@ export function chainDraft(im, now) {
 // ---- v226: 過去最大の流出(Bybit) vs 今回(Binance)、発生から12時間の比較。自動投稿しない(man: 1)。/posts.html から手で投稿する ----
 // 数字は chain-ledger の台帳(Bybit は v224 の実行・Binance は v225 の実行)から。新しい台帳が出たら、ここを書き換えて id の末尾を上げる
 export const CHAINCMP = {
-  id: 'chaincmp:binance2026:v2', hours: 12,
+  id: 'chaincmp:binance2026:v3', hours: 12,
   past: { ja: 'Bybit', en: 'Bybit', yja: '2025｜確定', yen: '2025 · confirmed', bars: [62, 113, 47, 15, 10, 9, 5, 5, 3, 0, 1, 1],
     ev: [[0, 1, 'stETH・mETH→ETHに交換', 'stETH, mETH → ETH'], [1, 3, '1万ETHずつ約40アドレスへ分散', '10k ETH each to ~40 addresses']] },
-  cur: { ja: 'Binance', en: 'Binance', yja: '2026｜未確認', yen: '2026 · unconfirmed', bars: [20, 3, 4, 3, 1, 0], end: 5.6,
-    ev: [[0, 1, 'USDT 7億・ETH 19.7万を移動', 'Moved 700M USDT + 197k ETH'], [1, 2, 'ETH 12.2万を別アドレスへ', '122k ETH to new address'], [2, 5.6, 'WBTC・USDeを小分けにETHへ交換', 'WBTC, USDe → ETH, small swaps']] },
-  nowJa: '11:03 JST', nowEn: '02:03 UTC',
-  stat: [['凍結 21.7億ドル', 'Frozen $2.17B', 'fz'], ['ETHのまま 約33万', 'Still in ETH ~330k', 'eth']],
+  cur: { ja: 'Binance', en: 'Binance', yja: '2026｜未確認', yen: '2026 · unconfirmed', bars: [20, 3, 4, 3, 1, 0, 1, 0], end: 7.8,
+    ev: [[0, 1, 'USDT 7億・ETH 19.7万を移動', 'Moved 700M USDT + 197k ETH'], [1, 2, 'ETH 12.2万を別アドレスへ', '122k ETH to new address'], [2, 7.8, 'WBTC・USDe・DAIを小分けにETHへ交換', 'WBTC, USDe, DAI → ETH, small swaps']] },
+  nowJa: '13:11 JST', nowEn: '04:11 UTC',
+  stat: [['凍結 21.7億ドル', 'Frozen $2.17B', 'fz'], ['ETHのまま 約34万', 'Still in ETH ~340k', 'eth']],
 };
 export function chaincmpText(c, lg) {
   return lg === 'en'
@@ -677,8 +677,8 @@ export function chaincmpDraft(now) {
 // ---- v227: 今回の流出(Binance)の資金の行き先と時系列。自動投稿しない(man: 1)。/posts.html から手で投稿する ----
 // 時刻は 10/30 0:00 JST からの分(英語版は UTC に直して表示)。数字は chain-ledger の台帳(v225)と残高の確認(02:03 UTC)から
 export const CHAINFLOW = {
-  id: 'chainflow:binance2026:v1', t0: 324, now: 663,
-  root: { usdt: ['11.75億', '1,175M'], usdc: ['8.23億', '823M'], eth: ['1.08万 ETH', '10,776 ETH'] },
+  id: 'chainflow:binance2026:v2', t0: 324, now: 791,
+  root: { usdt: ['11.75億', '1,175M'], usdc: ['8.23億', '823M'], eth: ['1.73万 ETH', '17,263 ETH'] },
   a: { t: 330, amt: ['USDT 5億', '500M USDT'], sw: 345, swl: ['3.25億USDT → ETH', '325M USDT → ETH'], end: 407, endv: ['12.2万 ETH', '122,310 ETH'], fz: 368, fzv: ['1.75億', '175M USDT'] },
   b: { t: 333, amt: ['USDT 2億', '200M USDT'], end: 361, endl: ['コントラクトへ', 'into contracts'], endv: ['1.9億 USDT', '190M USDT'] },
   c: { t: 338, amt: ['ETH 19.5万', '195,460 ETH'], hold: ['送り先に残ったまま', 'held at the next address'], add: 614, addv: ['+2,000ETH', '+2,000 ETH'] },
@@ -686,8 +686,8 @@ export const CHAINFLOW = {
 };
 export function chainflowText(c, lg) {
   return lg === 'en'
-    ? ['🧊 Binance outflow: where is the money now? (suspected hack, unconfirmed)', 'On-chain, 5.6h after the first transfer:', '• $2.17B in USDT/USDC frozen', '• 325M USDT swapped to 122k ETH', '• 195k ETH held at the next address', '#Binance #crypto #Bitcoin #ETH'].join('\n')
-    : ['🧊 Binanceから流出した資金、今どこに？（ハッキングの疑い・未確認）', '発生から5.6時間のオンチェーン記録', '・USDT・USDC 21.7億ドル分が凍結', '・USDT 3.25億はETH 12.2万へ交換', '・ETH 19.5万は送り先に残ったまま', '#Binance #バイナンス #仮想通貨 #ビットコイン'].join('\n');
+    ? ['🧊 Binance outflow: where is the money now? (suspected hack, unconfirmed)', 'On-chain, 7.8h after the first transfer:', '• $2.17B in USDT/USDC frozen', '• 325M USDT swapped to 122k ETH', '• 195k ETH held at the next address', '#Binance #crypto #Bitcoin #ETH'].join('\n')
+    : ['🧊 Binanceから流出した資金、今どこに？（ハッキングの疑い・未確認）', '発生から7.8時間のオンチェーン記録', '・USDT・USDC 21.7億ドル分が凍結', '・USDT 3.25億はETH 12.2万へ交換', '・ETH 19.5万は送り先に残ったまま', '#Binance #バイナンス #仮想通貨 #ビットコイン'].join('\n');
 }
 export function chainflowDraft(now) {
   const c = CHAINFLOW, ja = chainflowText(c, 'ja'), en = chainflowText(c, 'en');

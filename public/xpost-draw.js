@@ -887,7 +887,7 @@ function drawChainCmp(g, c, lg) {
 // v227: 今回の流出の行き先と時系列(氷の図)。横軸は時刻(前半を広く)。凍結は氷の箱
 function drawChainFlow(g, c, lg) {
   const en = lg === 'en', H2 = LH, GC = '#5ee9c8', EC = '#f2c94c', PC = '#a78bfa', IC = '#8fd8ff', RC = '#ff5c7a', J = (a) => en ? a[1] : a[0];
-  const K = [[315, 250], [360, 600], [420, 780], [540, 940], [690, 1150]];
+  const K = [[315, 250], [360, 600], [420, 780], [540, 920], [810, 1150]];
   const X = (t) => { for (let i = 1; i < K.length; i++) if (t <= K[i][0]) { const [a, xa] = K[i - 1], [b, xb] = K[i]; return xa + (t - a) / (b - a) * (xb - xa); } return 1150; };
   const hm = (t) => { const v = ((en ? t - 540 : t) + 1440) % 1440; return Math.floor(v / 60) + ':' + LP(v % 60); };
   const bg = g.createRadialGradient(W / 2, 320, 40, W / 2, 320, 800); bg.addColorStop(0, '#0f1f3a'); bg.addColorStop(1, '#040913'); g.fillStyle = bg; g.fillRect(0, 0, W, H2);
@@ -909,7 +909,7 @@ function drawChainFlow(g, c, lg) {
   lt(g, T, 30, 50, { s: fitBig(g, T, W - 260, 32, 900, LJ), w: 900 });
   lt(g, en ? 'Suspected hack, unconfirmed · times in UTC' : 'Binance（ハッキングの疑い・未確認）／時刻は日本時間', 30, 80, { s: 18, w: 700, c: '#7dd3fc' });
   const AX = 740; g.strokeStyle = '#1a2c48'; g.setLineDash([2, 6]); g.lineWidth = 1;
-  for (const h of [6, 7, 8, 9, 10, 11]) { const x = X(h * 60); g.beginPath(); g.moveTo(x, 104); g.lineTo(x, AX); g.stroke(); lt(g, hm(h * 60), x, AX + 26, { s: 18, w: 700, f: LN, c: '#9fb0c8', a: 'center' }); }
+  for (const h of [6, 7, 8, 9, 11, 13]) { const x = X(h * 60); g.beginPath(); g.moveTo(x, 104); g.lineTo(x, AX); g.stroke(); lt(g, hm(h * 60), x, AX + 26, { s: 18, w: 700, f: LN, c: '#9fb0c8', a: 'center' }); }
   g.setLineDash([]); g.strokeStyle = '#2c4366'; g.lineWidth = 2; g.beginPath(); g.moveTo(240, AX); g.lineTo(1160, AX); g.stroke();
   lt(g, hm(c.t0), X(c.t0), AX + 26, { s: 18, w: 800, f: LN, c: '#ff9aac', a: 'center' });
   const nx = X(c.now); g.strokeStyle = RC; g.lineWidth = 2.5; g.setLineDash([7, 6]); g.beginPath(); g.moveTo(nx, 112); g.lineTo(nx, AX); g.stroke(); g.setLineDash([]);

@@ -400,7 +400,7 @@ for (const sp of [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.
 
 // ---- 4b3) v221: 大型ハッキング(HACKS の cur)。発生から12時間以内に1本 ----
 // v227: 古い資金の追跡の下書き(台帳の自動下書き・比較の v1)は投稿済みの印を付けて、新しいものと見分ける
-for (const o of byId.values()) if ((o.sr === 'chain' || o.id === 'chaincmp:binance2026:v1') && !(o.done && o.done.ja && o.done.en)) {
+for (const o of byId.values()) if ((o.sr === 'chain' || ['chaincmp:binance2026:v1', 'chaincmp:binance2026:v2', 'chainflow:binance2026:v1'].includes(o.id)) && !(o.done && o.done.ja && o.done.en)) {
   for (const lang of ['ja', 'en']) if (!(o.done && o.done[lang])) await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: o.id, lang, v: true } }) });
   console.log('[x] 古い資金の追跡の下書きを投稿済みに:', o.id);
 }
