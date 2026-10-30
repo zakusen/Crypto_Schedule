@@ -650,3 +650,25 @@ export function chainDraft(im, now) {
   const ja = chainText(im, 'ja'), en = chainText(im, 'en');
   return { id, sr: 'chain', man: 1, due: now, ja, en, h: hashStr(ja + en), img: im };
 }
+
+
+// ---- v226: 過去最大の流出(Bybit) vs 今回(Binance)、発生から12時間の比較。自動投稿しない(man: 1)。/posts.html から手で投稿する ----
+// 数字は chain-ledger の台帳(Bybit は v224 の実行・Binance は v225 の実行)から。新しい台帳が出たら、ここを書き換えて id の末尾を上げる
+export const CHAINCMP = {
+  id: 'chaincmp:binance2026:v1', hours: 12,
+  past: { ja: 'Bybit', en: 'Bybit', yja: '2025｜確定', yen: '2025 · confirmed', bars: [62, 113, 47, 15, 10, 9, 5, 5, 3, 0, 1, 1],
+    ev: [[0, 1, 'stETH・mETH→ETHに交換', 'stETH, mETH → ETH'], [1, 3, '1万ETHずつ約40アドレスへ分散', '10k ETH each to ~40 addresses']] },
+  cur: { ja: 'Binance', en: 'Binance', yja: '2026｜未確認', yen: '2026 · unconfirmed', bars: [20, 3, 4, 3, 1, 0], end: 5.6,
+    ev: [[0, 1, 'USDT 7億・ETH 19.7万を移動', 'Moved 700M USDT + 197k ETH'], [1, 2, 'ETH 12.2万を別アドレスへ', '122k ETH to new address'], [2, 5.6, 'WBTC・USDeを小分けにETHへ交換', 'WBTC, USDe → ETH, small swaps']] },
+  nowJa: '11:03 JST', nowEn: '02:03 UTC',
+  stat: [['凍結 21.7億ドル', 'Frozen $2.17B', 'fz'], ['ETHのまま 約33万', 'Still in ETH ~330k', 'eth']],
+};
+export function chaincmpText(c, lg) {
+  return lg === 'en'
+    ? ['Biggest past outflow vs now: the first 12 hours', 'Bybit (2025): stETH/mETH → ETH within 1h; 10k ETH each to ~40 addresses by 3h', `Binance (suspected hack, unconfirmed), ${c.cur.end}h in: 325M USDT → ETH; $2.17B USDT/USDC frozen`, 'On-chain records on Ethereum', '#Bitcoin #Binance'].join('\n')
+    : ['過去最大の流出 vs 今回：発生から12時間', 'Bybit（2025）：1時間以内にstETH等をETHへ交換、3時間までに約40アドレスへ分散', `Binance（疑い・未確認）${c.cur.end}時間時点：USDT 3.25億をETHへ、USDT・USDC 21.7億ドルは凍結`, 'Ethereum上の記録', '#ビットコイン #Binance'].join('\n');
+}
+export function chaincmpDraft(now) {
+  const c = CHAINCMP, ja = chaincmpText(c, 'ja'), en = chaincmpText(c, 'en');
+  return { id: c.id, sr: 'chaincmp', man: 1, due: now, ja, en, h: hashStr(ja + en), img: { chaincmp: c } };
+}

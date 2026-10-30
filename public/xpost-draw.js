@@ -847,15 +847,53 @@ function drawPat(g, im, lg, opt = {}) {   // v202: opt = {label, ratio}(毎朝�
   txt(g, en ? `−${im.win}h` : `−${im.win}時間`, x0, y1 + 24, { size: 14, col: C.mut });
   txt(g, en ? `+${im.win}h (dotted = what came next)` : `+${im.win}時間(点線 = 過去のその後)`, X(N) + 8, y1 + 24, { size: 14, col: C.mut });
 }
+// v226: 過去最大の流出(Bybit) vs 今回(Binance)。発生から12時間を1時間刻みで、上下2レーン。今回は「今ここ」で止まる
+function drawChainCmp(g, c, lg) {
+  const en = lg === 'en', H2 = LH, YC = '#f5c542', CC = '#5fd4f0', PC = '#a78bfa', RC = '#ff5c7a', N = c.hours || 12;
+  g.fillStyle = '#0a1220'; g.fillRect(0, 0, W, H2);
+  const T = en ? 'Biggest past outflow vs now: the first 12 hours' : '過去最大の流出 vs 今回：発生から12時間の資金の動き';
+  lt(g, T, W / 2, 56, { s: fitBig(g, T, W - 60, 36, 900, LJ), w: 900, a: 'center' });
+  const sub = [[c.past[lg], YC], [en ? ' (2025, confirmed)   /   ' : '（2025・確定）　／　', '#b9c6d8'], [c.cur[lg], CC], [en ? ' (2026, suspected hack, unconfirmed)' : '（2026・ハッキングの疑い・未確認）', '#b9c6d8']];
+  g.font = `700 19px ${LJ}`; let sx = W / 2 - sub.reduce((a, [t]) => a + g.measureText(t).width, 0) / 2;
+  sub.forEach(([t, col]) => { sx += lt(g, t, sx, 92, { s: 19, w: 700, c: col }); });
+  const X0 = 200, WW = 960, cw = WW / N, X = (h) => X0 + h * cw;
+  g.strokeStyle = '#1c2b44'; g.lineWidth = 1;
+  for (let h = 0; h <= N; h++) { g.beginPath(); g.moveTo(X(h), 132); g.lineTo(X(h), 760); g.stroke(); lt(g, h + 'h', X(h), 126, { s: 16, w: 700, f: LN, c: '#9fb0c8', a: 'center' }); }
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+  const lane = (top, L, col) => {
+    g.strokeStyle = col; g.lineWidth = 2; rr(24, top, 160, 290, 12); g.stroke();
+    lt(g, L[lg], 42, top + 130, { s: 32, w: 900, c: col }); lt(g, en ? L.yen : L.yja, 42, top + 162, { s: 15, w: 700, c: col });
+    lt(g, en ? 'New addresses' : '新しい送金先の数', 42, top + 262, { s: 13, w: 600, c: '#7f8ea6' });
+    L.ev.forEach((e, i) => { const a = X(e[0]) + 3, b = X(e[1]) - 3, y = top + 8 + i * 48, s = en ? e[3] : e[2];
+      g.font = `800 17px ${LJ}`; const tw = g.measureText(s).width + 22;
+      g.fillStyle = '#0d1a2c'; rr(a, y, Math.max(b - a, tw), 36, 8); g.fill(); g.strokeStyle = col; g.lineWidth = 1.5; g.stroke();
+      g.fillStyle = col; rr(a, y + 38, b - a, 4, 2); g.fill(); lt(g, s, a + 10, y + 25, { s: 17, w: 800 }); });
+    const base = top + 275, mx = Math.max(...c.past.bars, ...c.cur.bars);
+    L.bars.forEach((v, h) => { const bh = Math.max(2, v / mx * 110); g.globalAlpha = 0.85; g.fillStyle = col; rr(X(h) + 16, base - bh, cw - 32, bh, 3); g.fill(); g.globalAlpha = 1; lt(g, String(v), X(h) + cw / 2, base - bh - 6, { s: 15, w: 700, f: LN, c: '#dfe6f0', a: 'center' }); });
+    const end = L.end ? X(L.end) : X(N); g.strokeStyle = col; g.lineWidth = 3; g.beginPath(); g.moveTo(X0, base + 3); g.lineTo(end, base + 3); g.stroke();
+    if (L.end) { g.globalAlpha = 0.4; g.lineWidth = 2; g.setLineDash([6, 6]); g.beginPath(); g.moveTo(end, base + 3); g.lineTo(X(N), base + 3); g.stroke(); g.setLineDash([]); g.globalAlpha = 1; }
+    return base;
+  };
+  lane(140, c.past, YC); const b2 = lane(460, c.cur, CC);
+  const nx = X(c.cur.end);
+  g.strokeStyle = RC; g.lineWidth = 3; g.beginPath(); g.moveTo(nx, 452); g.lineTo(nx, b2 + 10); g.stroke();
+  g.fillStyle = RC; g.beginPath(); g.arc(nx, b2 + 3, 9, 0, 7); g.fill();
+  rr(nx - 44, 455, 88, 30, 15); g.fill(); lt(g, en ? 'NOW' : '今ここ', nx, 476, { s: 17, w: 900, a: 'center' });
+  lt(g, en ? c.nowEn : c.nowJa, nx + 52, 476, { s: 15, w: 700, f: LN, c: '#ff9aac' });
+  const bx = nx + 40; g.fillStyle = '#0f1d30'; rr(bx, 590, 300, 80, 10); g.fill(); g.strokeStyle = '#2a3d5c'; g.lineWidth = 1; g.stroke();
+  c.stat.forEach(([ja, enS, k], i) => lt(g, (k === 'fz' ? '🔒 ' : '') + (en ? enS : ja), bx + 16, 622 + i * 32, { s: 20, w: 800, c: k === 'fz' ? CC : PC }));
+  lt(g, en ? 'On-chain records on Ethereum (Etherscan)' : 'Ethereum上のオンチェーン記録（Etherscan）', 36, 788, { s: 15, w: 500, c: '#7f8ea6' });
+}
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   // v203: 色(上の帯・背景)を中身で決める。上げ = 緑・下げ = 赤・予定やまとめ = 青・値動きの大きさ = 金・清算の反応 = 紫
   const im = p.img || {}, sgn = (v) => v == null ? TONES.blue : v < 0 ? TONES.red : TONES.green;
   TONE = p.sr === 'pat' ? sgn(im.q && im.q.chg) : p.sr === 'spike' ? sgn(im.coins && im.coins.BTC) : p.sr === 'arch' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.c60 : im.chg)
     : p.sr === 'week' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.chg : null) : p.sr === 'vol' ? TONES.gold : p.sr === 'liq' || p.sr === 'liqday' ? TONES.red : p.sr === 'liqimp' ? TONES.purple : TONES.blue;
   const LV = p.img && p.img.live && p.img.live[lg];   // v204: 毎朝・夜は BTC実況の画像
-  if (p.sr === 'chain') return null;   // v224: 資金の追跡の画像は、実データを見てから決めた形(時系列の帯・木の図)で作る。それまでは本文だけ
+  if (p.sr === 'chaincmp' && p.img && p.img.chaincmp) { cv.height = LH; drawChainCmp(g, p.img.chaincmp, lg); }   // v226
+  else if (p.sr === 'chain') return null;   // v224: 資金の追跡の画像は、実データを見てから決めた形(時系列の帯・木の図)で作る。それまでは本文だけ
   else if (LV && LV.kind === 'hack') { cv.height = LH; drawHack(g, LV, lg); }   // v221
   else if (LV && LV.top && LV.top.length) { cv.height = LH; drawLive(g, LV, lg); }   // v206: 全ての種類で使う
   else if (p.sr === 'daily') {
