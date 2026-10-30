@@ -633,3 +633,20 @@ export function hackText(hv, lg) {
   return mk(1);
 }
 export const hackDraft = (ev, now) => ({ id: 'hack:' + ev.id, sr: 'hack', due: now - 60000, ja: '（投稿する時に、その時点の計算で本文と画像を作ります）', en: '(Text and image are made at posting time.)', h: 'hack', img: { hack: ev.id } });
+
+
+// ---- v223: 資金の追跡(オンチェーン)。自動投稿しない(man: 1)。/posts.html から手で投稿する ----
+// im = {case, ja, en, confirmed, t0, t1, hours, totals:{sends, swaps, newAddr, toContract}, firstSwap:{h, in, out}|null, hourly:[{h, newAddr, sends, swaps, toContract}], leaves:{held, contract, depthLimit, untracked}, root}
+export function chainText(im, lg) {
+  const en = lg === 'en', T = im.totals || {}, fs = im.firstSwap, hrs = Math.round((im.t1 - im.t0) / H);
+  const name = en ? (im.confirmed ? `${im.en} hack` : `Large outflow from ${im.en} (suspected hack, unconfirmed)`) : (im.confirmed ? `${im.ja}のハッキング` : `${im.ja}からの大量流出（ハッキングの疑い・未確認）`);
+  const sw = fs ? (en ? `First swap: +${fs.h}h, ${fs.in} → ${fs.out}` : `最初の交換：${fs.h}時間後（${fs.in} → ${fs.out}）`) : (en ? 'No swap seen yet' : '交換はまだ確認できず');
+  return en
+    ? [`🔗 Where did the funds go? ${name}`, `First ${hrs}h on-chain (tracked from the first recipient):`, `· Sends: ${T.sends} · New recipients: ${T.newAddr}`, `· Swaps: ${T.swaps} · Into contracts (DEX/bridge etc.): ${T.toContract}`, `· ${sw}`, 'Exchange deposits ≠ proof of sale.', '#Bitcoin #Ethereum'].join('\n')
+    : [`🔗 資金は、どこへ？ ${name}`, `発生から${hrs}時間のオンチェーン（最初の受取先から追跡）`, `・送金 ${T.sends}件／新しい送金先 ${T.newAddr}`, `・交換 ${T.swaps}件／コントラクトへ ${T.toContract}件（DEX・ブリッジなど）`, `・${sw}`, '※取引所への入金は売却の証拠ではありません', '#ビットコイン #イーサリアム'].join('\n');
+}
+export function chainDraft(im, now) {
+  const id = 'chain:' + im.case + ':' + Math.floor(im.t1 / H);
+  const ja = chainText(im, 'ja'), en = chainText(im, 'en');
+  return { id, sr: 'chain', man: 1, due: now, ja, en, h: hashStr(ja + en), img: im };
+}

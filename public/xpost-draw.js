@@ -673,6 +673,7 @@ function drawHack(g, hv, lg) {
   lt(g, '@csa_archive', W - 26, 786, { s: 18, w: 700, f: LN, c: '#9fb0c4', a: 'right' });
 }
 export async function renderHack(hv, lg) { await loadFonts('過去の大型ハッキングその後今回ウォレットから大量流出疑い未確認発生時間記録予測ではありません'); const cv = document.createElement('canvas'); cv.width = W; cv.height = LH; drawHack(cv.getContext('2d'), hv, lg); return cv; }
+
 function drawLive(g, lv, lg) {
   if (lv.kind === 'spkcmp') return drawSpkCmp(g, lv, lg);   // v219
   if (String(lv.kind || '').startsWith('fomc')) return drawFomc(g, lv, lg);
@@ -847,14 +848,15 @@ function drawPat(g, im, lg, opt = {}) {   // v202: opt = {label, ratio}(毎朝�
   txt(g, en ? `+${im.win}h (dotted = what came next)` : `+${im.win}時間(点線 = 過去のその後)`, X(N) + 8, y1 + 24, { size: 14, col: C.mut });
 }
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   // v203: 色(上の帯・背景)を中身で決める。上げ = 緑・下げ = 赤・予定やまとめ = 青・値動きの大きさ = 金・清算の反応 = 紫
   const im = p.img || {}, sgn = (v) => v == null ? TONES.blue : v < 0 ? TONES.red : TONES.green;
   TONE = p.sr === 'pat' ? sgn(im.q && im.q.chg) : p.sr === 'spike' ? sgn(im.coins && im.coins.BTC) : p.sr === 'arch' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.c60 : im.chg)
     : p.sr === 'week' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.chg : null) : p.sr === 'vol' ? TONES.gold : p.sr === 'liq' || p.sr === 'liqday' ? TONES.red : p.sr === 'liqimp' ? TONES.purple : TONES.blue;
   const LV = p.img && p.img.live && p.img.live[lg];   // v204: 毎朝・夜は BTC実況の画像
-  if (LV && LV.kind === 'hack') { cv.height = LH; drawHack(g, LV, lg); }   // v221
+  if (p.sr === 'chain') return null;   // v224: 資金の追跡の画像は、実データを見てから決めた形(時系列の帯・木の図)で作る。それまでは本文だけ
+  else if (LV && LV.kind === 'hack') { cv.height = LH; drawHack(g, LV, lg); }   // v221
   else if (LV && LV.top && LV.top.length) { cv.height = LH; drawLive(g, LV, lg); }   // v206: 全ての種類で使う
   else if (p.sr === 'daily') {
     if (p.img && p.img.pat && p.img.pat.q) drawPat(g, p.img.pat, lg, { label: lg === 'en' ? 'TODAY · SIMILAR PAST 24H' : '本日 · 似ている過去の24時間', ratio: p.img.vol ? p.img.vol.ratio : null });   // v202
