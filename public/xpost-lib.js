@@ -414,7 +414,7 @@ export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
-export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'bnstatus' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -694,3 +694,59 @@ export function chainflowDraft(now) {
   return { id: c.id, sr: 'chainflow', man: 1, due: now, ja, en, h: hashStr(ja + en), img: { chainflow: c } };
 }
 
+
+
+// ---- v237: Binance流出の「資金の現況」投稿(sr: bnstatus)。毎時の追跡のまとめ(/api/track)から、きっかけがあった時だけ下書きを作り自動投稿する ----
+// 数字は全部オンチェーンの記録から。予測・持ち主の断定・「動かせる」は書かない
+export const BN = { case: 'binance2026', maxPerDay: 3,
+  // v239: 定期投稿の間隔。10/31 5:00 JST(10/30 20:00 UTC)までは2時間おき、そのあとは4時間おき。最後は7日目で止める
+  every: (t) => t < Date.UTC(2026, 9, 30, 20, 0) ? 2 * 36e5 : 4 * 36e5, until: Date.UTC(2026, 10, 5, 20, 24), dEth: 1e4, dFz: 1e7, dBtc: 10,
+  // 凍結されている分が今の場所に届いた時刻と量(台帳から。最初の受取先が受け取った分は出どころが追跡の外なので固定)
+  fzSteps: [[Date.UTC(2026, 9, 29, 20, 24), 18.75e8], [Date.UTC(2026, 9, 29, 20, 30), -5e8], [Date.UTC(2026, 9, 29, 20, 33), -2e8], [Date.UTC(2026, 9, 29, 20, 41), 8.23e8], [Date.UTC(2026, 9, 29, 21, 8), 1.75e8]],
+  aaveAt: Date.UTC(2026, 9, 29, 20, 58),
+  // 主な出来事(時刻 UTC・日本語・英語・色の種類)。新しい変化は投稿の時に後ろへ足す
+  tl: [[Date.UTC(2026, 9, 29, 20, 20), 'BTC 1.8万を分散', 'BTC 18k split', 'b'], [Date.UTC(2026, 9, 29, 20, 24), 'Ethereumで流出', 'Outflow on Ethereum', 'r'], [Date.UTC(2026, 9, 29, 20, 30), 'USDTを送金・交換', 'USDT sent / swapped', 'g'], [Date.UTC(2026, 9, 29, 20, 58), 'Aaveに6,000万', '60M to Aave', 'a'], [Date.UTC(2026, 9, 29, 21, 47), 'ETH 12.2万を受取', '122k ETH received', 'e'], [Date.UTC(2026, 9, 30, 5, 14), 'ETH 1.7万を受取', '17k ETH received', 'e']] };
+export function bnSnapshot(main, btc) {
+  if (!main || !main.asof) return null;
+  const st = main.status || [], H = 36e5;
+  const holders = st.filter((r) => r.depth > 0 && (r.ETH || 0) >= 100).sort((a, b) => b.ETH - a.ETH);
+  const hs = new Set(holders.map((r) => r.a)), root = st.find((r) => r.depth === 0) || {};
+  const steps = (main.events || []).filter((e) => e.kind === 'move' && /^W?ETH$/.test(e.asset) && hs.has(e.to)).sort((a, b) => a.t - b.t).map((e) => [e.t, Math.round(e.amt)]);
+  const fz = st.flatMap((r) => ['USDT', 'USDC'].filter((k) => r[k + 'Frozen'] && r[k] > 1).map((k) => r[k]));
+  const aave = (main.edges || []).filter((e) => e.to && e.to.startsWith('0x23878914') && /USD/.test(e.asset)).reduce((a, e) => a + e.amt, 0);
+  const sold = (main.events || []).filter((e) => e.kind === 'swap').reduce((a, e) => a + ((e.in || {}).ETH || 0) + ((e.in || {}).WETH || 0), 0);
+  let b = null;
+  if (btc && btc.asof) { const ws = (btc.status || []).filter((r) => r.depth > 0 && r.ETH >= 1).map((r) => [r.a, +r.ETH.toFixed(1)]).sort((x, y) => y[1] - x[1]); const outs = new Set((btc.edges || []).map((e) => e.f)); b = { held: +(btc.heldBtc || 0).toFixed(1), ws, moved: ws.filter(([a]) => outs.has(a)).length, t: (btc.edges || []).reduce((m, e) => Math.min(m, e.t), Infinity) }; }
+  if (b) { const late = (btc.edges || []).filter((e) => e.f === (btc.roots || [])[0] && e.t > b.t + 6e5).reduce((a, e) => a + e.amt, 0), lt2 = (btc.edges || []).filter((e) => e.f === (btc.roots || [])[0] && e.t > b.t + 6e5).reduce((m, e) => Math.min(m, e.t), Infinity); b.steps = late ? [[b.t, +(b.held - late).toFixed(1)], [lt2, +late.toFixed(1)]] : [[b.t, b.held]]; }
+  return { t0: main.t0, asof: main.asof, eth: Math.round(holders.reduce((a, r) => a + r.ETH, 0) + (root.ETH || 0)), holders: holders.slice(0, 5).map((r) => [r.a, Math.round(r.ETH)]), steps, swaps: (main.hourly || []).map((x) => x.swaps), fz: Math.round(fz.reduce((a, v) => a + v, 0)), aave: Math.round(aave), sold: Math.round(sold), btc: b, hrs: Math.round((main.asof - main.t0) / H * 10) / 10 };
+}
+// きっかけ: 凍結の増減・保有ETHの増減・BTCの出金/残高の変化。何も変わっていなければ null
+export function bnChange(cur, prev) {
+  if (!cur) return null;
+  if (!prev) return { kind: 'first' };
+  const ch = [];
+  if (Math.abs(cur.fz - prev.fz) >= BN.dFz) ch.push(['fz', cur.fz - prev.fz]);
+  if (Math.abs(cur.eth - prev.eth) >= BN.dEth) ch.push(['eth', cur.eth - prev.eth]);
+  if (cur.btc && prev.btc && (cur.btc.moved !== prev.btc.moved || Math.abs(cur.btc.held - prev.btc.held) >= BN.dBtc)) ch.push(['btc', cur.btc.held - prev.btc.held]);
+  if (cur.sold - (prev.sold || 0) >= 100) ch.push(['sold', cur.sold - (prev.sold || 0)]);
+  return ch.length ? { kind: 'change', ch } : null;
+}
+const jaN2 = (v) => { const a = Math.abs(v); return (v < 0 ? '-' : '') + (a >= 1e8 ? (+(a / 1e8).toFixed(2)) + '億' : a >= 1e4 ? (+(a / 1e4).toFixed(a >= 1e6 ? 0 : 1)) + '万' : Math.round(a).toLocaleString('en-US')); };
+const enN2 = (v) => { const a = Math.abs(v); return (v < 0 ? '-' : '') + (a >= 1e9 ? (+(a / 1e9).toFixed(2)) + 'B' : a >= 1e6 ? (+(a / 1e6).toFixed(1)) + 'M' : a >= 1e4 ? Math.round(a / 1e3) + 'k' : Math.round(a).toLocaleString('en-US')); };
+export function bnHead(s, c, lg) {   // 画像と本文の一番上に出す「何が変わったか」
+  const en = lg === 'en', sg = (v) => (v > 0 ? '+' : '');
+  if (!c || c.kind === 'first' || c.kind === 'same') return en ? (c && c.kind === 'same' ? 'No change since last check' : 'Where the funds are now') : (c && c.kind === 'same' ? '前回から変化なし' : '資金の現況');
+  return c.ch.map(([k, v]) => k === 'fz' ? (en ? `Frozen ${sg(v)}$${enN2(v)}` : `凍結 ${sg(v)}${jaN2(v)}ドル`) : k === 'eth' ? (en ? `Unfrozen ETH ${sg(v)}${enN2(v)}` : `未凍結のETH ${sg(v)}${jaN2(v)}`) : k === 'btc' ? (s.btc && s.btc.moved ? (en ? `BTC: ${s.btc.moved} wallets sent out` : `BTC：${s.btc.moved}つのウォレットから出金`) : (en ? `BTC ${sg(v)}${enN2(v)}` : `BTC ${sg(v)}${jaN2(v)}`)) : (en ? `ETH sold in swaps: ${enN2(v)}` : `ETHを売る交換：${jaN2(v)} ETH`)).join(en ? ' / ' : '／');
+}
+export function bnText(s, c, lg) {
+  const en = lg === 'en', b = s.btc;
+  const L2 = en
+    ? [`🧊 Binance outflow: ${bnHead(s, c, 'en')}`, `On-chain, ${s.hrs}h after the first transfer:`, `• Frozen USDT/USDC: $${enN2(s.fz)}`, `• Unfrozen ETH: ~${enN2(s.eth)}`, b ? `• Unfrozen BTC: ${b.held.toLocaleString('en-US')} (${b.ws.length} wallets, ${b.moved ? b.moved + ' sent out' : 'no outgoing transfer'})` : '', s.sold ? `• ETH sold in swaps: ${enN2(s.sold)}` : '• Swaps selling ETH: 0', '#Binance #crypto #Bitcoin #ETH']
+    : [`🧊 Binance流出：${bnHead(s, c, 'ja')}`, `発生から${s.hrs}時間のオンチェーン記録`, `・凍結 USDT・USDC：${jaN2(s.fz)}ドル`, `・未凍結のETH：約${jaN2(s.eth)}`, b ? `・未凍結のBTC：${b.held.toLocaleString('en-US')}（${b.ws.length}ウォレット・${b.moved ? b.moved + 'つから出金' : '出金0回'}）` : '', s.sold ? `・ETHを売る交換：${jaN2(s.sold)} ETH` : '・ETHを売る交換：0件', '#Binance #バイナンス #仮想通貨 #ビットコイン'];
+  return L2.filter(Boolean).join('\n');
+}
+export function bnDraft(s, c, now, prev) {
+  s = { ...s, checks: [...((prev && prev.checks) || []), s.asof].slice(-8) };
+  const id = 'bnstatus:' + Math.floor(s.asof / 36e5), ja = bnText(s, c, 'ja'), en = bnText(s, c, 'en');
+  return { id, sr: 'bnstatus', due: now, ja, en, h: hashStr(ja + en), img: { bn: s, ch: c } };
+}

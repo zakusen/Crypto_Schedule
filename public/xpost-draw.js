@@ -943,15 +943,94 @@ function drawChainFlow(g, c, lg) {
   curve(X(D.t), y, X(D.sw), y, PC, 8); curve(X(D.sw), y, X(D.end), y, EC, 6); dia(X(D.sw), y); card(X(D.end) + 4, y - 34, 190, 66, EC, hm(D.end), J(D.endv));
   lt(g, en ? `On-chain records on Ethereum (Etherscan) · as of ${hm(c.now)} UTC` : `Ethereum上のオンチェーン記録（Etherscan）・${hm(c.now)}時点`, 30, 786, { s: 15, w: 500, c: '#7f8ea6' });
 }
+import { BN as BNC } from './xpost-lib.js';
+const BNFZ = BNC.fzSteps, BNAAVE = BNC.aaveAt, BNTL = BNC.tl;
+// v237: Binance流出「資金の現況」(sr: bnstatus)。上 = 未凍結ETHの積み上げ＋1時間ごとの交換回数・保有アドレス、左下 = 凍結、右下 = 未凍結のBTC
+function drawBnStatus(g, s, ch, lg) {
+  const en = lg === 'en', H2 = LH, H = 36e5, EL = '#ffd27a', IC = '#9ad3ff', GC = '#5ee9c8', BC = '#f7931a', MU = '#8ea2bf';
+  const N2 = (v) => { const a = Math.abs(v); return en ? (a >= 1e9 ? (+(a / 1e9).toFixed(2)) + 'B' : a >= 1e6 ? (+(a / 1e6).toFixed(1)) + 'M' : a >= 1e4 ? Math.round(a / 1e3) + 'k' : Math.round(a).toLocaleString('en-US')) : (a >= 1e8 ? (+(a / 1e8).toFixed(2)) + '億' : a >= 1e4 ? (+(a / 1e4).toFixed(a >= 1e6 ? 0 : 1)) + '万' : Math.round(a).toLocaleString('en-US')); };
+  const hm = (t) => { const d = new Date(t + (en ? 0 : 9 * H)); return d.getUTCHours() + ':' + LP(d.getUTCMinutes()); };
+  const bg = g.createRadialGradient(360, 80, 20, 360, 80, 1300); bg.addColorStop(0, '#16243f'); bg.addColorStop(1, '#03060d'); g.fillStyle = bg; g.fillRect(0, 0, W, H2);
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+  const card = (x, y, w, h, c, a, b) => { const gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, a); gr.addColorStop(1, b); g.fillStyle = gr; rr(x, y, w, h, 14); g.fill(); g.strokeStyle = c; g.globalAlpha = .7; g.lineWidth = 1.6; g.stroke(); g.globalAlpha = 1; };
+  const glow = (c, f) => { g.save(); g.shadowColor = c; g.shadowBlur = 12; f(); g.restore(); };
+  const area = (pts, base, fillA, fillB, line, top) => { const gr = g.createLinearGradient(0, top, 0, base); gr.addColorStop(0, fillA); gr.addColorStop(1, fillB); g.fillStyle = gr; g.beginPath(); g.moveTo(pts[0][0], base); pts.forEach(([x, y]) => g.lineTo(x, y)); g.lineTo(pts[pts.length - 1][0], base); g.closePath(); g.fill(); glow(line, () => { g.strokeStyle = line; g.lineWidth = 2.6; g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); }); };
+  // 見出し
+  lt(g, en ? 'Binance outflow: where the funds are' : 'Binance流出：資金の現況', 30, 50, { s: 32, w: 900 });
+  const head = ch && ch.kind === 'change' ? (en ? 'Since last: ' : '前回から：') + ch.ch.map(([k, v]) => (k === 'fz' ? (en ? 'Frozen $' : '凍結 ') : k === 'eth' ? (en ? 'ETH ' : 'ETH ') : k === 'btc' ? 'BTC ' : (en ? 'ETH sold ' : 'ETH売り ')) + (v > 0 ? '+' : '') + N2(v) + (k === 'fz' && !en ? 'ドル' : '')).join(en ? ' / ' : '／') : '';
+  lt(g, (en ? 'CSA on-chain tracking · ' : 'CSA独自追跡・オンチェーンの記録・') + (en ? `${new Date(s.asof).getUTCMonth() + 1}/${new Date(s.asof).getUTCDate()} ${hm(s.asof)} UTC` : `${hm(s.asof)} 日本時間`) + (en ? ` · ${s.hrs}h in` : `・発生から${s.hrs}時間`), 30, 80, { s: 17, w: 800, c: MU });
+  lt(g, '@csa_archive', W - 30, 48, { s: 18, w: 800, c: MU, a: 'right' }); if (head) lt(g, head, W - 30, 80, { s: fitBig(g, head, 520, 20, 900, LJ), w: 900, c: '#ff9a9a', a: 'right' });
+  // ===== 上段 ETH =====
+  card(20, 94, 1160, 310, '#f5b942', '#1c1a14', '#0b0e16');
+  glow('#f5b942', () => lt(g, en ? 'Unfrozen ETH' : '未凍結ETH（枚）', 40, 130, { s: 26, w: 900, c: EL }));
+  g.fillStyle = '#f5b942'; g.fillRect(250, 120, 28, 4); lt(g, en ? 'held (stacked)' : '保有の積み上げ', 284, 128, { s: 15, w: 800, c: '#e8d3a8' });
+  g.fillStyle = '#fff3c4'; g.fillRect(410, 121, 28, 3); lt(g, en ? 'swaps per hour' : '1時間ごとの交換回数', 444, 128, { s: 15, w: 800, c: '#fff3c4' });
+  { const x0 = 90, x1 = 830, y0 = 360, y1 = 150, tE = s.asof, X = (t) => x0 + (t - s.t0) / (tE - s.t0) * (x1 - x0);
+    const sum = s.steps.reduce((a, q) => a + q[1], 0), mx = Math.max(s.eth, sum) * 1.12 || 1, Y = (v) => y0 - v / mx * (y0 - y1);
+    const smx = Math.max(10, ...s.swaps) * 1.25, Ys = (n) => y0 - n / smx * (y0 - y1);
+    g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1;
+    [0, .5, 1].forEach((f) => { const v = Math.round(mx / 1.12 * f); g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); lt(g, v ? N2(v) : '0', x0 - 10, Y(v) + 5, { s: 14, w: 800, c: MU, a: 'right' }); });
+    const hrs = Math.floor((tE - s.t0) / H), stp = Math.max(1, Math.round(hrs / 6));
+    for (let h = 0; h <= hrs; h += stp) { lt(g, h + 'h', X(s.t0 + h * H), y0 + 20, { s: 13, w: 800, c: '#cfd8e6', a: 'center' }); lt(g, hm(s.t0 + h * H), X(s.t0 + h * H), y0 + 36, { s: 12, w: 700, c: MU, a: 'center' }); }
+    let c = 0; const pts = [[X(s.t0), Y(0)]]; s.steps.forEach(([t, v]) => { pts.push([X(t), Y(c)]); c += v; pts.push([X(t), Y(c)]); }); pts.push([X(tE), Y(c)]); pts.push([X(tE), Y(s.eth)]);
+    area(pts, y0, 'rgba(232,163,60,.9)', 'rgba(74,42,8,.25)', '#ffcf6b', y1);
+    const sp = s.swaps.map((n, i) => [X(s.t0 + i * H + H / 2), Ys(n), n]).filter((q) => q[0] <= x1);
+    g.strokeStyle = '#fff3c4'; g.lineWidth = 2.4; g.setLineDash([5, 4]); g.beginPath(); sp.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); g.setLineDash([]);
+    sp.forEach(([x, y, n]) => { g.fillStyle = '#fff3c4'; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); if (n) lt(g, n + (en ? '' : '回'), x, y - 9, { s: 13, w: 800, c: '#fff3c4', a: 'center' }); });
+    for (let n = 0; n <= smx; n += smx > 300 ? 100 : 50) lt(g, String(n), x1 + 10, Ys(n) + 5, { s: 13, w: 700, c: '#d9cfa8' });
+    glow(EL, () => { g.fillStyle = EL; g.beginPath(); g.arc(X(tE), Y(s.eth), 7, 0, 7); g.fill(); });
+    glow('#f5b942', () => lt(g, (en ? '~' : '約') + N2(s.eth) + ' ETH', X(tE) - 10, Y(s.eth) - 14, { s: 28, w: 900, c: EL, a: 'right' })); }
+  g.strokeStyle = 'rgba(255,255,255,.13)'; g.beginPath(); g.moveTo(860, 110); g.lineTo(860, 390); g.stroke();
+  lt(g, en ? 'Addresses holding ETH' : 'ETHを持つアドレス', 880, 130, { s: 18, w: 900, c: EL });
+  s.holders.forEach(([a, v], k) => { const y = 162 + k * 30; g.fillStyle = '#f5b942'; rr(880, y - 14, 14, 14, 3); g.fill(); lt(g, a.slice(0, 6) + '…', 902, y - 2, { s: 16, w: 800, c: '#e8d3a8', f: LN }); lt(g, N2(v) + ' ETH', 1160, y - 2, { s: 17, w: 900, c: EL, a: 'right' }); });
+  g.fillStyle = 'rgba(255,255,255,.04)'; rr(880, 318, 280, 68, 10); g.fill(); g.strokeStyle = 'rgba(255,255,255,.14)'; g.stroke();
+  lt(g, s.sold ? (en ? 'Swaps selling ETH' : 'ETHを売った交換') : (en ? 'All swaps were into ETH' : '交換はすべてETHに替える方向'), 1020, 346, { s: 16, w: 900, a: 'center' });
+  lt(g, s.sold ? N2(s.sold) + ' ETH' : (en ? 'Swaps selling ETH: 0' : 'ETHを売る交換 0件'), 1020, 374, { s: 18, w: 900, c: '#ff8a8a', a: 'center' });
+  // ===== 凍結(左下)・BTC(右下)は時刻の軸(発生の30分前〜今) =====
+  const Y2 = 418, H3 = 232, ta = Math.floor((s.t0 + 9 * H) / H) * H - 9 * H, tb = Math.ceil((s.asof + 9 * H) / H) * H - 9 * H, stepPts = (st, X, Y, end) => { let c = 0; const p = [[X(ta), Y(0)]]; st.forEach(([t, v]) => { p.push([X(t), Y(c)]); c += v; p.push([X(t), Y(c)]); }); p.push([X(end), Y(c)]); return [p, c]; };
+  const tick = (X, yb) => { const n = 4, sh = Math.max(1, Math.round((tb - ta) / H / n)); for (let k = 0; ta + k * sh * H <= tb; k++) { const t = ta + k * sh * H; lt(g, hm(t), X(t), yb + 18, { s: 12, w: 700, c: MU, a: 'center' }); } };
+  card(20, Y2, 560, H3, '#7cc4ff', '#0f1d36', '#090f1c');
+  glow('#7cc4ff', () => lt(g, en ? '🔒 Frozen (USDT, USDC)' : '🔒 凍結（USDT・USDC）', 40, Y2 + 36, { s: 22, w: 900, c: IC }));
+  if (s.aave) { lt(g, (en ? '+ USDT deposited to Aave ' : '＋Aaveに預けたUSDT ') + N2(s.aave), 560, Y2 + 30, { s: 14, w: 900, c: GC, a: 'right' }); lt(g, en ? 'separate address' : '別のアドレス・凍結額に含まない', 560, Y2 + 48, { s: 12, w: 700, c: '#bfeee0', a: 'right' }); }
+  { const x0 = 84, x1 = 556, yb = Y2 + H3 - 30, yt = Y2 + 64, X = (t) => x0 + (t - ta) / (tb - ta) * (x1 - x0), mx = Math.max(s.fz + s.aave, 1) * 1.12, Yv = (v) => yb - v / mx * (yb - yt);
+    [0, 1e9, 2e9].filter((v) => v < mx).forEach((v) => { g.strokeStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.moveTo(x0, Yv(v)); g.lineTo(x1, Yv(v)); g.stroke(); lt(g, v ? N2(v) : '0', x0 - 8, Yv(v) + 5, { s: 12, w: 800, c: MU, a: 'right' }); });
+    tick(X, yb);
+    const [pts, c] = stepPts(BNFZ, X, Yv, tb);
+    if (s.aave) { g.fillStyle = GC; g.fillRect(X(BNAAVE), Yv(c + s.aave), X(tb) - X(BNAAVE), Yv(c) - Yv(c + s.aave)); }
+    area(pts, yb, 'rgba(59,130,246,.8)', 'rgba(11,42,90,.2)', '#9ad3ff', yt);
+    (s.checks || [s.asof]).forEach((t) => { g.fillStyle = '#fff'; g.beginPath(); g.arc(X(t), Yv(c), 4.5, 0, 7); g.fill(); });
+    glow('#7cc4ff', () => lt(g, (en ? '🔒 Frozen $' : '🔒 凍結 ') + N2(s.fz) + (en ? '' : 'ドル'), (x0 + x1) / 2 + 40, Yv(c * .5), { s: 26, w: 900, a: 'center' }));
+    const nck = (s.checks || [s.asof]).length; lt(g, en ? `unchanged across ${nck} checks` : `${nck}回の確認で変化なし`, (x0 + x1) / 2 + 40, Yv(c * .5) + 24, { s: 13, w: 800, c: '#dbeeff', a: 'center' }); }
+  card(594, Y2, 586, H3, '#f7931a', '#22160b', '#0d0c10');
+  let bw0 = 0; glow('#f7931a', () => { bw0 = lt(g, en ? 'Unfrozen BTC' : '未凍結のBTC', 614, Y2 + 36, { s: 22, w: 900, c: BC }); });
+  if (s.btc) { const b = s.btc;
+    const bl = `${b.held.toLocaleString('en-US')}${en ? ' BTC · ' : '枚・'}${b.ws.length}${en ? ' wallets · ' : 'のウォレット・'}${b.moved ? (en ? b.moved + ' sent out' : b.moved + 'つから出金') : (en ? 'no outgoing transfer' : '出金0回')}`; let bz = 15; g.font = `800 ${bz}px ${LJ}`; while (g.measureText(bl).width > 1160 - (630 + bw0) && bz > 11) { bz--; g.font = `800 ${bz}px ${LJ}`; } lt(g, bl, 630 + bw0, Y2 + 36, { s: bz, w: 800, c: '#ffe2bf' });
+    const x0 = 614, x1 = 870, yb = Y2 + H3 - 30, yt = Y2 + 70, X = (t) => x0 + (t - ta) / (tb - ta) * (x1 - x0), Yv = (v) => yb - v / (b.held * 1.1 || 1) * (yb - yt);
+    const [pts] = stepPts(b.steps || [[b.t, b.held]], X, Yv, tb); area(pts, yb, 'rgba(247,147,26,.85)', 'rgba(74,32,6,.2)', '#ffb35c', yt);
+    [ta, (ta + tb) / 2, tb].forEach((t, k) => lt(g, hm(t), X(t), yb + 18, { s: 12, w: 700, c: MU, a: ['left', 'center', 'right'][k] }));
+    lt(g, b.held.toLocaleString('en-US'), x1 - 6, Yv(b.held) - 8, { s: 16, w: 900, c: '#ffb35c', a: 'right' });
+    b.ws.slice(0, 20).forEach(([a, v], k) => { const col = Math.floor(k / 10), r = k % 10, x = 890 + col * 140, y = Y2 + 64 + r * 16.5; lt(g, a.slice(0, 8) + '…' + a.slice(-4), x, y, { s: 11, w: 700, c: '#e8cfae', f: LN }); lt(g, v.toLocaleString('en-US'), x + 132, y, { s: 11, w: 900, c: '#ffb35c', a: 'right' }); }); }
+  else lt(g, en ? 'not available this time' : '今回は取得できず', 614, Y2 + 100, { s: 22, w: 800, c: MU });
+  // ===== 下段: 主な出来事 =====
+  g.fillStyle = 'rgba(15,29,54,.6)'; rr(20, 664, 1160, 108, 14); g.fill(); g.strokeStyle = 'rgba(75,93,125,.8)'; g.stroke();
+  g.strokeStyle = '#4b5d7d'; g.lineWidth = 2; g.beginPath(); g.moveTo(50, 700); g.lineTo(1150, 700); g.stroke(); g.fillStyle = '#4b5d7d'; g.beginPath(); g.moveTo(1150, 694); g.lineTo(1162, 700); g.lineTo(1150, 706); g.fill();
+  const COL = { b: BC, r: '#ff8a8a', g: GC, a: GC, e: '#f5b942' }, ICN = { b: '₿', r: '!', g: '⇄', a: 'A', e: 'Ξ' };
+  let ev = BNTL.slice();
+  if (ch && ch.kind === 'change') { ev = ev.slice(0, 5); ev.push([s.asof, en ? 'Change detected' : '変化あり（上記）', 'Change detected', 'r']); }
+  ev.forEach(([t, ja, enl, k], i) => { const x = 60 + i * 186, c = COL[k]; glow(c, () => { g.fillStyle = c; g.beginPath(); g.arc(x, 700, 6, 0, 7); g.fill(); }); lt(g, hm(t) + (en ? '' : ''), x + 14, 693, { s: 14, w: 800, c: '#cfe0f2', f: LN });
+    g.fillStyle = c; g.beginPath(); g.arc(x + 12, 736, 13, 0, 7); g.fill(); lt(g, ICN[k], x + 12, 741, { s: 14, w: 900, c: '#0b1220', a: 'center' }); const l = en ? enl : ja; let fz2 = 16; g.font = `800 ${fz2}px ${LJ}`; while (g.measureText(l).width > 148 && fz2 > 11) { fz2--; g.font = `800 ${fz2}px ${LJ}`; } lt(g, l, x + 32, 742, { s: fz2, w: 800 }); });
+  lt(g, en ? 'Source: on-chain records (Etherscan · mempool.space) / CSA' : '出典：オンチェーンの記録（Etherscan・mempool.space）／CSA調べ', 1170, 794, { s: 12, w: 600, c: '#5d7290', a: 'right' });
+}
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   // v203: 色(上の帯・背景)を中身で決める。上げ = 緑・下げ = 赤・予定やまとめ = 青・値動きの大きさ = 金・清算の反応 = 紫
   const im = p.img || {}, sgn = (v) => v == null ? TONES.blue : v < 0 ? TONES.red : TONES.green;
   TONE = p.sr === 'pat' ? sgn(im.q && im.q.chg) : p.sr === 'spike' ? sgn(im.coins && im.coins.BTC) : p.sr === 'arch' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.c60 : im.chg)
     : p.sr === 'week' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.chg : null) : p.sr === 'vol' ? TONES.gold : p.sr === 'liq' || p.sr === 'liqday' ? TONES.red : p.sr === 'liqimp' ? TONES.purple : TONES.blue;
   const LV = p.img && p.img.live && p.img.live[lg];   // v204: 毎朝・夜は BTC実況の画像
-  if (p.sr === 'chainflow' && p.img && p.img.chainflow) { cv.height = LH; drawChainFlow(g, p.img.chainflow, lg); }   // v227
+  if (p.sr === 'bnstatus' && p.img && p.img.bn) { cv.height = LH; drawBnStatus(g, p.img.bn, p.img.ch, lg); }   // v237
+  else if (p.sr === 'chainflow' && p.img && p.img.chainflow) { cv.height = LH; drawChainFlow(g, p.img.chainflow, lg); }   // v227
   else if (p.sr === 'chaincmp' && p.img && p.img.chaincmp) { cv.height = LH; drawChainCmp(g, p.img.chaincmp, lg); }   // v226
   else if (p.sr === 'chain') return null;   // v224: 資金の追跡の画像は、実データを見てから決めた形(時系列の帯・木の図)で作る。それまでは本文だけ
   else if (LV && LV.kind === 'hack') { cv.height = LH; drawHack(g, LV, lg); }   // v221

@@ -399,6 +399,20 @@ for (const sp of [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.
 }
 
 // ---- 4b3) v221: 大型ハッキング(HACKS の cur)。発生から12時間以内に1本 ----
+// v237: Binance流出「資金の現況」。毎時の追跡のまとめが前回の投稿から変わった時だけ(凍結・保有ETH・BTC・ETHの売り)、1日3本まで自動投稿の下書きを作る
+try {
+  const tr = async (c) => { try { const r = await fetch(SITE + '/api/track?case=' + c, { signal: AbortSignal.timeout(20000) }); return r.ok ? await r.json() : null; } catch (_) { return null; } };
+  const snap = L.bnSnapshot(await tr(L.BN.case), await tr(L.BN.case + 'btc'));
+  if (snap) {
+    const mine = [...byId.values()].filter((p) => p.sr === 'bnstatus' && p.img && p.img.bn).sort((a, b) => b.img.bn.asof - a.img.bn.asof);
+    const prev = mine[0] && mine[0].img.bn, day = L.isoDay(NOW), today = mine.filter((p) => L.isoDay(p.due || 0) === day).length;
+    // v239: 定期投稿。前回の投稿から決まった間隔(2時間/4時間)が過ぎたら、変化が無くても出す。変化があれば見出しに出す
+    const lastDue = mine.length ? Math.max(...mine.map((p) => p.due || 0)) : 0, gap = L.BN.every(NOW);
+    const c = prev && prev.asof >= snap.asof ? null : (NOW - lastDue >= gap - 10 * 60000 && NOW < L.BN.until ? (L.bnChange(snap, prev) || { kind: 'same' }) : null);
+    if (c) { const d = L.bnDraft(snap, c, NOW, prev); if (!byId.has(d.id)) { put(d); console.log('[x] Binance流出の現況の下書き:', d.id, L.bnHead(snap, c, 'ja')); } }
+    else console.log('[x] Binance流出の現況: 次の投稿まで', Math.round((lastDue + gap - NOW) / 60000), '分');
+  }
+} catch (e) { console.log('[x] Binance流出の現況: 失敗', e.message); }
 // v227: 古い資金の追跡の下書き(台帳の自動下書き・比較の v1)は投稿済みの印を付けて、新しいものと見分ける
 for (const o of byId.values()) if ((o.sr === 'chain' || ['chaincmp:binance2026:v1', 'chaincmp:binance2026:v2', 'chainflow:binance2026:v1'].includes(o.id)) && !(o.done && o.done.ja && o.done.en)) {
   for (const lang of ['ja', 'en']) if (!(o.done && o.done[lang])) await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: o.id, lang, v: true } }) });
