@@ -59,7 +59,7 @@ for (let d = 0; d <= DEPTH; d++) {
   for (const A of layer) {
     if ([...addrs.values()].filter((x) => x.done).length >= MAX) break;
     A.done = true;
-    if (A.contract == null) A.contract = d === 0 ? false : await isContract(C.chainid, A.a);
+    if (A.contract == null) A.contract = d === 0 ? false : /^0x0{30}/.test(A.a) ? true : await isContract(C.chainid, A.a);   // v235: 0x000…(システム・プリコンパイルのアドレス)はコントラクト扱い
     if (A.contract) { A.cname = await contractName(C.chainid, A.a); continue; }   // コントラクト(DEX・ブリッジなど)の中はたどらない。v225: 名前(検証済みなら)
     const ms = await moves(A.a);
     const byHash = new Map();
@@ -117,13 +117,13 @@ const md = [`# ${C.ja}（${CI.name}）：発生から${HOURS}時間の台帳(第
   '', '## 最初の受取先から直接出た送金(大きい順20件)', ...events.filter((e) => e.kind === 'transfer' && e.from === lc(C.root)).sort((x, y) => y.amt - x.amt).slice(0, 20).map((e) => `- +${((e.t - t0) / H).toFixed(1)}h → ${e.to} ${f(e.amt)} ${e.asset}`),
   '', '## 葉の状態', ...['held', 'contract', 'depth-limit', 'untracked'].map((s) => `- ${s}: ${leaves.filter((l) => l.status === s).length}`),
   '', '## コントラクト(受け取った量が多い順・名前は Etherscan で検証済みのもの)', ...[...addrs.values()].filter((A) => A.contract).map((A) => ({ A, got: events.filter((e) => e.kind === 'transfer' && e.to === A.a && addrs.has(e.from) && !addrs.get(e.from).contract).reduce((o, e) => { o[e.asset] = (o[e.asset] || 0) + e.amt; return o; }, {}) })).filter((x) => Object.keys(x.got).length).sort((x, y) => Math.max(...Object.values(y.got)) - Math.max(...Object.values(x.got))).slice(0, 25).map(({ A, got }) => `- ${A.a} ${A.cname || '(名前なし)'} ← ${Object.entries(got).map(([k, v]) => f(v) + ' ' + k).join(', ')}`),
-  '', `## 今時点の残高と凍結(${new Date(now).toISOString()})`, ...status.map((r) => `- ${r.a}${r.depth === 0 ? '(最初の受取先)' : ''}: ${['ETH', 'USDT', 'USDC'].filter((k) => r[k] != null).map((k) => `${k} ${f(r[k])}${r[k + 'Frozen'] === true ? '(凍結中)' : r[k + 'Frozen'] === false ? '' : ''}`).join(' / ')}`),
+  '', `## 今時点の残高と凍結(${new Date(now).toISOString()})`, ...status.map((r) => `- ${r.a}${r.depth === 0 ? '(最初の受取先)' : ''}: ${['ETH', 'USDT', 'USDC'].filter((k) => r[k] != null).map((k) => `${k === 'ETH' ? NAT : k} ${f(r[k])}${r[k + 'Frozen'] === true ? '(凍結中)' : r[k + 'Frozen'] === false ? '' : ''}`).join(' / ')}`),
   '', `## ガス代の補充(0.01〜${GAS_MAX} ETH・追跡はしない): ${gas.length}件`].join('\n');
 fs.writeFileSync(path.join(dir, `chain-${KEY2}.md`), md + '\n');
 // v230: サイトの /track.html 用のまとめ(1時間ごとの集計・大きな動き・今の残高と凍結)を置く。RX_ADMIN_KEY がある時だけ
 const BIG = { ETH: 1000, WETH: 1000, stETH: 1000, wstETH: 1000, mETH: 1000, cmETH: 1000, rETH: 1000, USDT: 5e6, USDC: 5e6, DAI: 5e6, USDe: 5e6, FDUSD: 5e6, WBTC: 50, cbBTC: 50 };
 const tracked = (a) => addrs.has(a) && !addrs.get(a).contract;
-const BG = (k) => BIG[k] || DYNBIG[k] || (k === NAT ? MIN(NAT) * 200 : 0);   // v232: 追加のトークン・ほかのチェーンの通貨の「大きな動き」の目安
+const BG = (k) => BIG[k] || (FOLLOW.test(k) ? DYNBIG[k] : 0) || (k === NAT ? MIN(NAT) * 200 : 0);   // v232: 追加のトークン・ほかのチェーンの通貨の「大きな動き」の目安
 const mv = new Map(), sw2 = new Map();
 for (const e of events) {
   const hb = Math.floor((e.t - t0) / H);
@@ -131,7 +131,7 @@ for (const e of events) {
   if (!tracked(e.from) || e.from === e.to || !BG(e.asset)) continue;
   const k = hb + '|' + e.from + '|' + e.to + '|' + e.asset; const o = mv.get(k) || { t: e.t, kind: 'move', from: e.from, to: e.to, asset: e.asset, amt: 0, n: 0 }; o.amt += e.amt; o.n++; mv.set(k, o);
 }
-const bigEv = [...[...mv.values()].filter((o) => o.amt >= BG(o.asset)), ...[...sw2.values()].filter((o) => Object.entries(o.in).some(([a, v]) => BG(a) && v >= BG(a) / 5) || o.n >= 20)].sort((x, y) => x.t - y.t).slice(-80);
+const bigEv = [...[...mv.values()].filter((o) => o.amt >= BG(o.asset)), ...[...sw2.values()].filter((o) => Object.entries(o.in).some(([a, v]) => BG(a) && v >= BG(a) / 5) || (o.n >= 20 && Object.keys(o.in).concat(Object.keys(o.out)).some((k) => BG(k))))].sort((x, y) => x.t - y.t).slice(0, 150);   // v235: 古い順に150件(発生直後の大きな動きを落とさない)
 // v231: サイトの動的な図のための送金のつながり(追跡しているアドレスから出た分を、送り元・送り先・資産ごとに合計)と、アドレスごとの交換の合計
 const eg = new Map(), swn = new Map();
 for (const e of events) {

@@ -178,7 +178,7 @@ let LIVE = null, OTHER = [];
 const OCH = [42161, 43114, 56, 8453, 10, 137];
 const OKEY = ['btc', ...OCH.map((c) => 'c' + c)];   // v233: Bitcoin を先頭に   // v232: ほかの EVM チェーン
 try { const j = await (await fetch('/api/track?case=binance2026', { cache: 'no-store' })).json(); if (j && j.asof && Array.isArray(j.events)) LIVE = j; } catch (_) {}
-await Promise.all(OKEY.map(async (c) => { try { const j = await (await fetch('/api/track?case=binance2026' + c, { cache: 'no-store' })).json(); if (j && j.edges && j.edges.length) OTHER.push(j); } catch (_) {} }));
+await Promise.all(OKEY.map(async (c) => { try { const j = await (await fetch('/api/track?case=binance2026' + c, { cache: 'no-store' })).json(); if (j && ((j.edges && j.edges.length) || (j.status || []).some((r) => (r.ETH || 0) + (r.USDT || 0) + (r.USDC || 0) >= 1000))) OTHER.push(j); /* v235: 送金が無くても、大きな残高があるチェーンは出す */ } catch (_) {} }));
 OTHER.sort((a, b) => [0, ...OCH].indexOf(a.chain) - [0, ...OCH].indexOf(b.chain));
 const jaN = (v) => v >= 1e8 ? (+(v / 1e8).toFixed(2)) + '億' : v >= 1e4 ? (+(v / 1e4).toFixed(v >= 1e6 ? 0 : 1)) + '万' : Math.round(v).toLocaleString('en-US');
 const enN = (v) => v >= 1e9 ? (+(v / 1e9).toFixed(2)) + 'B' : v >= 1e6 ? (+(v / 1e6).toFixed(1)) + 'M' : v >= 1e4 ? (+(v / 1e3).toFixed(0)) + 'k' : Math.round(v).toLocaleString('en-US');
@@ -186,6 +186,10 @@ const N = (v) => LG === 'en' ? enN(v) : jaN(v);
 const ROLE = new Map(TRACK.adr.map(([rj, re, a]) => [a, [rj, re]]));
 const nm = (a) => { const r = ROLE.get(a); return r ? (LG === 'en' ? r[1] : r[0]) : `<a href="${ES + a}" target="_blank" rel="noopener"><code>${a.slice(0, 6)}…${a.slice(-4)}</code></a>`; };
 const hmT = (t) => { const d = new Date(t + (LG === 'en' ? 0 : 9 * 36e5)); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+// v235: 時系列と図に出す資産(大口になりやすいものだけ。ほかの自動追加トークンは出さない)
+const SHOW = /^(ETH|WETH|stETH|wstETH|mETH|cmETH|rETH|WBTC|cbBTC|BTC|USDT|USDC|DAI|USDe|FDUSD|RLUSD|USD1|USDS|PYUSD|wBETH|PAXG|XAUt|WLFI|AVAX|BNB|POL|ARB)$/;
+const keepE = (d) => { if (!d) return; if (d.events) d.events = d.events.map((e) => e.kind === 'swap' ? { ...e, in: Object.fromEntries(Object.entries(e.in).filter(([k]) => SHOW.test(k))), out: Object.fromEntries(Object.entries(e.out).filter(([k]) => SHOW.test(k))) } : e).filter((e) => e.kind === 'move' ? SHOW.test(e.asset) : Object.keys(e.in).length && Object.keys(e.out).length); if (d.edges) d.edges = d.edges.filter((e) => SHOW.test(e.asset)); };
+keepE(LIVE); OTHER.forEach(keepE);
 function liveApply() {
   if (!LIVE) return;
   const st = LIVE.status || [], fz = st.reduce((s, r) => s + (r.USDTFrozen ? r.USDT || 0 : 0) + (r.USDCFrozen ? r.USDC || 0 : 0), 0), eth = st.reduce((s, r) => s + (r.ETH || 0), 0);
@@ -291,7 +295,7 @@ async function render() {
     $('flowNote').innerHTML = `<span class="tlg"><span><i style="background:#5ee9c8"></i>${en ? 'Stablecoins' : 'ステーブルコイン'}</span><span><i style="background:#f2c94c"></i>ETH</span><span><i style="background:#a78bfa"></i>${en ? 'Other (WBTC etc.)' : 'その他（WBTCなど）'}</span><span>${en ? 'Line width = size (rough). ⇄ = swaps at that address. Tap a box for Etherscan.' : '線の太さ＝量の目安。⇄＝そのアドレスでの交換。箱を押すとEtherscanが開きます。'}</span></span>`;
   } else await fig($('figFlow'), { sr: 'chainflow', img: { chainflow: CHAINFLOW }, ja: '', en: '' });
   // v232: ほかの EVM チェーン(動きが見つかったチェーンだけ)
-  $('other').innerHTML = OTHER.length ? `<h2>${en ? 'Other chains' : 'ほかのチェーン'}<small>${en ? 'Bitcoin: from the first recipient reported by CoinDesk. EVM: from addresses that received gas on Ethereum' : 'Bitcoin：CoinDeskが報じた最初の受取先から／EVM：Ethereumでガス代を受け取ったアドレスなどから'}</small></h2>` + OTHER.map((d) => `<h3 style="margin:18px 0 8px;font-size:17px">${d.chainName}${d.heldBtc != null ? `<span style="color:#f7931a;margin-left:10px">${en ? 'Not moved: ' : '動いていない：'}${N(d.heldBtc)} BTC</span>` : ''}<small style="color:var(--mut);font-weight:600;margin-left:8px">${en ? 'checked' : '確認'} ${hmT(d.asof)}</small></h3><div class="fig"><div class="tree">${treeSvg(d)}</div></div>`).join('') : '';
+  $('other').innerHTML = OTHER.length ? `<h2>${en ? 'Other chains' : 'ほかのチェーン'}<small>${en ? 'Bitcoin: from the first recipient reported by CoinDesk. EVM: from addresses that received gas on Ethereum' : 'Bitcoin：CoinDeskが報じた最初の受取先から／EVM：Ethereumでガス代を受け取ったアドレスなどから'}</small></h2>` + OTHER.map((d) => `<h3 style="margin:18px 0 8px;font-size:17px">${d.chainName}${d.heldBtc != null ? `<span style="color:#f7931a;margin-left:10px">${en ? 'Not moved: ' : '動いていない：'}${N(d.heldBtc)} BTC</span>` : ''}<small style="color:var(--mut);font-weight:600;margin-left:8px">${en ? 'checked' : '確認'} ${hmT(d.asof)}</small></h3>${d.edges && d.edges.length ? `<div class="fig"><div class="tree">${treeSvg(d)}</div></div>` : ''}${d.edges && d.edges.length ? '' : (d.status || []).filter((r) => (r.ETH || 0) + (r.USDT || 0) + (r.USDC || 0) >= 1000).map((r) => `<div class="st" style="margin:8px 0"><div class="l"><a href="${d.chain === 0 ? 'https://mempool.space/address/' : ''}${d.chain === 0 ? r.a : ''}">${r.a.slice(0, 10)}…${r.a.slice(-6)}</a> ${en ? 'balance now' : 'の今の残高'}</div><div class="v" style="font-size:22px">${[['ETH', d.nat], ['USDT', 'USDT'], ['USDC', 'USDC']].filter(([k]) => (r[k] || 0) >= 1).map(([k, l]) => `${N(r[k])} ${l}${r[k + 'Frozen'] ? ' 🔒' : ''}`).join(' ／ ')}</div></div>`).join('')}`).join('') : '';
   await fig($('figCmp'), { sr: 'chaincmp', img: { chaincmp: CHAINCMP }, ja: '', en: '' });
 }
 for (const [id, lg] of [['bja', 'ja'], ['ben', 'en']]) $(id).onclick = () => { LG = lg; try { localStorage.setItem('csa-lang', lg); } catch {} render(); };
