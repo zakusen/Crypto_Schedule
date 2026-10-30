@@ -843,3 +843,4 @@
   - コントラクトの名前(Etherscan で検証済みのもの)、今時点の USDT・USDC の残高と凍結の状態(isBlackListed / isBlacklisted を読む)、最初の受取先の ETH 残高を記録。
   - 調べるアドレスの上限の初期値を 500 に(chain.yml も。時間の上限 90分)。
 - v226: 過去最大の流出(Bybit) vs 今回(Binance)の比較投稿(sr: chaincmp)。発生から12時間を1時間刻みの2レーンで描き、今回は「今ここ」で止める。数字は xpost-lib.js の CHAINCMP(台帳から手で入れる)。自動投稿しない(man: 1)。x_notify が下書きを1回だけ作り、/posts.html から手で投稿する。
+- v227: 今回の流出(Binance)の行き先と時系列の投稿(sr: chainflow)を追加。横軸を時刻にした枝分かれの図で、凍結は氷の箱。数字は xpost-lib.js の CHAINFLOW。chaincmp と同じく手で投稿(man: 1)。chaincmp と chainflow の本文を、話題の言葉を先頭に出しハッシュタグ4つ(#Binance #バイナンス #仮想通貨 #ビットコイン、英語は #Binance ほか)に変更。

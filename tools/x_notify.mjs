@@ -399,7 +399,7 @@ for (const sp of [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.
 }
 
 // ---- 4b3) v221: 大型ハッキング(HACKS の cur)。発生から12時間以内に1本 ----
-{ const d = L.chaincmpDraft(NOW); if (!byId.has(d.id)) { put(d); console.log('[x] 流出の比較(手で投稿)の下書き:', d.id); } }   // v226
+for (const d of [L.chaincmpDraft(NOW), L.chainflowDraft(NOW)]) { if (!byId.has(d.id)) { put(d); console.log('[x] 流出の追跡(手で投稿)の下書き:', d.id); } }   // v226・v227
 for (const ev of HACKS.filter((h) => h.cur && NOW - h.t >= 0 && NOW - h.t < 12 * H)) { const id = 'hack:' + ev.id; if (!byId.has(id)) { put(L.hackDraft(ev, NOW)); console.log('[x] 大型ハッキングの下書き:', id); } }
 
 // ---- 4c) v202: サイトの「似ている過去の値動き」カードを今の24時間で更新(直近6時間に急変動の計測が無い時) ----

@@ -884,15 +884,75 @@ function drawChainCmp(g, c, lg) {
   c.stat.forEach(([ja, enS, k], i) => lt(g, (k === 'fz' ? '🔒 ' : '') + (en ? enS : ja), bx + 16, 622 + i * 32, { s: 20, w: 800, c: k === 'fz' ? CC : PC }));
   lt(g, en ? 'On-chain records on Ethereum (Etherscan)' : 'Ethereum上のオンチェーン記録（Etherscan）', 36, 788, { s: 15, w: 500, c: '#7f8ea6' });
 }
+// v227: 今回の流出の行き先と時系列(氷の図)。横軸は時刻(前半を広く)。凍結は氷の箱
+function drawChainFlow(g, c, lg) {
+  const en = lg === 'en', H2 = LH, GC = '#5ee9c8', EC = '#f2c94c', PC = '#a78bfa', IC = '#8fd8ff', RC = '#ff5c7a', J = (a) => en ? a[1] : a[0];
+  const K = [[315, 250], [360, 600], [420, 780], [540, 940], [690, 1150]];
+  const X = (t) => { for (let i = 1; i < K.length; i++) if (t <= K[i][0]) { const [a, xa] = K[i - 1], [b, xb] = K[i]; return xa + (t - a) / (b - a) * (xb - xa); } return 1150; };
+  const hm = (t) => { const v = ((en ? t - 540 : t) + 1440) % 1440; return Math.floor(v / 60) + ':' + LP(v % 60); };
+  const bg = g.createRadialGradient(W / 2, 320, 40, W / 2, 320, 800); bg.addColorStop(0, '#0f1f3a'); bg.addColorStop(1, '#040913'); g.fillStyle = bg; g.fillRect(0, 0, W, H2);
+  g.fillStyle = 'rgba(191,230,255,.35)'; for (let i = 0; i < 60; i++) { g.beginPath(); g.arc((i * 397) % W, (i * 211) % H2, i % 3 ? 1 : 1.6, 0, 7); g.fill(); }
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+  const curve = (x1, y1, x2, y2, col, w) => { const mx = (x1 + x2) / 2; g.save(); g.strokeStyle = col; g.lineCap = 'round'; g.shadowColor = col; g.shadowBlur = 14; g.lineWidth = w; g.beginPath(); g.moveTo(x1, y1); g.bezierCurveTo(mx, y1, mx, y2, x2, y2); g.stroke(); g.restore(); };
+  const node = (x, y, col) => { g.save(); g.shadowColor = col; g.shadowBlur = 10; g.fillStyle = '#081324'; g.strokeStyle = col; g.lineWidth = 3.5; g.beginPath(); g.arc(x, y, 11, 0, 7); g.fill(); g.stroke(); g.restore(); };
+  const dia = (x, y) => { g.save(); g.translate(x, y); g.rotate(Math.PI / 4); g.fillStyle = '#2a2208'; g.strokeStyle = EC; g.lineWidth = 2.5; g.fillRect(-9, -9, 18, 18); g.strokeRect(-9, -9, 18, 18); g.restore(); };
+  const ice = (x, y, w, h, lab, val) => {
+    g.save(); g.shadowColor = IC; g.shadowBlur = 14; const gr = g.createLinearGradient(x, y, x + w, y + h); gr.addColorStop(0, 'rgba(43,90,134,.8)'); gr.addColorStop(.5, 'rgba(22,49,79,.85)'); gr.addColorStop(1, 'rgba(58,111,158,.75)');
+    g.fillStyle = gr; g.strokeStyle = IC; g.lineWidth = 2; rr(x, y, w, h, 10); g.fill(); g.stroke(); g.restore();
+    g.strokeStyle = 'rgba(205,238,255,.45)'; g.lineWidth = .8; for (let k = 0; k < 5; k++) { const a = x + 12 + (k * 53) % (w - 24), b = y + 8 + (k * 29) % (h - 16); g.beginPath(); g.moveTo(a, b); g.lineTo(a + 14 + k * 3, b + 8 - k * 4); g.lineTo(a + 24 + k * 3, b + 2 - k * 3); g.stroke(); }
+    g.fillStyle = 'rgba(205,238,255,.55)'; for (let k = 0; k < w / 14; k++) { const d = 5 + (k * 7) % 9; g.beginPath(); g.moveTo(x + 8 + k * 14, y + h); g.lineTo(x + 11 + k * 14, y + h + d); g.lineTo(x + 14 + k * 14, y + h); g.fill(); }
+    g.fillStyle = '#0d3a5c'; g.strokeStyle = IC; g.lineWidth = 1.5; rr(x + w - 92, y - 12, 86, 24, 12); g.fill(); g.stroke(); lt(g, '❄ FROZEN', x + w - 49, y + 6, { s: 13, w: 900, c: '#e6f7ff', a: 'center' });
+    lt(g, lab, x + 14, y + 28, { s: 16, w: 700, c: '#cfe9ff' }); lt(g, '🔒 ' + val, x + 14, y + h - 16, { s: fitBig(g, '🔒 ' + val, w - 24, 30, 900, LJ), w: 900, c: '#e9f8ff' });
+  };
+  const card = (x, y, w, h, col, lab, val) => { g.fillStyle = 'rgba(12,23,41,.92)'; g.strokeStyle = col + 'b3'; g.lineWidth = 1.5; rr(x, y, w, h, 10); g.fill(); g.stroke(); lt(g, lab, x + 14, y + 26, { s: 15, w: 700, c: '#9fb0c8' }); lt(g, val, x + 14, y + h - 14, { s: 28, w: 900, c: col }); };
+  const T = en ? 'Binance outflow: where the funds went, hour by hour' : '今回の流出：資金の行き先と時系列';
+  lt(g, T, 30, 50, { s: fitBig(g, T, W - 260, 32, 900, LJ), w: 900 });
+  lt(g, en ? 'Suspected hack, unconfirmed · times in UTC' : 'Binance（ハッキングの疑い・未確認）／時刻は日本時間', 30, 80, { s: 18, w: 700, c: '#7dd3fc' });
+  const AX = 740; g.strokeStyle = '#1a2c48'; g.setLineDash([2, 6]); g.lineWidth = 1;
+  for (const h of [6, 7, 8, 9, 10, 11]) { const x = X(h * 60); g.beginPath(); g.moveTo(x, 104); g.lineTo(x, AX); g.stroke(); lt(g, hm(h * 60), x, AX + 26, { s: 18, w: 700, f: LN, c: '#9fb0c8', a: 'center' }); }
+  g.setLineDash([]); g.strokeStyle = '#2c4366'; g.lineWidth = 2; g.beginPath(); g.moveTo(240, AX); g.lineTo(1160, AX); g.stroke();
+  lt(g, hm(c.t0), X(c.t0), AX + 26, { s: 18, w: 800, f: LN, c: '#ff9aac', a: 'center' });
+  const nx = X(c.now); g.strokeStyle = RC; g.lineWidth = 2.5; g.setLineDash([7, 6]); g.beginPath(); g.moveTo(nx, 112); g.lineTo(nx, AX); g.stroke(); g.setLineDash([]);
+  g.save(); g.shadowColor = RC; g.shadowBlur = 12; g.fillStyle = RC; rr(nx - 52, 92, 104, 32, 16); g.fill(); g.restore();
+  lt(g, en ? 'NOW' : '今ここ', nx, 115, { s: 18, w: 900, a: 'center' }); lt(g, hm(c.now), nx, AX + 50, { s: 18, w: 900, f: LN, c: RC, a: 'center' });
+  // 最初の受取先
+  g.fillStyle = 'rgba(11,22,40,.85)'; g.strokeStyle = '#2a4466'; g.lineWidth = 1.5; rr(18, 104, 214, 636, 14); g.fill(); g.stroke();
+  lt(g, en ? 'First recipient' : '最初の受取先', 34, 138, { s: 20, w: 900 }); lt(g, '0x5227…', 34, 162, { s: 15, w: 700, f: LN, c: '#7f93b0' });
+  lt(g, en ? `Received ~$3.2B at ${hm(c.t0)}` : `受け取り 約32億ドル（${hm(c.t0)}）`, 34, 196, { s: 14, w: 700, c: '#9fb0c8' });
+  ice(30, 222, 190, 92, en ? 'Still here: USDT' : '残っている USDT', J(c.root.usdt));
+  ice(30, 340, 190, 92, en ? 'Still here: USDC' : '残っている USDC', J(c.root.usdc));
+  lt(g, en ? 'Still here: ETH' : '残っている ETH', 34, 478, { s: 15, w: 700, c: '#9fb0c8' }); lt(g, J(c.root.eth), 34, 512, { s: 28, w: 900, c: PC });
+  const RX = 232, A = c.a, B = c.b, C = c.c, D = c.d;
+  // A
+  let y = 196; curve(RX, 250, X(A.t), y, GC, 14); node(X(A.t), y, GC); lt(g, J(A.amt), RX + 18, 186, { s: 22, w: 900, c: GC });
+  curve(X(A.t), y, X(A.sw), 150, GC, 10); curve(X(A.sw), 150, X(A.end), 150, EC, 10); dia(X(A.sw), 150);
+  card(X(A.end), 118, 200, 66, EC, hm(A.end), J(A.endv)); lt(g, J(A.swl), (X(A.sw) + X(A.end)) / 2, 140, { s: 18, w: 900, c: EC, a: 'center' });
+  curve(X(A.t), y, X(A.fz) - 6, 262, GC, 8); ice(X(A.fz), 226, 180, 80, hm(A.fz), J(A.fzv));
+  // B
+  y = 388; curve(RX, 300, X(B.t), y, GC, 10); node(X(B.t), y, GC); lt(g, J(B.amt), RX + 16, 288, { s: 22, w: 900, c: GC });
+  curve(X(B.t), y, X(B.end), y, GC, 9); card(X(B.end) + 4, y - 34, 250, 66, '#7fe8cf', hm(B.end) + (en ? ' · ' : '・') + J(B.endl), J(B.endv));
+  // C
+  y = 520; curve(RX, 520, X(C.t), y, EC, 14); node(X(C.t), y, EC); lt(g, J(C.amt), RX + 16, y - 18, { s: 22, w: 900, c: EC });
+  lt(g, hm(C.t), X(C.t), y + 38, { s: 16, w: 700, f: LN, c: '#9fb0c8', a: 'center' });
+  g.strokeStyle = EC; g.globalAlpha = .7; g.lineWidth = 3; g.setLineDash([3, 10]); g.beginPath(); g.moveTo(X(C.t) + 12, y); g.lineTo(X(C.add) - 12, y); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+  lt(g, J(C.hold), (X(C.t) + X(C.add)) / 2 + 40, y - 12, { s: 17, w: 700, c: '#9fb0c8', a: 'center' });
+  node(X(C.add), y, EC); lt(g, J(C.addv), X(C.add), y - 22, { s: 20, w: 900, c: EC, a: 'center' }); lt(g, hm(C.add), X(C.add), y + 38, { s: 16, w: 700, f: LN, c: '#9fb0c8', a: 'center' });
+  // D
+  y = 640; curve(RX, 600, X(D.t), y, PC, 8); node(X(D.t), y, PC); lt(g, J(D.amt), X(D.t) - 16, y - 24, { s: 20, w: 900, c: PC, a: 'right' });
+  lt(g, hm(D.t) + '〜' + hm(D.t2), X(D.t), y + 38, { s: 16, w: 700, f: LN, c: '#9fb0c8', a: 'center' });
+  curve(X(D.t), y, X(D.sw), y, PC, 8); curve(X(D.sw), y, X(D.end), y, EC, 6); dia(X(D.sw), y); card(X(D.end) + 4, y - 34, 190, 66, EC, hm(D.end), J(D.endv));
+  lt(g, en ? `On-chain records on Ethereum (Etherscan) · as of ${hm(c.now)} UTC` : `Ethereum上のオンチェーン記録（Etherscan）・${hm(c.now)}時点`, 30, 786, { s: 15, w: 500, c: '#7f8ea6' });
+}
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   // v203: 色(上の帯・背景)を中身で決める。上げ = 緑・下げ = 赤・予定やまとめ = 青・値動きの大きさ = 金・清算の反応 = 紫
   const im = p.img || {}, sgn = (v) => v == null ? TONES.blue : v < 0 ? TONES.red : TONES.green;
   TONE = p.sr === 'pat' ? sgn(im.q && im.q.chg) : p.sr === 'spike' ? sgn(im.coins && im.coins.BTC) : p.sr === 'arch' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.c60 : im.chg)
     : p.sr === 'week' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.chg : null) : p.sr === 'vol' ? TONES.gold : p.sr === 'liq' || p.sr === 'liqday' ? TONES.red : p.sr === 'liqimp' ? TONES.purple : TONES.blue;
   const LV = p.img && p.img.live && p.img.live[lg];   // v204: 毎朝・夜は BTC実況の画像
-  if (p.sr === 'chaincmp' && p.img && p.img.chaincmp) { cv.height = LH; drawChainCmp(g, p.img.chaincmp, lg); }   // v226
+  if (p.sr === 'chainflow' && p.img && p.img.chainflow) { cv.height = LH; drawChainFlow(g, p.img.chainflow, lg); }   // v227
+  else if (p.sr === 'chaincmp' && p.img && p.img.chaincmp) { cv.height = LH; drawChainCmp(g, p.img.chaincmp, lg); }   // v226
   else if (p.sr === 'chain') return null;   // v224: 資金の追跡の画像は、実データを見てから決めた形(時系列の帯・木の図)で作る。それまでは本文だけ
   else if (LV && LV.kind === 'hack') { cv.height = LH; drawHack(g, LV, lg); }   // v221
   else if (LV && LV.top && LV.top.length) { cv.height = LH; drawLive(g, LV, lg); }   // v206: 全ての種類で使う
