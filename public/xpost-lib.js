@@ -700,7 +700,8 @@ export function chainflowDraft(now) {
 // 数字は全部オンチェーンの記録から。予測・持ち主の断定・「動かせる」は書かない
 export const BN = { case: 'binance2026', maxPerDay: 3,
   // v239: 定期投稿の間隔。10/31 5:00 JST(10/30 20:00 UTC)までは2時間おき、そのあとは4時間おき。最後は7日目で止める
-  every: (t) => t < Date.UTC(2026, 9, 30, 20, 0) ? 2 * 36e5 : 4 * 36e5, until: Date.UTC(2026, 10, 5, 20, 24), dEth: 1e4, dFz: 1e7, dBtc: 10,
+  every: () => 2 * 36e5,   // v242: 動きがあった時だけ。連続しないよう最短2時間あける
+  until: Date.UTC(2026, 10, 5, 20, 24), dEth: 1e4, dFz: 1e7, dBtc: 10,
   // 凍結されている分が今の場所に届いた時刻と量(台帳から。最初の受取先が受け取った分は出どころが追跡の外なので固定)
   fzSteps: [[Date.UTC(2026, 9, 29, 20, 24), 18.75e8], [Date.UTC(2026, 9, 29, 20, 30), -5e8], [Date.UTC(2026, 9, 29, 20, 33), -2e8], [Date.UTC(2026, 9, 29, 20, 41), 8.23e8], [Date.UTC(2026, 9, 29, 21, 8), 1.75e8]],
   aaveAt: Date.UTC(2026, 9, 29, 20, 58),
@@ -741,6 +742,7 @@ export function bnHead(s, c, lg) {   // 画像と本文の一番上に出す「�
 // v241: 冒頭の1行に一番強い事実を置く。ハッシュタグは2つ。最後に次の更新の目安
 export function bnLead(s, c, lg) {
   const en = lg === 'en', b = s.btc, h = s.hrs;
+  if (c && c.kind === 'close') return en ? `Binance outflow, ${h}h in. Wrapping up regular updates here.` : `Binance流出から${h}時間。定期の更新は、ここでいったん区切ります。`;
   if (c && c.kind === 'change') return en ? `Binance outflow, ${h}h in. Changed since last check: ${bnHead(s, c, 'en')}` : `Binance流出から${h}時間。前回から動きあり：${bnHead(s, c, 'ja')}`;
   const still = !s.sold && (!b || !b.moved);
   return en
@@ -750,8 +752,8 @@ export function bnLead(s, c, lg) {
 export function bnText(s, c, lg, next) {
   const en = lg === 'en', b = s.btc, nx = Math.round((next || 2 * 36e5) / 36e5);
   const L2 = en
-    ? [bnLead(s, c, 'en'), '', `• Frozen USDT/USDC: $${enN2(s.fz)}`, s.sold ? `• ETH sold in swaps: ${enN2(s.sold)}` : '• Swaps selling ETH: 0', b ? `• BTC withdrawals: ${b.moved ? b.moved + ' wallets' : '0'} (${b.ws.length} wallets)` : '', '', `Next update in ~${nx}h. On-chain records.`, '#Binance #Bitcoin']
-    : [bnLead(s, c, 'ja'), '', `・凍結 USDT・USDC：${jaN2(s.fz)}ドル`, s.sold ? `・ETHを売る交換：${jaN2(s.sold)} ETH` : '・ETHを売る交換：0件', b ? `・BTCの出金：${b.moved ? b.moved + 'ウォレット' : '0回'}（${b.ws.length}ウォレット）` : '', '', `続きは約${nx}時間後に更新します（オンチェーンの記録）`, '#Binance #ビットコイン'];
+    ? [bnLead(s, c, 'en'), '', `• Frozen USDT/USDC: $${enN2(s.fz)}`, s.sold ? `• ETH sold in swaps: ${enN2(s.sold)}` : '• Swaps selling ETH: 0', b ? `• BTC withdrawals: ${b.moved ? b.moved + ' wallets' : '0'} (${b.ws.length} wallets)` : '', '', c && c.kind === 'close' ? 'Next post: only when the funds move on-chain.' : 'Will update when the funds move. On-chain records.', '#Binance #Bitcoin']
+    : [bnLead(s, c, 'ja'), '', `・凍結 USDT・USDC：${jaN2(s.fz)}ドル`, s.sold ? `・ETHを売る交換：${jaN2(s.sold)} ETH` : '・ETHを売る交換：0件', b ? `・BTCの出金：${b.moved ? b.moved + 'ウォレット' : '0回'}（${b.ws.length}ウォレット）` : '', '', c && c.kind === 'close' ? '次は、オンチェーンで資金が動いたときにお知らせします' : '動きがあれば、また更新します（オンチェーンの記録）', '#Binance #ビットコイン'];
   return L2.filter((x, i, a) => x || (a[i - 1] && a[i + 1] !== undefined)).join('\n');
 }
 // v240: 返信欄の詳細(親の投稿にぶら下げる)。保有アドレス・Aave・サイトの詳細ページ
@@ -764,7 +766,7 @@ export function bnReply(s, lg) {
 }
 export function bnDraft(s, c, now, prev) {
   s = { ...s, checks: [...((prev && prev.checks) || []), s.asof].slice(-8) };
-  const nx = BN.every(now), id = 'bnstatus:' + Math.floor(s.asof / 36e5), ja = bnText(s, c, 'ja', nx), en = bnText(s, c, 'en', nx), dues = { ja: now, en: now + 30 * 60000 };   // v241: 英語は30分ずらす
+  const nx = BN.every(now), id = 'bnstatus:' + Math.floor(s.asof / 36e5) + (c && c.kind === 'close' ? ':close' : ''), ja = bnText(s, c, 'ja', nx), en = bnText(s, c, 'en', nx), dues = { ja: now, en: now + 30 * 60000 };   // v241: 英語は30分ずらす
   const rj = bnReply(s, 'ja'), re = bnReply(s, 'en');
   return [{ id, sr: 'bnstatus', due: now, dues, ja, en, h: hashStr(ja + en), img: { bn: s, ch: c } }, { id: id + ':r', sr: 'bnreply', parent: id, due: now, dues, ja: rj, en: re, h: hashStr(rj + re) }];
 }
