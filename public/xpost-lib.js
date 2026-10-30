@@ -655,7 +655,7 @@ export function chainDraft(im, now) {
 // ---- v226: 過去最大の流出(Bybit) vs 今回(Binance)、発生から12時間の比較。自動投稿しない(man: 1)。/posts.html から手で投稿する ----
 // 数字は chain-ledger の台帳(Bybit は v224 の実行・Binance は v225 の実行)から。新しい台帳が出たら、ここを書き換えて id の末尾を上げる
 export const CHAINCMP = {
-  id: 'chaincmp:binance2026:v1', hours: 12,
+  id: 'chaincmp:binance2026:v2', hours: 12,
   past: { ja: 'Bybit', en: 'Bybit', yja: '2025｜確定', yen: '2025 · confirmed', bars: [62, 113, 47, 15, 10, 9, 5, 5, 3, 0, 1, 1],
     ev: [[0, 1, 'stETH・mETH→ETHに交換', 'stETH, mETH → ETH'], [1, 3, '1万ETHずつ約40アドレスへ分散', '10k ETH each to ~40 addresses']] },
   cur: { ja: 'Binance', en: 'Binance', yja: '2026｜未確認', yen: '2026 · unconfirmed', bars: [20, 3, 4, 3, 1, 0], end: 5.6,
