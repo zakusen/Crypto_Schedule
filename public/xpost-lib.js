@@ -812,7 +812,7 @@ export function shockTexts(sd, lg) {
 export function shockDraft(sd, now, kind, why) {
   const id = (kind === 'shockbn' ? 'shock:' : 'shockcmp:') + SHOCK.cur + ':d' + sd.n + ':' + why, dues = { ja: now, en: now + 30 * 60000 };
   const ja = shockTexts(sd, 'ja'), en = shockTexts(sd, 'en'), k = kind === 'shockbn' ? 'main' : 'reply';
-  return { id, sr: kind, due: now, dues, ja: ja[k], en: en[k], h: hashStr(ja[k] + en[k]), img: { shock: sd }, why };
+  return { id, sr: kind, parent: undefined, due: now, dues, ja: ja[k], en: en[k], h: hashStr(ja[k] + en[k]), img: { shock: sd }, why };
 }
 // v245: 空き枠の条件。日本時間9〜23時、前の4時間と先の2時間に自動投稿が無い、前のショック比較から2日
 export const SHOCKGAP = { from: 9, to: 23, before: 4 * H, after: 2 * H, every: 47 * H, trigGap: 3 * H, perDay: 2 };

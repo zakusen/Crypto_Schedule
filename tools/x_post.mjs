@@ -37,6 +37,7 @@ const posts = store.posts || [];
 const todo = [];
 for (const p of posts.filter((p) => L.isAuto(p) && p.due && !p.upd))   // v173: 言語ごとの投稿時刻(dues)と出す言語(langs)
   for (const lg of L.langsOf(p)) { const d = L.dueOf(p, lg); if (!(p.done && p.done[lg]) && d <= NOW && NOW - d < L.winOf(p)) todo.push({ p, lg, d }); }
+for (const t of todo) if (t.p.sr === 'shockbn' || t.p.sr === 'shockcmp') { if (t.p.parent) console.log('[post] ショック比較は返信にしない:', t.p.id); delete t.p.parent; }   // v246: ショック比較は必ず単独の投稿
 todo.sort((a, b) => a.d - b.d || (a.p.parent ? 1 : 0) - (b.p.parent ? 1 : 0));   // v187: 返信(parent あり)は親の後
 if (DRY && !todo.length) {                 // 試しの時、投稿時刻のものが無ければ、種類ごとに一番近い下書きを1つずつ使う(文面と画像の確認用)
   for (const sr of ['daily', 'arch', 'week']) { const p = posts.filter((x) => x.sr === sr && x.due).sort((a, b) => Math.abs(a.due - NOW) - Math.abs(b.due - NOW))[0]; if (p) for (const lg of ['en', 'ja']) todo.push({ p, lg }); }
@@ -148,6 +149,11 @@ for (const { p, lg } of todo) {
       if (par && par.done && par.done[lg]) { await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true } }) }); console.log('[post] 親が前の回に出ているので返信は出しません', p.id + ':' + lg); }
       continue;
     }
+  }
+  // v247: ショック比較は、英語を同じ投稿の日本語への返信にする(1と2、3と4がそれぞれ親子)。日本語がまだなら次の回
+  if ((p.sr === 'shockbn' || p.sr === 'shockcmp') && lg === 'en') {
+    reply = tw.get(p.id + ':ja') || (p.tw && p.tw.ja) || null;
+    if (!reply && !(p.done && p.done.ja)) { console.log('[post] ショック比較: 日本語が出てから英語を返信で出します', p.id); continue; }
   }
   // v202: 日誌スレッド。毎朝の予定(daily)をその日の親にして、ほかの自動投稿はその日の最新の投稿への返信としてつなぐ。番号「10/26 · #3」を最後に付ける
   let no = null;

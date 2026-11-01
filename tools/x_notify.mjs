@@ -435,6 +435,11 @@ try {
   else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < 1) put1(next, 'slot');
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
 } catch (e) { console.log('[x] ショック比較: 失敗', e.message); }
+// v246: v243 の親子の下書き(shock:…:dN と shock:…:dN:r)は投稿済みの印を付けて出さない
+for (const o of byId.values()) if (/^shock:[a-z0-9]+:d\d+(:rec)?(:r)?$/.test(o.id) && !(o.done && o.done.ja && o.done.en)) {
+  for (const lang of ['ja', 'en']) if (!(o.done && o.done[lang])) await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: o.id, lang, v: true } }) });
+  console.log('[x] v243 の親子のショック比較の下書きを投稿済みに:', o.id);
+}
 // v227: 古い資金の追跡の下書き(台帳の自動下書き・比較の v1)は投稿済みの印を付けて、新しいものと見分ける
 for (const o of byId.values()) if ((o.sr === 'chain' || ['chaincmp:binance2026:v1', 'chaincmp:binance2026:v2', 'chainflow:binance2026:v1'].includes(o.id)) && !(o.done && o.done.ja && o.done.en)) {
   for (const lang of ['ja', 'en']) if (!(o.done && o.done[lang])) await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: o.id, lang, v: true } }) });
