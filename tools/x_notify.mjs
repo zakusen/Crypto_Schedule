@@ -423,7 +423,7 @@ try {
   const ev = {}; for (const e of L.SHOCK.ev) { const t0 = Date.parse(e.d0 + 'T00:00:00Z'), rows = await kl(t0 - 16 * 864e5, Math.min(NOW, t0 + (L.SHOCK.post + 1) * 864e5)); const s = rows && L.shockSeries(e, rows, NOW); if (!s) throw new Error('日足が取れない ' + e.id); ev[e.id] = s; }
   const cur = ev[L.SHOCK.cur], n = cur.days[cur.days.length - 1][0], sd = { ev, n };
   // v245: 空き枠を埋める投稿＋ビューが見込める時のきっかけ(回復・発生後の最安・急変動の直後)
-  const G = L.SHOCKGAP, all = [...byId.values(), ...out], mine = all.filter((p) => p.sr === 'shockbn' || p.sr === 'shockcmp').sort((x, y) => (y.due || 0) - (x.due || 0));
+  const G = L.SHOCKGAP, all = [...byId.values(), ...out], mine = all.filter((p) => (p.sr === 'shockbn' || p.sr === 'shockcmp') && p.why).sort((x, y) => (y.due || 0) - (x.due || 0));
   const last = mine[0], lastT = last ? last.due : 0, today = mine.filter((p) => L.isoDay(p.due || 0) === L.isoDay(NOW)).length, put1 = (kind, why) => { const d = L.shockDraft(sd, NOW, kind, why); if (!byId.has(d.id) && !out.some((p) => p.id === d.id)) { put(d); console.log('[x] ショック比較の下書き:', d.id); return true; } return false; };
   const after = cur.days.filter((q) => q[0] >= 0), low = Math.min(...after.map((q) => q[1])), lowPosted = Math.min(0, ...mine.map((p) => { const c = p.img && p.img.shock && p.img.shock.ev[L.SHOCK.cur]; return c ? Math.min(...c.days.filter((q) => q[0] >= 0).map((q) => q[1])) : 0; }));
   const spikeNow = all.some((p) => p.sr === 'spike' && NOW - (p.due || 0) >= 0 && NOW - (p.due || 0) < 3 * H);
@@ -431,7 +431,7 @@ try {
   const h = L.J(NOW).getUTCHours(), busy = all.some((p) => L.isAuto(p) && p.sr !== 'shockbn' && p.sr !== 'shockcmp' && (p.due || 0) > NOW - G.before && (p.due || 0) < NOW + G.after);
   const next = last && last.sr === 'shockbn' ? 'shockcmp' : 'shockbn';
   if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
-  else if (!mine.length) put1('shockbn', 'first');   // v248: 最初の1本はすぐ出す(空き枠を待たない)
+  else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
   else if (trig && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
   else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < 1) put1(next, 'slot');
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
