@@ -117,6 +117,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <button class="chip" id="bell">🔔 通知をオンにする</button>
   <button class="chip" id="pastBtn" title="発表済みの指標の「発表後の値動き」を今つくる(手で投稿)">＋ 過去の発表から作る</button>
   <button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button>
+  <button class="chip" id="sfBtn" title="ショック比較(Binance 2019/2026 とショック後のBTC を交互)を空き枠を待たずに今出す。英語は30分後に返信で">📉 ショック比較を今出す</button>
   <button class="chip" id="reload">↻ 更新</button>
   <button class="chip" id="keyBtn">鍵</button>
 </header>
@@ -461,6 +462,13 @@ $('#vBtn').onclick = () => { vQuote().catch((e) => toast('作れませんでし�
 
 load(); setInterval(tick, 30000);
 setInterval(() => { if (!OPEN && getKey()) load(); }, 10 * 60000);   // 10分ごとに下書きを読み直す
+// v252: ショック比較を今出す(サイトに合図を置き、X post を起こす。数分で投稿)
+document.getElementById('sfBtn').onclick = async (e) => {
+  const b = e.currentTarget, t0 = b.textContent; b.disabled = true; b.textContent = '送信中…';
+  try { const r = await fetch('/api/admin/rx-put?name=sf', { method: 'POST', headers: { 'x-admin-key': getKey(), 'content-type': 'text/plain' }, body: JSON.stringify({ at: Date.now() }) }); b.textContent = r.ok ? '✓ 合図を送りました(数分で投稿)' : '失敗 HTTP ' + r.status; }
+  catch (err) { b.textContent = '失敗 ' + err.message; }
+  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
+};
 </script>
 </body>
 </html>

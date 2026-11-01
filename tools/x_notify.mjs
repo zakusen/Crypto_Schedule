@@ -428,12 +428,16 @@ try {
   const after = cur.days.filter((q) => q[0] >= 0), low = Math.min(...after.map((q) => q[1])), lowPosted = Math.min(0, ...mine.map((p) => { const c = p.img && p.img.shock && p.img.shock.ev[L.SHOCK.cur]; return c ? Math.min(...c.days.filter((q) => q[0] >= 0).map((q) => q[1])) : 0; }));
   const spikeNow = all.some((p) => p.sr === 'spike' && NOW - (p.due || 0) >= 0 && NOW - (p.due || 0) < 3 * H);
   const trig = cur.recover != null && !mine.some((p) => p.why === 'recover') ? 'recover' : (after.length && after[after.length - 1][1] === low && low <= lowPosted - 3 ? 'low' : (spikeNow ? 'spike' : null));
-  const h = L.J(NOW).getUTCHours(), busy = all.some((p) => L.isAuto(p) && p.sr !== 'shockbn' && p.sr !== 'shockcmp' && (p.due || 0) > NOW - G.before && (p.due || 0) < NOW + G.after);
+  const h = L.J(NOW).getUTCHours(), busy = all.some((p) => { if (!L.isAuto(p) || p.sr === 'shockbn' || p.sr === 'shockcmp') return false; const d = p.due || 0; return L.SHOCKFIXED.has(p.sr) ? Math.abs(d - NOW) < G.fixed : d > NOW - G.before && d < NOW + G.after; });   // v251
   const next = last && last.sr === 'shockbn' ? 'shockcmp' : 'shockbn';
-  if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
+  let force = null; try { force = await (await site('/api/admin/rx-one?name=sf')).json(); } catch (_) {}   // v252: /posts.html の「ショック比較を今出す」
+  const fwhy = force && force.at && NOW - force.at < 3 * H && force.at > lastT ? 'f' + Math.floor(force.at / 60000) : null;
+  if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(next, fwhy);
+  else if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
   else if (trig && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
   else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < G.slotPerDay) put1(next, 'slot');
+  else if (today === 0 && h === G.last && NOW - lastT >= G.every) put1(next, 'slot');   // v251: 22時台まで1本も出ていなければ、空きを待たずに出す(1日最低1本)
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
 } catch (e) { console.log('[x] ショック比較: 失敗', e.message); }
 // v246: v243 の親子の下書き(shock:…:dN と shock:…:dN:r)は投稿済みの印を付けて出さない

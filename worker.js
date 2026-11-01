@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-11-01-v250';
+const VERSION = '2026-11-01-v252';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1500,7 +1500,12 @@ async function xDispatch(env) {
   if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO || !env.CAL) return null;
   const now = Date.now(), due = await env.CAL.get('x:due', { type: 'json' });
   const hit = ((due && due.items) || []).filter((x) => x.due <= now && now - x.due < (String(x.id).startsWith('spike:') ? 6 : 3) * 3600e3);   // v147: 急変動は6時間まで
-  if (!hit.length) return null;
+  if (!hit.length) {   // v252: 予定が無くても日本時間9〜23時は1時間に1回起こす(ショック比較の空き枠を見るため)
+    const h = new Date(now + 9 * 3600e3).getUTCHours(); if (h < 9 || h > 23) return null;
+    const tk = Number(await env.CAL.get('x:tick')) || 0; if (now - tk < 55 * 60e3) return null;
+    await env.CAL.put('x:tick', String(now), { expirationTtl: 86400 });
+    const r = await ghDispatch(env, { tick: 1 }); return { tick: r.status };
+  }
   const last = Number(await env.CAL.get('x:disp')) || 0;
   if (now - last < 20 * 60e3) return { wait: true, n: hit.length };
   await env.CAL.put('x:disp', String(now), { expirationTtl: 86400 });
@@ -2053,7 +2058,7 @@ export default {
       const txt = await env.CAL.get(rxNameKey(name));
       return new Response(txt || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
     }
-    if (url.pathname === '/api/admin/rx-put' && request.method === 'POST') { const r = await rxPut(request, url, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/admin/rx-put' && request.method === 'POST') { const r = await rxPut(request, url, env); r.headers.set('cache-control', 'no-store'); if (r.ok && url.searchParams.get('name') === 'sf' && env.GH_DISPATCH_TOKEN && env.GH_REPO) { try { await ghDispatch(env, { shockForce: 1 }); } catch (_) {} } return r; }   // v252: ショック比較を今出す
     if (url.pathname === '/api/admin/liqimpact' && request.method === 'GET') {   // v171: 合言葉つき。X の「清算の反応」用に、next.html と同じ集計を無料の絞り込みなしで返す
       if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
       const r = await liqImpactApi(env, url); r.headers.set('cache-control', 'no-store'); return r;

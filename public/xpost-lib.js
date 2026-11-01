@@ -815,4 +815,6 @@ export function shockDraft(sd, now, kind, why) {
   return { id, sr: kind, parent: undefined, due: now, dues, ja: ja[k], en: en[k], h: hashStr(ja[k] + en[k]), img: { shock: sd }, why };
 }
 // v245: 空き枠の条件。日本時間9〜23時、前の4時間と先の2時間に自動投稿が無い、前のショック比較から4時間
-export const SHOCKGAP = { from: 9, to: 23, before: 4 * H, after: 2 * H, every: 4 * H, trigGap: 3 * H, perDay: 3, slotPerDay: 2 }   // v250: 空き枠は4時間あけて1日2本まで(交互)。きっかけ込みで1日3本まで;
+// v251: 定時の投稿(daily・pre・arch・vol・pat・sum・week・liqday)は前後30分だけよける。それ以外の自動投稿(急変動・清算・資金の現況など)は前2時間・先1時間
+export const SHOCKFIXED = new Set(['daily', 'pre', 'arch', 'vol', 'pat', 'sum', 'week', 'liqday']);
+export const SHOCKGAP = { from: 9, to: 23, before: 2 * H, after: 1 * H, fixed: 30 * 60000, last: 22, every: 4 * H, trigGap: 3 * H, perDay: 3, slotPerDay: 2 }   // v250: 空き枠は4時間あけて1日2本まで(交互)。きっかけ込みで1日3本まで;
