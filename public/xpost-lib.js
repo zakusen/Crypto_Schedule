@@ -804,13 +804,15 @@ export function shockTexts(sd, lg) {
     : [`Binanceハッキング 2019 / 2026`, `発生から${n}日目のBTC（前日の終値＝0%）`, '', `2026：${at('binance2026')}`, `2019：${at('binance2019')}`, rc, '', '前回は同じ時期に上昇相場の途中。被害額も約150倍ちがいます。', '過去の記録で、今回も同じとは限りません', '#Binance #ビットコイン'];
   const rd = (id) => sd.ev[id].recover != null ? sd.ev[id].recover : (id === 'luna2022' ? 534 : null);
   const reply = en
-    ? [`Next to past major shocks (BTC, day ${n}):`, `Binance now ${at('binance2026')}`, `Bybit ${at('bybit2025')} / LUNA ${at('luna2022')} / FTX ${at('ftx2022')}`, '', `Days to regain the pre-shock level: FTX ${rd('ftx2022')}, Bybit ${rd('bybit2025')}, LUNA ${rd('luna2022')}`, 'Past record. This time may differ.']
-    : [`過去の巨大ショックと並べると（発生から${n}日目のBTC）`, `今回 Binance ${at('binance2026')}`, `Bybit ${at('bybit2025')}／LUNA ${at('luna2022')}／FTX ${at('ftx2022')}`, '', `前の水準に戻るまで：FTX ${rd('ftx2022')}日・Bybit ${rd('bybit2025')}日・LUNA ${rd('luna2022')}日`, '過去の記録で、今回も同じとは限りません'];
+    ? ['BTC after major shocks', `Aligned on day 0 (prior close = 0%), day ${n}:`, `Binance now ${at('binance2026')}`, `Bybit ${at('bybit2025')} / LUNA ${at('luna2022')} / FTX ${at('ftx2022')}`, '', `Days to regain the pre-shock level: FTX ${rd('ftx2022')}, Bybit ${rd('bybit2025')}, LUNA ${rd('luna2022')}`, 'Past record. This time may differ.', '#Bitcoin #Binance']
+    : ['ショック後のBTC', `発生日をそろえて比べる（前日の終値＝0%・${n}日目）`, `今回 Binance ${at('binance2026')}`, `Bybit ${at('bybit2025')}／LUNA ${at('luna2022')}／FTX ${at('ftx2022')}`, '', `前の水準に戻るまで：FTX ${rd('ftx2022')}日・Bybit ${rd('bybit2025')}日・LUNA ${rd('luna2022')}日`, '過去の記録で、今回も同じとは限りません', '#ビットコイン #Binance'];
   return { main: main.filter((x, i, a) => x !== '' || a[i - 1] !== '').join('\n'), reply: reply.join('\n') };
 }
-export function shockDrafts(sd, now, why) {
-  const id = 'shock:' + SHOCK.cur + ':d' + sd.n + (why === 'recover' ? ':rec' : ''), dues = { ja: now, en: now + 30 * 60000 };
-  const ja = shockTexts(sd, 'ja'), en = shockTexts(sd, 'en'), img = { shock: sd };
-  return [{ id, sr: 'shockbn', due: now, dues, ja: ja.main, en: en.main, h: hashStr(ja.main + en.main), img },
-    { id: id + ':r', sr: 'shockcmp', parent: id, due: now, dues, ja: ja.reply, en: en.reply, h: hashStr(ja.reply + en.reply), img }];
+// v245: 1本ずつ作る。kind = 'shockbn'(Binance 2019/2026) か 'shockcmp'(ショック後のBTC)。why は id に残す(空き枠・回復・最安・急変動)
+export function shockDraft(sd, now, kind, why) {
+  const id = (kind === 'shockbn' ? 'shock:' : 'shockcmp:') + SHOCK.cur + ':d' + sd.n + ':' + why, dues = { ja: now, en: now + 30 * 60000 };
+  const ja = shockTexts(sd, 'ja'), en = shockTexts(sd, 'en'), k = kind === 'shockbn' ? 'main' : 'reply';
+  return { id, sr: kind, due: now, dues, ja: ja[k], en: en[k], h: hashStr(ja[k] + en[k]), img: { shock: sd }, why };
 }
+// v245: 空き枠の条件。日本時間9〜23時、前の4時間と先の2時間に自動投稿が無い、前のショック比較から2日
+export const SHOCKGAP = { from: 9, to: 23, before: 4 * H, after: 2 * H, every: 47 * H, trigGap: 3 * H, perDay: 2 };
