@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-11-01-v252';
+const VERSION = '2026-11-02-v253';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1371,9 +1371,9 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl|pt|pl|wk|b\d{4})$/;   // v204: wk = BTC実況(week:live)   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
+const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl|pt|pl|wk|sf|b\d{4})$/;   // v253: sf = ショック比較を今出す(x:shockforce)   // v204: wk = BTC実況(week:live)   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
 //   v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : n === 'pt' ? 'pat:v1' : n === 'pl' ? 'pat:log' : n === 'wk' ? 'week:live' : /^b\d{4}$/.test(n) ? 'btc5m:' + n.slice(1) : 'rx:s:' + n.slice(1);
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : n === 'pt' ? 'pat:v1' : n === 'pl' ? 'pat:log' : n === 'wk' ? 'week:live' : n === 'sf' ? 'x:shockforce' : /^b\d{4}$/.test(n) ? 'btc5m:' + n.slice(1) : 'rx:s:' + n.slice(1);
 
 // === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
 //   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
