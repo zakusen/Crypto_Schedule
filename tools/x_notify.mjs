@@ -431,6 +431,7 @@ try {
   const h = L.J(NOW).getUTCHours(), busy = all.some((p) => L.isAuto(p) && p.sr !== 'shockbn' && p.sr !== 'shockcmp' && (p.due || 0) > NOW - G.before && (p.due || 0) < NOW + G.after);
   const next = last && last.sr === 'shockbn' ? 'shockcmp' : 'shockbn';
   if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
+  else if (!mine.length) put1('shockbn', 'first');   // v248: 最初の1本はすぐ出す(空き枠を待たない)
   else if (trig && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
   else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < 1) put1(next, 'slot');
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
