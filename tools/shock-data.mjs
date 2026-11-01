@@ -3,7 +3,9 @@
 // 出力: x_out/shock.json  { events:[{id, d0, base, days:[{d, t, c, pct}]}] }   pct = 発生の前日の終値からの変化(%)
 import fs from 'node:fs';
 const EV = [
+  { id: 'coincheck2018', d0: '2018-01-26' },   // コインチェック(NEM 約5.8億ドル・ハッキング)
   { id: 'luna2022', d0: '2022-05-09' },
+  { id: 'ftx2022', d0: '2022-11-08' },   // FTX(取引所の破綻・ハッキングではない)
   { id: 'bybit2025', d0: '2025-02-21' },
   { id: 'binance2026', d0: '2026-10-29' },
 ];
