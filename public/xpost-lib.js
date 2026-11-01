@@ -414,7 +414,7 @@ export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
-export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -769,4 +769,48 @@ export function bnDraft(s, c, now, prev) {
   const nx = BN.every(now), id = 'bnstatus:' + Math.floor(s.asof / 36e5) + (c && c.kind === 'close' ? ':close' : ''), ja = bnText(s, c, 'ja', nx), en = bnText(s, c, 'en', nx), dues = { ja: now, en: now + 30 * 60000 };   // v241: 英語は30分ずらす
   const rj = bnReply(s, 'ja'), re = bnReply(s, 'en');
   return [{ id, sr: 'bnstatus', due: now, dues, ja, en, h: hashStr(ja + en), img: { bn: s, ch: c } }, { id: id + ':r', sr: 'bnreply', parent: id, due: now, dues, ja: rj, en: re, h: hashStr(rj + re) }];
+}
+
+
+// ---- v243: ショック比較(2本立て)。Binance 2019 / 2026(本体・sr: shockbn)と、過去の巨大ショックとの比較(返信・sr: shockcmp) ----
+// 価格は Binance BTCUSDT の日足終値。発生の前日の終値＝0%。節目の日(終値が確定した日)に自動で投稿する。英語は30分後
+export const SHOCK = {
+  cur: 'binance2026',
+  ev: [
+    { id: 'binance2019', d0: '2019-05-07', ja: 'Binance', en: 'Binance', y: 2019, kind: ['ハッキング', 'hack'], size: ['7,000 BTC・当時約4,000万ドル', '7,000 BTC, ~$40M then'] },
+    { id: 'luna2022', d0: '2022-05-09', ja: 'LUNA', en: 'LUNA', y: 2022, kind: ['崩壊', 'collapse'] },
+    { id: 'ftx2022', d0: '2022-11-08', ja: 'FTX', en: 'FTX', y: 2022, kind: ['破綻', 'bankruptcy'] },
+    { id: 'bybit2025', d0: '2025-02-21', ja: 'Bybit', en: 'Bybit', y: 2025, kind: ['ハッキング', 'hack'] },
+    { id: 'binance2026', d0: '2026-10-29', ja: 'Binance', en: 'Binance', y: 2026, kind: ['ハッキング', 'hack'], size: ['約63億ドル・Binance推計', '~$6.3B, Binance estimate'] },
+  ],
+  marks: [3, 7, 14, 30, 60, 76, 90],   // 節目(発生日=0日目)。3日目は初回
+  pre: 15, post: 90,
+};
+// rows: Binance の日足 [[openTime, o, h, l, c, ...]]。確定した日だけ(今日の途中の足は除く)
+export function shockSeries(e, rows, now) {
+  const DAYMS = 864e5, t0 = Date.parse(e.d0 + 'T00:00:00Z');
+  const by = new Map(rows.filter((r) => +r[0] + DAYMS <= now).map((r) => [Math.round((+r[0] - t0) / DAYMS), +r[4]]));
+  const base = by.get(-1); if (!base) return null;
+  const days = [...by.entries()].filter(([d]) => d >= -SHOCK.pre && d <= SHOCK.post).sort((a, b) => a[0] - b[0]).map(([d, c]) => [d, +((c / base - 1) * 100).toFixed(2)]);
+  const rec = days.find(([d, v]) => d >= 0 && v >= 0);
+  return { id: e.id, base, recover: rec ? rec[0] : null, days };
+}
+const pctS = (v) => (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+export function shockTexts(sd, lg) {
+  const en = lg === 'en', cur = sd.ev[SHOCK.cur], n = sd.n, at = (id) => { const x = sd.ev[id] && sd.ev[id].days.find((q) => q[0] === n); return x ? pctS(x[1]) : '—'; };
+  const rc = cur.recover != null ? (en ? `Back to the pre-shock level on day ${cur.recover}.` : `${cur.recover}日目に前の水準へ戻った。`) : '';
+  const main = en
+    ? [`Binance hack 2019 / 2026`, `BTC on day ${n} after the incident (prior close = 0%)`, '', `2026: ${at('binance2026')}`, `2019: ${at('binance2019')}`, rc, '', '2019 came during a rising market, and the loss was ~150x smaller.', 'Past record. This time may differ.', '#Binance #Bitcoin']
+    : [`Binanceハッキング 2019 / 2026`, `発生から${n}日目のBTC（前日の終値＝0%）`, '', `2026：${at('binance2026')}`, `2019：${at('binance2019')}`, rc, '', '前回は同じ時期に上昇相場の途中。被害額も約150倍ちがいます。', '過去の記録で、今回も同じとは限りません', '#Binance #ビットコイン'];
+  const rd = (id) => sd.ev[id].recover != null ? sd.ev[id].recover : (id === 'luna2022' ? 534 : null);
+  const reply = en
+    ? [`Next to past major shocks (BTC, day ${n}):`, `Binance now ${at('binance2026')}`, `Bybit ${at('bybit2025')} / LUNA ${at('luna2022')} / FTX ${at('ftx2022')}`, '', `Days to regain the pre-shock level: FTX ${rd('ftx2022')}, Bybit ${rd('bybit2025')}, LUNA ${rd('luna2022')}`, 'Past record. This time may differ.']
+    : [`過去の巨大ショックと並べると（発生から${n}日目のBTC）`, `今回 Binance ${at('binance2026')}`, `Bybit ${at('bybit2025')}／LUNA ${at('luna2022')}／FTX ${at('ftx2022')}`, '', `前の水準に戻るまで：FTX ${rd('ftx2022')}日・Bybit ${rd('bybit2025')}日・LUNA ${rd('luna2022')}日`, '過去の記録で、今回も同じとは限りません'];
+  return { main: main.filter((x, i, a) => x !== '' || a[i - 1] !== '').join('\n'), reply: reply.join('\n') };
+}
+export function shockDrafts(sd, now, why) {
+  const id = 'shock:' + SHOCK.cur + ':d' + sd.n + (why === 'recover' ? ':rec' : ''), dues = { ja: now, en: now + 30 * 60000 };
+  const ja = shockTexts(sd, 'ja'), en = shockTexts(sd, 'en'), img = { shock: sd };
+  return [{ id, sr: 'shockbn', due: now, dues, ja: ja.main, en: en.main, h: hashStr(ja.main + en.main), img },
+    { id: id + ':r', sr: 'shockcmp', parent: id, due: now, dues, ja: ja.reply, en: en.reply, h: hashStr(ja.reply + en.reply), img }];
 }

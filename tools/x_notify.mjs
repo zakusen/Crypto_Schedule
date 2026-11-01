@@ -417,6 +417,16 @@ try {
     else console.log('[x] Binance流出の現況: 次の投稿まで', Math.round((lastDue + gap - NOW) / 60000), '分');
   }
 } catch (e) { console.log('[x] Binance流出の現況: 失敗', e.message); }
+// v243: ショック比較(Binance 2019/2026 ＋ 過去の巨大ショック・返信)。初回、区切りの日(3・7・14・30・60・76・90日目)、前の水準に戻った日に1組
+try {
+  const kl = async (a, b) => { for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${a}&endTime=${b}&limit=1000`, { signal: AbortSignal.timeout(20000) }); if (r.ok) return await r.json(); } catch (_) {} } return null; };
+  const ev = {}; for (const e of L.SHOCK.ev) { const t0 = Date.parse(e.d0 + 'T00:00:00Z'), rows = await kl(t0 - 16 * 864e5, Math.min(NOW, t0 + (L.SHOCK.post + 1) * 864e5)); const s = rows && L.shockSeries(e, rows, NOW); if (!s) throw new Error('日足が取れない ' + e.id); ev[e.id] = s; }
+  const cur = ev[L.SHOCK.cur], n = cur.days[cur.days.length - 1][0], sd = { ev, n };
+  const mine = [...byId.values(), ...out].filter((p) => p.sr === 'shockbn');
+  const why = !mine.length ? 'first' : (cur.recover != null && !mine.some((p) => p.id.endsWith(':rec')) ? 'recover' : (L.SHOCK.marks.includes(n) ? 'mark' : null));
+  if (why && n >= 1 && n <= L.SHOCK.post) { const [d, r] = L.shockDrafts(sd, NOW, why); if (!byId.has(d.id)) { put(d); put(r); console.log('[x] ショック比較の下書き(＋返信):', d.id, why); } }
+  else console.log('[x] ショック比較: ' + n + '日目、出す日ではない');
+} catch (e) { console.log('[x] ショック比較: 失敗', e.message); }
 // v227: 古い資金の追跡の下書き(台帳の自動下書き・比較の v1)は投稿済みの印を付けて、新しいものと見分ける
 for (const o of byId.values()) if ((o.sr === 'chain' || ['chaincmp:binance2026:v1', 'chaincmp:binance2026:v2', 'chainflow:binance2026:v1'].includes(o.id)) && !(o.done && o.done.ja && o.done.en)) {
   for (const lang of ['ja', 'en']) if (!(o.done && o.done[lang])) await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: o.id, lang, v: true } }) });
