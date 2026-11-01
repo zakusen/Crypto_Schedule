@@ -1,0 +1,18 @@
+name: Shock data
+# ショック比較の価格データ(Binance BTCUSDT 日足)を取る。手で動かす。結果は成果物 shock
+on:
+  workflow_dispatch:
+jobs:
+  get:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node tools/shock-data.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shock
+          path: x_out/shock.json
