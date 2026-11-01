@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<meta name="theme-color" content="#050b17">
+<title>ショック後のBTC：Binance 2019 / 2026 | CRYPTO SIGNAL ARCHIVE</title>
+<meta name="description" content="BinanceのハッキングのあとのBTCを、2019年のBinance、Bybit（2025）、FTX（2022）、LUNA（2022）と、発生日をそろえて前日の終値＝0%で比べる。Binance BTCUSDT日足。毎日更新。">
+<meta property="og:type" content="article"><meta property="og:site_name" content="CRYPTO SIGNAL ARCHIVE">
+<meta property="og:title" content="ショック後のBTC：Binance 2019 / 2026">
+<meta property="og:description" content="発生日をそろえ、前日の終値＝0%で過去の巨大ショックと比べる。毎日更新。">
+<meta property="og:url" content="https://crypto-schedule.signalarchive.workers.dev/shock.html">
+<meta name="twitter:card" content="summary">
+<style>
+:root{--bg:#050b17;--pan:#0b1628;--line:#1e3354;--tx:#e8f0fb;--mut:#8ea2bf;--cy:#2ee6ff;--yl:#ffc400;--or:#ff8c1a;--em:#19d3a2;--in:#8f84ff;--r:#ff9a9a}
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:radial-gradient(ellipse 1200px 700px at 50% 0,#10213e 0,var(--bg) 100%) no-repeat,var(--bg);color:var(--tx);font-family:"Zen Kaku Gothic New","Noto Sans JP",system-ui,sans-serif;line-height:1.6}
+.wrap{max-width:1080px;margin:0 auto;padding:16px 16px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.logo{font-weight:900;letter-spacing:.06em;text-decoration:none;color:var(--tx)}
+.logo small{color:var(--mut);font-weight:600;margin-left:8px;font-size:12px}
+.lang button{background:none;border:1px solid var(--line);color:var(--mut);padding:4px 12px;border-radius:999px;cursor:pointer;font:inherit;font-size:13px}
+.lang button.on{border-color:var(--cy);color:var(--tx)}
+h1{font-size:clamp(22px,4.4vw,34px);line-height:1.3;margin:22px 0 6px}
+.sub{color:#7dd3fc;font-weight:700;margin:0}
+.asof{color:var(--mut);font-size:14px;margin:6px 0 0}
+h2{font-size:20px;margin:30px 0 10px}
+.fig{background:var(--pan);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.fig img{display:block;width:100%;height:auto}
+.fig .ph{aspect-ratio:3/2;display:grid;place-items:center;color:var(--mut)}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--pan)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{color:var(--mut);font-size:13px;font-weight:700}
+tr.now td{background:rgba(46,230,255,.08)}
+.up{color:#5ee9a0}.dn{color:#ff7a8a}
+.note{color:var(--mut);font-size:13px;margin:10px 0 0}
+.warn{color:var(--r);font-weight:800;margin:18px 0 0}
+footer{margin-top:36px;color:var(--mut);font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <a class="logo" href="/">CSA<small>CRYPTO SIGNAL ARCHIVE</small></a>
+  <div class="lang"><button id="bja" class="on">日本語</button> <button id="ben">English</button></div>
+</header>
+<h1 id="h1"></h1>
+<p class="sub" id="sub"></p>
+<p class="asof" id="asof"></p>
+
+<h2 id="h2a"></h2>
+<div class="fig" id="f1"><div class="ph">…</div></div>
+<h2 id="h2b"></h2>
+<div class="fig" id="f2"><div class="ph">…</div></div>
+
+<h2 id="h2c"></h2>
+<div class="tbl"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+<p class="note" id="n1"></p>
+<p class="warn" id="warn"></p>
+<footer id="ft"></footer>
+</div>
+<script type="module">
+import { drawPost } from '/xpost-draw.js';
+import { SHOCK } from '/xpost-lib.js';
+const T = {
+  ja: { h1: 'ショック後のBTC', sub: 'Binance 2019 / 2026 と、過去の巨大ショックを並べる', asof: (n, t) => `発生から${n}日目まで（${t} 時点・確定した日足のみ）`, h2a: 'Binance ハッキング 2019 / 2026', h2b: '過去の巨大ショックと並べる', h2c: '区切りの日の比較（前日の終値＝0%）', day: '日目', rec: '前の水準に戻るまで', none: 'データを取得中です。しばらくしてから開き直してください。',
+    n1: '基準は各発生日（UTC）の前日の終値。Binance BTCUSDT の日足終値。前の水準＝前日の終値を初めて上回った日。LUNAの534日には、その後の連鎖破綻（Celsius・3ACなど）の時期も含む。2019年のBinanceは、同じ時期に上昇相場の途中で、被害の規模も約150倍ちがう。', warn: '過去の記録で、今回も同じとは限りません。予測や売買の助言ではありません。', ft: 'データ：Binance BTCUSDT 日足終値・@csa_archive' },
+  en: { h1: 'BTC after shocks', sub: 'Binance 2019 / 2026, next to past major shocks', asof: (n, t) => `Through day ${n} (as of ${t} UTC, closed daily candles only)`, h2a: 'Binance hack 2019 / 2026', h2b: 'Next to past major shocks', h2c: 'Milestone days (prior close = 0%)', day: 'Day', rec: 'Days to regain the prior level', none: 'Loading data. Please check back shortly.',
+    n1: 'Base is the close of the day before each event (UTC). Binance BTCUSDT daily close. Prior level = first day closing above that base. LUNA\'s 534 days include later collapses (Celsius, 3AC). In 2019, Binance\'s hack came during a rising market and was ~150x smaller.', warn: 'Past record. This time may differ. Not a forecast or trading advice.', ft: 'Data: Binance BTCUSDT daily close · @csa_archive' } };
+let LG = 'ja', SD = null;
+const $ = (id) => document.getElementById(id), pct = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+const COLS = [['binance2026', { ja: '今回 Binance', en: 'Binance now' }], ['binance2019', { ja: 'Binance 2019', en: 'Binance 2019' }], ['bybit2025', { ja: 'Bybit 2025', en: 'Bybit 2025' }], ['ftx2022', { ja: 'FTX 2022', en: 'FTX 2022' }], ['luna2022', { ja: 'LUNA 2022', en: 'LUNA 2022' }]];
+async function fig(el, sr) { try { const cv = await drawPost({ id: 'site:' + sr, sr, img: { shock: SD }, ja: '', en: '' }, LG); el.innerHTML = ''; const im = new Image(); im.alt = sr; im.src = cv.toDataURL('image/png'); el.appendChild(im); } catch (e) { el.innerHTML = '<div class="ph">—</div>'; } }
+function render() {
+  const t = T[LG]; document.documentElement.lang = LG; $('bja').classList.toggle('on', LG === 'ja'); $('ben').classList.toggle('on', LG === 'en');
+  for (const k of ['h1', 'sub', 'h2a', 'h2b', 'h2c', 'n1', 'warn', 'ft']) $(k).textContent = t[k];
+  if (!SD || !SD.ev || !SD.ev.binance2026) { $('asof').textContent = t.none; return; }
+  $('asof').textContent = t.asof(SD.n, new Date(SD.at).toISOString().slice(0, 16).replace('T', ' '));
+  fig($('f1'), 'shockbn'); fig($('f2'), 'shockcmp');
+  $('th').innerHTML = '<tr><th>' + t.day + '</th>' + COLS.map(([, nm]) => '<th>' + nm[LG] + '</th>').join('') + '</tr>';
+  const days = [...new Set([...SHOCK.marks.filter((d) => d <= Math.max(SD.n, 30)), SD.n])].sort((a, b) => a - b);
+  const at = (id, d) => { const e = SD.ev[id]; const q = e && e.days.find((z) => z[0] === d); return q ? q[1] : null; };
+  const cell = (v) => '<td class="' + (v == null ? '' : v >= 0 ? 'up' : 'dn') + '">' + pct(v) + '</td>';
+  let h = days.map((d) => '<tr' + (d === SD.n ? ' class="now"' : '') + '><td>' + (LG === 'ja' ? d + '日目' : 'Day ' + d) + '</td>' + COLS.map(([id]) => cell(id === 'binance2026' && d > SD.n ? null : at(id, d))).join('') + '</tr>').join('');
+  const rd = (id) => { const e = SD.ev[id]; return e && e.recover === 0 ? (LG === 'ja' ? '下回らず' : 'never below') : e && e.recover != null ? e.recover + (LG === 'ja' ? '日' : 'd') : (id === 'luna2022' ? '534' + (LG === 'ja' ? '日' : 'd') : '—'); };
+  h += '<tr><td>' + t.rec + '</td>' + COLS.map(([id]) => '<td>' + rd(id) + '</td>').join('') + '</tr>';
+  $('tb').innerHTML = h;
+}
+$('bja').onclick = () => { LG = 'ja'; render(); }; $('ben').onclick = () => { LG = 'en'; render(); };
+try { const q = new URLSearchParams(location.search).get('lang'); if (q === 'en') LG = 'en'; } catch (_) {}
+try { SD = await (await fetch('/api/shock', { cache: 'no-store' })).json(); } catch (_) {}
+render();
+</script>
+</body>
+</html>

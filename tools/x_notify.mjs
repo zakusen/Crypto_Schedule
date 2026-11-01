@@ -422,6 +422,7 @@ try {
   const kl = async (a, b) => { for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${a}&endTime=${b}&limit=1000`, { signal: AbortSignal.timeout(20000) }); if (r.ok) return await r.json(); } catch (_) {} } return null; };
   const ev = {}; for (const e of L.SHOCK.ev) { const t0 = Date.parse(e.d0 + 'T00:00:00Z'), rows = await kl(t0 - 16 * 864e5, Math.min(NOW, t0 + (L.SHOCK.post + 1) * 864e5)); const s = rows && L.shockSeries(e, rows, NOW); if (!s) throw new Error('日足が取れない ' + e.id); ev[e.id] = s; }
   const cur = ev[L.SHOCK.cur], n = cur.days[cur.days.length - 1][0], sd = { ev, n };
+  try { await site('/api/admin/rx-put?name=sk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ at: NOW, ...sd }) }); } catch (_) {}   // v255: サイトの /shock.html 用
   // v245: 空き枠を埋める投稿＋ビューが見込める時のきっかけ(回復・発生後の最安・急変動の直後)
   const G = L.SHOCKGAP, all = [...byId.values(), ...out], mine = all.filter((p) => (p.sr === 'shockbn' || p.sr === 'shockcmp') && p.why).sort((x, y) => (y.due || 0) - (x.due || 0));
   const last = mine[0], lastT = last ? last.due : 0, today = mine.filter((p) => L.isoDay(p.due || 0) === L.isoDay(NOW)).length, put1 = (kind, why) => { const d = L.shockDraft(sd, NOW, kind, why); if (!byId.has(d.id) && !out.some((p) => p.id === d.id)) { put(d); console.log('[x] ショック比較の下書き:', d.id); return true; } return false; };
