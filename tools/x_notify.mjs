@@ -433,7 +433,7 @@ try {
   if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
   else if (trig && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
-  else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < 1) put1(next, 'slot');
+  else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < G.slotPerDay) put1(next, 'slot');
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
 } catch (e) { console.log('[x] ショック比較: 失敗', e.message); }
 // v246: v243 の親子の下書き(shock:…:dN と shock:…:dN:r)は投稿済みの印を付けて出さない
