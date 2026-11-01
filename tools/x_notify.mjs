@@ -432,7 +432,7 @@ try {
   const next = last && last.sr === 'shockbn' ? 'shockcmp' : 'shockbn';
   let force = null; try { force = await (await site('/api/admin/rx-one?name=sf')).json(); } catch (_) {}   // v252: /posts.html の「ショック比較を今出す」
   const fwhy = force && force.at && NOW - force.at < 3 * H && force.at > lastT ? 'f' + Math.floor(force.at / 60000) : null;
-  if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(next, fwhy);
+  if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(force.kind === 'shockbn' || force.kind === 'shockcmp' ? force.kind : next, fwhy);   // v254: ボタンで選んだほう
   else if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
   else if (trig && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
