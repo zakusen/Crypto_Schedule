@@ -425,7 +425,7 @@ try {
   try { await site('/api/admin/rx-put?name=sk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ at: NOW, ...sd }) }); } catch (_) {}   // v255: サイトの /shock.html 用
   // v245: 空き枠を埋める投稿＋ビューが見込める時のきっかけ(回復・発生後の最安・急変動の直後)
   const G = L.SHOCKGAP, all = [...byId.values(), ...out], mine = all.filter((p) => (p.sr === 'shockbn' || p.sr === 'shockcmp') && p.why).sort((x, y) => (y.due || 0) - (x.due || 0));
-  const last = mine[0], lastT = last ? last.due : 0, today = mine.filter((p) => L.isoDay(p.due || 0) === L.isoDay(NOW)).length, put1 = (kind, why) => { const d = L.shockDraft(sd, NOW, kind, why); if (!byId.has(d.id) && !out.some((p) => p.id === d.id)) { put(d); console.log('[x] ショック比較の下書き:', d.id); return true; } return false; };
+  const last = mine[0], lastT = last ? last.due : 0, today = mine.filter((p) => L.isoDay(p.due || 0) === L.isoDay(NOW) && !/^f\d+$/.test(p.why || '')).length, put1 = (kind, why) => { const d = L.shockDraft(sd, NOW, kind, why); if (!byId.has(d.id) && !out.some((p) => p.id === d.id)) { put(d); console.log('[x] ショック比較の下書き:', d.id); return true; } console.log('[x] ショック比較: 同じ下書きがもうある', d.id); return false; };   // v258: 黙って何もしないのをやめる
   const after = cur.days.filter((q) => q[0] >= 0), low = Math.min(...after.map((q) => q[1])), lowPosted = Math.min(0, ...mine.map((p) => { const c = p.img && p.img.shock && p.img.shock.ev[L.SHOCK.cur]; return c ? Math.min(...c.days.filter((q) => q[0] >= 0).map((q) => q[1])) : 0; }));
   const spikeNow = all.some((p) => p.sr === 'spike' && NOW - (p.due || 0) >= 0 && NOW - (p.due || 0) < 3 * H);
   const trig = cur.recover != null && !mine.some((p) => p.why === 'recover') ? 'recover' : (after.length && after[after.length - 1][1] === low && low <= lowPosted - 3 ? 'low' : (spikeNow ? 'spike' : null));
@@ -437,8 +437,8 @@ try {
   else if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
   else if (trig && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
-  else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < G.slotPerDay) put1(next, 'slot');
-  else if (today === 0 && h === G.last && NOW - lastT >= G.every) put1(next, 'slot');   // v251: 22時台まで1本も出ていなければ、空きを待たずに出す(1日最低1本)
+  else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < G.slotPerDay) put1(next, 'slot' + h);   // v258: 時刻を付けて、同じ日・同じ種類の2本目もぶつからない
+  else if (today === 0 && h === G.last && NOW - lastT >= G.every) put1(next, 'slot' + h);   // v251: 22時台まで1本も出ていなければ、空きを待たずに出す(1日最低1本)
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
 } catch (e) { console.log('[x] ショック比較: 失敗', e.message); }
 // v246: v243 の親子の下書き(shock:…:dN と shock:…:dN:r)は投稿済みの印を付けて出さない
