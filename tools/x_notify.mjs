@@ -465,6 +465,28 @@ try {
 try { const S = await getS(), w = await weekBoth(S, NOW, groups(events.filter(L.AUTOEV)).map((g) => ({ t: g[0].ts, ja: L.headName(g, 'ja'), en: L.headName(g, 'en'), c: g[0].c }))); if (w.ja || w.en) { await site('/api/admin/rx-put?name=wk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(w) }); console.log('[x] BTC実況のカードを更新', w.ja && w.ja.top.map((m) => new Date(m.w).toISOString().slice(0, 10) + ' ' + m.rate + '%').join(' / ')); } }
 catch (e) { console.log('[x] BTC実況のカードでエラー', e.message); }
 
+// ---- 4e) v256: スマホ版の「いま」の枠。その時に熱いものを点数で並べ、上位をサイトに保存(/api/hot)。事実だけ(理由に時刻と数字)
+try {
+  const all = [...byId.values(), ...out], hm = (t) => { const d = L.J(t); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
+  const line1 = (p, lg) => String(p[lg] || '').split('\n').find((x) => x.trim()) || '';
+  const items = [];
+  const sp = all.filter((p) => p.sr === 'spike' && NOW - (p.due || 0) >= 0 && NOW - (p.due || 0) < 2 * H).sort((a, b) => b.due - a.due)[0];
+  if (sp) items.push({ k: 'spike', sc: 100, at: sp.due, ja: hm(sp.due) + ' ' + line1(sp, 'ja'), en: hm(sp.due) + ' JST ' + line1(sp, 'en') });
+  const ev = groups(events.filter((e) => L.AUTOEV(e) && Math.abs(e.ts - NOW) <= 3 * H))[0];
+  if (ev) { const t = ev[0].ts, before = t > NOW; items.push({ k: 'event', sc: 80, at: t, ja: L.headName(ev, 'ja') + (before ? ' の発表 ' + hm(t) : ' の発表後（' + hm(t) + '発表）'), en: L.headName(ev, 'en') + (before ? ' at ' + hm(t) + ' JST' : ' released ' + hm(t) + ' JST') }); }
+  const lq = all.filter((p) => p.sr === 'liq' && NOW - (p.due || 0) >= 0 && NOW - (p.due || 0) < 3 * H).sort((a, b) => b.due - a.due)[0];
+  if (lq) items.push({ k: 'liq', sc: 70, at: lq.due, ja: hm(lq.due) + ' ' + line1(lq, 'ja'), en: hm(lq.due) + ' JST ' + line1(lq, 'en') });
+  const sc = L.SHOCK.ev.find((e) => e.id === L.SHOCK.cur), sn = sc ? Math.floor((NOW - Date.parse(sc.d0 + 'T00:00:00Z')) / DAY) : -1;
+  if (sn >= 0 && sn <= L.SHOCK.post) items.push({ k: 'topic', sc: 50, at: NOW, ja: 'Binanceハッキング・発生から' + sn + '日目', en: 'Binance hack · day ' + sn });
+  // 直前1時間にXへ出した話題は少し上げる(Xから来た人が続きにすぐ着けるように)
+  const kindOf = (sr) => /^(spike|spkcmp|spikeliq)$/.test(sr) ? 'spike' : /^(pre|arch|fomc|fomcc|fomcres)$/.test(sr) ? 'event' : /^(liq|liqimp|liqday)$/.test(sr) ? 'liq' : /^(bnstatus|bnreply|shockbn|shockcmp|hack)$/.test(sr) ? 'topic' : null;
+  const xk = new Set(all.filter((p) => p.done && Math.max(+p.done.ja || 0, +p.done.en || 0) > NOW - H).map((p) => kindOf(p.sr)).filter(Boolean));
+  for (const it of items) if (xk.has(it.k)) { it.sc += 25; it.x = 1; }
+  items.sort((a, b) => b.sc - a.sc);
+  await site('/api/admin/rx-put?name=ht', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ at: NOW, top: items.slice(0, 2) }) });
+  console.log('[x] スマホの「いま」:', items.slice(0, 2).map((i) => i.k + ':' + i.sc).join(' / ') || 'なし');
+} catch (e) { console.log('[x] スマホの「いま」: 失敗', e.message); }
+
 // ---- 5) 清算(v152) ----
 //   巨額清算の総括: Worker(LiqHub)が収まった時に x:liq へ記録した事象ごとに1本。6時間以内で、まだ下書きが無いものだけ作る。
 //   毎朝のまとめ: 日本時間 9:00 以降に、その日の分を1本(直近24時間 = 前日 9:00 〜 今日 9:00)。サイトの /api/liq の1時間ごとの集計から作る。

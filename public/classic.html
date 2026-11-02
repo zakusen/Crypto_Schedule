@@ -652,6 +652,9 @@ body{
 <div class="wallet-popover" id="walletPopover" aria-hidden="true"><div class="wallet-popover-glow"></div><div class="wallet-popover-head"><div><span class="wallet-eyebrow">ARCHIVE ACCESS</span><h3>Pick Your Coin</h3><div id="walletTerm" data-dyn style="margin:6px 0 5px;font-size:18px;font-weight:700;color:#e1cb9d"></div><p>ONE PAYMENT · 365 DAYS</p></div><button class="wallet-close" type="button" aria-label="Close">×</button></div><div class="wallet-choices"><button class="pay-choice active" type="button" data-coin="USDC"><span>◎</span><b>1 USDC</b><small>STABLE</small></button><button class="pay-choice" type="button" data-coin="USDT"><span>₮</span><b>1 USDT</b><small>STABLE</small></button><button class="pay-choice" type="button" data-coin="SOL"><span>S</span><b>0.01 SOL</b><small>SOLANA</small></button><button class="pay-choice" type="button" data-coin="RAY"><span>R</span><b>1 RAY</b><small>RAYDIUM</small></button><button class="pay-choice" type="button" data-coin="PUMP"><span>P</span><b>100 PUMP</b><small>PUMP</small></button><button class="pay-choice" type="button" data-coin="JUP"><span>J</span><b>3 JUP</b><small>JUPITER</small></button><button class="pay-choice" type="button" data-coin="PENGU"><span>Pe</span><b>100 PENGU</b><small>PENGU</small></button><button class="pay-choice" type="button" data-coin="PYTH"><span>Ψ</span><b>10 PYTH</b><small>PYTH</small></button><button class="pay-choice" type="button" data-coin="JTO"><span>JT</span><b>2 JTO</b><small>JITO</small></button><button class="pay-choice" type="button" data-coin="BONK"><span>B</span><b>300,000 BONK</b><small>BONK</small></button><button class="pay-choice" type="button" data-coin="WIF"><span>W</span><b>4 WIF</b><small>WIF</small></button><button class="pay-choice" type="button" data-coin="POPCAT"><span>C</span><b>20 POPCAT</b><small>POPCAT</small></button><button class="pay-choice more" type="button"><span>+</span><b>MORE</b><small>SOON</small></button></div><div id="walletMsg" data-dyn></div><button id="walletOff" type="button" data-dyn style="display:none"></button><div id="walletSafe" data-dyn></div><div class="wallet-popover-foot"><div><strong>Use the coin already in your wallet.</strong><span>Rates are intentionally simple.</span></div><button class="confirm-access" id="walletGo" type="button" data-dyn>CONNECT &amp; ACCESS <i>→</i></button></div></div>
 <div class="wrap">
 
+<!-- v256: 「いま」の枠。サイトの /api/hot(毎時更新)の上位2つに合わせて、関係するカードをここへ移す -->
+<style>#hotSlot{display:none;margin:0 0 14px}#hotSlot.on{display:block}.hot-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:900;letter-spacing:.12em;color:#2ee6ff;margin:2px 2px 8px}.hot-h i{width:8px;height:8px;border-radius:50%;background:#2ee6ff;display:inline-block}.hot-why{font-size:12px;color:#9fc4e0;margin:10px 2px 6px;line-height:1.5}.hot-why b{color:#e8f0fb;font-weight:800}</style>
+<div id="hotSlot" aria-label="いま / Now"><div class="hot-h"><i></i><span class="nx-ja">いま</span><span class="nx-en">NOW</span></div></div>
 <div class="u-card countcard" id="countCard">
   <div class="left">
     <div class="kicker"><span class="dot"></span><span class="lbl" id="nextLbl">次の重要イベントまで</span><span class="badge">LIVE</span></div>
@@ -679,6 +682,7 @@ body{
 <div class="u-card" id="weekCard" style="display:none"></div><div class="u-card" id="patCard" style="margin-bottom:12px"></div>
 <!-- v229: 資金の追跡(/track.html)への入口 --><style>.trk{display:flex;align-items:center;gap:16px;margin:14px 0;padding:16px 20px;border:1px solid #8fd8ff88;border-radius:18px;background:linear-gradient(120deg,rgba(43,90,134,.45),rgba(8,18,34,.95) 60%);box-shadow:0 0 22px #8fd8ff22;color:#eaf6ff;text-decoration:none;transition:transform .2s,border-color .2s}.trk:hover{transform:translateY(-2px);border-color:#bfeaff}.trk-ic{font-size:34px}.trk-t{font-weight:900;font-size:18px}.trk-s{color:#9fc4e0;font-size:13px;margin-top:2px}.trk-go{margin-left:auto;font-weight:800;color:#8fd8ff;white-space:nowrap}</style>
 <a class="trk" href="/track.html"><span class="trk-ic">🧊</span><span><div class="trk-t"><span class="nx-ja">資金の追跡：Binanceの大量流出</span><span class="nx-en">Tracking: large outflow from Binance</span></div><div class="trk-s"><span class="nx-ja">ハッキングの疑い・未確認｜行き先・凍結・時系列をオンチェーンの記録で</span><span class="nx-en">Suspected hack, unconfirmed · where the funds went, freezes and timeline, on-chain</span></div></span><span class="trk-go"><span class="nx-ja">見る →</span><span class="nx-en">Open →</span></span></a>
+<!-- v256: ショック後のBTC(/shock.html)への入口 --><a class="trk" href="/shock.html"><span class="trk-ic">📉</span><span><div class="trk-t"><span class="nx-ja">ショック後のBTC：Binance 2019 / 2026 ほか</span><span class="nx-en">BTC after shocks: Binance 2019 / 2026 and more</span></div><div class="trk-s"><span class="nx-ja">発生日をそろえて前日の終値＝0%で比べる｜毎日更新</span><span class="nx-en">Aligned on day 0, prior close = 0% · updated daily</span></div></span><span class="trk-go"><span class="nx-ja">見る →</span><span class="nx-en">Open →</span></span></a>
 <a class="nxe" id="nxEntry" href="/next.html" aria-label="清算×指標を開く / Open Liquidations × Events">
   <section class="nxe-copy"><div class="nxe-tag"><i></i><span class="nx-ja">指標 × 清算データ</span><span class="nx-en">EVENTS × LIQUIDATIONS</span></div><div class="nxe-h"><span class="nx-ja">指標発表と<br><em>清算の関係</em></span><span class="nx-en">Events and<br><em>Liquidations</em></span></div><p class="nxe-desc"><span class="nx-ja">経済指標の発表前後で、ロング・ショートの清算推移を比較。過去のイベントも重ねて確認できます。</span><span class="nx-en">Compare long and short liquidations around economic releases, with past events overlaid.</span></p></section>
   <div class="nxe-visual" aria-hidden="true">
@@ -1542,4 +1546,22 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 upd();setInterval(upd,3000)})();
 </script>
 
-<script src="/vol-card.js" defer></script><script src="/pattern-card.js" defer></script><script src="/week-card.js" defer></script></body></html>
+<script src="/vol-card.js" defer></script><script src="/pattern-card.js" defer></script><script src="/week-card.js" defer></script><script>
+/* v256: 「いま」の枠。熱いもの(急変動・発表の前後・巨額清算・進行中の出来事)の上位2つの、関係するカードを上へ移す。古い(3時間超)なら何もしない */
+(function(){
+  var MAP={spike:['#patCard'],event:['#countCard'],liq:['#nxEntry'],topic:['a.trk[href="/shock.html"]','a.trk[href="/track.html"]']};
+  fetch('/api/hot',{cache:'no-store'}).then(function(r){return r.json()}).then(function(h){
+    if(!h||!h.top||!h.top.length||Date.now()-(h.at||0)>3*3600e3)return;
+    var slot=document.getElementById('hotSlot');if(!slot)return;
+    h.top.forEach(function(it){
+      var w=document.createElement('div');w.className='hot-why';
+      var ja=document.createElement('span');ja.className='nx-ja';ja.textContent=it.ja||'';
+      var en=document.createElement('span');en.className='nx-en';en.textContent=it.en||'';
+      var b=document.createElement('b');b.appendChild(ja);b.appendChild(en);w.appendChild(b);slot.appendChild(w);
+      (MAP[it.k]||[]).forEach(function(sel){var el=document.querySelector(sel);if(el){if(el.id==='patCard')el.style.marginBottom='0';slot.appendChild(el)}});
+    });
+    slot.classList.add('on');
+  }).catch(function(){});
+})();
+</script>
+</body></html>
