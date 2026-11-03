@@ -506,7 +506,7 @@ try {
   const cur = ev[L.MID.cur], n = cur.days.length ? cur.days[cur.days.length - 1][0] : 0, md = { at: NOW, n, ev, src };
   await site('/api/admin/rx-put?name=md', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(md) });
   const has = (id) => byId.has(id) || out.some((p) => p.id === id);
-  if (!has('mid:2026:pre')) { put(L.midDraft({ ...md, n: 0 }, NOW)); console.log('[x] 中間選挙の下書き(最初の1本)'); }
+  if (!has('mid:2026:start')) { put(L.midDraft({ ...md, n: 0 }, NOW)); console.log('[x] 中間選挙の下書き(最初の1本)'); }
   else if (L.MID.marks.includes(n) && !has('mid:2026:d' + n)) { put(L.midDraft(md, NOW)); console.log('[x] 中間選挙の下書き:', n + '日目'); }
   else console.log('[x] 中間選挙: 保存のみ', n + '日目', src);
 } catch (e) { console.log('[x] 中間選挙: 失敗', e.message); }

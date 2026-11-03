@@ -875,25 +875,21 @@ export function midSeries(e, rows, now) {
   return { id: e.id, base, days, min, d30: pc(30), d365: pc(365) };
 }
 const sgn1 = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1) + '%';
-export function midText(md, lg) {
-  const E = md.ev, cur = E[MID.cur], n = md.n, at = (id, d) => { const q = E[id] && E[id].days.find((z) => z[0] === d); return q ? q[1] : null; };
-  const P = ['mid2014', 'mid2018', 'mid2022'];
+export function midText(md, lg) {   // v263: 280(日本語は1字2)に収まる短い形
+  const E = md.ev, n = md.n, at = (id, d) => { const q = E[id] && E[id].days.find((z) => z[0] === d); return q ? q[1] : null; }, P = ['mid2014', 'mid2018', 'mid2022'];
+  const row = (f, sep) => P.map((id) => id.slice(3) + ' ' + sgn1(f(id))).join(sep);
   if (lg === 'en') {
-    const L1 = ['BTC after US midterm elections (election-day close = 0%)'];
-    if (n >= 1) L1.push(`2026, day ${n}: ${sgn1(at(MID.cur, n))}`, `Same day ${n}: ` + P.map((id) => id.slice(3) + ' ' + sgn1(at(id, n))).join(' / '));
-    L1.push('After 30 days: ' + P.map((id) => id.slice(3) + ' ' + sgn1(E[id].d30)).join(' / '), 'Lowest within 120 days: ' + P.map((id) => id.slice(3) + ' ' + sgn1(E[id].min && E[id].min[1])).join(' / '), 'After 365 days: ' + P.map((id) => id.slice(3) + ' ' + sgn1(E[id].d365)).join(' / '));
-    if (n < 1) L1.push('2026 election day: Nov 3');
-    L1.push('', 'Only 3 past cases; they cannot show the effect of elections. Past record, this time may differ.', '#Bitcoin #Midterms');
-    return L1.join('\n');
+    const o = ['BTC after US midterms (election-day close = 0%)'];
+    if (n >= 1) o.push(`2026 day ${n}: ${sgn1(at(MID.cur, n))}`, `Same day: ${row((id) => at(id, n), ' / ')}`);
+    o.push(`30d: ${row((id) => E[id].d30, ' / ')}`, `365d: ${row((id) => E[id].d365, ' / ')}`, '', 'Only 3 cases. This time may differ.', '#Bitcoin');
+    return o.join('\n');
   }
-  const L1 = ['米中間選挙後のBTC（投票日の終値＝0%）'];
-  if (n >= 1) L1.push(`2026年・${n}日目：${sgn1(at(MID.cur, n))}`, `同じ${n}日目：` + P.map((id) => id.slice(3) + '年 ' + sgn1(at(id, n))).join('／'));
-  L1.push('30日後：' + P.map((id) => id.slice(3) + '年 ' + sgn1(E[id].d30)).join('／'), '120日間の最安：' + P.map((id) => id.slice(3) + '年 ' + sgn1(E[id].min && E[id].min[1])).join('／'), '365日後：' + P.map((id) => id.slice(3) + '年 ' + sgn1(E[id].d365)).join('／'));
-  if (n < 1) L1.push('2026年の投票日は11月3日');
-  L1.push('', '3例だけの記録で、選挙の影響や今回の値動きは判断できません。過去の記録で、今回も同じとは限りません', '#ビットコイン #中間選挙');
-  return L1.join('\n');
+  const o = ['米中間選挙後のBTC（投票日の終値＝0%）'];
+  if (n >= 1) o.push(`今回${n}日目 ${sgn1(at(MID.cur, n))}`, `同じ日 ${row((id) => at(id, n), '／')}`);
+  o.push(`30日後 ${row((id) => E[id].d30, '／')}`, `365日後 ${row((id) => E[id].d365, '／')}`, '', '3例だけの記録。今回も同じとは限りません', '#ビットコイン');
+  return o.join('\n');
 }
 export function midDraft(md, now) {
-  const id = 'mid:2026:' + (md.n >= 1 ? 'd' + md.n : 'pre'), ja = midText(md, 'ja'), en = midText(md, 'en');
+  const id = 'mid:2026:' + (md.n >= 1 ? 'd' + md.n : 'start'), ja = midText(md, 'ja'), en = midText(md, 'en');
   return { id, sr: 'midterm', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { mid: md } };
 }

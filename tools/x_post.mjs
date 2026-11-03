@@ -153,7 +153,7 @@ for (const { p, lg } of todo) {
   // v247: ショック比較は、英語を同じ投稿の日本語への返信にする(1と2、3と4がそれぞれ親子)。日本語がまだなら次の回
   if ((p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'midterm') && lg === 'en') {   // v260: 中間選挙も英語は日本語への返信
     reply = tw.get(p.id + ':ja') || (p.tw && p.tw.ja) || null;
-    if (!reply && !(p.done && p.done.ja)) { console.log('[post] ショック比較: 日本語が出てから英語を返信で出します', p.id); continue; }
+    if (!reply && !(p.done && p.done.ja)) { console.log('[post] 日本語が出てから英語を返信で出します', p.id); continue; }
   }
   // v202: 日誌スレッド。毎朝の予定(daily)をその日の親にして、ほかの自動投稿はその日の最新の投稿への返信としてつなぐ。番号「10/26 · #3」を最後に付ける
   let no = null;
@@ -209,6 +209,7 @@ for (const { p, lg } of todo) {
     if (p.sr === 'spkcmp' && !(p.img && p.img.live && p.img.live[lg])) { console.log('[post] 過去の急変動との比較: 計算できないので出しません', p.id); continue; }
   }
   if (no) { const d = lg === 'en' ? new Date(Date.now()) : new Date(Date.now() + 9 * 36e5), tag = `🔹 ${lg === 'en' ? ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getUTCMonth()] + ' ' + d.getUTCDate() : (d.getUTCMonth() + 1) + '/' + d.getUTCDate()} · #${no}`; if (L.xlen(text + '\n\n' + tag) <= 280) text += '\n\n' + tag; }
+  if (!DRY && L.xlen(text) > 280) { console.log(`[post] 文字数オーバー(${L.xlen(text)}/280・日本語は1字2)なので出しません: ${p.id}:${lg}`); FAIL.push({ at: Date.now(), id: p.id, lang: lg, sr: p.sr, status: 'len', detail: '文字数 ' + L.xlen(text) + '/280' }); continue; }   // v263: X は長すぎると 403 で返すので、出す前に止めて分かるようにする
   const png = await render(p, lg), name = `${p.id.replace(/[^a-z0-9-]+/gi, '-')}-${lg}`;
   if (DRY) {
     fs.writeFileSync(path.join(OUT, name + '.txt'), text + `\n\n(${L.xlen(text)}/280)\n`);
