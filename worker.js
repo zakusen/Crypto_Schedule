@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-11-03-v266';
+const VERSION = '2026-11-04-v268';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1371,9 +1371,9 @@ function adminOk(request, env) {
   const want = env.RX_ADMIN_KEY || env.AUTH_SECRET;       // RX_ADMIN_KEY が無ければ AUTH_SECRET を使う(設定を増やさずに済むように)
   return !!want && authEq(request.headers.get('x-admin-key') || '', String(want));
 }
-const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl|pt|pl|wk|sf|sk|ht|ct|ce|md|cf|xf|b\d{4})$/;   // v253: sf = ショック比較を今出す(x:shockforce)   // v204: wk = BTC実況(week:live)   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
+const RX_NAME = /^(s\d\d|idx|run|xs|xd|xk|xl|cr|vl|pt|pl|wk|sf|sk|ht|ct|ce|md|cf|xf|bm|b\d{4})$/;   // v253: sf = ショック比較を今出す(x:shockforce)   // v204: wk = BTC実況(week:live)   // v192: vl = ボラティリティ(vol:v1)   // v95: xk = 急変動の記録(x:spk) / cr = S&P500 との相関(corr:v1)
 //   v72: xs = X投稿のお知らせの送信記録 / v94: xd = 自動投稿の予定(x:due)
-const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : n === 'pt' ? 'pat:v1' : n === 'pl' ? 'pat:log' : n === 'wk' ? 'week:live' : n === 'sf' ? 'x:shockforce' : n === 'sk' ? 'shock:live' : n === 'ht' ? 'hot:live' : n === 'ct' ? 'corr:ts' : n === 'ce' ? 'corr:ev' : n === 'md' ? 'mid:live' : n === 'cf' ? 'x:corrforce' : n === 'xf' ? 'x:fail' : /^b\d{4}$/.test(n) ? 'btc5m:' + n.slice(1) : 'rx:s:' + n.slice(1);
+const rxNameKey = (n) => n === 'idx' ? RX_IDX : n === 'run' ? RX_RUN : n === 'xs' ? 'x:sent' : n === 'xd' ? 'x:due' : n === 'xk' ? 'x:spk' : n === 'xl' ? 'x:liq' : n === 'cr' ? 'corr:v1' : n === 'vl' ? 'vol:v1' : n === 'pt' ? 'pat:v1' : n === 'pl' ? 'pat:log' : n === 'wk' ? 'week:live' : n === 'sf' ? 'x:shockforce' : n === 'sk' ? 'shock:live' : n === 'ht' ? 'hot:live' : n === 'ct' ? 'corr:ts' : n === 'ce' ? 'corr:ev' : n === 'md' ? 'mid:live' : n === 'cf' ? 'x:corrforce' : n === 'xf' ? 'x:fail' : n === 'bm' ? 'booms:v1' : /^b\d{4}$/.test(n) ? 'btc5m:' + n.slice(1) : 'rx:s:' + n.slice(1);
 
 // === v73〜v81: X 投稿の下書き置き場(/posts.html が読む)。tools/x_notify.mjs と画面が作って足し、画面で「済み」を付ける ===
 //   保存は1キー(posts:v1 = {v:1, posts:[{id, sr, at, due, en, ja, h, img, done:{en,ja}, upd?}]})。合言葉(x-admin-key)が無いと読めない。
@@ -2069,6 +2069,7 @@ export default {
       if (!j || !/^[a-z0-9]{3,32}$/.test(String(j.case || '')) || t.length > 400000) return json({ error: 'bad' }, 400);
       await env.CAL.put('track:' + j.case, t); return json({ ok: true });
     }
+    if (url.pathname === '/api/booms') { let t = null; try { t = env.CAL ? await env.CAL.get('booms:v1') : null; } catch (_) {} return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=3600' } }); }   // v267: ブームの資金量(試し)
     if (url.pathname === '/api/midterm') { let t = null; try { t = env.CAL ? await env.CAL.get('mid:live') : null; } catch (_) {} return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=300' } }); }   // v260: 米中間選挙後のBTC
     if (url.pathname === '/api/corrts') { let t = null; try { t = env.CAL ? await env.CAL.get('corr:ts') : null; } catch (_) {} return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=300' } }); }   // v259: BTC×S&P500 の相関の推移
     if (url.pathname === '/api/hot') { let t = null; try { t = env.CAL ? await env.CAL.get('hot:live') : null; } catch (_) {} return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=120' } }); }   // v256: スマホ版の「いま」
