@@ -37,7 +37,7 @@ if (!KEY) { console.log('[x] RX_ADMIN_KEY が未設定のため何もしませ�
 
 async function site(p, opt = {}) {
   const r = await fetch(SITE + p, { ...opt, headers: { 'User-Agent': 'signal-archive-x-posts/1.0', 'x-admin-key': KEY, ...(opt.headers || {}) }, signal: AbortSignal.timeout(60000) });
-  if (!r.ok) throw new Error(p.split('?')[0] + ' HTTP ' + r.status);
+  if (!r.ok) { let b = ''; try { b = (await r.text()).slice(0, 160); } catch (_) {} throw new Error(p.split('?')[0] + ' HTTP ' + r.status + (b ? ' ' + b : '')); }   // v269: サイトの返事も出す
   return r;
 }
 async function klines(sym, interval, startTime, limit) {
@@ -517,8 +517,8 @@ try {
 // ---- 4d4) v267→v268: 「暗号資産のブームと危機の歴史」のデータ集め。1日1回(版が変わった時はすぐ)。取れたかどうかを分かりやすくログに出し、/api/booms に保存
 try {
   let old = {}; try { old = (await (await site('/api/admin/rx-one?name=bm')).json()) || {}; } catch (_) {}
-  if (!old.at || old.v !== 268 || NOW - old.at > 20 * H) {
-    const LOG = (m) => console.log('[booms] ' + m), res = { at: NOW, v: 268, src: {}, data: {} };
+  if (!old.at || old.v !== 269 || NOW - old.at > 20 * H) {
+    const LOG = (m) => console.log('[booms] ' + m), res = { at: NOW, v: 269, src: {}, data: {} };
     const get = async (key, u) => { const t0 = Date.now(); try { const r = await fetch(u, { headers: { 'User-Agent': 'signal-archive-x-posts/1.0', accept: 'application/json' }, signal: AbortSignal.timeout(40000) }); const ms = Date.now() - t0; if (!r.ok) { res.src[key] = { ok: 0, u, st: r.status }; LOG(`✗ ${key}: HTTP ${r.status}（${ms}ms）${u}`); return null; } const j = await r.json(); res.src[key] = { ok: 1, u, st: 200 }; return j; } catch (e) { res.src[key] = { ok: 0, u, err: String(e.message).slice(0, 120) }; LOG(`✗ ${key}: ${e.message} ${u}`); return null; } };
     const mon = (sec) => new Date((sec > 1e12 ? sec : sec * 1000)).toISOString().slice(0, 7);
     const byMonth = (rows) => { const m = new Map(); for (const [t, v] of rows) if (isFinite(v)) m.set(mon(t), v); return [...m.entries()]; };
@@ -529,15 +529,16 @@ try {
     const tv = await get('defi', 'https://api.llama.fi/v2/historicalChainTvl');
     if (Array.isArray(tv)) sum('defi', byMonth(tv.map((x) => [+x.date, Math.round(+x.tvl / 1e8) / 10])), 'B');
     // 2) 貸し出し(DeFi)：Aave・Compound の TVL を足す
-    const lendRows = new Map();
-    for (const slug of ['aave', 'compound-finance', 'maker']) { const d = await get('lend:' + slug, 'https://api.llama.fi/protocol/' + slug); for (const x of (d && d.tvl) || []) { const m = mon(+x.date); lendRows.set(m, (lendRows.get(m) || 0) + (+x.totalLiquidityUSD || 0)); } }
+    const lendRows = new Map();   // v269: 各プロトコルの「月の最後の値」を足す(日ごとに足していたのを直した)
+    for (const slug of ['aave', 'compound-finance', 'makerdao', 'sky']) { const d = await get('lend:' + slug, 'https://api.llama.fi/protocol/' + slug); const last = new Map(); for (const x of (d && d.tvl) || []) last.set(mon(+x.date), +x.totalLiquidityUSD || 0); for (const [m, v] of last) lendRows.set(m, (lendRows.get(m) || 0) + v); }
     sum('lend', [...lendRows.entries()].sort().map(([m, v]) => [m, Math.round(v / 1e8) / 10]), 'B');
     // 3) アルゴ型ステーブル(UST・IRON など)の発行額
     const list = await get('stable:list', 'https://stablecoins.llama.fi/stablecoins?includePrices=false');
-    const algo = ((list && list.peggedAssets) || []).filter((x) => /algorithmic/i.test(x.pegMechanism || '') || /^(UST|USTC|IRON)$/i.test(x.symbol || ''));
-    LOG(`  アルゴ型ステーブルの候補 ${algo.length}件: ${algo.slice(0, 15).map((x) => x.symbol).join(', ')}`);
-    const algoSum = new Map();
-    for (const a2 of algo.slice(0, 15)) { const d = await get('stable:' + a2.symbol, 'https://stablecoins.llama.fi/stablecoin/' + a2.id); for (const x of (d && d.tokens) || []) { const v = ((x.circulating || {}).peggedUSD) || 0, m = mon(+x.date); if (v > 0) algoSum.set(m + '|' + a2.symbol, v); } }
+    const algo = ((list && list.peggedAssets) || []).filter((x) => /algorithmic/i.test(x.pegMechanism || '') || /^(UST|USTC|IRON)$/i.test(x.symbol || '') || /terra/i.test(x.name || '')).sort((p1, p2) => (/^(UST|USTC|IRON)$/i.test(p2.symbol) ? 1 : 0) - (/^(UST|USTC|IRON)$/i.test(p1.symbol) ? 1 : 0));   // v269: UST・IRON を必ず先頭に
+    LOG(`  アルゴ型ステーブルの候補 ${algo.length}件: ${algo.slice(0, 30).map((x) => x.symbol).join(', ')}`);
+    const algoSum = new Map(), perAlgo = {};
+    for (const a2 of algo.slice(0, 30)) { const d = await get('stable:' + a2.symbol, 'https://stablecoins.llama.fi/stablecoin/' + a2.id); for (const x of (d && d.tokens) || []) { const v = ((x.circulating || {}).peggedUSD) || 0, m = mon(+x.date); if (v > 0) { algoSum.set(m + '|' + a2.symbol, v); perAlgo[a2.symbol] = Math.max(perAlgo[a2.symbol] || 0, v); } } }
+    LOG('  銘柄ごとの最大(十億ドル): ' + Object.entries(perAlgo).sort((x, y) => y[1] - x[1]).slice(0, 8).map(([k, v]) => k + ' ' + (v / 1e9).toFixed(1)).join(' / '));
     const tot = new Map(); for (const [k, v] of algoSum) { const m = k.split('|')[0]; tot.set(m, (tot.get(m) || 0) + v); }
     sum('algo', [...tot.entries()].sort().map(([m, v]) => [m, Math.round(v / 1e8) / 10]), 'B');
     // 4) DEX の月ごとの取引高(取引所の取引の参考)
@@ -548,7 +549,8 @@ try {
     if (cg && cg.market_cap_chart && cg.market_cap_chart.market_cap) sum('mcap', byMonth(cg.market_cap_chart.market_cap.map(([t, v]) => [+t, Math.round(+v / 1e8) / 10])), 'B');
     const ok = Object.entries(res.src).filter(([, v]) => v.ok).length, ng = Object.entries(res.src).filter(([, v]) => !v.ok).map(([k]) => k);
     LOG(`==== まとめ：取れた ${ok}件・取れなかった ${ng.length}件${ng.length ? '（' + ng.join(', ') + '）' : ''}。中身は /api/booms ====`);
-    await site('/api/admin/rx-put?name=bm', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(res) });
+    const body = JSON.stringify(res); LOG(`サイトへ保存（${Math.round(body.length / 1024)}KB）`);
+    try { await site('/api/admin/rx-put?name=bm', { method: 'POST', headers: { 'content-type': 'text/plain' }, body }); LOG('✓ サイトへ保存しました'); } catch (e) { LOG('✗ サイトへ保存できません: ' + e.message + '（bad name ならサイトの Worker が古い版のまま）'); }
   }
 } catch (e) { console.log('[booms] ✗ 失敗', e.message); }
 
