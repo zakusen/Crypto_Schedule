@@ -855,41 +855,31 @@ export function corrDraft(c, now, why) {
   return { id, sr: 'corrts', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { corr: c }, why };
 }
 
-// ---- v260: 米中間選挙後のBTC。投票日(UTC)の終値＝0%。過去3回と今回を重ねる ----
+// ---- v260→v264: 米中間選挙の前後3日のBTC(1時間足)。投票日(UTC)の終値＝0%。過去3回と今回を重ねる ----
 export const MID = {
-  cur: 'mid2026', post: 120, marks: [1, 7, 30, 60, 90, 120],
+  cur: 'mid2026', pre: 96, post: 72,   // 投票日の0時(UTC)の3日前〜投票日の終値の3日後(時間)
   ev: [
     { id: 'mid2014', d0: '2014-11-04', y: 2014 },
     { id: 'mid2018', d0: '2018-11-06', y: 2018 },
-    { id: 'mid2022', d0: '2022-11-08', y: 2022, note: ['投票日の3日後にFTXが破産申請', 'FTX filed for bankruptcy 3 days later'], noteDay: 3 },
+    { id: 'mid2022', d0: '2022-11-08', y: 2022, note: ['FTXが破産申請', 'FTX files for bankruptcy'], noteAt: Date.UTC(2022, 10, 11, 14) },
     { id: 'mid2026', d0: '2026-11-03', y: 2026 },
   ],
 };
-// rows = [[開始ms, 始, 高, 安, 終]] の日足。確定した足だけ使う。{ id, base, days:[[d, pct]], min:[d, pct], d30, d365 }
+// rows = [[開始ms, 始, 高, 安, 終]] の1時間足。確定した足だけ。x = 投票日の終値からの時間(h)。{ id, base, pts:[[h, pct]], h1d, h3d, min:[h,pct] }
 export function midSeries(e, rows, now) {
-  const t0 = Date.parse(e.d0 + 'T00:00:00Z'), by = new Map(rows.filter((r) => +r[0] + DAY <= now).map((r) => [Math.round((+r[0] - t0) / DAY), +r[4]]));
-  const base = by.get(0); if (!base) return { id: e.id, base: null, days: [] };
-  const pc = (d) => by.has(d) ? +((by.get(d) / base - 1) * 100).toFixed(1) : null;
-  const days = [...by.keys()].filter((d) => d >= 0 && d <= MID.post).sort((a, b) => a - b).map((d) => [d, pc(d)]);
-  const min = days.length ? days.reduce((a, q) => q[1] < a[1] ? q : a) : null;
-  return { id: e.id, base, days, min, d30: pc(30), d365: pc(365) };
+  const T = Date.parse(e.d0 + 'T00:00:00Z') + DAY, by = new Map(rows.filter((r) => +r[0] + H <= now).map((r) => [Math.round((+r[0] + H - T) / H), +r[4]]));
+  const base = by.get(0); if (!base) return { id: e.id, base: null, pts: [] };
+  const pts = [...by.keys()].filter((h) => h >= -MID.pre && h <= MID.post).sort((a, b) => a - b).map((h) => [h, +((by.get(h) / base - 1) * 100).toFixed(2)]);
+  const at = (h) => { const q = pts.find((z) => z[0] === h); return q ? q[1] : null; }, after = pts.filter((q) => q[0] > 0);
+  return { id: e.id, base, pts, h1d: at(24), h3d: at(72), min: after.length ? after.reduce((a, q) => q[1] < a[1] ? q : a) : null };
 }
 const sgn1 = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(1) + '%';
-export function midText(md, lg) {   // v263: 280(日本語は1字2)に収まる短い形
-  const E = md.ev, n = md.n, at = (id, d) => { const q = E[id] && E[id].days.find((z) => z[0] === d); return q ? q[1] : null; }, P = ['mid2014', 'mid2018', 'mid2022'];
-  const row = (f, sep) => P.map((id) => id.slice(3) + ' ' + sgn1(f(id))).join(sep);
-  if (lg === 'en') {
-    const o = ['BTC after US midterms (election-day close = 0%)'];
-    if (n >= 1) o.push(`2026 day ${n}: ${sgn1(at(MID.cur, n))}`, `Same day: ${row((id) => at(id, n), ' / ')}`);
-    o.push(`30d: ${row((id) => E[id].d30, ' / ')}`, `365d: ${row((id) => E[id].d365, ' / ')}`, '', 'Only 3 cases. This time may differ.', '#Bitcoin');
-    return o.join('\n');
-  }
-  const o = ['米中間選挙後のBTC（投票日の終値＝0%）'];
-  if (n >= 1) o.push(`今回${n}日目 ${sgn1(at(MID.cur, n))}`, `同じ日 ${row((id) => at(id, n), '／')}`);
-  o.push(`30日後 ${row((id) => E[id].d30, '／')}`, `365日後 ${row((id) => E[id].d365, '／')}`, '', '3例だけの記録。今回も同じとは限りません', '#ビットコイン');
-  return o.join('\n');
+export function midText(md, lg) {
+  const E = md.ev, P = ['mid2014', 'mid2018', 'mid2022'], done = md.done, row = (f, sep) => [...P, ...(E[MID.cur] && E[MID.cur].base ? [MID.cur] : [])].map((id) => (id === MID.cur ? (lg === 'en' ? 'now' : '今回') : id.slice(3)) + ' ' + sgn1(f(E[id] || {}))).join(sep);
+  if (lg === 'en') return ['BTC around US midterm election day (close = 0%)', `+3 days: ${row((e) => e.h3d, ' / ')}`, `3-day low: ${row((e) => e.min && e.min[1], ' / ')}`, '', 'Only 3 cases. This time may differ.', '#Bitcoin'].join('\n');
+  return ['米中間選挙 投票日前後のBTC（投票日の終値＝0%）', `3日後 ${row((e) => e.h3d, '／')}`, `3日以内の最安 ${row((e) => e.min && e.min[1], '／')}`, '', '3例だけの記録。今回も同じとは限りません', '#ビットコイン'].join('\n');
 }
 export function midDraft(md, now) {
-  const id = 'mid:2026:' + (md.n >= 1 ? 'd' + md.n : 'start'), ja = midText(md, 'ja'), en = midText(md, 'en');
+  const id = 'mid:2026:' + isoDay(now), ja = midText(md, 'ja'), en = midText(md, 'en');   // v266: 1日1本(投票日の終値が出てから3日後まで)
   return { id, sr: 'midterm', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { mid: md } };
 }

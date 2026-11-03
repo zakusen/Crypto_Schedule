@@ -2505,7 +2505,7 @@ body:after{box-shadow:0 0 180px rgba(55,145,215,.075),inset 0 0 150px rgba(110,1
 (async () => {
   const el = document.getElementById('midCard'); if (!el) return;
   let md = null; try { md = await (await fetch('/api/midterm', { cache: 'no-store' })).json(); } catch (_) {}
-  if (!md || !md.ev || !md.ev.mid2018) return;
+  if (!md || md.end || !md.ev || !md.ev.mid2018) return;
   const { drawPost } = await import('/xpost-draw.js');
   const draw = async () => { const lg = /^ja/.test(document.documentElement.lang || 'ja') ? 'ja' : 'en'; try { const cv = await drawPost({ id: 'site:midterm', sr: 'midterm', img: { mid: md }, ja: '', en: '' }, lg); el.innerHTML = ''; const im = new Image(); im.alt = 'BTC after US midterms'; im.src = cv.toDataURL('image/png'); el.appendChild(im); el.style.display = ''; } catch (_) {} };
   await draw(); try { new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['lang'] }); } catch (_) {}
