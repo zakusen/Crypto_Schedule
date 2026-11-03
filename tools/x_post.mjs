@@ -37,7 +37,7 @@ const posts = store.posts || [];
 const todo = [];
 for (const p of posts.filter((p) => L.isAuto(p) && p.due && !p.upd))   // v173: 言語ごとの投稿時刻(dues)と出す言語(langs)
   for (const lg of L.langsOf(p)) { const d = L.dueOf(p, lg); if (!(p.done && p.done[lg]) && d <= NOW && NOW - d < L.winOf(p)) todo.push({ p, lg, d }); }
-for (const t of todo) if (t.p.sr === 'shockbn' || t.p.sr === 'shockcmp') { if (t.p.parent) console.log('[post] ショック比較は返信にしない:', t.p.id); delete t.p.parent; }   // v246: ショック比較は必ず単独の投稿
+for (const t of todo) if (t.p.sr === 'shockbn' || t.p.sr === 'shockcmp' || t.p.sr === 'midterm') { if (t.p.parent) console.log('[post] ショック比較は返信にしない:', t.p.id); delete t.p.parent; }   // v246: ショック比較は必ず単独の投稿
 todo.sort((a, b) => a.d - b.d || (a.p.parent ? 1 : 0) - (b.p.parent ? 1 : 0));   // v187: 返信(parent あり)は親の後
 if (DRY && !todo.length) {                 // 試しの時、投稿時刻のものが無ければ、種類ごとに一番近い下書きを1つずつ使う(文面と画像の確認用)
   for (const sr of ['daily', 'arch', 'week']) { const p = posts.filter((x) => x.sr === sr && x.due).sort((a, b) => Math.abs(a.due - NOW) - Math.abs(b.due - NOW))[0]; if (p) for (const lg of ['en', 'ja']) todo.push({ p, lg }); }
@@ -151,7 +151,7 @@ for (const { p, lg } of todo) {
     }
   }
   // v247: ショック比較は、英語を同じ投稿の日本語への返信にする(1と2、3と4がそれぞれ親子)。日本語がまだなら次の回
-  if ((p.sr === 'shockbn' || p.sr === 'shockcmp') && lg === 'en') {
+  if ((p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'midterm') && lg === 'en') {   // v260: 中間選挙も英語は日本語への返信
     reply = tw.get(p.id + ':ja') || (p.tw && p.tw.ja) || null;
     if (!reply && !(p.done && p.done.ja)) { console.log('[post] ショック比較: 日本語が出てから英語を返信で出します', p.id); continue; }
   }

@@ -489,6 +489,25 @@ try {
   else console.log('[x] 相関の推移: 保存のみ', stt.now, '◆' + c.ev.length);
 } catch (e) { console.log('[x] 相関の推移: 失敗', e.message); }
 
+// ---- 4d3) v260: 米中間選挙後のBTC。Bitstamp BTC/USD 日足(2014年から取れる)。取れない時は2018年以降だけ Binance。毎回サイトに保存(/api/midterm)、Xは最初の1本と 1・7・30・60・90・120日目
+try {
+  const bs = async (a, b) => { try { const r = await fetch(`https://www.bitstamp.net/api/v2/ohlc/btcusd/?step=86400&limit=1000&start=${Math.floor(a / 1000)}&end=${Math.floor(b / 1000)}`, { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(20000) }); if (!r.ok) return null; const j = await r.json(); return ((j.data && j.data.ohlc) || []).map((x) => [+x.timestamp * 1000, +x.open, +x.high, +x.low, +x.close]); } catch (_) { return null; } };
+  const bn = async (a, b) => { for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${a}&endTime=${b}&limit=1000`, { signal: AbortSignal.timeout(20000) }); if (r.ok) return (await r.json()).map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]); } catch (_) {} } return null; };
+  const ev = {}; let src = 'Bitstamp';
+  for (const e of L.MID.ev) {
+    const t0 = Date.parse(e.d0 + 'T00:00:00Z'), a = t0 - 2 * DAY, b = Math.min(NOW, t0 + 367 * DAY);
+    let rows = await bs(a, b); if (!rows || !rows.length) { if (e.y >= 2018) { rows = await bn(a, b); src = 'Bitstamp・Binance'; } }
+    if (!rows || (!rows.length && e.id !== L.MID.cur)) throw new Error('日足が取れない ' + e.id);
+    ev[e.id] = L.midSeries(e, rows || [], NOW);
+  }
+  const cur = ev[L.MID.cur], n = cur.days.length ? cur.days[cur.days.length - 1][0] : 0, md = { at: NOW, n, ev, src };
+  await site('/api/admin/rx-put?name=md', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(md) });
+  const has = (id) => byId.has(id) || out.some((p) => p.id === id);
+  if (!has('mid:2026:pre')) { put(L.midDraft({ ...md, n: 0 }, NOW)); console.log('[x] 中間選挙の下書き(最初の1本)'); }
+  else if (L.MID.marks.includes(n) && !has('mid:2026:d' + n)) { put(L.midDraft(md, NOW)); console.log('[x] 中間選挙の下書き:', n + '日目'); }
+  else console.log('[x] 中間選挙: 保存のみ', n + '日目', src);
+} catch (e) { console.log('[x] 中間選挙: 失敗', e.message); }
+
 // ---- 4e) v256: スマホ版の「いま」の枠。その時に熱いものを点数で並べ、上位をサイトに保存(/api/hot)。事実だけ(理由に時刻と数字)
 try {
   const all = [...byId.values(), ...out], hm = (t) => { const d = L.J(t); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
