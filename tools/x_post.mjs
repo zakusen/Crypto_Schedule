@@ -89,7 +89,7 @@ if (DRY) fs.mkdirSync(OUT, { recursive: true });
 // v202: 日誌スレッド(毎朝の予定を親に、その日の自動投稿を返信でつなぐ)
 const THREAD_SR = new Set(['pre', 'arch', 'liqday', 'liqimp', 'vol', 'sum', 'week', 'pat']);   // v216: 急変動(spike)と巨額清算(liq)は単独の新しい投稿(返信だとタイムラインに流れないため)
 const latestRoot = (lg) => posts.filter((x) => x.sr === 'daily' && x.tw && x.tw[lg] && x.done && x.done[lg] && Date.now() - x.done[lg] < 26 * 36e5).sort((a, b) => b.done[lg] - a.done[lg])[0] || null;
-let n = 0, S5 = null, EVL = null;
+let n = 0, S5 = null, EVL = null, f403 = 0; const FAIL = [];   // v262: 失敗の記録
 const LIVE_SR = new Set(['daily', 'sum', 'pre', 'arch', 'spike', 'spkcmp', 'liq']), FOMC_SR = new Set(['fomc', 'fomcc', 'fomcres']), FCACHE = new Map();
 const M5 = 300000, HR = 3600000, FLAG = { US: '🇺🇸', JP: '🇯🇵', EU: '🇪🇺' };
 const SG = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v).toFixed(2) + '%', COL = (v) => v < 0 ? '#ff4d66' : '#3cff9a', CCOL = (v) => v < 0 ? '#ff8a9a' : '#6fe3a8';
@@ -232,8 +232,27 @@ for (const { p, lg } of todo) {
     await new Promise((r) => setTimeout(r, 3000));
   } catch (e) {
     console.log('[post] 投稿に失敗:', p.id + ':' + lg, e.message);
-    if (/HTTP 4(01|02|03)/.test(e.message)) break;   // 鍵・権限・残高の問題は続けても同じなので止める
+    // v262: 失敗はサイトに記録(x:fail・直近50件)し、403 は1回なら次の投稿を試す(中身で断られたのか、アカウント・鍵の問題かを見分けるため)
+    const st = (String(e.message).match(/HTTP (\d{3})/) || [])[1] || '?';
+    FAIL.push({ at: Date.now(), id: p.id, lang: lg, sr: p.sr, status: st, detail: String(e.message).slice(0, 300) });
+    if (st === '403') {
+      f403++;
+      // 同じ下書きを3時間ずっと試して、ほかの投稿まで止めないよう、断られた投稿は済みにする(失敗の記録は残る)
+      try { await site('/api/admin/posts', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mark: { id: p.id, lang: lg, v: true } }) }); console.log('[post]   → この投稿は 403 で断られたので、済みにして次へ(記録は /api/admin/rx-one?name=xf)'); } catch (_) {}
+      if (f403 >= 2 && n === 0) { console.log('[post]   → 続けて2件 403。アカウントか鍵(権限)の問題の可能性が高いので止めます'); break; }
+      continue;
+    }
+    if (/HTTP 4(01|02)/.test(e.message)) break;   // 鍵・残高の問題は続けても同じなので止める
   }
+}
+// v262: この回のまとめ。403 があった時は、ほかが通ったかで見分けを書く
+if (!DRY && FAIL.length) {
+  const ok = n, ng = FAIL.length, ids = FAIL.map((f) => f.id + ':' + f.lang + '(' + f.status + ')').join(', ');
+  console.log(`[post] まとめ: 成功 ${ok}件・失敗 ${ng}件 → ${ids}`);
+  if (f403 && ok > 0) console.log('[post] 見分け: 同じ回でほかの投稿は通っている → 403 は「その投稿の中身」で断られた可能性が高い(アカウント・鍵は正常)');
+  else if (f403 && ok === 0 && f403 >= 2) console.log('[post] 見分け: 続けて403 → アカウントの制限か、鍵の権限(Read and write)を確認');
+  else if (f403) console.log('[post] 見分け: この回は403の1件だけで、ほかに試す投稿がなかった。次の投稿が通るかで分かる');
+  try { let o = {}; try { o = (await (await site('/api/admin/rx-one?name=xf')).json()) || {}; } catch (_) {} const list = [...FAIL, ...((o.list) || [])].slice(0, 50); await site('/api/admin/rx-put?name=xf', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ at: Date.now(), list }) }); } catch (_) {}
 }
 if (browser) await browser.close();
 if (!DRY && (LIVE.ja || LIVE.en)) { try { let o = {}; try { o = (await (await site('/api/admin/rx-one?name=wk')).json()) || {}; } catch (_) {} await site('/api/admin/rx-put?name=wk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ ...o, ...LIVE, at: Date.now() }) }); } catch (e) { console.log('[post] BTC実況をサイトに保存できませんでした', e.message); } }
