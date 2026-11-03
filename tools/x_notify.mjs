@@ -554,6 +554,9 @@ try {
   }
 } catch (e) { console.log('[booms] ✗ 失敗', e.message); }
 
+// ---- 4d5) v272: 年表の下書き(手で投稿・自動では出さない)を1回だけ置く
+try { const d = L.historyDraft(NOW); if (!byId.has(d.id)) { put(d); console.log('[x] 年表の下書き(手で投稿):', d.id, 'ja', L.xlen(d.ja), 'en', L.xlen(d.en)); } } catch (e) { console.log('[x] 年表の下書き: 失敗', e.message); }
+
 // ---- 4e) v256: スマホ版の「いま」の枠。その時に熱いものを点数で並べ、上位をサイトに保存(/api/hot)。事実だけ(理由に時刻と数字)
 try {
   const all = [...byId.values(), ...out], hm = (t) => { const d = L.J(t); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };

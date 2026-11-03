@@ -883,3 +883,10 @@ export function midDraft(md, now) {
   const id = 'mid:2026:' + isoDay(now), ja = midText(md, 'ja'), en = midText(md, 'en');   // v266: 1日1本(投票日の終値が出てから3日後まで)
   return { id, sr: 'midterm', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { mid: md } };
 }
+
+// ---- v272: 「暗号資産のブームと危機の歴史」(手で投稿する下書き・画像は public/csa-history-ja/en.png) ----
+export function historyDraft(now) {
+  const ja = ['暗号資産のブームと危機の歴史（2017〜2026）', '', 'ICO、DeFi、NFT、アルゴ型ステーブル、貸し出し、ミーム、取引所。お金が集まった場所と、同じ時期に起きた危機を1枚に並べました', '', '並べたもので、原因を示すものではありません', '#ビットコイン #暗号資産'].join('\n');
+  const en = ['Crypto booms and crises, 2017–2026', '', 'ICO, DeFi, NFTs, algorithmic stablecoins, lending, memecoins, exchanges: where the money went, and the crises that hit around the same time, on one chart.', '', 'Shown side by side; this does not show cause.', '#Bitcoin #Crypto'].join('\n');
+  return { id: 'history:2026-11', sr: 'history', man: 1, due: now, ja, en, h: hashStr(ja + en), img: { src: { ja: '/csa-history-ja.png', en: '/csa-history-en.png' } } };
+}
