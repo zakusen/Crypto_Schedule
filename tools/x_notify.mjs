@@ -484,7 +484,10 @@ try {
   const daily = h >= L.CORRTS.postFrom && h < L.CORRTS.postTo && !mine.some((p) => p.id === 'corrts:' + L.isoDay(NOW));
   const lastV = last && last.img && last.img.corr ? L.corrStats(last.img.corr).now : null;
   const jump = stt.now != null && lastV != null && Math.abs(stt.now - lastV) >= L.CORRTS.jump && NOW - (last.due || 0) >= 6 * H && !mine.some((p) => p.id === 'corrts:' + L.isoDay(NOW) + ':jump');
-  if (daily) { put(L.corrDraft(c, NOW, 'daily')); console.log('[x] 相関の推移の下書き(毎日):', stt.now); }
+  let cf = null; try { cf = await (await site('/api/admin/rx-one?name=cf')).json(); } catch (_) {}   // v261: /posts.html の「相関の推移を今出す」
+  const fw = cf && cf.at && NOW - cf.at < 3 * H && cf.at > ((last && last.due) || 0) ? 'f' + Math.floor(cf.at / 60000) : null;
+  if (fw && !mine.some((p) => p.why === fw)) { put(L.corrDraft(c, NOW, fw)); console.log('[x] 相関の推移の下書き(ボタン):', stt.now); }
+  else if (daily) { put(L.corrDraft(c, NOW, 'daily')); console.log('[x] 相関の推移の下書き(毎日):', stt.now); }
   else if (jump) { put(L.corrDraft(c, NOW, 'jump')); console.log('[x] 相関の推移の下書き(大きく動いた):', lastV, '→', stt.now); }
   else console.log('[x] 相関の推移: 保存のみ', stt.now, '◆' + c.ev.length);
 } catch (e) { console.log('[x] 相関の推移: 失敗', e.message); }
