@@ -1182,9 +1182,82 @@ function drawMidterm(g, md, lg) {
   lt(g, en ? 'Past record. This time may differ.' : '過去の記録で、今回も同じとは限りません', 40, 768, { s: 14, w: 800, c: '#ff9a9a' });
   lt(g, (md.src || 'Bitstamp') + (en ? ' BTC/USD 1h · @csa_archive' : ' BTC/USD 1時間足・@csa_archive'), W - 36, 768, { s: 12, w: 600, c: M, a: 'right' });
 }
+// v273: 年表(週1：2017年〜今)。hd = { mcap:{pts}, booms:[{id,ja,en,pts}], crises:[{n,d,k,b,cur}] }
+const HC = { ico: '#8fb4e0', defi: '#7fd3c0', nft: '#c5b3f0', algo: '#e8b97a', lend: '#9fd6a0', meme: '#c9d88a', cex: '#c9b8c8', dex: '#9fb8e8' }, YG = '#b8f03c';
+const ymF = (v) => { const [y, m] = v.split('-').map(Number); return y + (m - 0.5) / 12; }, dyF = (v) => { const [y, m, d] = v.split('-').map(Number); return y + (m - 1) / 12 + (d - 1) / 365; };
+function hPath(g, pts) { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); }
+function hBubble(g, x, y, r, hack) { g.strokeStyle = YG; g.lineWidth = hack ? 2 : 2.6; g.beginPath(); g.arc(x, y, r, 0, 7); if (hack) { g.fillStyle = 'rgba(184,240,60,.45)'; g.fill(); } g.stroke(); }
+function hCards(g, items, x0, x1, top, en) {   // 危機の札を等間隔に並べ、引き出し線でつなぐ。items = [{cx, cy, n, date, hack, cur}]
+  const bw = (x1 - x0) / Math.max(items.length, 1);
+  items.forEach((it, i) => { const bx = x0 + bw * i + bw / 2; g.strokeStyle = 'rgba(184,240,60,.45)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(it.cx, it.cy); g.lineTo(it.cx, Math.max(it.cy + 6, top - 46)); g.lineTo(bx, top - 14); g.lineTo(bx, top - 2); g.stroke();
+    g.fillStyle = it.cur ? '#26341a' : '#16202e'; g.strokeStyle = it.cur ? YG : '#2a3a52'; g.lineWidth = 1; g.beginPath(); g.roundRect(bx - bw / 2 + 4, top, bw - 8, 58, 6); g.fill(); g.stroke();
+    lt(g, (it.hack ? '● ' : '○ ') + it.date, bx, top + 20, { s: 12, w: 800, c: YG, a: 'center' }); const nm = it.n.length > 16 ? it.n.slice(0, 15) + '…' : it.n; lt(g, nm, bx, top + 42, { s: nm.length > 11 ? 12 : 14, w: 800, a: 'center' }); });
+}
+function drawHistW(g, hd, lg) {
+  const en = lg === 'en', CY = '#2ee6ff', M = '#8ea2bf', WW = 1440, x0 = 190, x1 = 1320, T0 = 2017, T1 = 2026.95, X = (y) => x0 + (y - T0) / (T1 - T0) * (x1 - x0);
+  g.fillStyle = '#070d16'; g.fillRect(0, 0, WW, 1300); g.fillStyle = CY; g.fillRect(0, 0, WW, 5);
+  lt(g, 'CSA　/　CRYPTO BOOMS & CRISES', 68, 50, { s: 17, w: 600, c: M, f: LN }); lt(g, en ? 'Includes estimates' : '一部推定を含む', 1295, 48, { s: 17, w: 800, c: '#ffd166', a: 'right' });
+  lt(g, en ? 'Crypto booms and crises, 2017–now' : '暗号資産のブームと危機の歴史', 70, 122, { s: 46, w: 900 }); lt(g, en ? 'Total market cap × major crises × booms' : '2017–今　｜　時価総額 × 歴代の危機 × ブーム', 70, 168, { s: 20, w: 500, c: '#9fb2cc' });
+  g.fillStyle = '#0e1826'; g.fillRect(64, 205, 1312, 930);
+  lt(g, en ? 'Total crypto market cap' : '暗号資産全体の時価総額', 90, 246, { s: 20, w: 800 }); lt(g, en ? 'Log scale (10× per step)' : '対数目盛り（1目盛りで10倍）', 90, 272, { s: 14, w: 500, c: M });
+  g.fillStyle = '#1a2418'; g.fillRect(980, 228, 370, 64); hBubble(g, 1002, 250, 8, true); lt(g, en ? 'Filled = hack (amount stolen)' : '塗り＝ハッキング（盗まれた額）', 1018, 256, { s: 14, w: 500, c: '#e6f7c8' }); hBubble(g, 1002, 276, 8, false); lt(g, en ? 'Ring = collapse (value lost)' : '輪＝破綻・崩壊（失われた額）', 1018, 282, { s: 14, w: 500, c: '#e6f7c8' });
+  const K = hd.mcap.pts.map(([m, v]) => [ymF(m), v / 1000]), mc = (y) => { if (y <= K[0][0]) return K[0][1]; for (let i = 1; i < K.length; i++) if (y <= K[i][0]) { const [a, b] = K[i - 1], [c, d] = K[i]; return Math.exp(Math.log(b) + (Math.log(d) - Math.log(b)) * (y - a) / (c - a)); } return K[K.length - 1][1]; };
+  const lo = Math.log10(0.0012), hi = Math.log10(6), A0 = 320, A1 = 740, Y = (v) => A1 - (Math.log10(v) - lo) / (hi - lo) * (A1 - A0);
+  [[0.01, en ? '$10B' : '100億ドル'], [0.1, en ? '$100B' : '1,000億ドル'], [1, en ? '$1T' : '1兆ドル'], [5, en ? '$5T' : '5兆ドル']].forEach(([v, l]) => { g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); lt(g, l, x0 - 12, Y(v) + 5, { s: 13, w: 500, c: M, a: 'right' }); });
+  const tEnd = K[K.length - 1][0], line = []; for (let y = T0; y <= tEnd; y += 0.01) line.push([X(y), Y(mc(y))]);
+  hPath(g, [...line, [X(tEnd), A1], [X(T0), A1]]); g.fillStyle = 'rgba(46,230,255,.08)'; g.fill(); hPath(g, line); g.strokeStyle = CY; g.lineWidth = 2.4; g.stroke();
+  const MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], R = (b) => Math.min(6 + Math.sqrt(b * 1000) / 4.2, 52);
+  const items = hd.crises.map((c) => { const y = dyF(c.d), [yy, mm] = c.d.split('-'); return { cx: X(y), cy: Y(mc(y)), r: R(c.b || 0.05), hack: c.k === 'hack', n: c.n, cur: c.cur, date: en ? MN[+mm - 1] + ' ' + yy + (c.cur ? ' now' : '') : yy + '年' + (+mm) + '月' + (c.cur ? ' 今回' : '') }; });
+  items.forEach((it) => hBubble(g, it.cx, it.cy, it.r, it.hack)); hCards(g, items, x0, x1, 650, en);
+  g.strokeStyle = '#1c2a3d'; g.beginPath(); g.moveTo(70, 770); g.lineTo(1360, 770); g.stroke();
+  lt(g, en ? 'Booms' : 'ブームの波', 90, 800, { s: 20, w: 800 }); lt(g, en ? 'Money in each theme (each peak = 1)' : '各テーマの資金量（それぞれの最大＝1）', 218, 800, { s: 14, w: 500, c: M });
+  const RH = 36, R0 = 815;
+  hd.booms.forEach((b, k) => { const P = b.pts.map(([m, v]) => [ymF(m), v]), mx = Math.max(...P.map((q) => q[1])), c = HC[b.id] || '#aab', base = R0 + RH * (k + 1) - 4, top = R0 + RH * k + 6;
+    const f = (y) => { if (y < P[0][0] || y > P[P.length - 1][0]) return 0; for (let i = 1; i < P.length; i++) if (y <= P[i][0]) { const [a, u] = P[i - 1], [cc, w] = P[i]; return u + (w - u) * (y - a) / (cc - a); } return P[P.length - 1][1]; };
+    const pts = []; for (let y = T0; y <= T1; y += 0.01) pts.push([X(y), base - f(y) / mx * (base - top)]);
+    g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, base); g.lineTo(x1, base); g.stroke();
+    hPath(g, [...pts, [X(T1), base], [X(T0), base]]); g.globalAlpha = .22; g.fillStyle = c; g.fill(); g.globalAlpha = 1; hPath(g, pts); g.strokeStyle = c; g.lineWidth = 1.6; g.stroke();
+    lt(g, en ? b.en : b.ja, x0 - 10, base - 8, { s: 11, w: 800, c, a: 'right' });
+    const pk = P.reduce((a, q) => q[1] > a[1] ? q : a), per = ['ico', 'nft', 'dex', 'cex'].includes(b.id); lt(g, (en ? 'peak ' + (pk[1] >= 1000 ? '$' + (pk[1] / 1000).toFixed(1) + 'T' : '$' + (pk[1] >= 10 ? Math.round(pk[1]) : pk[1]) + 'B') + (per ? '/mo' : '') : '最大 ' + (pk[1] >= 1000 ? (pk[1] / 1000).toFixed(1) + '兆ドル' : Math.round(pk[1] * 10) + '億ドル') + (per ? '/月' : '')), Math.min(X(pk[0]) + 8, x1 - 90), top + 12, { s: 11, w: 700, c }); });
+  const B1 = R0 + RH * hd.booms.length; for (let y = 2017; y <= 2026; y++) lt(g, String(y), X(y), B1 + 26, { s: 15, w: 500, c: '#9fb2cc', a: 'center', f: LN });
+  g.strokeStyle = CY; g.lineWidth = 3; g.beginPath(); g.moveTo(68, 1161); g.lineTo(96, 1161); g.stroke(); lt(g, en ? 'Total market cap' : '市場全体の時価総額', 108, 1167, { s: 16, w: 500, c: '#cfd8e6' });
+  hBubble(g, 370, 1161, 9, true); lt(g, en ? 'Hack · area = amount stolen' : 'ハッキング｜円の面積＝盗まれた額', 388, 1167, { s: 16, w: 500, c: '#cfd8e6' }); hBubble(g, 720, 1161, 9, false); lt(g, en ? 'Collapse · area = value lost' : '破綻・崩壊｜円の面積＝失われた額', 738, 1167, { s: 16, w: 500, c: '#cfd8e6' });
+  g.strokeStyle = '#1c2a3d'; g.beginPath(); g.moveTo(64, 1202); g.lineTo(1376, 1202); g.stroke();
+  lt(g, en ? 'DeFi, lending, algorithmic stablecoins, DEX: DefiLlama monthly data. Market cap, ICO, NFT, memecoins, CEX: key data points and estimates.' : 'DeFi・貸し出し・アルゴ型ステーブル・DEXは DefiLlama の月ごとの実データ。時価総額・ICO・NFT・ミーム・CEXは主な時点の数字と推定。', 70, 1238, { s: 15, w: 500, c: M });
+  lt(g, en ? 'Shown side by side in time. This does not show cause. @csa_archive' : '同じ時期に起きたことを並べたもので、原因を示すものではありません。@csa_archive', 70, 1266, { s: 15, w: 500, c: M });
+}
+// v273: 直近1か月。mo = { from, to, btc, defi, lend, stable, dex:[[YYYY-MM-DD, v]], crises:[{n,d,b,k}] }
+function drawHistM(g, mo, lg) {
+  const en = lg === 'en', CY = '#2ee6ff', M = '#8ea2bf', WW = 1440, HH = 1100, x0 = 190, x1 = 1320, t0 = Date.parse(mo.from), t1 = Date.parse(mo.to), X = (d) => x0 + (Date.parse(d) - t0) / (t1 - t0) * (x1 - x0);
+  g.fillStyle = '#070d16'; g.fillRect(0, 0, WW, HH); g.fillStyle = CY; g.fillRect(0, 0, WW, 5);
+  lt(g, 'CSA　/　CRYPTO BOOMS & CRISES　/　30 DAYS', 68, 50, { s: 17, w: 600, c: M, f: LN });
+  lt(g, en ? 'Crypto booms and crises: last 30 days' : '直近1か月のブームと危機', 70, 122, { s: 46, w: 900 }); lt(g, (mo.from + ' – ' + mo.to) + (en ? '　|　BTC × incidents × where the money is' : '　｜　BTC × 危機 × お金の動き'), 70, 168, { s: 20, w: 500, c: '#9fb2cc' });
+  g.fillStyle = '#0e1826'; g.fillRect(64, 205, 1312, 760);
+  const bt = mo.btc || [], lo = Math.min(...bt.map((q) => q[1])) * 0.97, hi = Math.max(...bt.map((q) => q[1])) * 1.02, A0 = 300, A1 = 560, Y = (v) => A1 - (v - lo) / (hi - lo) * (A1 - A0);
+  lt(g, en ? 'BTC (daily close)' : 'BTC（日足の終値）', 90, 246, { s: 20, w: 800 });
+  g.fillStyle = '#1a2418'; g.fillRect(1080, 228, 270, 40); hBubble(g, 1102, 248, 8, true); lt(g, en ? 'Hack · area = amount' : 'ハッキング｜面積＝被害額', 1118, 254, { s: 14, w: 500, c: '#e6f7c8' });
+  for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); lt(g, '$' + Math.round(v / 1000) + 'k', x0 - 12, Y(v) + 5, { s: 13, w: 500, c: M, a: 'right', f: LN }); }
+  const pts = bt.map(([d, v]) => [X(d), Y(v)]); if (pts.length) { hPath(g, [...pts, [pts[pts.length - 1][0], A1], [pts[0][0], A1]]); g.fillStyle = 'rgba(46,230,255,.08)'; g.fill(); hPath(g, pts); g.strokeStyle = CY; g.lineWidth = 2.6; g.stroke(); }
+  const at = (d) => { let q = bt[0]; for (const r of bt) if (r[0] <= d) q = r; return q ? q[1] : lo; }, MN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const items = (mo.crises || []).map((c, i, arr) => ({ cx: X(c.d), cy: Y(at(c.d)), r: Math.min(5 + Math.sqrt((c.b || 0.003) * 1000) / 2.2, 46), hack: true, n: c.n, cur: i === arr.length - 1, date: en ? MN[+c.d.slice(5, 7) - 1] + ' ' + (+c.d.slice(8)) : (+c.d.slice(5, 7)) + '/' + (+c.d.slice(8)) }));
+  items.forEach((it) => hBubble(g, it.cx, it.cy, it.r, true));
+  if (items.length) hCards(g, items, x0, x1, 600, en); else lt(g, en ? 'No major incidents recorded in the last 30 days' : '直近1か月に、大きな危機の記録はありません', (x0 + x1) / 2, 630, { s: 18, w: 800, c: '#cfe0f2', a: 'center' });
+  g.strokeStyle = '#1c2a3d'; g.beginPath(); g.moveTo(70, 690); g.lineTo(1360, 690); g.stroke();
+  lt(g, en ? 'Where the money is' : 'お金の動き', 90, 720, { s: 20, w: 800 }); lt(g, en ? 'Daily, DefiLlama (each 30-day range)' : '日ごと・DefiLlama（それぞれ30日の範囲で）', 240, 720, { s: 14, w: 500, c: M });
+  const L4 = [['defi', en ? 'DeFi TVL' : 'DeFiの預かり資産', HC.defi], ['lend', en ? 'Lending' : '貸し出し', HC.lend], ['stable', en ? 'Stablecoins' : 'ステーブル発行額', '#e8b97a'], ['dex', en ? 'DEX volume/day' : 'DEXの取引高/日', HC.dex]], RH = 52, R0 = 735;
+  L4.forEach(([id, nm, c], k) => { const r = mo[id] || [], base = R0 + RH * (k + 1) - 6, top = R0 + RH * k + 8; if (!r.length) return; const vs = r.map((q) => q[1]), mn = Math.min(...vs), mx = Math.max(...vs), Yk = (v) => base - (mx === mn ? 0.5 : (v - mn) / (mx - mn)) * (base - top);
+    const p2 = r.map(([d, v]) => [X(d), Yk(v)]); g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, base); g.lineTo(x1, base); g.stroke(); hPath(g, p2); g.strokeStyle = c; g.lineWidth = 2; g.stroke();
+    lt(g, nm, x0 - 10, base - 12, { s: 12, w: 800, c, a: 'right' }); const lv = vs[vs.length - 1], ch = vs[0] ? (lv / vs[0] - 1) * 100 : 0; lt(g, (lv >= 1000 ? '$' + (lv / 1000).toFixed(2) + 'T' : '$' + lv.toFixed(1) + 'B') + '  ' + (ch >= 0 ? '+' : '−') + Math.abs(ch).toFixed(1) + '%', x1 + 10, Yk(lv) + 5, { s: 12, w: 800, c, f: LN }); });
+  for (let k = 0; k <= 4; k++) { const t = t0 + (t1 - t0) * k / 4, d = new Date(t); lt(g, en ? MN[d.getUTCMonth()] + ' ' + d.getUTCDate() : (d.getUTCMonth() + 1) + '/' + d.getUTCDate(), x0 + (x1 - x0) * k / 4, 965 - 8 + 30, { s: 14, w: 500, c: '#9fb2cc', a: 'center', f: LN }); }
+  g.strokeStyle = '#1c2a3d'; g.beginPath(); g.moveTo(64, 1010); g.lineTo(1376, 1010); g.stroke();
+  lt(g, en ? 'Incidents: DefiLlama hacks list (≥$1M) + CSA records. Shown side by side; this does not show cause.' : '危機：DefiLlama のハッキング一覧（100万ドル以上）＋CSAの記録。並べたもので、原因を示すものではありません。', 70, 1046, { s: 15, w: 500, c: M });
+  lt(g, en ? 'BTC: Binance daily close · @csa_archive' : 'BTC：Binance 日足終値・@csa_archive', 70, 1074, { s: 15, w: 500, c: M });
+}
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '米中間選挙投票日年間最安確定伸びます例影響判断前後時間足終値破産申請' + '相関推移左軸右軸価格変化率同方向逆方向現在直近傾向関係はっきりした計算騰落率ぶん使って出来事原因影響向き分かりませんデータ不足流出急変動' + 'ショック後発生前日終値並べる比較同じ目今回前回水準戻るまで最安連鎖破綻崩壊上昇相場途中被害規模約倍ちがう基金全額補償発表出金停止週間足推計当時万億' + '定期更新区切り次動いたら' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '暗号資産ブーム危機歴史全体時価総額対数目盛り塗り輪盗まれ失われ面積波各テーマ資金量最大推定含主な時点数字並べ原因示直近月預かり資産貸し出しステーブル発行額取引高日ごと範囲一覧百万記録大きな終値今回年' + '米中間選挙投票日年間最安確定伸びます例影響判断前後時間足終値破産申請' + '相関推移左軸右軸価格変化率同方向逆方向現在直近傾向関係はっきりした計算騰落率ぶん使って出来事原因影響向き分かりませんデータ不足流出急変動' + 'ショック後発生前日終値並べる比較同じ目今回前回水準戻るまで最安連鎖破綻崩壊上昇相場途中被害規模約倍ちがう基金全額補償発表出金停止週間足推計当時万億' + '定期更新区切り次動いたら' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
+  if (p.sr === 'histw' && p.img && p.img.hist) { cv.width = 1440; cv.height = 1300; drawHistW(g, p.img.hist, lg); return cv; }   // v273
+  if (p.sr === 'histm' && p.img && p.img.month) { cv.width = 1440; cv.height = 1100; drawHistM(g, p.img.month, lg); return cv; }   // v273
   if (p.sr === 'history' && p.img && p.img.src) {   // v272: 出来上がった画像を読み込むだけ(年表)
     const im = new Image(); im.src = p.img.src[lg] || p.img.src.ja; await new Promise((r, j) => { im.onload = r; im.onerror = j; });
     cv.width = im.naturalWidth; cv.height = im.naturalHeight; g.drawImage(im, 0, 0); return cv;

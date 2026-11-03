@@ -414,7 +414,7 @@ export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
-export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'histw' || p.sr === 'histm' || p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -816,7 +816,7 @@ export function shockDraft(sd, now, kind, why) {
 }
 // v245: 空き枠の条件。日本時間9〜23時、前の4時間と先の2時間に自動投稿が無い、前のショック比較から4時間
 // v251: 定時の投稿(daily・pre・arch・vol・pat・sum・week・liqday)は前後30分だけよける。それ以外の自動投稿(急変動・清算・資金の現況など)は前2時間・先1時間
-export const SHOCKFIXED = new Set(['midterm', 'corrts', 'daily', 'pre', 'arch', 'vol', 'pat', 'sum', 'week', 'liqday']);
+export const SHOCKFIXED = new Set(['histw', 'histm', 'midterm', 'corrts', 'daily', 'pre', 'arch', 'vol', 'pat', 'sum', 'week', 'liqday']);
 export const SHOCKGAP = { from: 9, to: 23, before: 2 * H, after: 1 * H, fixed: 30 * 60000, last: 22, every: 4 * H, trigGap: 3 * H, perDay: 3, slotPerDay: 2 }   // v250: 空き枠は4時間あけて1日2本まで(交互)。きっかけ込みで1日3本まで;
 
 // ---- v259: BTC × S&P500 の相関の推移(1時間足・直近24時間の相関を1時間ずつずらして7日分) ----
@@ -889,4 +889,43 @@ export function historyDraft(now) {
   const ja = ['暗号資産のブームと危機の歴史（2017〜2026）', '', 'ICO、DeFi、NFT、アルゴ型ステーブル、貸し出し、ミーム、取引所。お金が集まった場所と、同じ時期に起きた危機を1枚に並べました', '', '並べたもので、原因を示すものではありません', '#ビットコイン #暗号資産'].join('\n');
   const en = ['Crypto booms and crises, 2017–2026', '', 'ICO, DeFi, NFTs, algorithmic stablecoins, lending, memecoins, exchanges: where the money went, and the crises that hit around the same time, on one chart.', '', 'Shown side by side; this does not show cause.', '#Bitcoin #Crypto'].join('\n');
   return { id: 'history:2026-11', sr: 'history', man: 1, due: now, ja, en, h: hashStr(ja + en), img: { src: { ja: '/csa-history-ja.png', en: '/csa-history-en.png' } } };
+}
+
+// ---- v273: 年表の投稿(週1：2017年〜今 / 毎日：直近1か月) ----
+// v274: ハッシュタグをその時の中身から作る。危機の名前(#Binance など)・#ハッキング・#仮想通貨(日本語では「暗号資産」より使われている)
+const tagOf = (n) => { const t = String(n || '').split(/[(（]/)[0].replace(/[^A-Za-z0-9]/g, ''); return t.length >= 3 && t.length <= 16 && !/^\d/.test(t) ? '#' + t : null; };
+const tagsJa = (names, hack) => [...new Set(['#仮想通貨', '#ビットコイン', ...names.map(tagOf).filter(Boolean).slice(0, 2), ...(hack ? ['#ハッキング'] : [])])].join(' ');
+const tagsEn = (names, hack) => [...new Set(['#Bitcoin', '#Crypto', ...names.map(tagOf).filter(Boolean).slice(0, 2), ...(hack ? ['#hack'] : [])])].join(' ');
+const bfmt = (b) => b >= 1000 ? (b / 1000).toFixed(1) + '兆ドル' : b >= 1 ? Math.round(b * 10) + '億ドル' : Math.round(b * 1000) + '百万ドル';
+const bfmtE = (b) => b >= 1000 ? '$' + (b / 1000).toFixed(1) + 'T' : b >= 1 ? '$' + (b >= 10 ? Math.round(b) : b.toFixed(1)) + 'B' : '$' + Math.round(b * 1000) + 'M';
+// base = booms-data.json、bm = /api/booms。DefiLlama の月ごとの実データで置き換える(途中の月は除く)
+export function histMerge(base, bm, now) {
+  const cur = new Date(now).toISOString().slice(0, 7), api = (bm && bm.data) || {}, clean = (r) => { const o = (r || []).filter((q) => q[0] < cur); while (o.length && !o[0][1]) o.shift(); return o.map(([m, v]) => [m, v, 'e']); };
+  const booms = base.booms.map((b) => ({ ...b, pts: api[b.id] && api[b.id].length ? (b.id === 'algo' ? clean(api.algo).map(([m, v]) => [m, v + ({ '2021-04': 1, '2021-05': 2, '2021-06': 0.3 }[m] || 0), 'e']) : clean(api[b.id])) : b.pts }));
+  const crises = [...base.crises];
+  for (const h of (bm && bm.hacks) || []) if (h.b >= 0.5 && h.d >= '2026-01-01' && !crises.some((c) => Math.abs(Date.parse(c.d) - Date.parse(h.d)) < 4 * DAY)) crises.push({ n: h.n, d: h.d, k: 'hack', b: h.b, boom: 'cex' });
+  crises.sort((a, b) => a.d < b.d ? -1 : 1); crises.forEach((c) => { c.cur = c === crises[crises.length - 1] ? 1 : 0; });
+  return { at: now, mcap: base.mcap, booms, crises: crises.slice(-12) };
+}
+export function histWeekDraft(base, bm, now) {
+  const hd = histMerge(base, bm, now), B = Object.fromEntries(hd.booms.map((b) => [b.id, b])), lastV = (b) => b.pts[b.pts.length - 1], peak = (b) => b.pts.reduce((a, q) => q[1] > a[1] ? q : a);
+  const pct = (id) => { const b = B[id]; return Math.round(lastV(b)[1] / peak(b)[1] * 100); }, lc = hd.crises[hd.crises.length - 1];
+  const ja = ['暗号資産のブームと危機の歴史（2017〜今）', `DeFiの預かり資産 ${bfmt(lastV(B.defi)[1])}（最大の${pct('defi')}%）`, `DEXの取引高 ${bfmt(lastV(B.dex)[1])}/月（最大の${pct('dex')}%）`, `いちばん新しい危機：${lc.n}（${lc.d.slice(0, 7).replace('-', '年')}月）`, '', '並べたもので、原因を示すものではありません', tagsJa([lc.n], lc.k === 'hack')].join('\n');
+  const en = ['Crypto booms and crises, 2017–now', `DeFi TVL ${bfmtE(lastV(B.defi)[1])} (${pct('defi')}% of peak)`, `DEX volume ${bfmtE(lastV(B.dex)[1])}/mo (${pct('dex')}% of peak)`, `Latest crisis: ${lc.n} (${lc.d.slice(0, 7)})`, '', 'Shown side by side; this does not show cause.', tagsEn([lc.n], lc.k === 'hack')].join('\n');
+  return { id: 'histw:' + isoDay(now), sr: 'histw', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { hist: hd } };
+}
+// 直近1か月。危機 = DefiLlama のハッキング一覧(100万ドル以上)＋大型ハッキング(HACKS)＋手で足した出来事(◆・ハッキング)
+export function histMonthDraft(bm, ce, hacks, now) {
+  const from = isoDay(now - 30 * DAY), D = bm.daily, cut = (r) => (r || []).filter((q) => q[0] >= from);
+  const cr = [];
+  for (const h of bm.hacks || []) if (h.d >= from) cr.push({ n: h.n, d: h.d, b: h.b, k: 'hack' });
+  for (const h of hacks || []) { const d = new Date(h.t).toISOString().slice(0, 10); if (d >= from && !cr.some((c) => Math.abs(Date.parse(c.d) - Date.parse(d)) < 3 * DAY && (c.n.toLowerCase().includes(String(h.en).toLowerCase()) || String(h.en).toLowerCase().includes(c.n.toLowerCase())))) cr.push({ n: h.en, d, b: h.id === 'binance2026' ? 6.3 : null, k: 'hack' }); }
+  for (const e of ce || []) { const d = new Date(e.t).toISOString().slice(0, 10); if (e.k === 'hack' && d >= from && !cr.some((c) => c.d === d)) cr.push({ n: e.en || e.ja, d, b: null, k: 'hack' }); }
+  cr.sort((a, b) => a.d < b.d ? -1 : 1);
+  const month = { from, to: isoDay(now), btc: cut(D.btc), defi: cut(D.defi), lend: cut(D.lend), stable: cut(D.stable), dex: cut(D.dex), crises: cr.slice(-10) };
+  const ch = (r) => r.length >= 2 ? Math.round((r[r.length - 1][1] / r[0][1] - 1) * 1000) / 10 : null, sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v) + '%';
+  const big = [...cr].filter((c) => c.b).sort((a, b) => b.b - a.b)[0], top2 = [...cr].sort((a, b) => (b.b || 0) - (a.b || 0)).map((c) => c.n);
+  const ja = ['直近1か月のブームと危機', `BTC ${sg(ch(month.btc))}・DeFiの預かり資産 ${sg(ch(month.defi))}・ステーブル発行額 ${sg(ch(month.stable))}（30日）`, `危機の記録 ${cr.length}件` + (big ? `（最大 ${big.n} ${bfmt(big.b)}）` : ''), '', '並べたもので、原因を示すものではありません', tagsJa(top2, cr.length > 0)].join('\n');
+  const en = ['Crypto booms and crises: last 30 days', `BTC ${sg(ch(month.btc))} / DeFi TVL ${sg(ch(month.defi))} / stablecoin supply ${sg(ch(month.stable))}`, `${cr.length} incidents recorded` + (big ? ` (largest: ${big.n} ${bfmtE(big.b)})` : ''), '', 'Shown side by side; this does not show cause.', tagsEn(top2, cr.length > 0)].join('\n');
+  return { id: 'histm:' + isoDay(now), sr: 'histm', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { month } };
 }

@@ -514,23 +514,27 @@ try {
   else console.log('[x] 中間選挙: 保存のみ', hNow == null ? '投票日の終値の前' : hNow + '時間後', src);
 } catch (e) { console.log('[x] 中間選挙: 失敗', e.message); }
 
+let BMX = null;
 // ---- 4d4) v267→v268: 「暗号資産のブームと危機の歴史」のデータ集め。1日1回(版が変わった時はすぐ)。取れたかどうかを分かりやすくログに出し、/api/booms に保存
 try {
   let old = {}; try { old = (await (await site('/api/admin/rx-one?name=bm')).json()) || {}; } catch (_) {}
-  if (!old.at || old.v !== 269 || NOW - old.at > 20 * H) {
-    const LOG = (m) => console.log('[booms] ' + m), res = { at: NOW, v: 269, src: {}, data: {} };
+  BMX = old;   // v273: 年表の投稿で使う
+  if (!old.at || old.v !== 273 || NOW - old.at > 20 * H) {
+    const LOG = (m) => console.log('[booms] ' + m), res = { at: NOW, v: 273, daily: {}, src: {}, data: {} };
     const get = async (key, u) => { const t0 = Date.now(); try { const r = await fetch(u, { headers: { 'User-Agent': 'signal-archive-x-posts/1.0', accept: 'application/json' }, signal: AbortSignal.timeout(40000) }); const ms = Date.now() - t0; if (!r.ok) { res.src[key] = { ok: 0, u, st: r.status }; LOG(`✗ ${key}: HTTP ${r.status}（${ms}ms）${u}`); return null; } const j = await r.json(); res.src[key] = { ok: 1, u, st: 200 }; return j; } catch (e) { res.src[key] = { ok: 0, u, err: String(e.message).slice(0, 120) }; LOG(`✗ ${key}: ${e.message} ${u}`); return null; } };
-    const mon = (sec) => new Date((sec > 1e12 ? sec : sec * 1000)).toISOString().slice(0, 7);
+    const mon = (sec) => new Date((sec > 1e12 ? sec : sec * 1000)).toISOString().slice(0, 7), dayOf = (sec) => new Date((sec > 1e12 ? sec : sec * 1000)).toISOString().slice(0, 10), D40 = NOW - 40 * DAY;
+    const daily = (key, rows) => { const m = new Map(); for (const [t, v] of rows) if ((t > 1e12 ? t : t * 1000) >= D40 && isFinite(v)) m.set(dayOf(t), v); const r = [...m.entries()].sort(); res.daily[key] = r; LOG((r.length ? '✓' : '✗') + ` 日ごと ${key}: ${r.length}日` + (r.length ? `（${r[0][0]}〜${r[r.length - 1][0]}・最新 ${r[r.length - 1][1]}）` : '')); };
     const byMonth = (rows) => { const m = new Map(); for (const [t, v] of rows) if (isFinite(v)) m.set(mon(t), v); return [...m.entries()]; };
     const sum = (key, rows, unit) => { if (!rows || !rows.length) { LOG(`✗ ${key}: データが空`); return; } res.data[key] = rows; const pk = rows.reduce((a2, q) => q[1] > a2[1] ? q : a2), at = (m) => { const q = rows.find((z) => z[0] === m); return q ? q[1] : '—'; };
       LOG(`✓ ${key}: ${rows.length}か月（${rows[0][0]}〜${rows[rows.length - 1][0]}）最大 ${pk[1]}${unit}（${pk[0]}）・2021-11 ${at('2021-11')}・2022-06 ${at('2022-06')}・2024-12 ${at('2024-12')}・最新 ${rows[rows.length - 1][1]}`); };
     LOG('==== 暗号資産のブームと危機の歴史：データ集め（単位は十億ドル） ====');
     // 1) DeFi 全体の TVL
     const tv = await get('defi', 'https://api.llama.fi/v2/historicalChainTvl');
-    if (Array.isArray(tv)) sum('defi', byMonth(tv.map((x) => [+x.date, Math.round(+x.tvl / 1e8) / 10])), 'B');
+    if (Array.isArray(tv)) { sum('defi', byMonth(tv.map((x) => [+x.date, Math.round(+x.tvl / 1e8) / 10])), 'B'); daily('defi', tv.map((x) => [+x.date, Math.round(+x.tvl / 1e8) / 10])); }
     // 2) 貸し出し(DeFi)：Aave・Compound の TVL を足す
-    const lendRows = new Map();   // v269: 各プロトコルの「月の最後の値」を足す(日ごとに足していたのを直した)
-    for (const slug of ['aave', 'compound-finance', 'makerdao', 'sky']) { const d = await get('lend:' + slug, 'https://api.llama.fi/protocol/' + slug); const last = new Map(); for (const x of (d && d.tvl) || []) last.set(mon(+x.date), +x.totalLiquidityUSD || 0); for (const [m, v] of last) lendRows.set(m, (lendRows.get(m) || 0) + v); }
+    const lendRows = new Map(), lendDay = new Map();   // v269: 各プロトコルの「月の最後の値」を足す(日ごとに足していたのを直した)
+    for (const slug of ['aave', 'compound-finance', 'makerdao', 'sky']) { const d = await get('lend:' + slug, 'https://api.llama.fi/protocol/' + slug); const last = new Map(); for (const x of (d && d.tvl) || []) { last.set(mon(+x.date), +x.totalLiquidityUSD || 0); if (+x.date * 1000 >= D40) { const k2 = dayOf(+x.date); lendDay.set(k2, (lendDay.get(k2) || 0) + (+x.totalLiquidityUSD || 0)); } } for (const [m, v] of last) lendRows.set(m, (lendRows.get(m) || 0) + v); }
+    daily('lend', [...lendDay.entries()].map(([k2, v]) => [Date.parse(k2) / 1000, Math.round(v / 1e8) / 10]));
     sum('lend', [...lendRows.entries()].sort().map(([m, v]) => [m, Math.round(v / 1e8) / 10]), 'B');
     // 3) アルゴ型ステーブル(UST・IRON など)の発行額
     const list = await get('stable:list', 'https://stablecoins.llama.fi/stablecoins?includePrices=false');
@@ -543,19 +547,35 @@ try {
     sum('algo', [...tot.entries()].sort().map(([m, v]) => [m, Math.round(v / 1e8) / 10]), 'B');
     // 4) DEX の月ごとの取引高(取引所の取引の参考)
     const dx = await get('dex', 'https://api.llama.fi/overview/dexs?excludeTotalDataChartBreakdown=true&excludeTotalDataChart=false&dataType=dailyVolume');
-    if (dx && dx.totalDataChart) { const m = new Map(); for (const [t, v] of dx.totalDataChart) { const k = mon(+t); m.set(k, (m.get(k) || 0) + +v); } sum('dex', [...m.entries()].sort().map(([k, v]) => [k, Math.round(v / 1e8) / 10]), 'B/月'); }
+    if (dx && dx.totalDataChart) { daily('dex', dx.totalDataChart.map(([t, v]) => [+t, Math.round(+v / 1e7) / 100])); const m = new Map(); for (const [t, v] of dx.totalDataChart) { const k = mon(+t); m.set(k, (m.get(k) || 0) + +v); } sum('dex', [...m.entries()].sort().map(([k, v]) => [k, Math.round(v / 1e8) / 10]), 'B/月'); }
+    // 6) v273: ステーブルコイン全体の発行額(日ごと)・BTC の日足・ハッキングの一覧(DefiLlama)
+    const sa = await get('stable:all', 'https://stablecoins.llama.fi/stablecoincharts/all');
+    if (Array.isArray(sa)) daily('stable', sa.map((x) => [+x.date, Math.round((((x.totalCirculatingUSD || {}).peggedUSD) || 0) / 1e8) / 10]));
+    const bk = await get('btc', `https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=40`);
+    if (Array.isArray(bk)) daily('btc', bk.filter((x) => +x[0] + DAY <= NOW).map((x) => [+x[0], +(+x[4]).toFixed(0)]));
+    const hk = await get('hacks', 'https://api.llama.fi/hacks');
+    if (Array.isArray(hk)) { const r = hk.filter((x) => +x.amount >= 1e6 && +x.date * 1000 >= NOW - 400 * DAY).map((x) => ({ d: dayOf(+x.date), n: String(x.name || '').slice(0, 40), b: Math.round(+x.amount / 1e6) / 1000, c: x.classification || '', t: String(x.technique || '').slice(0, 40) })).sort((a3, b3) => a3.d < b3.d ? 1 : -1); res.hacks = r; LOG(`✓ ハッキングの一覧: 直近400日で ${r.length}件（100万ドル以上）。新しい順: ` + r.slice(0, 6).map((x) => `${x.d} ${x.n} ${x.b}B`).join(' / ')); }
     // 5) 全体の時価総額(CoinGecko の無料の範囲で取れるか試す)
     const cg = await get('mcap', 'https://api.coingecko.com/api/v3/global/market_cap_chart?days=max');
     if (cg && cg.market_cap_chart && cg.market_cap_chart.market_cap) sum('mcap', byMonth(cg.market_cap_chart.market_cap.map(([t, v]) => [+t, Math.round(+v / 1e8) / 10])), 'B');
     const ok = Object.entries(res.src).filter(([, v]) => v.ok).length, ng = Object.entries(res.src).filter(([, v]) => !v.ok).map(([k]) => k);
     LOG(`==== まとめ：取れた ${ok}件・取れなかった ${ng.length}件${ng.length ? '（' + ng.join(', ') + '）' : ''}。中身は /api/booms ====`);
     const body = JSON.stringify(res); LOG(`サイトへ保存（${Math.round(body.length / 1024)}KB）`);
+    BMX = res;
     try { await site('/api/admin/rx-put?name=bm', { method: 'POST', headers: { 'content-type': 'text/plain' }, body }); LOG('✓ サイトへ保存しました'); } catch (e) { LOG('✗ サイトへ保存できません: ' + e.message + '（bad name ならサイトの Worker が古い版のまま）'); }
   }
 } catch (e) { console.log('[booms] ✗ 失敗', e.message); }
 
-// ---- 4d5) v272: 年表の下書き(手で投稿・自動では出さない)を1回だけ置く
-try { const d = L.historyDraft(NOW); if (!byId.has(d.id)) { put(d); console.log('[x] 年表の下書き(手で投稿):', d.id, 'ja', L.xlen(d.ja), 'en', L.xlen(d.en)); } } catch (e) { console.log('[x] 年表の下書き: 失敗', e.message); }
+// ---- 4d5) v273: 年表の投稿。週1(日曜12時〜・2017年〜今)と毎日(13時〜・直近1か月)。データは booms-data.json(手で集めた分と推定)＋DefiLlama
+try {
+  const H0 = L.J(NOW).getUTCHours(), WD = L.J(NOW).getUTCDay(), base = JSON.parse(fs.readFileSync(path.join(here, '..', 'public', 'booms-data.json'), 'utf8'));
+  let ce = []; try { ce = ((await (await site('/api/admin/rx-one?name=ce')).json()) || {}).ev || []; } catch (_) {}
+  const has = (id) => byId.has(id) || out.some((p) => p.id === id);
+  if (BMX && BMX.data) {
+    if (WD === 0 && H0 >= 12 && !has('histw:' + L.isoDay(NOW))) { const d = L.histWeekDraft(base, BMX, NOW); put(d); console.log('[x] 年表の下書き(週1):', d.id, 'ja', L.xlen(d.ja), 'en', L.xlen(d.en)); }
+    if (H0 >= 13 && !has('histm:' + L.isoDay(NOW)) && BMX.daily && BMX.daily.btc && BMX.daily.btc.length) { const d = L.histMonthDraft(BMX, ce, HACKS, NOW); put(d); console.log('[x] 年表の下書き(直近1か月):', d.id, '危機', d.img.month.crises.length + '件', 'ja', L.xlen(d.ja), 'en', L.xlen(d.en)); }
+  } else console.log('[x] 年表: データがまだない(/api/booms)');
+} catch (e) { console.log('[x] 年表の下書き: 失敗', e.message); }
 
 // ---- 4e) v256: スマホ版の「いま」の枠。その時に熱いものを点数で並べ、上位をサイトに保存(/api/hot)。事実だけ(理由に時刻と数字)
 try {
