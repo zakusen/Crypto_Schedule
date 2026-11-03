@@ -414,7 +414,7 @@ export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
-export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -816,5 +816,41 @@ export function shockDraft(sd, now, kind, why) {
 }
 // v245: 空き枠の条件。日本時間9〜23時、前の4時間と先の2時間に自動投稿が無い、前のショック比較から4時間
 // v251: 定時の投稿(daily・pre・arch・vol・pat・sum・week・liqday)は前後30分だけよける。それ以外の自動投稿(急変動・清算・資金の現況など)は前2時間・先1時間
-export const SHOCKFIXED = new Set(['daily', 'pre', 'arch', 'vol', 'pat', 'sum', 'week', 'liqday']);
+export const SHOCKFIXED = new Set(['corrts', 'daily', 'pre', 'arch', 'vol', 'pat', 'sum', 'week', 'liqday']);
 export const SHOCKGAP = { from: 9, to: 23, before: 2 * H, after: 1 * H, fixed: 30 * 60000, last: 22, every: 4 * H, trigGap: 3 * H, perDay: 3, slotPerDay: 2 }   // v250: 空き枠は4時間あけて1日2本まで(交互)。きっかけ込みで1日3本まで;
+
+// ---- v259: BTC × S&P500 の相関の推移(1時間足・直近24時間の相関を1時間ずつずらして7日分) ----
+export const CORRTS = { days: 7, win: 24, maxEv: 4, postFrom: 6, postTo: 9, jump: 0.5 };
+// bt・sp = [[開始ms, 始, 高, 安, 終]]。確定した足だけ。返り値 { at, end, t:[], r:[], b:[], s:[] }  r = 相関(null あり)・b/s = 7日前＝0% の変化率
+export function corrSeries(bt, sp, now) {
+  const fin = (a) => new Map((a || []).filter((x) => x[0] + H <= now).map((x) => [x[0], x[4]]));
+  const B = fin(bt), S = fin(sp); if (!B.size || !S.size) return null;
+  const end = Math.min(Math.max(...B.keys()), Math.max(...S.keys())), n = CORRTS.days * 24, t0 = end - (n - 1) * H;
+  const ret = (m, t) => { const a = m.get(t - H), b = m.get(t); return a > 0 && b > 0 ? Math.log(b / a) : null; };
+  const out = { at: now, end: end + H, t: [], r: [], b: [], s: [] }, b0 = B.get(t0 - H) || B.get(t0), s0 = S.get(t0 - H) || S.get(t0);
+  for (let i = 0; i < n; i++) {
+    const t = t0 + i * H, x = [], y = [];
+    for (let k = t - (CORRTS.win - 1) * H; k <= t; k += H) { const a = ret(B, k), c = ret(S, k); if (a != null && c != null) { x.push(a); y.push(c); } }
+    const r = x.length >= CORRTS.win * 0.8 ? pearson(x, y) : null;
+    out.t.push(t); out.r.push(r == null || !isFinite(r) ? null : Math.round(r * 100) / 100);
+    const bv = B.get(t), sv = S.get(t); out.b.push(bv && b0 ? +((bv / b0 - 1) * 100).toFixed(2) : null); out.s.push(sv && s0 ? +((sv / s0 - 1) * 100).toFixed(2) : null);
+  }
+  return out;
+}
+const lastOf = (a) => { for (let i = a.length - 1; i >= 0; i--) if (a[i] != null) return [i, a[i]]; return [-1, null]; };
+export function corrStats(c) {
+  const [i, now] = lastOf(c.r), ago = i >= 24 ? c.r[i - 24] : null, v = c.r.filter((x) => x != null);
+  return { now, ago, hi: v.length ? Math.max(...v) : null, lo: v.length ? Math.min(...v) : null, i };
+}
+export const corrWord = (v, lg) => v == null ? (lg === 'en' ? 'not enough data' : 'データ不足') : v >= 0.5 ? (lg === 'en' ? 'moving in the same direction' : '同じ方向に動く傾向') : v <= -0.5 ? (lg === 'en' ? 'moving in opposite directions' : '逆方向に動く傾向') : (lg === 'en' ? 'no clear relationship' : 'はっきりした関係なし');
+const sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
+export function corrText(c, lg) {
+  const st = corrStats(c);
+  return lg === 'en'
+    ? ['BTC × S&P 500 correlation (1h, last 24h)', `Now ${sg(st.now)} (24h ago ${sg(st.ago)})`, `7-day high ${sg(st.hi)} / low ${sg(st.lo)}`, `Last 24h: ${corrWord(st.now, 'en')}`, '', 'Correlation is not causation. Past record; this time may differ.', '#Bitcoin #SP500'].join('\n')
+    : ['BTC × S&P500 の相関（1時間足・直近24時間）', `現在 ${sg(st.now)}（24時間前 ${sg(st.ago)}）`, `7日の最高 ${sg(st.hi)}・最低 ${sg(st.lo)}`, `直近24時間は、${corrWord(st.now, 'ja')}`, '', '相関は原因を示しません。過去の記録で、今回も同じとは限りません', '#ビットコイン #SP500'].join('\n');
+}
+export function corrDraft(c, now, why) {
+  const id = 'corrts:' + isoDay(now) + (why === 'daily' ? '' : ':' + why), ja = corrText(c, 'ja'), en = corrText(c, 'en');
+  return { id, sr: 'corrts', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { corr: c }, why };
+}

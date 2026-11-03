@@ -307,8 +307,11 @@ async function pac(sym, iv, start, end) {                                     //
   return [...rows.values()].sort((x, y) => x[0] - y[0]);
 }
 const SYM5 = ['SP500', ...COINS.map(([c]) => c)];
+// v259: Pacifica で暗号資産の足が取れない時は Binance の1時間足で代わりに取る(S&P500 は Pacifica だけ)
+async function bnc1h(pair, start, end) { const rows = []; for (let a = start; a < end; a += 1000 * H) { let j = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=${pair}&interval=1h&startTime=${a}&endTime=${Math.min(end, a + 1000 * H)}&limit=1000`, { signal: AbortSignal.timeout(20000) }); if (r.ok) { j = await r.json(); break; } } catch (_) {} } if (!j) throw new Error('Binance ' + pair + ' 1h が取れません'); for (const x of j) rows.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); } return rows; }
+async function coin1h(c, start, end) { try { return await pac(c, '1h', start, end); } catch (e) { const pr = (L.COINS.find(([x]) => x === c) || [])[1]; if (!pr) throw e; console.log('[x] ' + e.message + ' → Binance で代わりに取得'); return await bnc1h(pr, start, end); } }
 async function corrNow() {
-  const B = {}; for (const s of SYM5) B[s] = await pac(s, '1h', NOW - (Math.max(...L.CORR_DAYS) + 2) * DAY, NOW);
+  const B = {}; for (const s of SYM5) B[s] = s === 'SP500' ? await pac(s, '1h', NOW - (Math.max(...L.CORR_DAYS) + 2) * DAY, NOW) : await coin1h(s, NOW - (Math.max(...L.CORR_DAYS) + 2) * DAY, NOW);
   try { B.CL = await pac('CL', '1h', NOW - (Math.max(...L.CORR_DAYS) + 2) * DAY, NOW); } catch (e) { console.log('[x] 原油(CL)が取れません:', e.message); }   // v180
   return L.corrCalc(B, NOW);
 }
@@ -464,6 +467,27 @@ try {
 // ---- 4d) v204: サイトの BTC実況カード(今週となぞっている過去の週 TOP3) ----
 try { const S = await getS(), w = await weekBoth(S, NOW, groups(events.filter(L.AUTOEV)).map((g) => ({ t: g[0].ts, ja: L.headName(g, 'ja'), en: L.headName(g, 'en'), c: g[0].c }))); if (w.ja || w.en) { await site('/api/admin/rx-put?name=wk', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(w) }); console.log('[x] BTC実況のカードを更新', w.ja && w.ja.top.map((m) => new Date(m.w).toISOString().slice(0, 10) + ' ' + m.rate + '%').join(' / ')); } }
 catch (e) { console.log('[x] BTC実況のカードでエラー', e.message); }
+
+// ---- 4d2) v259: BTC × S&P500 の相関の推移。毎時サイトに保存(/api/corrts)。Xは毎日1本(日本時間6〜9時の最初の回)＋大きく動いた時に1本
+try {
+  const st = NOW - (L.CORRTS.days + 2) * DAY, bt = await coin1h('BTC', st, NOW), sp = await pac('SP500', '1h', st, NOW), c = L.corrSeries(bt, sp, NOW);
+  if (!c) throw new Error('計算できない');
+  // 出来事(◆)：手で入れたもの(管理画面)・大型ハッキング・急変動。期間内で新しい順に最大4つ
+  let man = []; try { man = ((await (await site('/api/admin/rx-one?name=ce')).json()) || {}).ev || []; } catch (_) {}
+  const t0 = c.t[0], t1 = c.end, all = [...byId.values(), ...out], evs = [];
+  for (const e of man) if (e.t >= t0 && e.t < t1) evs.push({ t: e.t, ja: e.ja, en: e.en || e.ja, k: e.k === 'hack' ? 'hack' : 'mkt' });
+  for (const hk of HACKS) if (hk.t >= t0 && hk.t < t1 && !evs.some((e) => Math.abs(e.t - hk.t) < 6 * H)) evs.push({ t: hk.t, ja: hk.ja + 'の流出', en: hk.en + ' outflow', k: 'hack' });
+  for (const p of all.filter((p) => p.sr === 'spike' && p.due >= t0 && p.due < t1)) if (!evs.some((e) => Math.abs(e.t - p.due) < 6 * H)) evs.push({ t: p.due, ja: 'BTC急変動', en: 'BTC sharp move', k: 'mkt' });
+  c.ev = evs.sort((a, b) => b.t - a.t).slice(0, L.CORRTS.maxEv).sort((a, b) => a.t - b.t);
+  await site('/api/admin/rx-put?name=ct', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify(c) });
+  const stt = L.corrStats(c), h = L.J(NOW).getUTCHours(), mine = all.filter((p) => p.sr === 'corrts').sort((a, b) => (b.due || 0) - (a.due || 0)), last = mine[0];
+  const daily = h >= L.CORRTS.postFrom && h < L.CORRTS.postTo && !mine.some((p) => p.id === 'corrts:' + L.isoDay(NOW));
+  const lastV = last && last.img && last.img.corr ? L.corrStats(last.img.corr).now : null;
+  const jump = stt.now != null && lastV != null && Math.abs(stt.now - lastV) >= L.CORRTS.jump && NOW - (last.due || 0) >= 6 * H && !mine.some((p) => p.id === 'corrts:' + L.isoDay(NOW) + ':jump');
+  if (daily) { put(L.corrDraft(c, NOW, 'daily')); console.log('[x] 相関の推移の下書き(毎日):', stt.now); }
+  else if (jump) { put(L.corrDraft(c, NOW, 'jump')); console.log('[x] 相関の推移の下書き(大きく動いた):', lastV, '→', stt.now); }
+  else console.log('[x] 相関の推移: 保存のみ', stt.now, '◆' + c.ev.length);
+} catch (e) { console.log('[x] 相関の推移: 失敗', e.message); }
 
 // ---- 4e) v256: スマホ版の「いま」の枠。その時に熱いものを点数で並べ、上位をサイトに保存(/api/hot)。事実だけ(理由に時刻と数字)
 try {

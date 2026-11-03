@@ -117,6 +117,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <button class="chip" id="bell">🔔 通知をオンにする</button>
   <button class="chip" id="pastBtn" title="発表済みの指標の「発表後の値動き」を今つくる(手で投稿)">＋ 過去の発表から作る</button>
   <button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button>
+  <button class="chip" id="ceBtn" title="相関の推移の図に、出来事(◆)を手で足す(日経・コスピの急落など)">◆ 相関の図に出来事を足す</button>
   <button class="chip sfb" data-k="shockbn" title="Binance 2019/2026 を今出す。英語は30分後に返信で">📉 Binance 2019/2026 を今出す</button>
   <button class="chip sfb" data-k="shockcmp" title="ショック後のBTC を今出す。英語は30分後に返信で">📉 ショック後のBTC を今出す</button>
   <button class="chip" id="reload">↻ 更新</button>
@@ -181,8 +182,8 @@ async function load() {
 }
 
 // 予定(下書き)と、まだ下書きの無い「発表後の値動き」をひとつの並びにする
-const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録', spike: '急変動(S&P500相関)', liq: '巨額清算の総括', liqday: '清算(毎朝)', liqimp: '清算の反応(指標)', pre: '発表前の予告', chain: '資金の追跡(手動)', chaincmp: '流出 過去最大と比較(手動)', shockbn: 'ショック比較 Binance 2019/2026', shockcmp: 'ショック比較 過去の巨大ショック', bnstatus: 'Binance流出 資金の現況', bnreply: 'Binance流出 返信の詳細', chainflow: '流出 行き先と時系列(手動)', hack: '大型ハッキング 過去と比較', spkcmp: '急変動 過去との比較', fomc: '大型指標 親(似ていた過去)', fomcc: '大型指標 子(TOP3)', fomcres: '大型指標 結果', spikeliq: '急変動の返信(清算)', vol: 'ボラティリティ', pat: '似ている過去', sum: '夜のまとめ' };   // v95: spike
-const ICON = { daily: '🗓', arch: '📈', week: '📊', spike: '⚡', liq: '🔥', liqday: '🧹', liqimp: '🌊', pre: '⏰', chain: '🔗', chaincmp: '⚖️', shockbn: '📉', shockcmp: '↩', bnstatus: '🧊', bnreply: '↩', chainflow: '🧊', hack: '🚨', spkcmp: '⚡', fomc: '🏦', fomcc: '↩', fomcres: '✅', spikeliq: '↩', vol: '📊', pat: '🔁', sum: '🌙' };
+const LABEL = { daily: '今日・今週の予定', arch: '発表後の値動き', week: '週間記録', spike: '急変動(S&P500相関)', liq: '巨額清算の総括', liqday: '清算(毎朝)', liqimp: '清算の反応(指標)', pre: '発表前の予告', chain: '資金の追跡(手動)', chaincmp: '流出 過去最大と比較(手動)', corrts: 'BTC×S&P500 相関の推移', shockbn: 'ショック比較 Binance 2019/2026', shockcmp: 'ショック比較 過去の巨大ショック', bnstatus: 'Binance流出 資金の現況', bnreply: 'Binance流出 返信の詳細', chainflow: '流出 行き先と時系列(手動)', hack: '大型ハッキング 過去と比較', spkcmp: '急変動 過去との比較', fomc: '大型指標 親(似ていた過去)', fomcc: '大型指標 子(TOP3)', fomcres: '大型指標 結果', spikeliq: '急変動の返信(清算)', vol: 'ボラティリティ', pat: '似ている過去', sum: '夜のまとめ' };   // v95: spike
+const ICON = { daily: '🗓', arch: '📈', week: '📊', spike: '⚡', liq: '🔥', liqday: '🧹', liqimp: '🌊', pre: '⏰', chain: '🔗', chaincmp: '⚖️', corrts: '🔗', shockbn: '📉', shockcmp: '↩', bnstatus: '🧊', bnreply: '↩', chainflow: '🧊', hack: '🚨', spkcmp: '⚡', fomc: '🏦', fomcc: '↩', fomcres: '✅', spikeliq: '↩', vol: '📊', pat: '🔁', sum: '🌙' };
 const dueOf = (p) => p.due || (p.sr === 'daily' ? L.dayStart(p.at) + L.DAILY_AT : p.at);
 function build() {
   // v85: その日にもその週の残りにも予定が無い「今日・今週の予定」は出さない(自動作成側も作らないが、作成済みの古い下書きをすぐ隠す)
@@ -463,6 +464,22 @@ $('#vBtn').onclick = () => { vQuote().catch((e) => toast('作れませんでし�
 
 load(); setInterval(tick, 30000);
 setInterval(() => { if (!OPEN && getKey()) load(); }, 10 * 60000);   // 10分ごとに下書きを読み直す
+// v259: 相関の推移の図に出来事を手で足す(日時は日本時間)。直近14日より古いものは自動で外す
+document.getElementById('ceBtn').onclick = async (e) => {
+  const b = e.currentTarget, t0 = b.textContent;
+  const when = prompt('日時(日本時間) 例: 2026-11-02 10:30'); if (!when) return;
+  const t = Date.parse(when.trim().replace(' ', 'T') + ':00+09:00'); if (!isFinite(t)) { b.textContent = '日時の形が違います'; setTimeout(() => (b.textContent = t0), 4000); return; }
+  const ja = prompt('名前(日本語) 例: 日経平均・コスピの急落'); if (!ja) return;
+  const en = prompt('名前(英語) 例: Nikkei / KOSPI drop') || ja;
+  const k = confirm('ハッキング・流出なら OK、株の急落などは キャンセル') ? 'hack' : 'mkt';
+  try {
+    const h = { 'x-admin-key': getKey() }; let cur = {}; try { cur = (await (await fetch('/api/admin/rx-one?name=ce', { headers: h, cache: 'no-store' })).json()) || {}; } catch (_) {}
+    const ev = (cur.ev || []).filter((x) => Date.now() - x.t < 14 * 864e5); ev.push({ t, ja, en, k });
+    const r = await fetch('/api/admin/rx-put?name=ce', { method: 'POST', headers: { ...h, 'content-type': 'text/plain' }, body: JSON.stringify({ ev }) });
+    b.textContent = r.ok ? '✓ 足しました(次の毎時の更新で図に出ます)' : '失敗 HTTP ' + r.status;
+  } catch (err) { b.textContent = '失敗 ' + err.message; }
+  setTimeout(() => (b.textContent = t0), 8000);
+};
 // v252: ショック比較を今出す(サイトに合図を置き、X post を起こす。数分で投稿)
 document.querySelectorAll('.sfb').forEach((el) => el.onclick = async (e) => {   // v254: どちらを出すか選ぶ
   const b = e.currentTarget, t0 = b.textContent; b.disabled = true; b.textContent = '送信中…';
