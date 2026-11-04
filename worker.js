@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-11-04-v274';
+const VERSION = '2026-11-05-v275';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -2058,7 +2058,7 @@ export default {
       const txt = await env.CAL.get(rxNameKey(name));
       return new Response(txt || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
     }
-    if (url.pathname === '/api/admin/rx-put' && request.method === 'POST') { const r = await rxPut(request, url, env); r.headers.set('cache-control', 'no-store'); if (r.ok && ['sf', 'cf'].includes(url.searchParams.get('name')) && env.GH_DISPATCH_TOKEN && env.GH_REPO) { try { await ghDispatch(env, { shockForce: 1 }); } catch (_) {} } return r; }   // v252: ショック比較を今出す
+    if (url.pathname === '/api/admin/rx-put' && request.method === 'POST') { const r = await rxPut(request, url, env); r.headers.set('cache-control', 'no-store'); if (r.ok && ['sf', 'cf', 'xk'].includes(url.searchParams.get('name')) && env.GH_DISPATCH_TOKEN && env.GH_REPO) { try { await ghDispatch(env, { shockForce: 1 }); } catch (_) {} } return r; }   // v252: ショック比較を今出す
     if (url.pathname === '/api/admin/liqimpact' && request.method === 'GET') {   // v171: 合言葉つき。X の「清算の反応」用に、next.html と同じ集計を無料の絞り込みなしで返す
       if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
       const r = await liqImpactApi(env, url); r.headers.set('cache-control', 'no-store'); return r;

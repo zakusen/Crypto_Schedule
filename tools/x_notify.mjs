@@ -333,7 +333,7 @@ try {
       try { const s0 = ev.t - W * H; B[c] = [...await pac(c, '5m', s0 - 40 * 60000, s0 + 20 * 60000), ...await pac(c, '5m', ev.t - 40 * 60000, end)]; }
       catch (e) { console.log('[x] 急変動:', e.message, `(${c} なしで続けます)`); B[c] = []; }
     }
-    const mv = L.spikeMoves(B, ev.t, NOW, ev.win || 1, ev.from ? { from: ev.from, th: L.SPIKE_DAY } : {});   // v199: その日の高値・安値からの判定は、その時刻から
+    const mv = L.spikeMoves(B, ev.t, NOW, ev.win || 1, ev.from ? { from: ev.from, th: L.SPIKE_DAY } : ev.man ? { th: 0.01 } : {});   // v275: man = /posts.html の「急変動を今出す」(しきい値なし・その時の%で出す)   // v199: その日の高値・安値からの判定は、その時刻から
     if (!mv) { console.log('[x] 急変動: Pacifica の5分足では BTC が ±3% に届かないので出しません', ev.id, JSON.stringify(ev.hit)); continue; }
     // v98: URL を付けるのは直近30日で SPIKE_LINK_MAX 回まで(URL付きは1本 $0.20)
     const linked = [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.img && p.img.link && NOW - (p.due || 0) < 30 * DAY).length;
