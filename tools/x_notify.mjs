@@ -604,7 +604,9 @@ try {
 //   毎朝のまとめ: 日本時間 9:00 以降に、その日の分を1本(直近24時間 = 前日 9:00 〜 今日 9:00)。サイトの /api/liq の1時間ごとの集計から作る。
 try {
   const lq = await (await site('/api/admin/rx-one?name=xl')).json();
-  for (const ev of (lq.ev || [])) { if (byId.has(ev.id) || NOW - ev.end > 6 * H) continue; put(L.liqPost(ev)); console.log('[x] 巨額清算の総括:', ev.id); }
+  // v278: 新しい清算の画像のため、BTC の価格(Binance)を添える。取れなければ今までの画像
+  const btcPx = async (start, end, iv) => { try { const st = iv === '5m' ? 3e5 : H, r = await klines('BTCUSDT', iv, start - st, Math.min(1000, Math.ceil((end - start) / st) + 2)); return (r || []).map((x) => [+x[0], +x[4]]).filter((q) => q[0] <= end); } catch (_) { return null; } };
+  for (const ev of (lq.ev || [])) { if (byId.has(ev.id) || NOW - ev.end > 6 * H) continue; const px = await btcPx(ev.start, ev.end, '5m'); put(L.liqPost({ ...ev, ...(px && px.length ? { px } : {}) })); console.log('[x] 巨額清算の総括:', ev.id, px && px.length ? '(BTCの価格つき)' : ''); }
   // v173: 日本語 = 9:00 JST(直近24時間)/ 英語 = 13:00 UTC(その時点までの直近24時間)。英語は平常日比なし(日足の区切りと合わないため)
   const liqWin = async (end) => {
     const start = end - DAY, coins = {}, hrs = new Map(), dly = {}; let from = null, ok = true, total = 0, cutMin = null;
@@ -625,13 +627,15 @@ try {
     // v171: 平常日比 = 前日(UTC。日本時間 9:00〜9:00 と同じ)の合計 ÷ 直前14日の中央値(/next.html の案Bと同じ定義)。足りない銘柄があれば出さない
     const mult = Object.keys(w.dly).length === COINS.length ? liqDayMult(w.dly, w.start) : null;
     if (mult) mult.live = w.cutMin == null || w.cutMin < end;
-    if (w.ok && w.total > 0) put(L.liqDayPost(day, w.coins, w.hours, w.from, mult, split ? { langs: ['ja'] } : {}));
+    const px1 = await btcPx(end - DAY, end, '1h');
+    if (w.ok && w.total > 0) put(L.liqDayPost(day, w.coins, w.hours, w.from, mult, { ...(split ? { langs: ['ja'] } : {}), ...(px1 && px1.length ? { px: px1 } : {}) }));
     else if (w.ok) console.log('[x] 清算(毎朝): 記録が0なので出しません(LiqHub が動いているか /api/liq を確認)');
   }
   const uday = Math.floor(NOW / DAY) * DAY, eend = uday + L.EN_LIQDAY_AT, eid = 'liqday-en:' + new Date(uday).toISOString().slice(0, 10);
   if (isoDay(uday + 9 * H) >= L.SPLIT_FROM && NOW >= eend && NOW - eend < L.AUTO_WINDOW && !byId.has(eid)) {
     const w = await liqWin(eend);
-    if (w.ok && w.total > 0) put(L.liqDayPost(uday - 9 * H, w.coins, w.hours, w.from, null, { end: eend, id: eid, langs: ['en'] }));
+    const px2 = await btcPx(eend - DAY, eend, '1h');
+    if (w.ok && w.total > 0) put(L.liqDayPost(uday - 9 * H, w.coins, w.hours, w.from, null, { end: eend, id: eid, langs: ['en'], ...(px2 && px2.length ? { px: px2 } : {}) }));
   }
 } catch (e) { console.log('[x] 清算でエラー(ほかの下書きは続けます):', e.message); }
 

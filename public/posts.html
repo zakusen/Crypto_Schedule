@@ -495,8 +495,9 @@ document.getElementById('lqBtn').onclick = async (e) => {
       coins[c] = { long: l, short: sh }; if (j.since && (from == null || j.since > from)) from = j.since;
     }
     if (!Object.values(coins).some((x) => x.long + x.short > 0)) throw new Error('この時間の清算の記録がありません');
-    const p = w === 24 ? L.liqDayPost(L.dayStart(end), coins, [...hrs.values()].sort((x, y) => x[0] - y[0]), from, null, { end, id: 'liqday:copy:' + now })
-      : L.liqPost({ id: 'liq:copy:' + now, hrs: w, start, end, coins, ser: [...ser.values()].sort((x, y) => x[0] - y[0]).map(([t, l, sh]) => [t, Math.round(l), Math.round(sh)]), man: 1 });
+    let px = null; for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const iv = w === 24 ? '1h' : '5m', r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=${iv}&startTime=${start - (w === 24 ? 3600e3 : 3e5)}&limit=1000`); if (r.ok) { px = (await r.json()).map((x) => [+x[0], +x[4]]).filter((q) => q[0] <= end); break; } } catch (_) {} }   // v278: 新しい画像用の BTC の価格
+    const p = w === 24 ? L.liqDayPost(L.dayStart(end), coins, [...hrs.values()].sort((x, y) => x[0] - y[0]), from, null, { end, id: 'liqday:copy:' + now, ...(px && px.length ? { px } : {}) })
+      : L.liqPost({ id: 'liq:copy:' + now, hrs: w, ...(px && px.length ? { px } : {}), start, end, coins, ser: [...ser.values()].sort((x, y) => x[0] - y[0]).map(([t, l, sh]) => [t, Math.round(l), Math.round(sh)]), man: 1 });
     await copyBox(p, 'liq-' + w + 'h', b);
     b.textContent = `✓ 直近${w}時間で作りました（下に表示）`;
   } catch (err) { b.textContent = '失敗 ' + err.message; }

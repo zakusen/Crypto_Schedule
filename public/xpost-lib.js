@@ -302,7 +302,7 @@ export function liqPost(ev) {
   const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitL('en'), ja = fitL('ja');
   return { id: ev.id, sr: 'liq', due: ev.end, en, ja, h: hashStr(en + ja), ...(ev.man ? { man: 1 } : {}),
-    img: { v: 1, kind: 'wave', ...(ev.hrs ? { hrs: ev.hrs } : {}), start: ev.start, end: ev.end, capped: !!ev.capped, coins: ev.coins, maxOne: mo || null, ser: ev.ser || [] } };
+    img: { v: 1, kind: 'wave', ...(ev.hrs ? { hrs: ev.hrs } : {}), ...(ev.px ? { px: ev.px } : {}), start: ev.start, end: ev.end, capped: !!ev.capped, coins: ev.coins, maxOne: mo || null, ser: ev.ser || [] } };
 }
 // 毎朝のまとめ: day = 日本時間の0時(ms)。直近24時間 = (day+9h-24h) 〜 (day+9h)。coins = {BTC:{long,short}}, hours = [[t,long,short]](24本まで)、from = 記録の始まり(24時間に満たない時)
 export function liqDayPost(day, coins, hours, from, mult, opt = {}) {   // v171: mult = {l, s, n, coins:{BTC:{l,s}}, live} 平常日比(next.html の案Bと同じ定義) / v173: opt = {end, id, langs}
@@ -325,7 +325,7 @@ export function liqDayPost(day, coins, hours, from, mult, opt = {}) {   // v171:
   const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitL('en'), ja = fitL('ja');
   return { id: opt.id || 'liqday:' + isoDay(day), sr: 'liqday', due: end, ...(opt.langs ? { langs: opt.langs } : {}), en, ja, h: hashStr(en + ja),
-    img: { v: 2, kind: 'day', start, end, coins, hours: hours || [], partial: !!part, mult: mult || null } };
+    img: { v: 2, kind: 'day', start, end, coins, hours: hours || [], partial: !!part, mult: mult || null, ...(opt.px ? { px: opt.px } : {}) } };   // v278: px = BTC の価格 [[t, 終値]](新しい清算の画像)
 }
 
 // ---- v171: 清算 × 経済指標(/next.html と同じ定義。X の画像・本文もここに揃える) ----

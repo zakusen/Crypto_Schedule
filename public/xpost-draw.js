@@ -1254,8 +1254,57 @@ function drawHistM(g, mo, lg) {
   lt(g, en ? 'Incidents: DefiLlama hacks list (≥$1M) + CSA records. Shown side by side; this does not show cause.' : '危機：DefiLlama のハッキング一覧（100万ドル以上）＋CSAの記録。並べたもので、原因を示すものではありません。', 70, 1046, { s: 15, w: 500, c: M });
   lt(g, en ? 'BTC: Binance daily close · @csa_archive' : 'BTC：Binance 日足終値・@csa_archive', 70, 1074, { s: 15, w: 500, c: M });
 }
+// v278: 清算の新しい画像。見出し(合計)・ロング/ショートの割合の帯・上に BTC の価格・下に同じ時間軸で清算(上=買い/下=売り)・右に銘柄別
+function drawLiq2(g, im, lg) {
+  const en = lg === 'en', wave = im.kind === 'wave', RD = '#ff5c7a', GR = '#3ddc97', CY = '#2ee6ff', M = '#8ea2bf', co = im.coins || {};
+  const usd = (v) => v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v >= 1e8 ? Math.round(v / 1e6) : (v / 1e6).toFixed(v >= 1e7 ? 0 : 1)) + 'M' : '$' + Math.round(v / 1e3) + 'K';
+  const totL = Object.values(co).reduce((a, c) => a + (c.long || 0), 0), totS = Object.values(co).reduce((a, c) => a + (c.short || 0), 0), tot = totL + totS;
+  const hrs = Math.max(1, Math.round((im.end - im.start) / 36e5)), ser = (wave ? im.ser : im.hours) || [], step = wave ? 3e5 : 36e5;
+  g.fillStyle = '#070d16'; g.fillRect(0, 0, W, LH); g.fillStyle = RD; g.fillRect(0, 0, W, 5);
+  lt(g, (en ? `CRYPTO LIQUIDATIONS / LAST ${hrs}H` : `CRYPTO LIQUIDATIONS / 直近${hrs}時間`), 40, 44, { s: 14, w: 700, c: M, f: LN });
+  const ttl = en ? `${usd(tot)} force-closed in ${hrs}h` : `${hrs}時間で ${usd(tot)} が強制決済`; g.font = `900 40px ${LJ}`;
+  if (en) lt(g, ttl, 40, 104, { s: 40, w: 900 }); else { let x = 40; x += lt(g, `${hrs}時間で `, x, 104, { s: 40, w: 900 }); x += lt(g, usd(tot), x, 104, { s: 40, w: 900, c: RD }); lt(g, ' が強制決済', x, 104, { s: 40, w: 900 }); }
+  // 一文：清算の山の時間に、価格が下げていた/上げていたか(事実だけ)
+  const px = im.px || [], at = (t) => { let v = null; for (const q of px) { if (q[0] <= t) v = q[1]; else break; } return v; };
+  let pk = null; for (const q of ser) if (!pk || q[1] + q[2] > pk[1] + pk[2]) pk = q;
+  let line = '';
+  if (pk && px.length) { const a = at(pk[0] - 3 * step), b = at(pk[0] + step); if (a && b) { const ch = (b / a - 1) * 100, longSide = pk[1] >= pk[2];
+    line = en ? (ch < 0 && longSide ? 'Longs were liquidated in a cluster as BTC fell' : ch > 0 && !longSide ? 'Shorts were liquidated in a cluster as BTC rose' : `Peak liquidations at ${usd(pk[1] + pk[2])} per ${wave ? '5 min' : 'hour'}`)
+      : (ch < 0 && longSide ? 'BTCが下げたところで、買い（ロング）がまとめて清算された' : ch > 0 && !longSide ? 'BTCが上げたところで、売り（ショート）がまとめて清算された' : `清算がいちばん多かったのは ${wave ? '5分' : '1時間'}で ${usd(pk[1] + pk[2])}`); } }
+  if (line) lt(g, line, 42, 140, { s: 19, w: 700, c: '#cfe0f2' });
+  // ロング/ショートの帯
+  const sh = tot ? totL / tot : 0.5, bx = 40, bw = 1120, by = 164; g.fillStyle = RD; g.beginPath(); g.roundRect(bx, by, Math.max(4, bw * sh), 34, 6); g.fill(); g.fillStyle = GR; g.beginPath(); g.roundRect(bx + bw * sh, by, Math.max(4, bw * (1 - sh)), 34, 6); g.fill();
+  lt(g, (en ? 'Longs liquidated ' : '買い（ロング）の清算 ') + usd(totL) + '・' + Math.round(sh * 100) + '%', bx + 14, by + 23, { s: 17, w: 900, c: '#1a0a0e' });
+  lt(g, (en ? 'Shorts ' : '売り（ショート） ') + usd(totS), bx + bw - 14, by + 23, { s: 17, w: 900, c: '#06221a', a: 'right' });
+  // 上：BTC の価格
+  const x0 = 110, x1 = 1040, X = (t) => x0 + (t - im.start) / Math.max(1, im.end - im.start) * (x1 - x0), pa = 250, pb = 440;
+  const pv = px.filter((q) => q[0] >= im.start - step && q[0] <= im.end);
+  lt(g, en ? 'BTC price' : 'BTCの価格', 40, 236, { s: 16, w: 800, c: CY });
+  if (pv.length > 1) { const lo = Math.min(...pv.map((q) => q[1])) * 0.998, hi = Math.max(...pv.map((q) => q[1])) * 1.002, Y = (v) => pb - (v - lo) / (hi - lo) * (pb - pa);
+    for (let k = 0; k <= 3; k++) { const v = lo + (hi - lo) * k / 3; g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); lt(g, '$' + (v / 1000).toFixed(1) + 'k', x0 - 10, Y(v) + 5, { s: 13, w: 600, c: M, a: 'right', f: LN }); }
+    if (pk) { g.fillStyle = 'rgba(255,92,122,.08)'; g.fillRect(X(pk[0] - 3 * step), pa, X(pk[0] + 2 * step) - X(pk[0] - 3 * step), 610 - pa); }
+    g.strokeStyle = CY; g.lineWidth = 3; g.lineJoin = 'round'; g.beginPath(); pv.forEach((q, i) => i ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1]))); g.stroke();
+    const p0 = pv[0][1], p1 = pv[pv.length - 1][1], ch = (p1 / p0 - 1) * 100; lt(g, `BTC ${ch >= 0 ? '+' : '−'}${Math.abs(ch).toFixed(1)}%`, x1, pa + 16, { s: 16, w: 900, c: ch < 0 ? RD : GR, a: 'right' });
+  } else lt(g, en ? 'BTC price unavailable' : 'BTCの価格は取得できませんでした', (x0 + x1) / 2, (pa + pb) / 2, { s: 15, w: 700, c: M, a: 'center' });
+  // 下：清算
+  const la = 470, mid = 590, lb = 640, mx = Math.max(1, ...ser.map((q) => Math.max(q[1], q[2])));
+  lt(g, en ? `Liquidations (per ${wave ? '5 min' : 'hour'})` : `清算（${wave ? '5分' : '1時間'}ごと）`, 40, la - 8, { s: 16, w: 800, c: RD });
+  lt(g, en ? 'up = longs · down = shorts' : '上＝買いの清算　下＝売りの清算', en ? 300 : 230, la - 8, { s: 13, w: 600, c: M });
+  g.strokeStyle = 'rgba(255,255,255,.3)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x0, mid); g.lineTo(x1, mid); g.stroke();
+  const bw2 = Math.max(2, (x1 - x0) / Math.max(1, Math.round((im.end - im.start) / step)) * 0.75);
+  for (const q of ser) { const x = X(q[0] + step / 2), hl = q[1] / mx * (mid - la), hs = q[2] / mx * (mid - la) * 0.45; g.fillStyle = RD; g.fillRect(x - bw2 / 2, mid - hl, bw2, hl); g.fillStyle = GR; g.fillRect(x - bw2 / 2, mid, bw2, Math.max(1, hs)); }
+  if (pk) lt(g, (en ? 'max ' : '最大 ') + usd(pk[1] + pk[2]) + (en ? (wave ? '/5m' : '/h') : (wave ? '/5分' : '/時')), Math.min(Math.max(X(pk[0]), x0 + 60), x1 - 60), mid - pk[1] / mx * (mid - la) - 8, { s: 14, w: 900, a: 'center' });
+  [0, 1 / 3, 2 / 3, 1].forEach((f, k) => { const h2 = Math.round(hrs * (1 - f)); lt(g, k === 3 ? (en ? 'now' : '今') : (en ? `−${h2}h` : `−${h2}時間`), x0 + (x1 - x0) * f, lb + 4, { s: 13, w: 700, c: '#cfe0f2', a: 'center' }); });
+  // 右：銘柄別
+  const cs = Object.entries(co).map(([c, v]) => [c, (v.long || 0) + (v.short || 0)]).sort((a, b) => b[1] - a[1]), cmx = Math.max(1, ...cs.map((q) => q[1]));
+  lt(g, en ? 'By coin' : '銘柄別', 1060, 236, { s: 15, w: 800 });
+  cs.slice(0, 4).forEach(([c, v], i) => { const y = 252 + i * 50; lt(g, c, 1060, y + 14, { s: 15, w: 800, c: '#e8f0fb', f: LN }); lt(g, usd(v), 1168, y + 14, { s: 13, w: 700, c: M, a: 'right', f: LN }); g.fillStyle = RD; g.beginPath(); g.roundRect(1060, y + 22, Math.max(3, 108 * v / cmx), 8, 3); g.fill(); });
+  g.strokeStyle = '#1c2a3d'; g.beginPath(); g.moveTo(36, 680); g.lineTo(W - 36, 680); g.stroke();
+  lt(g, en ? 'Liquidation = a position force-closed by the exchange when margin runs out' : '清算＝証拠金が足りなくなったポジションが、取引所に強制的に決済されること', 40, 716, { s: 17, w: 900 });
+  lt(g, (wave && !im.hrs ? (en ? 'Bybit + OKX live streams' : 'Bybit・OKX のライブ受信の合算') : (en ? 'Binance+Bybit+OKX+Huobi' : 'Binance・Bybit・OKX・Huobi合算')) + (en ? ' (not the whole market) · USD · BTC: Binance · @csa_archive' : '（全市場ではありません）・USD・BTC：Binance・@csa_archive'), 40, 744, { s: 13, w: 600, c: M });
+}
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '暗号資産ブーム危機歴史全体時価総額対数目盛り塗り輪盗まれ失われ面積波各テーマ資金量最大推定含主な時点数字並べ原因示直近月預かり資産貸し出しステーブル発行額取引高日ごと範囲一覧百万記録大きな終値今回年' + '米中間選挙投票日年間最安確定伸びます例影響判断前後時間足終値破産申請' + '相関推移左軸右軸価格変化率同方向逆方向現在直近傾向関係はっきりした計算騰落率ぶん使って出来事原因影響向き分かりませんデータ不足流出急変動' + 'ショック後発生前日終値並べる比較同じ目今回前回水準戻るまで最安連鎖破綻崩壊上昇相場途中被害規模約倍ちがう基金全額補償発表出金停止週間足推計当時万億' + '定期更新区切り次動いたら' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '暗号資産ブーム危機歴史全体時価総額対数目盛り塗り輪盗まれ失われ面積波各テーマ資金量最大推定含主な時点数字並べ原因示直近月預かり資産貸し出しステーブル発行額取引高日ごと範囲一覧百万記録大きな終値今回年' + '強制決済買い売り証拠金足りなくなったポジション取引所強制的に決済されること銘柄別価格取得できませんでした下げたところで上げたまとめて清算された多かった最大時間ごと上下合算全市場' + '米中間選挙投票日年間最安確定伸びます例影響判断前後時間足終値破産申請' + '相関推移左軸右軸価格変化率同方向逆方向現在直近傾向関係はっきりした計算騰落率ぶん使って出来事原因影響向き分かりませんデータ不足流出急変動' + 'ショック後発生前日終値並べる比較同じ目今回前回水準戻るまで最安連鎖破綻崩壊上昇相場途中被害規模約倍ちがう基金全額補償発表出金停止週間足推計当時万億' + '定期更新区切り次動いたら' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   if (p.sr === 'histw' && p.img && p.img.hist) { cv.width = 1440; cv.height = 1300; drawHistW(g, p.img.hist, lg); return cv; }   // v273
   if (p.sr === 'histm' && p.img && p.img.month) { cv.width = 1440; cv.height = 1100; drawHistM(g, p.img.month, lg); return cv; }   // v273
@@ -1290,6 +1339,7 @@ export async function drawPost(p, lg) {
   else if (p.sr === 'pre') { if (p.img && p.img.v === 3) drawArch3(g, p.img, lg); else return null; }   // v181: 発表前の予告 = 前回の発表後の値動きの画像
   else if (p.sr === 'week') { if (p.img && p.img.v === 3 && p.img.btc) drawWeek3(g, p.img, lg); else drawWeek(g, p.img, lg); }
   else if (p.sr === 'spike') { if (p.img && p.img.v === 2 && p.img.ser) drawSpike2(g, p.img, lg); else drawSpike(g, p.img, lg); }
+  else if ((p.sr === 'liq' || p.sr === 'liqday') && p.img && p.img.px) { cv.height = LH; drawLiq2(g, p.img, lg); }   // v278: BTC の価格がある時は新しい画像
   else if (p.sr === 'liq' || p.sr === 'liqday') drawLiq(g, p.img, lg);   // v152
   else if (p.sr === 'liqimp') drawLiqImp(g, p.img, lg);   // v171
   else return null;
