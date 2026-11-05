@@ -119,6 +119,8 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button>
   <button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button>
   <button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button>
+  <button class="chip" id="rbBtn" title="BTC が1時間で5%以上下げた過去の回(2017年〜)の、その後7日間を重ねた本文と画像を作る(コピペで投稿)">📈 反発の歴史をコピペで作る</button>
+  <button class="chip" id="smBtn" title="直近24時間のBTCの形(1時間足)に近い過去の24時間を2017年から探し、その後72時間を並べた本文と画像を作る(コピペで投稿)">🔎 今日と同じ形を探す</button>
   <button class="chip" id="xfBtn" title="Xへの投稿の失敗の記録(直近50件)">⚠ 投稿の失敗</button>
   <button class="chip" id="cfBtn" title="BTC×S&amp;P500 の相関の推移を、今の数字で今出す。英語は30分後">🔗 相関の推移を今出す</button>
   <button class="chip" id="ceBtn" title="相関の推移の図に、出来事(◆)を手で足す(日経・コスピの急落など)">◆ 相関の図に出来事を足す</button>
@@ -531,6 +533,41 @@ document.getElementById('spBtn').onclick = async (e) => {
       wrap.append(ta, cp, dl, im); box.append(wrap);
     }
     b.textContent = `✓ ${w}時間の動きで作りました（下に表示）`;
+  } catch (err) { b.textContent = '失敗 ' + err.message; }
+  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
+};
+// v279: 1時間足を2017年8月から全部取る(反発の歴史・同じ形で共通)
+async function allH1(b) {
+  const now = Date.now(), k = []; let st = Date.UTC(2017, 7, 17), host = null;
+  while (st < now) {
+    let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
+    if (!j) throw new Error('Binance の1時間足が取れません'); if (!j.length) break;
+    for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 36e5;
+    b.textContent = `取得中… ${new Date(st).getUTCFullYear()}年`;
+  }
+  return k;
+}
+document.getElementById('smBtn').onclick = async (e) => {
+  const b = e.currentTarget, t0 = b.textContent; b.disabled = true;
+  try { const k = await allH1(b), p = L.sameDraft(L.samePath(k), Date.now()); await copyBox(p, 'samepath', b); b.textContent = '✓ 作りました（下に表示）'; }
+  catch (err) { b.textContent = '失敗 ' + err.message; }
+  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
+};
+// v279: 「反発」の歴史をコピペで作る。ブラウザで Binance の BTCUSDT 1時間足を2017年8月から全部取る(約80回の読み込み)
+document.getElementById('rbBtn').onclick = async (e) => {
+  const b = e.currentTarget, t0 = b.textContent; b.disabled = true;
+  try {
+    const now = Date.now(), k = []; let st = Date.UTC(2017, 7, 17), host = null;
+    while (st < now) {
+      let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
+      if (!j) throw new Error('Binance の1時間足が取れません'); if (!j.length) break;
+      for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 36e5;
+      b.textContent = `取得中… ${new Date(st).getUTCFullYear()}年`;
+    }
+    const ev = L.rebEvents(k); if (ev.length < 3) throw new Error('該当する回が少なすぎます');
+    const p = L.rebDraft(ev, now);
+    await copyBox(p, 'rebound', b);
+    b.textContent = `✓ ${ev.length}回で作りました（下に表示）`;
   } catch (err) { b.textContent = '失敗 ' + err.message; }
   setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
 };

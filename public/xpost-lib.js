@@ -929,3 +929,47 @@ export function histMonthDraft(bm, ce, hacks, now) {
   const en = ['Crypto booms and crises: last 30 days', `BTC ${sg(ch(month.btc))} / DeFi TVL ${sg(ch(month.defi))} / stablecoin supply ${sg(ch(month.stable))}`, `${cr.length} incidents recorded` + (big ? ` (largest: ${big.n} ${bfmtE(big.b)})` : ''), '', 'Shown side by side; this does not show cause.', tagsEn(top2, cr.length > 0)].join('\n');
   return { id: 'histm:' + isoDay(now), sr: 'histm', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { month } };
 }
+// v279: 「反発」の歴史。BTC 1時間足の始値→終値が −5% 以下の回(24時間以内の続きは1回と数える)の、その後7日間。k = [[t,o,h,l,c]] 古い順
+export function rebEvents(k, th = -0.05, HR = 168) {
+  const ev = []; let last = -Infinity;
+  for (let i = 0; i < k.length; i++) {
+    const [t, o, , , c] = k[i]; if (!(o > 0) || c / o - 1 > th || t - last < DAY) continue; last = t;
+    const pts = []; for (let h = 0; h <= HR; h++) { const q = k[i + h]; pts.push(q && q[0] - t === h * H ? +((q[4] / c - 1) * 100).toFixed(2) : null); }
+    let rec = null; for (let h = 1; h <= HR && k[i + h]; h++) if (k[i + h][2] >= o) { rec = h; break; }
+    ev.push({ t, o, c, drop: +((c / o - 1) * 100).toFixed(1), pts, rec });
+  }
+  return ev;
+}
+
+export function rebDraft(ev, now, src = 'Binance BTCUSDT') {
+  const n = ev.length, at = (h) => ev.map((e) => e.pts[h]).filter((v) => v != null), cnt = (h) => { const a = at(h); return [a.filter((v) => v > 0).length, a.length]; };
+  const med = []; for (let h = 0; h <= 168; h++) med.push(medOf(at(h)));
+  const [u24, n24] = cnt(24), [u7, n7] = cnt(168), rec = ev.filter((e) => e.rec != null).length, recH = medOf(ev.filter((e) => e.rec != null).map((e) => e.rec));
+  const last = ev[n - 1], y0 = new Date(ev[0].t + JST).getUTCFullYear(), d = new Date(last.t + JST), sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const lj = `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`, le = enDate(last.t);
+  const s = { n, y0, u24, n24, u7, n7, rec, recH, m24: med[24], m7: med[168], worst: Math.min(...ev.map((e) => e.drop)) };
+  let ja = `「反発」の歴史\n\nBTCが1時間で5%以上下げた回(${y0}年以降 ${n}回)のその後\n\n下げた時の終値より上だった回\n・24時間後 ${u24}/${n24}回\n・7日後 ${u7}/${n7}回\n\n中央値 24時間後 ${sg(med[24])} / 7日後 ${sg(med[168])}\n7日以内に下げる前の値へ戻った ${rec}/${n}回\n\n過去の記録で、今回も同じとは限りません`;
+  let en = `A history of rebounds\n\nBTC after a 5%+ drop within one hour (${n} times since ${y0})\n\nAbove the close of the drop hour:\n- 24h later: ${u24}/${n24}\n- 7 days later: ${u7}/${n7}\n\nMedian: ${sg(med[24])} after 24h / ${sg(med[168])} after 7d\nBack to the pre-drop price within 7d: ${rec}/${n}\n\nPast record. This time may differ.`;
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  return { id: 'rebound:copy:' + now, sr: 'rebound', man: 1, due: now, ja, en,
+    img: { reb: { s, med, src, ev: ev.map((e) => ({ drop: e.drop, p: e.pts.filter((_, h) => h % 2 === 0) })), last: { drop: last.drop, p: last.pts.filter((_, h) => h % 2 === 0), ja: lj, en: le } } } };
+}
+// v279: 今日と同じ形を探す。直近 W 時間の1時間足の終値の形(始点＝0%)に近い過去の窓を、差の二乗平均の小ささで選ぶ(7日以上離す・直近7日は除く)。その後72時間を並べる
+export function samePath(k, W = 24, A = 72, top = 5) {
+  const cl = k.map((x) => x[4]), n = cl.length, cur = []; for (let i = n - W; i < n; i++) cur.push((cl[i] / cl[n - W] - 1) * 100);
+  const sc = []; for (let s = 0; s + W + A < n - 7 * 24; s++) { let e = 0; const b = cl[s]; for (let j = 0; j < W; j++) { const d = (cl[s + j] / b - 1) * 100 - cur[j]; e += d * d; } sc.push([Math.sqrt(e / W), s]); }
+  sc.sort((a, b) => a[0] - b[0]); const pick = [];
+  for (const [e, s] of sc) { if (pick.some((p) => Math.abs(p.s - s) < 7 * 24)) continue; pick.push({ s, e }); if (pick.length >= top) break; }
+  const corr = (a, b) => { const m = (x) => x.reduce((p, q) => p + q, 0) / x.length, ma = m(a), mb = m(b); let u = 0, va = 0, vb = 0; a.forEach((x, i) => { u += (x - ma) * (b[i] - mb); va += (x - ma) ** 2; vb += (b[i] - mb) ** 2; }); return u / Math.sqrt(va * vb); };
+  return { cur, hi: Math.max(...k.slice(n - W).map((x) => x[2])), lo: Math.min(...k.slice(n - W).map((x) => x[3])), now: cl[n - 1], m: pick.map(({ s, e }) => { const b = cl[s], end = cl[s + W - 1], pre = [], post = [];
+    for (let j = 0; j < W; j++) pre.push(+((cl[s + j] / b - 1) * 100).toFixed(2)); for (let h = 0; h <= A; h++) post.push(+((cl[s + W - 1 + h] / end - 1) * 100).toFixed(2));
+    return { t: k[s + W - 1][0], e: +e.toFixed(2), r: Math.round(corr(pre, cur) * 100), pre, post, a24: post[24], a72: post[A], px: end }; }) };
+}
+export function sameDraft(sp, now) {
+  const sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', dj = (t) => { const d = new Date(t + JST); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, m = sp.m.slice(0, 3);
+  const up = sp.m.filter((x) => x.a24 > 0).length, $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
+  let ja = `今日のBTCと形が近かった過去の日\n\n直近24時間 ${$(sp.hi)}→${$(sp.lo)}→${$(sp.now)}\n\nその後 24時間/72時間\n` + m.map((x, i) => `${'①②③'[i]}${dj(x.t)} ${sg(x.a24)}/${sg(x.a72)}`).join('\n') + `\n\n似た${sp.m.length}回中、24時間後に上 ${up}回\n過去の記録で、今回も同じとは限りません`;
+  let en = `Past days shaped like BTC's last 24h\n\nLast 24h: ${$(sp.hi)} → ${$(sp.lo)} → ${$(sp.now)}\n\nNext 24h / 72h\n` + m.map((x, i) => `${'①②③'[i]} ${enDate(x.t)}: ${sg(x.a24)} / ${sg(x.a72)}`).join('\n') + `\n\nHigher 24h later: ${up} of ${sp.m.length}\nPast record. This time may differ.`;
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  return { id: 'samepath:copy:' + now, sr: 'samepath', man: 1, due: now, ja, en, img: { same: { ...sp, lj: sp.m.map((x) => dj(x.t)), le: sp.m.map((x) => enDate(x.t)) } } };
+}

@@ -1303,8 +1303,71 @@ function drawLiq2(g, im, lg) {
   lt(g, en ? 'Liquidation = a position force-closed by the exchange when margin runs out' : '清算＝証拠金が足りなくなったポジションが、取引所に強制的に決済されること', 40, 716, { s: 17, w: 900 });
   lt(g, (wave && !im.hrs ? (en ? 'Bybit + OKX live streams' : 'Bybit・OKX のライブ受信の合算') : (en ? 'Binance+Bybit+OKX+Huobi' : 'Binance・Bybit・OKX・Huobi合算')) + (en ? ' (not the whole market) · USD · BTC: Binance · @csa_archive' : '（全市場ではありません）・USD・BTC：Binance・@csa_archive'), 40, 744, { s: 13, w: 600, c: M });
 }
+// v279: 「反発」の歴史。r = { s, med:[169], ev:[{drop,p:[85 (2時間ごと)]}], last:{drop,p,ja,en}, src }
+function drawReb(g, r, lg) {
+  const en = lg === 'en', CY = '#2ee6ff', GD = '#ffc94d', M = '#8ea2bf', s = r.s, sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  g.fillStyle = '#070d16'; g.fillRect(0, 0, W, LH); g.fillStyle = CY; g.fillRect(0, 0, W, 5);
+  g.fillStyle = M; g.beginPath(); g.arc(46, 42, 6, 0, 7); g.fill(); g.font = `600 14px ${LN}`; g.letterSpacing = '2px'; g.fillStyle = M; g.fillText('BTC / AFTER A 5% DROP IN 1H / 7 DAYS', 62, 47); g.letterSpacing = '0px';
+  lt(g, en ? 'A history of rebounds' : '「反発」の歴史', 40, 106, { s: 40, w: 900 });
+  lt(g, en ? `BTC after falling 5%+ within one hour · ${s.n} times since ${s.y0}` : `BTCが1時間で5%以上下げた後の7日間 ・ ${s.y0}年以降 ${s.n}回`, 42, 142, { s: 20, w: 800, c: CY });
+  g.strokeStyle = '#1c2a3d'; g.lineWidth = 1; g.beginPath(); g.moveTo(36, 166); g.lineTo(W - 36, 166); g.stroke();
+  const x0 = 96, x1 = 840, y0 = 200, y1 = 600, all = r.ev.flatMap((e) => e.p).filter((v) => v != null).sort((a, b) => a - b);
+  const q = (f) => all[Math.floor(f * (all.length - 1))] || 0, top = Math.max(10, Math.ceil(q(0.97) / 5) * 5), bot = Math.min(-10, Math.floor(q(0.03) / 5) * 5);
+  const X = (i) => x0 + i / 84 * (x1 - x0), Y = (v) => y0 + (top - Math.min(top, Math.max(bot, v))) / (top - bot) * (y1 - y0);
+  for (let v = bot; v <= top; v += 5) { g.strokeStyle = v ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.3)'; g.setLineDash(v ? [] : [4, 4]); g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); g.setLineDash([]); lt(g, (v > 0 ? '+' : '') + v + '%', x0 - 12, Y(v) + 5, { s: 13, w: 600, c: '#cfd8e6', a: 'right', f: LN }); }
+  [0, 1, 2, 3, 4, 5, 6, 7].forEach((d) => lt(g, d ? (en ? d + 'd' : d + '日後') : (en ? 'Drop hour' : '下げた時'), X(d * 12), y1 + 28, { s: 13, w: 600, c: M, a: 'center' }));
+  const line = (a, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.beginPath(); let on = false; a.forEach((v, i) => { if (v == null) { on = false; return; } on ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); on = true; }); g.stroke(); };
+  g.save(); g.beginPath(); g.rect(x0, y0 - 2, x1 - x0, y1 - y0 + 4); g.clip();
+  r.ev.forEach((e) => line(e.p, 'rgba(157,179,209,.22)', 1.2));
+  line(r.med.filter((_, h) => h % 2 === 0), CY, 4); if (r.last.p.some((v) => v != null)) line(r.last.p, GD, 3); g.restore();
+  const mi = r.med.filter((_, h) => h % 2 === 0), mv = mi[84]; if (mv != null) lt(g, (en ? 'Median ' : '中央値 ') + sg(mv), x1 + 8, Y(mv) + 5, { s: 14, w: 800, c: CY });
+  let li = -1; r.last.p.forEach((v, i) => { if (v != null) li = i; }); if (li >= 0) { const v = r.last.p[li]; g.fillStyle = GD; g.beginPath(); g.arc(X(li), Y(v), 6, 0, 7); g.fill(); lt(g, (en ? r.last.en : r.last.ja) + ' ' + r.last.drop + '%', Math.min(X(li) + 10, x1 - 150), Y(v) + (v > 0 ? -12 : 24), { s: 14, w: 800, c: GD }); }
+  g.strokeStyle = 'rgba(157,179,209,.6)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(100, 642); g.lineTo(124, 642); g.stroke(); lt(g, en ? 'each case' : '各回', 132, 648, { s: 14, w: 600, c: M });
+  g.strokeStyle = CY; g.lineWidth = 4; g.beginPath(); g.moveTo(206, 642); g.lineTo(230, 642); g.stroke(); lt(g, en ? 'median' : '中央値', 238, 648, { s: 14, w: 700, c: CY });
+  g.strokeStyle = GD; g.lineWidth = 3; g.beginPath(); g.moveTo(320, 642); g.lineTo(344, 642); g.stroke(); lt(g, en ? 'latest case' : '直近の回', 352, 648, { s: 14, w: 700, c: GD });
+  const bx = 930, card = (y, lab, big, sub, col) => { g.fillStyle = '#0d1b2c'; g.fillRect(bx, y, 236, 96); g.fillStyle = col; g.fillRect(bx, y, 3, 96); lt(g, lab, bx + 16, y + 26, { s: 14, w: 700, c: '#cfe0f2' }); lt(g, big, bx + 16, y + 68, { s: 34, w: 800, c: col, f: LN }); if (sub) lt(g, sub, bx + 220, y + 68, { s: 14, w: 600, c: M, a: 'right' }); };
+  card(196, en ? 'Higher after 24h' : '24時間後に上', `${s.u24}/${s.n24}`, (en ? 'med ' : '中央値 ') + sg(s.m24), CY);
+  card(306, en ? 'Higher after 7 days' : '7日後に上', `${s.u7}/${s.n7}`, (en ? 'med ' : '中央値 ') + sg(s.m7), CY);
+  card(416, en ? 'Back to pre-drop price ≤7d' : '7日以内に下げる前の値へ', `${s.rec}/${s.n}`, s.recH != null ? (en ? 'med ' + s.recH + 'h' : '中央値 ' + s.recH + '時間') : '', '#6ff0b4');
+  card(526, en ? 'Largest 1h drop' : '最大の1時間の下げ', s.worst.toFixed(1) + '%', '', '#ff8a9b');
+  g.strokeStyle = '#1c2a3d'; g.beginPath(); g.moveTo(36, 690); g.lineTo(W - 36, 690); g.stroke();
+  lt(g, en ? '“Higher” = above the close of the drop hour (= 0%). Drop = 1h candle open→close ≤ −5%; repeats within 24h counted once.' : '「上」＝下げた1時間の終値（＝0%）より上。下げ＝1時間足の始値→終値が−5%以下。24時間以内の続きは1回と数える。', 40, 722, { s: 13, w: 600, c: M });
+  lt(g, en ? 'Lines beyond the chart range are cut at the edge.' : '図の範囲を超えた線は端で切っています。', 40, 750, { s: 13, w: 600, c: M });
+  lt(g, en ? 'Past record. This time may differ.' : '過去の記録で、今回も同じとは限りません', W - 36, 750, { s: 14, w: 800, c: '#ff9a9a', a: 'right' });
+  lt(g, (r.src || 'Binance BTCUSDT') + (en ? ' 1h · @csa_archive' : ' 1時間足・@csa_archive'), W - 36, 778, { s: 12, w: 600, c: M, a: 'right' });
+}
+// v279: 今日と同じ形。左＝直近24時間(今回は金・太線)と似た過去の窓、右＝過去の窓のその後72時間
+function drawSame(g, d, lg) {
+  const en = lg === 'en', GD = '#ffc94d', M = '#8ea2bf', CY = '#2ee6ff', COL = ['#2ee6ff', '#ff8c1a', '#19d3a2', '#8f84ff', '#ff5c7a'], sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  g.fillStyle = '#070d16'; g.fillRect(0, 0, W, LH); g.fillStyle = CY; g.fillRect(0, 0, W, 5);
+  g.fillStyle = M; g.beginPath(); g.arc(46, 42, 6, 0, 7); g.fill(); g.font = `600 14px ${LN}`; g.letterSpacing = '2px'; g.fillStyle = M; g.fillText('BTC / SAME SHAPE / LAST 24H → NEXT 72H', 62, 47); g.letterSpacing = '0px';
+  lt(g, en ? 'Past days shaped like today' : '今日と同じ形をした過去の日', 40, 106, { s: 38, w: 900 });
+  const $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
+  lt(g, (en ? 'Last 24h: ' : '直近24時間 ') + `${$(d.hi)} → ${$(d.lo)} → ${$(d.now)}`, 42, 142, { s: 20, w: 800, c: GD });
+  g.strokeStyle = '#1c2a3d'; g.lineWidth = 1; g.beginPath(); g.moveTo(36, 166); g.lineTo(W - 36, 166); g.stroke();
+  const x0 = 96, xm = 380, x1 = 840, y0 = 200, y1 = 600, all = [...d.cur, ...d.m.flatMap((x) => [...x.pre, ...x.post])];
+  const top = Math.ceil(Math.max(5, ...all) / 5) * 5, bot = Math.floor(Math.min(-5, ...all) / 5) * 5, Y = (v) => y0 + (top - v) / (top - bot) * (y1 - y0);
+  const XL = (j) => x0 + j / 23 * (xm - x0), XR = (h) => xm + h / 72 * (x1 - xm);
+  for (let v = bot; v <= top; v += 5) { g.strokeStyle = v ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.25)'; g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); lt(g, (v > 0 ? '+' : '') + v + '%', x0 - 12, Y(v) + 5, { s: 13, w: 600, c: '#cfd8e6', a: 'right', f: LN }); }
+  g.fillStyle = 'rgba(255,201,77,.05)'; g.fillRect(x0, y0, xm - x0, y1 - y0); g.setLineDash([4, 4]); g.strokeStyle = M; g.beginPath(); g.moveTo(xm, y0); g.lineTo(xm, y1); g.stroke(); g.setLineDash([]);
+  lt(g, en ? 'Last 24h' : '直近24時間', (x0 + xm) / 2, y1 + 28, { s: 13, w: 700, c: GD, a: 'center' }); lt(g, en ? 'Now' : 'いま', xm, y1 + 28, { s: 13, w: 700, c: '#e8f0fb', a: 'center' });
+  [24, 48, 72].forEach((h) => lt(g, en ? '+' + h + 'h' : h + '時間後', XR(h), y1 + 28, { s: 13, w: 600, c: M, a: 'center' }));
+  lt(g, en ? 'what came next (past cases)' : 'その後（過去の回）', (xm + x1) / 2, y0 - 10, { s: 13, w: 700, c: M, a: 'center' });
+  const line = (a, X, col, w, off = 0) => { g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.beginPath(); a.forEach((v, i) => i ? g.lineTo(X(i), Y(v + off)) : g.moveTo(X(i), Y(v + off))); g.stroke(); };
+  d.m.forEach((x, i) => { g.globalAlpha = i < 3 ? .85 : .4; line(x.pre, XL, COL[i], 1.6); line(x.post, XR, COL[i], i < 3 ? 2.4 : 1.4, x.pre[23]); g.globalAlpha = 1; if (i < 3) lt(g, '①②③'[i], XR(72) + 8, Y(x.post[72] + x.pre[23]) + 5, { s: 15, w: 800, c: COL[i] }); });
+  line(d.cur, XL, GD, 4.5); g.fillStyle = GD; g.beginPath(); g.arc(xm, Y(d.cur[23]), 7, 0, 7); g.fill();
+  d.m.slice(0, 3).forEach((x, i) => { const y = 196 + i * 132, bx = 900; g.fillStyle = '#0d1b2c'; g.fillRect(bx, y, 266, 118); g.fillStyle = COL[i]; g.fillRect(bx, y, 3, 118);
+    lt(g, '①②③'[i] + ' ' + (en ? d.le[i] : d.lj[i]), bx + 16, y + 28, { s: 17, w: 800, c: COL[i] }); lt(g, (en ? 'match ' : '一致率 ') + x.r + '%', bx + 250, y + 28, { s: 13, w: 600, c: M, a: 'right' });
+    lt(g, en ? 'next 24h' : '24時間後', bx + 16, y + 60, { s: 13, w: 600, c: '#cfe0f2' }); lt(g, sg(x.a24), bx + 16, y + 98, { s: 28, w: 800, c: x.a24 >= 0 ? '#6ff0b4' : '#ff8a9b', f: LN });
+    lt(g, en ? 'next 72h' : '72時間後', bx + 140, y + 60, { s: 13, w: 600, c: '#cfe0f2' }); lt(g, sg(x.a72), bx + 140, y + 98, { s: 28, w: 800, c: x.a72 >= 0 ? '#6ff0b4' : '#ff8a9b', f: LN }); });
+  g.strokeStyle = '#1c2a3d'; g.beginPath(); g.moveTo(36, 690); g.lineTo(W - 36, 690); g.stroke();
+  lt(g, en ? 'Shape = 1h closes, start of window = 0%. Picked by smallest gap to today (7+ days apart). Right side: change from the window end.' : '形＝1時間足の終値（窓の始まり＝0%）。今日との差が小さい順に選び、7日以上離す。右側は窓の終わりからの変化。', 40, 722, { s: 13, w: 600, c: M });
+  lt(g, en ? 'Match % = correlation of the two 24h shapes. Not a probability.' : '一致率＝24時間の形の相関。確率ではありません。', 40, 750, { s: 13, w: 600, c: M });
+  lt(g, en ? 'Past record. This time may differ.' : '過去の記録で、今回も同じとは限りません', W - 36, 750, { s: 14, w: 800, c: '#ff9a9a', a: 'right' });
+  lt(g, en ? 'Binance BTCUSDT 1h · @csa_archive' : 'Binance BTCUSDT 1時間足・@csa_archive', W - 36, 778, { s: 12, w: 600, c: M, a: 'right' });
+}
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '暗号資産ブーム危機歴史全体時価総額対数目盛り塗り輪盗まれ失われ面積波各テーマ資金量最大推定含主な時点数字並べ原因示直近月預かり資産貸し出しステーブル発行額取引高日ごと範囲一覧百万記録大きな終値今回年' + '強制決済買い売り証拠金足りなくなったポジション取引所強制的に決済されること銘柄別価格取得できませんでした下げたところで上げたまとめて清算された多かった最大時間ごと上下合算全市場' + '米中間選挙投票日年間最安確定伸びます例影響判断前後時間足終値破産申請' + '相関推移左軸右軸価格変化率同方向逆方向現在直近傾向関係はっきりした計算騰落率ぶん使って出来事原因影響向き分かりませんデータ不足流出急変動' + 'ショック後発生前日終値並べる比較同じ目今回前回水準戻るまで最安連鎖破綻崩壊上昇相場途中被害規模約倍ちがう基金全額補償発表出金停止週間足推計当時万億' + '定期更新区切り次動いたら' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '暗号資産ブーム危機歴史全体時価総額対数目盛り塗り輪盗まれ失われ面積波各テーマ資金量最大推定含主な時点数字並べ原因示直近月預かり資産貸し出しステーブル発行額取引高日ごと範囲一覧百万記録大きな終値今回年' + '強制決済買い売り証拠金足りなくなったポジション取引所強制的に決済されること銘柄別価格取得できませんでした下げたところで上げたまとめて清算された多かった最大時間ごと上下合算全市場' + '米中間選挙投票日年間最安確定伸びます例影響判断前後時間足終値破産申請' + '相関推移左軸右軸価格変化率同方向逆方向現在直近傾向関係はっきりした計算騰落率ぶん使って出来事原因影響向き分かりませんデータ不足流出急変動' + 'ショック後発生前日終値並べる比較同じ目今回前回水準戻るまで最安連鎖破綻崩壊上昇相場途中被害規模約倍ちがう基金全額補償発表出金停止週間足推計当時万億' + '定期更新区切り次動いたら' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + '今日同じ形をした過去日直近いま一致率窓始まり差小さい順選離右側終わり変化相関確率' + '反発歴史下げた後各回中央値直近最大始値終値以下続き数える範囲超えた線端切っています上戻った' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   if (p.sr === 'histw' && p.img && p.img.hist) { cv.width = 1440; cv.height = 1300; drawHistW(g, p.img.hist, lg); return cv; }   // v273
   if (p.sr === 'histm' && p.img && p.img.month) { cv.width = 1440; cv.height = 1100; drawHistM(g, p.img.month, lg); return cv; }   // v273
@@ -1317,7 +1380,9 @@ export async function drawPost(p, lg) {
   TONE = p.sr === 'pat' ? sgn(im.q && im.q.chg) : p.sr === 'spike' ? sgn(im.coins && im.coins.BTC) : p.sr === 'arch' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.c60 : im.chg)
     : p.sr === 'week' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.chg : null) : p.sr === 'vol' ? TONES.gold : p.sr === 'liq' || p.sr === 'liqday' ? TONES.red : p.sr === 'liqimp' ? TONES.purple : TONES.blue;
   const LV = p.img && p.img.live && p.img.live[lg];   // v204: 毎朝・夜は BTC実況の画像
-  if (p.sr === 'midterm' && p.img && p.img.mid) { cv.height = LH; drawMidterm(g, p.img.mid, lg); }   // v260
+  if (p.sr === 'samepath' && p.img && p.img.same) { cv.height = LH; drawSame(g, p.img.same, lg); }   // v279
+  else if (p.sr === 'rebound' && p.img && p.img.reb) { cv.height = LH; drawReb(g, p.img.reb, lg); }   // v279
+  else if (p.sr === 'midterm' && p.img && p.img.mid) { cv.height = LH; drawMidterm(g, p.img.mid, lg); }   // v260
   else if (p.sr === 'corrts' && p.img && p.img.corr) { cv.height = LH; drawCorrTs(g, p.img.corr, lg); }   // v259
   else if (p.sr === 'shockbn' && p.img && p.img.shock) { cv.height = LH; drawShockBn(g, p.img.shock, lg); }   // v243
   else if (p.sr === 'shockcmp' && p.img && p.img.shock) { cv.height = LH; drawShockCmp(g, p.img.shock, lg); }   // v243
