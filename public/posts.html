@@ -117,7 +117,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <button class="chip" id="bell">🔔 通知をオンにする</button>
   <button class="chip" id="pastBtn" title="発表済みの指標の「発表後の値動き」を今つくる(手で投稿)">＋ 過去の発表から作る</button>
   <button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button>
-  <button class="chip" id="spBtn" title="BTC の急騰・急落を、自分の判断で今出す(しきい値なし・その時の%で)。英語は30分後">⚡ 急変動を今出す</button>
+  <button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button>
   <button class="chip" id="xfBtn" title="Xへの投稿の失敗の記録(直近50件)">⚠ 投稿の失敗</button>
   <button class="chip" id="cfBtn" title="BTC×S&amp;P500 の相関の推移を、今の数字で今出す。英語は30分後">🔗 相関の推移を今出す</button>
   <button class="chip" id="ceBtn" title="相関の推移の図に、出来事(◆)を手で足す(日経・コスピの急落など)">◆ 相関の図に出来事を足す</button>
@@ -467,16 +467,34 @@ $('#vBtn').onclick = () => { vQuote().catch((e) => toast('作れませんでし�
 
 load(); setInterval(tick, 30000);
 setInterval(() => { if (!OPEN && getKey()) load(); }, 10 * 60000);   // 10分ごとに下書きを読み直す
-// v275: 急変動を今出す。急変動の記録(x:spk)に1件足して X post を起こす。何時間の動きで見るかを選ぶ
+// v276: 急変動をコピペで出す。ブラウザで Binance の5分足を取り、いつもの急変動と同じ本文と画像を作る(自動では投稿しない)
 document.getElementById('spBtn').onclick = async (e) => {
   const b = e.currentTarget, t0 = b.textContent;
-  const w = Number(prompt('何時間の動きで出しますか？ 1 / 6 / 24', '6')); if (![1, 6, 24].includes(w)) return;
-  b.disabled = true; b.textContent = '送信中…';
+  const w = Number(prompt('何時間の動きで作りますか？ 1 / 6 / 24', '6')); if (![1, 6, 24].includes(w)) return;
+  b.disabled = true; b.textContent = '作成中…';
   try {
-    const h = { 'x-admin-key': getKey() }; let doc = {}; try { doc = (await (await fetch('/api/admin/rx-one?name=xk', { headers: h, cache: 'no-store' })).json()) || {}; } catch (_) {}
-    const now = Date.now(), ev = (doc.ev || []).filter((x) => now - x.t < 3 * 864e5); ev.push({ id: 'spike:man:' + now, t: now, win: w, man: 1, hit: {} });
-    const r = await fetch('/api/admin/rx-put?name=xk', { method: 'POST', headers: { ...h, 'content-type': 'text/plain' }, body: JSON.stringify({ ...doc, ev }) });
-    b.textContent = r.ok ? `✓ ${w}時間の動きで出します(数分で投稿)` : '失敗 HTTP ' + r.status;
+    const now = Date.now(), B = {};
+    for (const [c, pair] of L.COINS) {
+      let j = null; for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${host}/api/v3/klines?symbol=${pair}&interval=5m&limit=1000`); if (r.ok) { j = await r.json(); break; } } catch (_) {} }
+      B[c] = (j || []).map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]);
+    }
+    if (!B.BTC.length) throw new Error('BTC の5分足が取れません');
+    B.SP500 = [];
+    let corr = null; try { corr = await (await fetch('/api/admin/rx-one?name=cr', { headers: { 'x-admin-key': getKey() }, cache: 'no-store' })).json(); } catch (_) {}
+    const mv = L.spikeMoves(B, now, now, w, { th: 0.01 }); if (!mv) throw new Error('計算できませんでした');
+    const p = L.spikePost({ ...mv, id: 'spike:copy:' + now, due: now }, corr && corr.w ? corr : null, null, null);
+    let box = document.getElementById('spBox'); if (!box) { box = document.createElement('div'); box.id = 'spBox'; box.style.cssText = 'margin:10px 0;padding:12px;border:1px solid #23395a;border-radius:10px;background:#0b1424;display:grid;gap:12px'; b.parentNode.after(box); }
+    box.innerHTML = '';
+    for (const lg of ['ja', 'en']) {
+      const cv = await drawPost(p, lg), url = cv.toDataURL('image/png'), wrap = document.createElement('div');
+      wrap.innerHTML = `<div style="font-weight:800;margin-bottom:6px">${lg === 'ja' ? '日本語' : 'English'}（${L.xlen(p[lg])}/280）</div>`;
+      const ta = document.createElement('textarea'); ta.value = p[lg]; ta.rows = 9; ta.style.cssText = 'width:100%;background:#06101b;color:#e8f0fb;border:1px solid #23395a;border-radius:6px;padding:8px;font:13px/1.5 inherit';
+      const cp = document.createElement('button'); cp.className = 'chip'; cp.textContent = '本文をコピー'; cp.onclick = async () => { try { await navigator.clipboard.writeText(ta.value); cp.textContent = '✓ コピーしました'; } catch (_) { ta.select(); } };
+      const dl = document.createElement('a'); dl.className = 'chip'; dl.textContent = '画像を保存'; dl.href = url; dl.download = `csa-spike-${w}h-${lg}.png`;
+      const im = document.createElement('img'); im.src = url; im.style.cssText = 'width:100%;max-width:600px;border-radius:8px;display:block;margin-top:8px';
+      wrap.append(ta, cp, dl, im); box.append(wrap);
+    }
+    b.textContent = `✓ ${w}時間の動きで作りました（下に表示）`;
   } catch (err) { b.textContent = '失敗 ' + err.message; }
   setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
 };
