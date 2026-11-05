@@ -117,6 +117,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <button class="chip" id="bell">🔔 通知をオンにする</button>
   <button class="chip" id="pastBtn" title="発表済みの指標の「発表後の値動き」を今つくる(手で投稿)">＋ 過去の発表から作る</button>
   <button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button>
+  <button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button>
   <button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button>
   <button class="chip" id="xfBtn" title="Xへの投稿の失敗の記録(直近50件)">⚠ 投稿の失敗</button>
   <button class="chip" id="cfBtn" title="BTC×S&amp;P500 の相関の推移を、今の数字で今出す。英語は30分後">🔗 相関の推移を今出す</button>
@@ -467,6 +468,40 @@ $('#vBtn').onclick = () => { vQuote().catch((e) => toast('作れませんでし�
 
 load(); setInterval(tick, 30000);
 setInterval(() => { if (!OPEN && getKey()) load(); }, 10 * 60000);   // 10分ごとに下書きを読み直す
+// v277: コピペ用の表示(本文・コピー・画像の保存)。急変動と清算で共通
+async function copyBox(p, name, anchor) {
+  let box = document.getElementById('cpBox'); if (!box) { box = document.createElement('div'); box.id = 'cpBox'; box.style.cssText = 'margin:10px 0;padding:12px;border:1px solid #23395a;border-radius:10px;background:#0b1424;display:grid;gap:12px'; anchor.parentNode.after(box); }
+  box.innerHTML = '';
+  for (const lg of ['ja', 'en']) {
+    const cv = await drawPost(p, lg), url = cv.toDataURL('image/png'), wrap = document.createElement('div');
+    wrap.innerHTML = `<div style="font-weight:800;margin-bottom:6px">${lg === 'ja' ? '日本語' : 'English'}（${L.xlen(p[lg])}/280）</div>`;
+    const ta = document.createElement('textarea'); ta.value = p[lg]; ta.rows = 10; ta.style.cssText = 'width:100%;background:#06101b;color:#e8f0fb;border:1px solid #23395a;border-radius:6px;padding:8px;font:13px/1.5 inherit';
+    const cp = document.createElement('button'); cp.className = 'chip'; cp.textContent = '本文をコピー'; cp.onclick = async () => { try { await navigator.clipboard.writeText(ta.value); cp.textContent = '✓ コピーしました'; } catch (_) { ta.select(); } };
+    const dl = document.createElement('a'); dl.className = 'chip'; dl.textContent = '画像を保存'; dl.href = url; dl.download = `csa-${name}-${lg}.png`;
+    const im = document.createElement('img'); im.src = url; im.style.cssText = 'width:100%;max-width:600px;border-radius:8px;display:block;margin-top:8px';
+    wrap.append(ta, cp, dl, im); box.append(wrap);
+  }
+}
+// v277: 清算をコピペで作る。サイトの /api/liq(5分・1時間ごとの集計)から、直近1・6時間は「巨額清算」、24時間は「清算額・直近24時間」と同じ本文と画像を作る
+document.getElementById('lqBtn').onclick = async (e) => {
+  const b = e.currentTarget, t0 = b.textContent;
+  const w = Number(prompt('直近何時間の清算で作りますか？ 1 / 6 / 24', '6')); if (![1, 6, 24].includes(w)) return;
+  b.disabled = true; b.textContent = '作成中…';
+  try {
+    const now = Date.now(), coins = {}, ser = new Map(), hrs = new Map(), step = w === 24 ? 3600 : 300, end = Math.floor(now / (step * 1000)) * step * 1000, start = end - w * 3600e3; let from = null;
+    for (const [c] of L.COINS) {
+      const j = await (await fetch('/api/liq?sym=' + c + '&step=' + step, { cache: 'no-store' })).json(); let l = 0, sh = 0;
+      for (const q of j.buckets || []) if (q[0] >= start && q[0] < end) { l += q[1]; sh += q[2]; const m = w === 24 ? hrs : ser, o = m.get(q[0]) || [q[0], 0, 0]; o[1] += q[1]; o[2] += q[2]; m.set(q[0], o); }
+      coins[c] = { long: l, short: sh }; if (j.since && (from == null || j.since > from)) from = j.since;
+    }
+    if (!Object.values(coins).some((x) => x.long + x.short > 0)) throw new Error('この時間の清算の記録がありません');
+    const p = w === 24 ? L.liqDayPost(L.dayStart(end), coins, [...hrs.values()].sort((x, y) => x[0] - y[0]), from, null, { end, id: 'liqday:copy:' + now })
+      : L.liqPost({ id: 'liq:copy:' + now, hrs: w, start, end, coins, ser: [...ser.values()].sort((x, y) => x[0] - y[0]).map(([t, l, sh]) => [t, Math.round(l), Math.round(sh)]), man: 1 });
+    await copyBox(p, 'liq-' + w + 'h', b);
+    b.textContent = `✓ 直近${w}時間で作りました（下に表示）`;
+  } catch (err) { b.textContent = '失敗 ' + err.message; }
+  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
+};
 // v276: 急変動をコピペで出す。ブラウザで Binance の5分足を取り、いつもの急変動と同じ本文と画像を作る(自動では投稿しない)
 document.getElementById('spBtn').onclick = async (e) => {
   const b = e.currentTarget, t0 = b.textContent;

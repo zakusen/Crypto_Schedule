@@ -291,18 +291,18 @@ export function liqPost(ev) {
   const build = (lang, o) => {
     const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
     return [...(o.brand ? [BRAND[lang], ''] : []),
-      en ? '🔥 LIQUIDATION WAVE' : '🔥 巨額清算', ...(o.nodate ? [] : [rangeTxt(ev.start, ev.end, lang)]), rule,
+      ...(ev.man && ev.hrs ? [en ? `🔥 LIQUIDATIONS · LAST ${ev.hrs}H` : `🔥 清算 · 直近${ev.hrs}時間`] : [en ? '🔥 LIQUIDATION WAVE' : '🔥 巨額清算']), ...(o.nodate ? [] : [rangeTxt(ev.start, ev.end, lang)]), rule,   // v277: 手で作った時は「直近◯時間」
       ...liqRows(ev.coins), rule,
       en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}`,
       ...(mo && !o.nomax ? [en ? `💥 Largest: ${usdS(mo.usd)} ${mo.coin} ${mo.side}` : `💥 最大の1件: ${usdS(mo.usd)} ${mo.coin}の${mo.side === 'long' ? 'ロング' : 'ショート'}`] : []),
-      ...(o.src ? [en ? 'Bybit + OKX' : 'Bybit・OKX合算'] : []),
+      ...(o.src ? [ev.hrs ? (en ? 'Binance+Bybit+OKX+Huobi' : 'Binance・Bybit・OKX・Huobi合算') : (en ? 'Bybit + OKX' : 'Bybit・OKX合算')] : []),
       ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
   };
   const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nomax: 1 }, { nomax: 1, nodate: 1 }];
   const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitL('en'), ja = fitL('ja');
   return { id: ev.id, sr: 'liq', due: ev.end, en, ja, h: hashStr(en + ja), ...(ev.man ? { man: 1 } : {}),
-    img: { v: 1, kind: 'wave', start: ev.start, end: ev.end, capped: !!ev.capped, coins: ev.coins, maxOne: mo || null, ser: ev.ser || [] } };
+    img: { v: 1, kind: 'wave', ...(ev.hrs ? { hrs: ev.hrs } : {}), start: ev.start, end: ev.end, capped: !!ev.capped, coins: ev.coins, maxOne: mo || null, ser: ev.ser || [] } };
 }
 // 毎朝のまとめ: day = 日本時間の0時(ms)。直近24時間 = (day+9h-24h) 〜 (day+9h)。coins = {BTC:{long,short}}, hours = [[t,long,short]](24本まで)、from = 記録の始まり(24時間に満たない時)
 export function liqDayPost(day, coins, hours, from, mult, opt = {}) {   // v171: mult = {l, s, n, coins:{BTC:{l,s}}, live} 平常日比(next.html の案Bと同じ定義) / v173: opt = {end, id, langs}

@@ -378,11 +378,12 @@ function twoTone(g, x, y, a, b, { size = 14, align = 'left', fam = MONO, w = 600
 }
 function drawLiq(g, im, lg) {
   const en = lg === 'en', wave = im.kind === 'wave', co = im.coins || {}, mu = !wave && im.mult ? im.mult : null;
-  frame(g, wave ? (en ? '🔥 LIQUIDATION WAVE' : '🔥 巨額清算') : (en ? '🧹 LIQUIDATIONS 24H' : '🧹 清算 24時間'),
-    wave ? (en ? 'Bybit + OKX live liquidation streams · USD · not the whole market' : 'Bybit・OKX のライブ受信の合算 / USD / 全市場ではありません')
+  const mh = wave && im.hrs;   // v277: /posts.html で手で作った「直近◯時間」(集計は /api/liq)
+  frame(g, mh ? (en ? `🔥 LIQUIDATIONS ${im.hrs}H` : `🔥 清算 ${im.hrs}時間`) : wave ? (en ? '🔥 LIQUIDATION WAVE' : '🔥 巨額清算') : (en ? '🧹 LIQUIDATIONS 24H' : '🧹 清算 24時間'),
+    mh ? (en ? 'Binance+Bybit+OKX+Huobi · USD · not the whole market' : 'Binance・Bybit・OKX・Huobi合算 / USD / 全市場ではありません') : wave ? (en ? 'Bybit + OKX live liquidation streams · USD · not the whole market' : 'Bybit・OKX のライブ受信の合算 / USD / 全市場ではありません')
       : (en ? 'Binance + Bybit + OKX + Huobi (Coinalyze) · USD · normal day = prior 14-day median · not whole market' : 'Binance・Bybit・OKX・Huobi の合算(Coinalyze)/ USD / 平常日 = 直前14日の中央値 / 全市場ではありません'));
   let tl = 0, ts = 0; for (const c of Object.keys(co)) { tl += co[c].long || 0; ts += co[c].short || 0; }
-  txt(g, wave ? (en ? 'LIQUIDATION WAVE' : '巨額清算') : (en ? 'LIQUIDATIONS · LAST 24H' : '清算額 · 直近24時間'), 56, 146, { size: 44, w: 600, max: 470 });
+  txt(g, mh ? (en ? `LIQUIDATIONS · LAST ${im.hrs}H` : `清算 · 直近${im.hrs}時間`) : wave ? (en ? 'LIQUIDATION WAVE' : '巨額清算') : (en ? 'LIQUIDATIONS · LAST 24H' : '清算額 · 直近24時間'), 56, 146, { size: 44, w: 600, max: 470 });
   const a = im.start, b = im.end, d1 = D(a, lg), d2 = D(b, lg);
   const rng = en ? `${P2(d1.getUTCDate())} ${ME3[d1.getUTCMonth()]} ${hm(a, lg)} → ${P2(d2.getUTCDate())} ${ME3[d2.getUTCMonth()]} ${hm(b, lg)} UTC` : `${d1.getUTCMonth() + 1}/${d1.getUTCDate()} ${hm(a, lg)} → ${d2.getUTCMonth() + 1}/${d2.getUTCDate()} ${hm(b, lg)} 日本時間`;
   txt(g, rng + (im.partial ? (en ? ' · partial' : ' · 記録は途中から') : ''), 56, 182, { size: 18, fam: MONO, col: C.mut });
