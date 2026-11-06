@@ -414,7 +414,8 @@ export const preId = (g) => 'pre:' + g[0].ts + ':' + (g[0].c || g[0].l);
 export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWith('pre:'))) ? PRE_WINDOW : (p && (p.sr === 'spike' || p.sr === 'liq' || String(p.id || '').startsWith('spike:'))) ? SPIKE_WINDOW : AUTO_WINDOW;   // v152: 巨額清算の総括も6時間まで
 // v101: man = /posts.html の「過去の発表から作る」で手で作った下書き(自動投稿しない)
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
-export const isAuto = (p) => !p.man && !fomcOld(p) && (p.sr === 'histw' || p.sr === 'histm' || p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'arch' || p.sr === 'pre' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+// v280: pre(発表前の予告)と arch(発表後の値動き)は自動投稿をやめた(ビューが少ないため。下書きは他の機能の材料として作り続ける。FOMC などの予告は fomc で別)
+export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (p.sr === 'histw' || p.sr === 'histm' || p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'bnstatus' || p.sr === 'bnreply' || p.sr === 'hack' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'vol' || p.sr === 'pat' || p.sr === 'sum' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -574,13 +575,14 @@ export function sumDues(t) { const dj = dayStart(t), du = Math.floor(t / DAY) * 
 //   発表の 14時間半前・9時間前・4時間前・1時間前に、親(一番似ていた過去のFOMC 1回)+ 子(返信。TOP3 の比較)。
 //   発表の65分後に、1時間前の子への返信で結果(今回の発表後1時間と TOP3 を並べる)。
 //   下書きは x_notify が中身なしで作り、本文と画像は x_post が投稿する時に計算して入れる(fomcText)。
+export const FOMC_OFF = new Set([1, 2]);   // v281: 14時間半前(1)・9時間前(2)はやめた。4時間前・1時間前・結果は残す
 export const FOMC_SLOTS = [14.5 * H, 9 * H, 4 * H, 1 * H], FOMC_RES = 65 * 60000;
 export const isFomc = (e) => e.l === 'macro' && e.c === 'US' && e.s === 'FOMC';
 export const fomcId = (ts, n, k = 'fomc') => k + ':' + ts + ':' + n;   // v215: k = fomc / cpi / nfp / pce
 export const BIG_NAME = { fomc: { ja: 'FOMC', en: 'FOMC', tag: { ja: '#FOMC #BTC', en: '#FOMC #BTC' } }, cpi: { ja: '米CPI', en: 'US CPI', tag: { ja: '#CPI #BTC', en: '#CPI #BTC' } }, nfp: { ja: '米雇用統計', en: 'US jobs report', tag: { ja: '#雇用統計 #BTC', en: '#NFP #BTC' } }, pce: { ja: '米PCE', en: 'US PCE', tag: { ja: '#PCE #BTC', en: '#PCE #BTC' } } };
 export function fomcDrafts(ts, k = 'fomc') {
   const out = [], ph = { ja: '（投稿する時に、その時点の計算で本文と画像を作ります）', en: '(Text and image are made at posting time.)' };
-  FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n, k), due = ts - sl, img = { t: ts, n, k };
+  FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n, k), due = ts - sl, img = { t: ts, n, k }; if (FOMC_OFF.has(n)) return;   // v281
     out.push({ id, sr: 'fomc', due, ...ph, h: 'fomc' + n, img });
     out.push({ id: id + ':c', sr: 'fomcc', parent: id, due, ...ph, h: 'fomcc' + n, img }); });
   // v214: 結果は単独の新しい投稿(返信だと分かりづらいため)。チャートで今回の発表後の動きを見せる
