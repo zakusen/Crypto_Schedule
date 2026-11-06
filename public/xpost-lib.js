@@ -405,7 +405,9 @@ export const AUTO_DAILY_FROM = '2026-10-09';   // v104: 10/9 から自動(X の�
 // v173: 言語ごとの投稿時刻。dues = {en, ja}(無ければ due)。langs = 出す言語(無ければ英日両方)
 export const SPLIT_FROM = '2026-10-11';                       // この日(日本時間)の分から英日の時刻を分ける
 export const EN_DAILY_AT = 11.5 * H, EN_WEEK_AT = 14 * H, EN_LIQDAY_AT = 13 * H;   // 英語: 毎朝の予定 11:30 UTC / 週間記録 土曜 14:00 UTC / 清算のまとめ 13:00 UTC
-export const langsOf = (p) => (p && Array.isArray(p.langs) && p.langs.length ? p.langs : ['en', 'ja']);
+// v282: 英語版を出さない種類(英語でビュー・反応が無かったもの)。英語に残す = daily・fomc系・spike・liq・liqday・hack系・histm/histw・midterm など
+export const EN_OFF = new Set(['week', 'sum', 'pat', 'vol', 'shockbn', 'shockcmp', 'corrts']);
+export const langsOf = (p) => (p && Array.isArray(p.langs) && p.langs.length ? p.langs : ['en', 'ja']).filter((lg) => !(lg === 'en' && p && EN_OFF.has(p.sr)));
 export const dueOf = (p, lg) => (p && p.dues && p.dues[lg]) || (p && p.due) || 0;
 export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
 export const SPIKE_WINDOW = 6 * H;  // v147: 急変動は見つけてから6時間まで
