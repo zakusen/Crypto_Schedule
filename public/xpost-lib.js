@@ -577,7 +577,7 @@ export function sumDues(t) { const dj = dayStart(t), du = Math.floor(t / DAY) * 
 //   発表の 14時間半前・9時間前・4時間前・1時間前に、親(一番似ていた過去のFOMC 1回)+ 子(返信。TOP3 の比較)。
 //   発表の65分後に、1時間前の子への返信で結果(今回の発表後1時間と TOP3 を並べる)。
 //   下書きは x_notify が中身なしで作り、本文と画像は x_post が投稿する時に計算して入れる(fomcText)。
-export const FOMC_OFF = new Set([1, 2]);   // v281: 14時間半前(1)・9時間前(2)はやめた。4時間前・1時間前・結果は残す
+export const FOMC_OFF = new Set([1, 2, 3]);   // v281→v283: 14時間半前(1)・9時間前(2)・4時間前(3)はやめた。1時間前・結果だけ残す
 export const FOMC_SLOTS = [14.5 * H, 9 * H, 4 * H, 1 * H], FOMC_RES = 65 * 60000;
 export const isFomc = (e) => e.l === 'macro' && e.c === 'US' && e.s === 'FOMC';
 export const fomcId = (ts, n, k = 'fomc') => k + ':' + ts + ':' + n;   // v215: k = fomc / cpi / nfp / pce
