@@ -977,3 +977,33 @@ export function sameDraft(sp, now) {
   for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
   return { id: 'samepath:copy:' + now, sr: 'samepath', man: 1, due: now, ja, en, img: { same: { ...sp, lj: sp.m.map((x) => dj(x.t)), le: sp.m.map((x) => enDate(x.t)) } } };
 }
+// v284: 下落のその後。日足 k = [[t,o,h,l,c]] 古い順。「30日で th% 以上の下げ」に初めて入った日(前回から30日以上あける)を起点に、その後60日。
+//   th を省くと、今の30日変化に合わせる(5%刻みで切り捨て・最小10)。その後60日がそろっていない回は集計から外し、直近の回は「今回」として線だけ出す
+export function dropStudy(k, th, D = 30, A = 60) {
+  const n = k.length, c = k.map((x) => x[4]), r = (i) => i >= D ? (c[i] / c[i - D] - 1) * 100 : 0, cur = r(n - 1);
+  if (!th) th = Math.max(10, Math.floor(Math.abs(Math.min(0, cur)) / 5) * 5);
+  const ev = []; let last = -1e9;
+  for (let i = D + 1; i < n; i++) { if (r(i) > -th || r(i - 1) <= -th || i - last < 30) continue; last = i;
+    const p = []; for (let d = 0; d <= A; d++) p.push(i + d < n ? +((c[i + d] / c[i] - 1) * 100).toFixed(2) : null);
+    let dd = 0, ld = 0; for (let d = 1; d <= A && i + d < n; d++) { const v = (k[i + d][3] / c[i] - 1) * 100; if (v < dd) { dd = v; ld = d; } }
+    const pre = []; for (let d = -D; d <= 0; d++) pre.push(+((c[i + d] / c[i] - 1) * 100).toFixed(2));
+    ev.push({ t: k[i][0], p, pre, dd: +dd.toFixed(1), ld, full: i + A < n }); }
+  const done = ev.filter((e) => e.full), lastEv = ev[ev.length - 1], live = lastEv && !lastEv.full ? lastEv : null;
+  const q = (a, f) => { a = a.slice().sort((x, y) => x - y); const i = f * (a.length - 1), lo = Math.floor(i); return a[lo] + (a[Math.min(a.length - 1, lo + 1)] - a[lo]) * (i - lo); };
+  const band = { lo: [], q1: [], md: [], q3: [], hi: [] }; for (let d = 0; d <= A; d++) { const a = done.map((e) => e.p[d]); band.lo.push(Math.min(...a)); band.q1.push(q(a, .25)); band.md.push(q(a, .5)); band.q3.push(q(a, .75)); band.hi.push(Math.max(...a)); }
+  const cpre = []; for (let d = -D; d <= 0; d++) cpre.push(+((c[n - 1 + d] / c[n - 1] - 1) * 100).toFixed(2));
+  let near = null; for (const e of done) { let u = 0; for (let j = 0; j <= D; j++) u += (e.pre[j] - cpre[j]) ** 2; const er = Math.sqrt(u / (D + 1)); if (!near || er < near.er) near = { er, t: e.t, pre: e.pre, post: e.p, a30: e.p[30], a60: e.p[A], dd: e.dd }; }
+  return { cpre, near, px: [c[n - 1 - D], c[n - 1]], th, D, A, cur: +cur.toFixed(1), n: done.length, y0: done.length ? new Date(done[0].t).getUTCFullYear() : null, band, dots: done.map((e) => e.p[30] > 0),
+    s: { ddMed: +q(done.map((e) => e.dd), .5).toFixed(1), ddMin: Math.min(...done.map((e) => e.dd)), ldMed: Math.round(q(done.map((e) => e.ld), .5)), up30: done.filter((e) => e.p[30] > 0).length, m30: +band.md[30].toFixed(1), m60: +band.md[A].toFixed(1) },
+    live: live ? { p: live.p.filter((v) => v != null), t: live.t } : null };
+}
+export function dropDraft(ds, now) {
+  const s = ds.s, sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const dj = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, nr = ds.near;
+  let ja = `BTC ${ds.D}日で ${sg(ds.cur)}\n${ds.D}日で${ds.th}%以上下げた過去${ds.n}回は、ここからどうなったか\n\n・さらに下げた幅 中央値 ${sg(s.ddMed)}(最大 ${sg(s.ddMin)})\n・底まで 中央値 ${s.ldMed}日\n・30日後に上だった ${s.up30}/${ds.n}回\n\n形が最も近い回 ${dj(nr.t)}→30日後 ${sg(nr.a30)}\n\n過去の記録で、今回も同じとは限りません`;
+  let en = `BTC: ${sg(ds.cur)} in ${ds.D} days\nWhat happened next in the ${ds.n} past cases of a ${ds.th}%+ drop\n\n- Further drop: median ${sg(s.ddMed)} (worst ${sg(s.ddMin)})\n- Days to the low: median ${s.ldMed}\n- Higher after 30 days: ${s.up30}/${ds.n}\n\nClosest shape: ${enDate(nr.t)} → ${sg(nr.a30)} after 30d\n\nPast record. This time may differ.`;
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  const jt = new Date(now + JST), z = (v) => String(v).padStart(2, '0');
+  ds = { ...ds, nj: dj(nr.t), ne: enDate(nr.t), at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` };
+  return { id: 'drop:copy:' + now, sr: 'drop', man: 1, due: now, ja, en, img: { drop: ds } };
+}

@@ -7,7 +7,7 @@
 <title>CSA POSTS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Noto+Sans+JP:wght@400;700&family=Zen+Kaku+Gothic+New:wght@700;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;600&family=Noto+Sans+JP:wght@400;700;900&family=Zen+Kaku+Gothic+New:wght@700;900&family=Space+Grotesk:wght@500;700&family=Inter:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
 /* v81: X 投稿の管理(運営者だけ)。カレンダーで「いつ・何を・済んだか」を見て、クリックで投稿/予約する */
 :root{--bg:#0a0e16;--panel:#111725;--panel2:#0d1320;--line:#1f2a3d;--tx:#e6e9ef;--mut:#8a94a7;--gold:#c9b37e;--cyan:#7fc8d8;--up:#5fa88a;--dn:#c2645f}
@@ -119,7 +119,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button>
   <button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button>
   <button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button>
-  <button class="chip" id="rbBtn" title="BTC が1時間で5%以上下げた過去の回(2017年〜)の、その後7日間を重ねた本文と画像を作る(コピペで投稿)">📈 反発の歴史をコピペで作る</button>
+  <button class="chip" id="dpBtn" title="BTC がこの30日で大きく下げた時に。同じだけ下げた過去の回(2017年〜)のうち、形が最も近い回のその後60日と、過去の回の半分が入る幅を重ねた本文と画像を作る(コピペで投稿)">📉 下落のその後をコピペで作る</button>
   <button class="chip" id="smBtn" title="直近24時間のBTCの形(1時間足)に近い過去の24時間を2017年から探し、その後72時間を並べた本文と画像を作る(コピペで投稿)">🔎 今日と同じ形を探す</button>
   <button class="chip" id="xfBtn" title="Xへの投稿の失敗の記録(直近50件)">⚠ 投稿の失敗</button>
   <button class="chip" id="cfBtn" title="BTC×S&amp;P500 の相関の推移を、今の数字で今出す。英語は30分後">🔗 相関の推移を今出す</button>
@@ -554,22 +554,25 @@ document.getElementById('smBtn').onclick = async (e) => {
   setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
 };
 // v279: 「反発」の歴史をコピペで作る。ブラウザで Binance の BTCUSDT 1時間足を2017年8月から全部取る(約80回の読み込み)
-document.getElementById('rbBtn').onclick = async (e) => {
+// v284: 下落のその後(反発の歴史 rbBtn と置き換え)。Binance BTCUSDT 日足を2017年8月から取る(4回ほどの読み込み)
+document.getElementById('dpBtn').onclick = async (e) => {
   const b = e.currentTarget, t0 = b.textContent; b.disabled = true;
   try {
-    const now = Date.now(), k = []; let st = Date.UTC(2017, 7, 17), host = null;
+    const k = []; let st = Date.UTC(2017, 7, 17), host = null; const now = Date.now();
     while (st < now) {
-      let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
-      if (!j) throw new Error('Binance の1時間足が取れません'); if (!j.length) break;
-      for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 36e5;
+      let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
+      if (!j) throw new Error('Binance の日足が取れません'); if (!j.length) break;
+      for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 864e5;
       b.textContent = `取得中… ${new Date(st).getUTCFullYear()}年`;
     }
-    const ev = L.rebEvents(k); if (ev.length < 3) throw new Error('該当する回が少なすぎます');
-    const p = L.rebDraft(ev, now);
-    await copyBox(p, 'rebound', b);
-    b.textContent = `✓ ${ev.length}回で作りました（下に表示）`;
+    const ds = L.dropStudy(k);
+    if (ds.cur > -10) throw new Error(`この30日の変化が ${ds.cur}% で、10%以上の下げではありません`);
+    if (ds.n < 5 || !ds.near) throw new Error('比べられる過去の回が少なすぎます');
+    const p = L.dropDraft(ds, now);
+    await copyBox(p, 'drop', b);
+    b.textContent = `✓ ${ds.th}%以上の下げ ${ds.n}回で作りました（下に表示）`;
   } catch (err) { b.textContent = '失敗 ' + err.message; }
-  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
+  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 10000);
 };
 // v262: 投稿の失敗の記録を見る
 document.getElementById('xfBtn').onclick = async (e) => {
