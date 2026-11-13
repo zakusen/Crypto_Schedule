@@ -1033,3 +1033,24 @@ export function cmpDraft(k, ds, crises, now) {
   return { id: 'cmp:copy:' + now, sr: 'dropcmp', man: 1, due: now, ja, en, img: { cmp: { D, A, cur, past, evN, evP, curPct: ds.cur, pastPct, pj: dj(nr.t), pe: enDate(nr.t), px: [c[n - 1 - D], c[n - 1]], ppx: [c[i0 - D], c[i0]],
     at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` } } };
 }
+// v286: 暗号資産・AI の主要企業のトップが、事件や疑惑の中で退いた日の前後のBTC(v287: OpenAI を外して Celsius を入れた。OpenAI は5日後に復帰・取締役会との対立で、ほかと条件が違うため)(全部 BTC で比べる)。0日目 = 退任が伝えられた日(UTC)、前日の終値 = 0%。前後30日
+//   選び方: 暗号資産か AI の主要企業で、トップが事件や疑惑の中で退いた日。性質は違う(破産・司法取引・辞任)ので「同じ種類」とは呼ばない
+export const CEO_EV = [
+  { day: '2022-09-27', ja: 'Celsius', en: 'Celsius', kj: 'マシンスキー氏が辞任(破産後)', ke: 'Mashinsky resigns (post-bankruptcy)', c: '#6ff0b4' },
+  { day: '2022-11-11', ja: 'FTX', en: 'FTX', kj: '破産申請・SBF氏が辞任', ke: 'Bankruptcy, SBF resigns', c: '#ff86a8' },
+  { day: '2023-11-21', ja: 'Binance', en: 'Binance', kj: 'CZ氏が辞任(司法取引)', ke: 'CZ resigns (plea deal)', c: '#ffc94d' },
+  { day: '2026-11-12', ja: 'NVIDIA', en: 'NVIDIA', kj: 'ファン氏が辞任', ke: 'Huang resigns', c: '#a99cff', now: 1 }];
+export function ceoDraft(k, now, R = 30) {
+  const c = k.map((x) => x[4]), at = (day) => k.findIndex((x) => x[0] === Date.UTC(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10)));
+  const sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const ev = CEO_EV.map((e) => { const i = at(e.day); if (i < R + 1) return null; const b = c[i - 1], p = [];
+    for (let d = -R; d <= R; d++) p.push(i + d < k.length ? +((c[i + d] / b - 1) * 100).toFixed(2) : null);
+    const last = p.reduce((a, v, j) => v != null ? j : a, 0);
+    return { ...e, p, d1: p[R + 1] ?? null, d0: p[R], d7: p[R + 7] ?? null, d30: p[2 * R] ?? null, pre: +((b / c[i - 1 - R] - 1) * 100).toFixed(1), lastD: last - R, lastV: p[last] }; }).filter(Boolean);
+  const nv = ev.find((e) => e.now), past = ev.filter((e) => !e.now);
+  let ja = `AI・暗号資産の主要企業のトップが\n事件や疑惑の中で退いた日のBTC\n\n` + past.map((e) => `${e.ja}(${e.day.slice(2, 7).replace('-', '/')}) 7日後${sg(e.d7)} 30日後${sg(e.d30)}`).join('\n') + (nv ? `\nNVIDIA(今回) ${nv.lastD}日目${sg(nv.lastV)}` : '') + `\n\n前日の終値＝0%。出来事の性質は違います\n過去の記録で、今回も同じとは限りません`;
+  let en = `BTC when heads of top crypto/AI firms left amid scandal\n\n` + past.map((e) => `${e.en} (${e.day.slice(0, 7)}): 7d ${sg(e.d7)}, 30d ${sg(e.d30)}`).join('\n') + (nv ? `\nNVIDIA (now): day ${nv.lastD} ${sg(nv.lastV)}` : '') + `\n\nPrior close = 0%. Different kinds of events.\nPast record. This time may differ.`;
+  for (const [tg, te] of [['\n#ビットコイン #NVIDIA', '\n#Bitcoin #NVIDIA'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  const jt = new Date(now + JST), z = (v) => String(v).padStart(2, '0');
+  return { id: 'ceo:copy:' + now, sr: 'ceo', man: 1, due: now, ja, en, img: { ceo: { R, ev, at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` } } };
+}
