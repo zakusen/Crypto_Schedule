@@ -105,6 +105,11 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
 .keybox input{background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:10px 12px;width:min(340px,100%);font:inherit}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#e6e9ef;color:#0a0e16;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92vw;text-align:center;z-index:60}
 #toast.on{opacity:1}
+#tools{padding:14px 20px;border-bottom:1px solid var(--line);background:rgba(10,14,22,.6);display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}   /* v297: 道具の一覧 */
+#tools[hidden]{display:none}
+#tools .tg{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2,rgba(255,255,255,.02))}
+#tools .tgh{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}#tools .tgh b{font-size:14px;color:var(--tx)}#tools .tgh span{font-size:11px;color:var(--mut)}
+#tools .tl{display:flex;flex-direction:column;gap:8px}#tools .ti{display:flex;flex-direction:column;align-items:flex-start;gap:3px}#tools .ti .chip{font-size:13px;padding:6px 14px;color:var(--tx)}#tools .td{font-size:11px;color:var(--mut);padding-left:4px}
 .kbd{font:600 11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--mut)}
 
 .reply{margin:8px 0;padding:8px 10px;border:1px dashed rgba(127,200,216,.45);border-radius:8px;background:rgba(127,200,216,.05)}.reply .rh{font-size:11px;color:#7fc8d8;margin-bottom:4px}.reply pre{margin:0 0 6px}
@@ -115,22 +120,38 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
   <h1>CSA POSTS</h1>
   <span class="sp"></span>
   <button class="chip" id="bell">🔔 通知をオンにする</button>
-  <button class="chip" id="pastBtn" title="発表済みの指標の「発表後の値動き」を今つくる(手で投稿)">＋ 過去の発表から作る</button>
-  <button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button>
-  <button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button>
-  <button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button>
-  <button class="chip" id="ceoBtn" title="暗号資産・AI の主要企業のトップが事件や疑惑の中で退いた日(Celsius・FTX・Binance・NVIDIA)の前後30日のBTCを、退いた日を真ん中にして重ねた本文と画像を作る(コピペで投稿)">👔 トップが退いた日のBTC</button>
-  <button class="chip" id="cpBtn" title="今回の下げと、形が最も近い過去の回を上下に並べ、それぞれの時期の FOMC・米CPI・大きな流出/破綻を印で付けた本文と画像を作る(コピペで投稿)">🧭 最も近い過去と、その時期の出来事</button>
-  <button class="chip" id="dpBtn" title="BTC がこの30日で大きく下げた時に。同じだけ下げた過去の回(2017年〜)のうち、形が最も近い回のその後60日と、過去の回の半分が入る幅を重ねた本文と画像を作る(コピペで投稿)">📉 下落のその後をコピペで作る</button>
-  <button class="chip" id="smBtn" title="直近24時間のBTCの形(1時間足)に近い過去の24時間を2017年から探し、その後72時間を並べた本文と画像を作る(コピペで投稿)">🔎 今日と同じ形を探す</button>
+  <button class="chip" id="toolsBtn">🧰 道具 ▾</button>
   <button class="chip" id="xfBtn" title="Xへの投稿の失敗の記録(直近50件)">⚠ 投稿の失敗</button>
-  <button class="chip" id="cfBtn" title="BTC×S&amp;P500 の相関の推移を、今の数字で今出す。英語は30分後">🔗 相関の推移を今出す</button>
-  <button class="chip" id="ceBtn" title="相関の推移の図に、出来事(◆)を手で足す(日経・コスピの急落など)">◆ 相関の図に出来事を足す</button>
-  <button class="chip sfb" data-k="shockbn" title="Binance 2019/2026 を今出す。英語は30分後に返信で">📉 Binance 2019/2026 を今出す</button>
-  <button class="chip sfb" data-k="shockcmp" title="ショック後のBTC を今出す。英語は30分後に返信で">📉 ショック後のBTC を今出す</button>
   <button class="chip" id="reload">↻ 更新</button>
   <button class="chip" id="keyBtn">鍵</button>
 </header>
+<section id="tools" hidden>
+  <div class="tg"><div class="tgh"><b>今の相場をコピペで出す</b><span>押すと下に本文と画像が出ます。自動では投稿しません</span></div>
+    <div class="tl">
+      <div class="ti"><button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button><span class="td">直近1・6・24時間の清算</span></div>
+      <div class="ti"><button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button><span class="td">BTC の急騰・急落を、その時の%で</span></div>
+      <div class="ti"><button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button><span class="td">直近8時間の急落→戻りの引用文</span></div>
+    </div></div>
+  <div class="tg"><div class="tgh"><b>過去と比べてコピペで出す</b><span>大きく動いた時に。2017年(清算は2022年8月)からのデータで比べます</span></div>
+    <div class="tl">
+      <div class="ti"><button class="chip" id="lqcBtn" title="この30日の下落幅と、30日間のロング清算額が、どちらも今回に近い過去の回(2022年8月以降)を探し、その後30日を並べた本文と画像を作る(コピペで投稿)">💥 30日の清算ランキングと、その後</button><span class="td">30日間のロング清算ランキングと、その後の推移</span></div>
+      <div class="ti"><button class="chip" id="dpBtn" title="BTC がこの30日で大きく下げた時に。同じだけ下げた過去の回(2017年〜)のうち、形が最も近い回のその後60日と、過去の回の半分が入る幅を重ねた本文と画像を作る(コピペで投稿)">📉 下落のその後をコピペで作る</button><span class="td">30日で10%以上下げた時、最も近い過去のその後60日</span></div>
+      <div class="ti"><button class="chip" id="cpBtn" title="今回の下げと、形が最も近い過去の回を上下に並べ、それぞれの時期の FOMC・米CPI・大きな流出/破綻を印で付けた本文と画像を作る(コピペで投稿)">🧭 最も近い過去と、その時期の出来事</button><span class="td">最も近い過去と、それぞれの時期の出来事</span></div>
+      <div class="ti"><button class="chip" id="smBtn" title="直近24時間のBTCの形(1時間足)に近い過去の24時間を2017年から探し、その後72時間を並べた本文と画像を作る(コピペで投稿)">🔎 今日と同じ形を探す</button><span class="td">直近24時間に形が近い過去の日と、その後72時間</span></div>
+      <div class="ti"><button class="chip" id="ceoBtn" title="暗号資産・AI の主要企業のトップが事件や疑惑の中で退いた日(Celsius・FTX・Binance・NVIDIA)の前後30日のBTCを、退いた日を真ん中にして重ねた本文と画像を作る(コピペで投稿)">👔 トップが退いた日のBTC</button><span class="td">CEO が退いた日の前後のBTC</span></div>
+    </div></div>
+  <div class="tg"><div class="tgh"><b>自動の投稿を今すぐ出す</b><span>押すとすぐ X に投稿されます(英語は30分後)</span></div>
+    <div class="tl">
+      <div class="ti"><button class="chip" id="cfBtn" title="BTC×S&amp;P500 の相関の推移を、今の数字で今出す。英語は30分後">🔗 相関の推移を今出す</button><span class="td">BTC × S&P500 の相関の推移</span></div>
+      <div class="ti"><button class="chip sfb" data-k="shockbn" title="Binance 2019/2026 を今出す。英語は30分後に返信で">📉 Binance 2019/2026 を今出す</button><span class="td">Binance 2019/2026 の比較</span></div>
+      <div class="ti"><button class="chip sfb" data-k="shockcmp" title="ショック後のBTC を今出す。英語は30分後に返信で">📉 ショック後のBTC を今出す</button><span class="td">ショック後のBTC</span></div>
+    </div></div>
+  <div class="tg"><div class="tgh"><b>作る・足す</b></div>
+    <div class="tl">
+      <div class="ti"><button class="chip" id="pastBtn" title="発表済みの指標の「発表後の値動き」を今つくる(手で投稿)">＋ 過去の発表から作る</button><span class="td">発表済みの指標の「発表後の値動き」を作る(手で投稿)</span></div>
+      <div class="ti"><button class="chip" id="ceBtn" title="相関の推移の図に、出来事(◆)を手で足す(日経・コスピの急落など)">◆ 相関の図に出来事を足す</button><span class="td">相関の図に出来事(◆)を手で足す</span></div>
+    </div></div>
+</section>
 <main id="main"><div class="empty">読み込み中…</div></main>
 <div id="ov"><div class="md" id="md"></div></div>
 <div id="toast"></div>
@@ -474,7 +495,7 @@ load(); setInterval(tick, 30000);
 setInterval(() => { if (!OPEN && getKey()) load(); }, 10 * 60000);   // 10分ごとに下書きを読み直す
 // v277: コピペ用の表示(本文・コピー・画像の保存)。急変動と清算で共通
 async function copyBox(p, name, anchor) {
-  let box = document.getElementById('cpBox'); if (!box) { box = document.createElement('div'); box.id = 'cpBox'; box.style.cssText = 'margin:10px 0;padding:12px;border:1px solid #23395a;border-radius:10px;background:#0b1424;display:grid;gap:12px'; anchor.parentNode.after(box); }
+  let box = document.getElementById('cpBox'); if (!box) { box = document.createElement('div'); box.id = 'cpBox'; box.style.cssText = 'margin:10px 0;padding:12px;border:1px solid #23395a;border-radius:10px;background:#0b1424;display:grid;gap:12px'; (document.getElementById('tools') || anchor.parentNode).after(box); }
   box.innerHTML = '';
   for (const lg of ['ja', 'en']) {
     const cv = await drawPost(p, lg), url = cv.toDataURL('image/png'), wrap = document.createElement('div');
@@ -575,6 +596,16 @@ const runBtn = (id, make) => { document.getElementById(id).onclick = async (e) =
   setTimeout(() => { b.textContent = t0; b.disabled = false; }, 10000); }; };
 // v284: 下落のその後(反発の歴史 rbBtn と置き換え)
 runBtn('dpBtn', async (b) => { const { ds, now } = await allD1(b); return L.dropDraft(ds, now); });
+// v289: 清算と下落幅が匹敵する過去。清算の日足は /api/liq(step=86400)、建玉は /api/oi(どちらも Coinalyze を worker が保存)、価格は Binance 日足
+runBtn('lqcBtn', async (b) => { b.textContent = '清算と建玉を読み込み中…';
+  const lj = await (await fetch('/api/liq?sym=BTC&step=86400')).json();   // v292: 清算は額で比べるので建玉は読まない
+  const liq = (lj.buckets || []).map((x) => [x[0], x[1], x[2]]), oi = [];
+  if (liq.length < 200) throw new Error('清算の日足が足りません(' + liq.length + '日)');
+  const k = []; let st = liq[0][0] - 40 * 864e5, host = null; const now = Date.now();
+  while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
+    if (!j) throw new Error('Binance の日足が取れません'); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 864e5; }
+  const sd = L.liqStudy(k, liq, oi); if (!sd) throw new Error('今日までの清算がそろっていません'); if (!sd.cases.length) throw new Error('比べられる過去の回がありません');
+  return L.liqDraft(sd, now); });
 // v286: トップが退いた日のBTC。2022年7月からの日足だけ取る(v287: Celsius 2022-09-27 の30日前から要るため)
 runBtn('ceoBtn', async (b) => { const k = []; let st = Date.UTC(2022, 6, 1), host = null; const now = Date.now();
   while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
@@ -582,6 +613,9 @@ runBtn('ceoBtn', async (b) => { const k = []; let st = Date.UTC(2022, 6, 1), hos
   return L.ceoDraft(k, now); });
 // v285: 最も近い過去と、その時期の出来事
 runBtn('cpBtn', async (b) => { const { k, ds, now } = await allD1(b); const cr = ((await (await fetch('/booms-data.json')).json()) || {}).crises || []; return L.cmpDraft(k, ds, cr, now); });
+// v297: 道具の一覧を開く・閉じる(開いた状態はこのブラウザに覚える)
+{ const tb = document.getElementById('toolsBtn'), tp = document.getElementById('tools'), set = (o) => { tp.hidden = !o; tb.textContent = o ? '🧰 道具 ▴' : '🧰 道具 ▾'; try { localStorage.setItem('csaTools', o ? '1' : '0'); } catch (_) {} };
+  let o0 = false; try { o0 = localStorage.getItem('csaTools') === '1'; } catch (_) {} set(o0); tb.onclick = () => set(tp.hidden); }
 // v262: 投稿の失敗の記録を見る
 document.getElementById('xfBtn').onclick = async (e) => {
   const b = e.currentTarget, t0 = b.textContent;

@@ -1054,3 +1054,38 @@ export function ceoDraft(k, now, R = 30) {
   const jt = new Date(now + JST), z = (v) => String(v).padStart(2, '0');
   return { id: 'ceo:copy:' + now, sr: 'ceo', man: 1, due: now, ja, en, img: { ceo: { R, ev, at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` } } };
 }
+// v289: 30日の下落幅と、30日間のロング清算(建玉で割った割合)が、どちらも今回に近い過去の回。k = Binance 日足、liq = [[日, ロング, ショート]]、oi = [[日, 建玉USD]]
+//   近い = 下落幅が ±5ポイント以内、かつ清算の割合が 0.7〜1.4倍。回どうしは30日以上あける。3回に満たなければ、差の小さい順に5回
+export function liqStudy(k, liq, oi, D = 30, A = 30) {
+  const dk = (t) => Math.floor(t / DAY), L = new Map(liq.map((x) => [dk(x[0]), x[1]])), O = new Map(oi.map((x) => [dk(x[0]), x[1]])), c = k.map((x) => x[4]), n = k.length;
+  const pt = (i) => { const d0 = dk(k[i][0]); let s = 0, nl = 0, os = 0, no = 0; for (let j = d0 - D + 1; j <= d0; j++) { if (L.has(j)) { s += L.get(j); nl++; } if (O.has(j)) { os += O.get(j); no++; } } if (nl < D * .8) return null; return { i, t: k[i][0], r: (c[i] / c[i - D] - 1) * 100, q: s, usd: s }; };   // v292: 清算は額(ドル)で比べる(建玉は使わない)
+  const pts = []; for (let i = D; i < n; i++) { const p = pt(i); if (p) pts.push(p); }
+  const now = pts[pts.length - 1]; if (!now || dk(now.t) < dk(k[n - 1][0]) - 2) return null;
+  const pool = pts.filter((p) => p.i + A < n), dist = (p) => Math.hypot((p.r - now.r) / 5, Math.log(p.q / now.q) / Math.log(1.4)), pick = (arr) => { const out = []; for (const p of arr.slice().sort((a, b) => dist(a) - dist(b))) { if (out.some((o) => Math.abs(o.i - p.i) < 30)) continue; out.push(p); } return out; };
+  let m = pick(pool.filter((p) => Math.abs(p.r - now.r) <= 5 && p.q >= now.q * .7 && p.q <= now.q * 1.4)), strict = true;
+  if (m.length < 3) { m = pick(pool).slice(0, 5); strict = false; }
+  m = m.slice(0, 6).sort((a, b) => a.t - b.t);
+  const path = (i, a, b) => { const o = []; for (let d = a; d <= b; d++) o.push(i + d >= 0 && i + d < n ? +((c[i + d] / c[i] - 1) * 100).toFixed(2) : null); return o; };
+  const cases = m.map((p) => { let dd = 0, ld = 0; for (let d = 1; d <= A; d++) { const v = (k[p.i + d][3] / c[p.i] - 1) * 100; if (v < dd) { dd = v; ld = d; } } return { t: p.t, r: +p.r.toFixed(1), q: +p.q.toFixed(1), usd: p.usd, p: path(p.i, -D, A), a30: +((c[p.i + A] / c[p.i] - 1) * 100).toFixed(1), dd: +dd.toFixed(1), ld }; });
+  const med = (a) => { a = a.slice().sort((x, y) => x - y); const h = a.length >> 1; return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2; };
+  const qs = pts.map((p) => p.q).sort((x, y) => x - y), pr = (q) => { let lo = 0, hi = qs.length; while (lo < hi) { const md = (lo + hi) >> 1; qs[md] < q ? lo = md + 1 : hi = md; } return lo / qs.length * 100; };   // v290: 清算の多さを順位(下からの%)で見せる
+  const bars = []; { const d0 = dk(k[n - 1][0]); for (let j = d0 - D + 1; j <= d0; j++) bars.push(L.has(j) ? L.get(j) : 0); }
+  cases.forEach((x) => { x.pr = +pr(x.q).toFixed(1); });
+  // v291: 清算のランキング。平常時 = 30日の清算(建玉比)の中央値。山 = 多い順に、30日以上あけて選ぶ(直近30日は今回なので除く)
+  const qm = qs[qs.length >> 1] || 1, peaks = []; for (const p of pts.filter((p) => p.i < n - D).sort((a, b) => b.q - a.q)) { if (peaks.some((o) => Math.abs(o.i - p.i) < 30)) continue; peaks.push(p); }
+  const rank = 1 + peaks.filter((p) => p.q > now.q).length, top = peaks.slice(0, 10).map((p) => ({ t: p.t, m: p.q, r: +p.r.toFixed(1), c: cases.findIndex((x) => Math.abs(x.t - p.t) <= 20 * DAY) }));
+  return { rank, top, nPeaks: peaks.length, D, A, strict, since: pts[0].t, now: { t: now.t, r: +now.r.toFixed(1), q: now.q, m: now.q, med: qm, pr: +pr(now.q).toFixed(1), usd: now.usd, p: path(n - 1, -D, 0), bars }, cases,
+    up: cases.filter((x) => x.a30 > 0).length, ddMed: cases.length ? +med(cases.map((x) => x.dd)).toFixed(1) : null, scat: pts.filter((_, j) => j % 2 === 0).map((p) => [+p.r.toFixed(1), +pr(p.q).toFixed(1)]) };
+}
+export function liqDraft(st, now) {
+  const sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', dj = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, y0 = new Date(st.since).getUTCFullYear(), N = st.cases.length;
+    const rj = (v) => v >= 50 ? `上位${Math.max(1, Math.round(100 - v))}%` : `下位${Math.max(1, Math.round(v))}%`, re2 = (v) => v >= 50 ? `top ${Math.max(1, Math.round(100 - v))}%` : `bottom ${Math.max(1, Math.round(v))}%`;
+  const mk = (nc) => { const cs = st.cases.slice(-nc), more = N - nc;
+    const ja = `BTC 30日間のロング清算ランキングと、その後の推移\n今回 $${(st.now.usd / 1e9).toFixed(1)}B は${y0}年以降で${st.rank}位(同じ30日のBTC ${sg(st.now.r)})\n清算額と下落幅が今回に${st.strict ? '近い' : '最も近い'}過去${N}回の30日後${more ? '(新しい' + nc + '回)' : ''}\n\n` + cs.map((x) => `${dj(x.t)} ${sg(x.a30)}`).join('\n') + `\n\n${N}回中、30日後に上 ${st.up}回\n過去の記録で、今回も同じとは限りません`;
+    const en = `BTC 30-day long liquidation ranking & what came next\nNow: $${(st.now.usd / 1e9).toFixed(1)}B, #${st.rank} since ${y0} (BTC ${sg(st.now.r)})\n${N} past periods ${st.strict ? 'close' : 'closest'} on liquidations & drop, 30d later${more ? ' (latest ' + nc + ')' : ''}:\n\n` + cs.map((x) => `${enDate(x.t)} ${sg(x.a30)}`).join('\n') + `\n\nHigher 30d later: ${st.up} of ${N}\nPast record. This time may differ.`;
+    return [ja, en]; };
+  let nc = N, [ja, en] = mk(nc); while (nc > 2 && (xlen(ja) > 280 || xlen(en) > 280)) [ja, en] = mk(--nc);
+  for (const [tg, te] of [['\n#ビットコイン #清算', '\n#Bitcoin #Liquidations'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  const jt = new Date(now + JST), z = (v) => String(v).padStart(2, '0');
+  return { id: 'liqcmp:copy:' + now, sr: 'liqcmp', man: 1, due: now, ja, en, img: { lq: { ...st, y0, cj: st.cases.map((x) => dj(x.t)), ce: st.cases.map((x) => enDate(x.t)), at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` } } };
+}

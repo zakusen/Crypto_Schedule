@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-11-14-v288';
+const VERSION = '2026-11-14-v297';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -1576,7 +1576,7 @@ const liqDay = (t) => new Date(t).toISOString().slice(0, 10);
 // v158: 過去分の取り込み(Coinalyze の /liquidation-history。Bybit・OKX の USDT無期限、5分刻み、USD換算)。鍵は env.COINALYZE_KEY(Cloudflare のシークレット)。鍵が無ければ何もしない。
 //   起動後の最初の alarm で1回だけ取り込む。失敗したら10分おきに6回、それでも駄目なら6時間おき。BF_VER を変えてデプロイすると、もう一度取り込む。
 const CZ_BASE = 'https://api.coinalyze.net/v1';
-const BF_VER = 'v163';   // v159: 日足を取れる限り(2017年〜)遡って長期用に保存する
+const BF_VER = 'v289';   // v289: 建玉の日足を足したので取り直す(以前は v163)   // v159: 日足を取れる限り(2017年〜)遡って長期用に保存する
 
 export class LiqHub {
   constructor(state, env) {
@@ -1840,6 +1840,14 @@ export class LiqHub {
         const ad = await lng('daily', 1659312000, DAY, 'lt:', (d) => d.getUTCFullYear());
         ltDays = ad.size; for (const k of ad.keys()) { const t = Number(k.split('|')[1]); if (!ltOld || t < ltOld) ltOld = t; }
         await lng('1hour', Math.floor((now - 400 * DAY) / 1000), 36e5, 'lh:', (d) => d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'));
+        // v289: 建玉(OI)の日足も同じ4社分を足して保存('oi:銘柄:年' = [[日の始まり, 建玉USD(その日の終わり)]])。清算を建玉で割って、年が違っても比べられるようにするため
+        try { const res = []; const ks = [...bySym.keys()];
+          for (let q = 0; q < ks.length; q += 10) res.push(...(await this.czGet('/open-interest-history', { symbols: ks.slice(q, q + 10).join(','), interval: 'daily', from: 1659312000, to: Math.floor(cut / 1000), convert_to_usd: 'true' })));
+          const agg = new Map(); for (const r of res) { const c = bySym.get(r.symbol); if (!c) continue; for (const h of r.history || []) { const t = Math.floor(Number(h.t) * 1000 / DAY) * DAY, v = Number(h.c); if (!Number.isFinite(t) || !(v > 0)) continue; const k = c + '|' + t; agg.set(k, (agg.get(k) || 0) + v); } }
+          const grp = new Map(); for (const [k, v] of agg) { const [c, t] = k.split('|'), kk = 'oi:' + c + ':' + new Date(Number(t)).getUTCFullYear(); if (!grp.has(kk)) grp.set(kk, []); grp.get(kk).push([Number(t), Math.round(v)]); }
+          for (const [kk, arr] of grp) await this.state.storage.put(kk, arr.sort((a2, b2) => a2[0] - b2[0]));
+          this.oic = {};
+        } catch (e) { ltErr = (ltErr ? ltErr + ' / ' : '') + 'OI: ' + String((e && e.message) || e).slice(0, 80); }
       } catch (e) { ltErr = String((e && e.message) || e).slice(0, 120); }
       this.ltc = {};
       this.bf = { lt_err: ltErr, lt_from: ltOld || null, lt_days: ltDays, v: BF_VER, ok: true, at: Date.now(), tries, from, cut, syms: [...bySym.keys()], bars: cz.size, filled, fill_usd: Math.round(fillUsd), live_usd: Math.round(liveUsd), cz_same_usd: Math.round(sameUsd) };
@@ -1869,6 +1877,10 @@ export class LiqHub {
     const url = new URL(request.url);
     const sym = url.searchParams.get('sym');
     if (!SYMS.includes(sym)) return json({ error: 'bad params' }, 400);
+    if (url.pathname === '/oi') {   // v289: 建玉の日足(長期保存分)
+      this.oic = this.oic || {}; if (!this.oic[sym]) { const mm = await this.state.storage.list({ prefix: 'oi:' + sym + ':' }); this.oic[sym] = [].concat(...mm.values()).sort((a2, b2) => a2[0] - b2[0]); }
+      return json({ sym, oi: this.oic[sym] });
+    }
     const step = [300, 900, 3600, 14400, 86400].includes(Number(url.searchParams.get('step'))) ? Number(url.searchParams.get('step')) * 1000 : 3600000;
     const now = Date.now(), from = now - PAST_KEEP;
     const agg = new Map();
@@ -2043,7 +2055,8 @@ export default {
     if (url.pathname === '/api/events' || url.pathname === '/api/cal') return cached(ctx, request, 300, () => events(request, env, ctx));
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
     if (url.pathname === '/api/liqimpact') { const r = await liqImpactGated(ctx, request, env, url); r.headers.set('cache-control', 'private, no-store'); return r; }   // v164: 清算×指標(平常比) / v168: 全回は有料
-    if (url.pathname === '/api/liq') return cached(ctx, request, 20, () => liqApi(env, url));   // v150: ロング/ショート清算額
+    if (url.pathname === '/api/liq') return cached(ctx, request, 20, () => liqApi(env, url));
+    if (url.pathname === '/api/oi') return cached(ctx, request, 600, async () => { if (!env.LIQ) return json({ error: 'LIQ 未接続', oi: [] }, 503); const sym = url.searchParams.get('sym') || 'BTC'; try { return await env.LIQ.get(env.LIQ.idFromName('hub')).fetch('https://liq/oi?sym=' + encodeURIComponent(sym)); } catch (e) { return json({ error: String((e && e.message) || e), oi: [] }, 502); } });   // v289: 建玉の日足   // v150: ロング/ショート清算額
     if (url.pathname === '/api/ethqueue') return cached(ctx, request, 120, () => ethQueueApi(env, ctx));
     if (url.pathname === '/api/spike') { const r = await spikeStatus(env); r.headers.set('cache-control', 'no-store'); return r; }   // v145: 急変動の判定の今の値(見るだけ。投稿はしない)
     if (url.pathname === '/api/corr') return cached(ctx, request, 300, async () => { const t = env.CAL ? await env.CAL.get('corr:v1') : null; return new Response(t || '{}', { headers: { 'content-type': 'application/json; charset=utf-8' } }); });   // v95: S&P500 との相関(保存を返すだけ)
