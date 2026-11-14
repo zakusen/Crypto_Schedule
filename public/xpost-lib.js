@@ -1130,3 +1130,16 @@ export function liqShockDay(st, now) {
   const day = Math.floor((now + JST) / DAY) * DAY - JST;
   return { id: 'liqshock:' + isoDay(now), sr: 'liqshock', due: day + LIQSHOCK.at, langs: ['ja'], ja, en: '', img: { ls: { ...st, y0 } } };
 }
+
+// v301: Coinbase プレミアムの検証。cb = [[日, 終値]](Coinbase BTC-USD)、bn = [[日, 終値]](Binance BTCUSDT)。プレミアム = (Coinbase − Binance) ÷ Binance。連続マイナスの区間を長い順に
+export function cbPremium(cb, bn, k) {
+  const dk = (t) => Math.floor(t / DAY), B = new Map(bn.map((x) => [dk(x[0]), x[1]])), K = new Map((k || []).map((x, i) => [dk(x[0]), i]));
+  const pr = cb.filter((x) => B.has(dk(x[0]))).map((x) => [x[0], (x[1] / B.get(dk(x[0])) - 1) * 100]).sort((a, b) => a[0] - b[0]);
+  const runs = []; let st = null;
+  pr.forEach(([t, v], i) => { if (v < 0) { if (st == null) st = i; } else if (st != null) { runs.push([st, i - 1]); st = null; } });
+  if (st != null) runs.push([st, pr.length - 1]);
+  const close = (t) => { const i = K.get(dk(t)); return i == null ? null : k[i][4]; }, after = (t, d) => { const i = K.get(dk(t)); return i == null || !k[i + d] ? null : k[i + d][4]; };
+  const R = runs.map(([a, b]) => { const t0 = pr[a][0], t1 = pr[b][0], c0 = close(t0), c1 = close(t1), c30 = after(t1, 30); return { from: t0, to: t1, days: b - a + 1, avg: pr.slice(a, b + 1).reduce((s2, x) => s2 + x[1], 0) / (b - a + 1), during: c0 && c1 ? (c1 / c0 - 1) * 100 : null, after30: c1 && c30 ? (c30 / c1 - 1) * 100 : null, open: b === pr.length - 1 }; });
+  const cur = R.length && R[R.length - 1].open ? R[R.length - 1] : null;
+  return { pr, runs: R.slice().sort((a, b) => b.days - a.days), cur, last: pr[pr.length - 1] };
+}
