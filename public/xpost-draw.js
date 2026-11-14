@@ -1566,8 +1566,41 @@ function drawLiqCmp(g, d, lg) {   // v293: 主役を1つに。巨大な清算額
   lt(g, en ? 'Same period, not necessarily the cause. Past record; this time may differ.' : '同じ時期の記録で、原因とは限りません。過去の記録で、今回も同じとは限りません。', 40, 784, { s: 12, w: 700, c: 'rgba(255,255,255,.72)' });
   lt(g, (en ? 'Binance 1d · ' : 'Binance 日足・') + '@csa_archive', W - 36, 784, { s: 12, w: 800, c: '#8fe3f2', a: 'right' });
 }
+// v299: 大量清算の後のBTC。ショック後のBTC(drawShockCmp)と同じ型。清算の山の日 = 0日目、30日前の終値 = 0%。戻るまでの日数を札で
+function drawLiqShock(g, d, lg) {
+  const en = lg === 'en', CY = '#2ee6ff', CL = ['#ff8c1a', '#19d3a2', '#8f84ff'], M = '#7f93ad', D = d.D, A = d.A, rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
+  const B = (v) => '$' + (v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : Math.round(v / 1e6) + 'M'), nm = (x) => x.ym + (x.name ? (en ? ' · ' : '・') + x.name : '');
+  shockFrame(g, lg, 'BTC / LIQUIDATION COMPARE');
+  lt(g, en ? 'BTC after mass liquidations' : '大量清算の後のBTC', 36, 118, { s: 50, w: 900 });
+  lt(g, en ? 'Past periods with similar 30-day long liquidations' : '30日間のロング清算が今回と同規模だった過去', 40, 150, { s: 17, w: 700, c: '#cfe0f2' });
+  lt(g, en ? 'Aligned on the peak day; 30 days before = 0%' : '清算の山の日でそろえ、30日前の終値＝0%', 40, 174, { s: 15, w: 700, c: M });
+  shockTop(g, [[640, en ? 'Now' : '今回', B(d.now.s), CY, 32]].concat(d.cases.map((x, i) => [780 + i * 125, x.ym, B(x.s), CL[i]])), 0, en, en ? '30-day long liquidations' : '30日間のロング清算');
+  const all = [].concat(...d.cases.map((x) => x.days.filter((q) => q[0] <= A).map((q) => q[1])), d.now.days.map((q) => q[1])), vmax = Math.ceil((Math.max(...all) + 3) / 10) * 10, vmin = Math.floor((Math.min(...all) - 3) / 10) * 10;
+  const x0 = 100, x1 = 1080, y0 = 200, y1 = 600, X = (dd) => x0 + (dd + D) / (D + A) * (x1 - x0), Y = (v) => y0 + (vmax - v) / (vmax - vmin) * (y1 - y0);
+  g.fillStyle = 'rgba(255,255,255,.025)'; g.fillRect(x0, y0, X(0) - x0, y1 - y0);
+  for (let v = vmin; v <= vmax; v += 10) { g.strokeStyle = v ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.35)'; g.lineWidth = 1; g.setLineDash(v ? [] : [6, 5]); g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); g.setLineDash([]); lt(g, (v > 0 ? '+' : '') + v + '%', x0 - 12, Y(v) + 5, { s: 15, w: 800, f: LN, c: v ? M : '#fff', a: 'right' }); }
+  [-30, 0, 30, 60, 90].filter((v) => v >= -D && v <= A).forEach((dd) => { g.strokeStyle = 'rgba(255,255,255,.03)'; g.beginPath(); g.moveTo(X(dd), y0); g.lineTo(X(dd), y1); g.stroke(); lt(g, dd === 0 ? (en ? 'Peak' : '清算の山') : (dd > 0 ? '+' : '') + dd + (en ? 'd' : '日'), X(dd), y1 + 26, { s: 15, w: 800, c: dd === 0 ? '#fff' : '#cfe0f2', a: 'center' }); });
+  g.strokeStyle = 'rgba(255,255,255,.4)'; g.lineWidth = 1.5; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(X(0), y0); g.lineTo(X(0), y1); g.stroke(); g.setLineDash([]);
+  lt(g, en ? '30 days of liquidations' : '清算が積み上がった30日', (x0 + X(0)) / 2, y0 + 22, { s: 14, w: 800, c: M, a: 'center' });
+  lt(g, en ? '0% = price before the liquidations' : '0%＝清算が積み上がる前の価格', X(0) + 60, Y(0) + 22, { s: 13, w: 700, c: '#cfe0f2' });
+  const clip = [x0, y0 - 4, x1 - x0 + 8, y1 - y0 + 8];
+  d.cases.forEach((x, i) => shockLine(g, x.days.filter((q) => q[0] <= A), CL[i], 2.6, [6, 5], X, Y, clip));
+  // 戻った日の札(0%の線の上)。90日より後なら右端に
+  d.cases.forEach((x, i) => { const c = CL[i], t = x.rec == null ? (en ? 'not yet' : 'まだ') : x.rec + (en ? 'd' : '日'), lab = x.ym.slice(2) + ' ' + t;
+    if (x.rec != null && x.rec <= A) { g.strokeStyle = c; g.lineWidth = 2.5; g.beginPath(); g.arc(X(x.rec), Y(0), 8, 0, 7); g.stroke(); const up = i % 2 === 0, y = up ? Y(0) - 46 - i * 6 : Y(0) + 14 + i * 6; g.fillStyle = c; rr(X(x.rec) - 56, y, 112, 28, 6); g.fill(); lt(g, lab, X(x.rec), y + 20, { s: 15, w: 900, c: '#0b1220', a: 'center' }); }
+    else { const y = Y(0) + 14 + i * 34; g.fillStyle = c; rr(X(A) - 124, y, 120, 28, 6); g.fill(); lt(g, lab + (x.rec != null ? ' →' : ''), X(A) - 64, y + 20, { s: 15, w: 900, c: '#0b1220', a: 'center' }); } });
+  shockNow(g, X, Y, y0, y1, d.now, en, d.now.d0 < -12);
+  const lg2 = [[CY, en ? `Now (last 30 days · ${B(d.now.s)})` : `今回（この30日・${B(d.now.s)}）`, null, 5]].concat(d.cases.map((x, i) => [CL[i], nm(x) + `（${B(x.s)}）`, [6, 5], 2.6]));
+  lg2.forEach(([c, l, da, w], i) => { const xx = 40 + (i % 2) * 560, y = 652 + Math.floor(i / 2) * 28; g.strokeStyle = c; g.lineWidth = w; g.setLineDash(da || []); g.beginPath(); g.moveTo(xx, y); g.lineTo(xx + 40, y); g.stroke(); g.setLineDash([]); lt(g, l, xx + 50, y + 6, { s: 16, w: 800, c: '#e8f0fb' }); });
+  g.strokeStyle = '#2a4466'; g.lineWidth = 1; g.beginPath(); g.moveTo(36, 700); g.lineTo(W - 36, 700); g.stroke();
+  const rs = d.cases.map((x) => x.ym + ' ' + (x.rec == null ? (en ? 'not yet' : 'まだ') : x.rec + (en ? 'd' : '日'))).join(en ? ' · ' : '・');
+  lt(g, (en ? 'Days to regain the pre-liquidation price: ' : '清算が積み上がる前の価格に戻るまで：') + rs, 40, 742, { s: en ? 18 : 21, w: 900 });
+  lt(g, en ? `Long liquidations: Bybit, OKX, Binance, Huobi USDT perps (Coinalyze), since ${d.y0}. Periods 45+ days apart.` : `ロング清算＝Bybit・OKX・Binance・Huobi の USDT無期限の合計（Coinalyze・${d.y0}年以降）。時期どうしは45日以上あける。`, 40, 772, { s: 13, w: 700, c: M });
+  lt(g, en ? 'Past record. This time may differ.' : '過去の記録で、今回も同じとは限りません', W - 36, 742, { s: 15, w: 900, c: '#ff9a9a', a: 'right' });
+  lt(g, en ? 'Binance BTCUSDT daily close' : 'Binance BTCUSDT 日足終値', W - 36, 772, { s: 13, w: 700, c: M, a: 'right' });
+}
 export async function drawPost(p, lg) {
-  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '暗号資産ブーム危機歴史全体時価総額対数目盛り塗り輪盗まれ失われ面積波各テーマ資金量最大推定含主な時点数字並べ原因示直近月預かり資産貸し出しステーブル発行額取引高日ごと範囲一覧百万記録大きな終値今回年' + '強制決済買い売り証拠金足りなくなったポジション取引所強制的に決済されること銘柄別価格取得できませんでした下げたところで上げたまとめて清算された多かった最大時間ごと上下合算全市場' + '米中間選挙投票日年間最安確定伸びます例影響判断前後時間足終値破産申請' + '相関推移左軸右軸価格変化率同方向逆方向現在直近傾向関係はっきりした計算騰落率ぶん使って出来事原因影響向き分かりませんデータ不足流出急変動' + 'ショック後発生前日終値並べる比較同じ目今回前回水準戻るまで最安連鎖破綻崩壊上昇相場途中被害規模約倍ちがう基金全額補償発表出金停止週間足推計当時万億' + '定期更新区切り次動いたら' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + 'ランキング推移' + '時期のうち位今回下回近かった' + '平常時倍番目順位多かった' + '多さ位真ん中最も少ない棒ごと' + '年以降すべての日変化ロング清算建玉匹敵する回前後終値割合倍条件入る少ないため差小さい順合計無期限記録上' + '事件疑惑中後' + 'AI暗号資産主要企業トップ突然退いた日今ここ選び方性質それぞれ違います破産解任司法取引辞任伝えられた氏' + '今回の下げと形が最も近い過去当時この先はまだ分からない米大きな流出破綻同じ時期に起きたことで原因とは限りません出来事記録すべて日前目後' + '参考直前細い点線左うち' + '同じだけここから最も近い形差最小予想ではありませんそろえた前線' + '下げた後回その後日間どうだったか今回より上下幅底をつけるまで中央値最大半分入る帯すべて範囲届いた初めて変化あける足終値安値点古い順そこから' + '今日同じ形をした過去日直近いま一致率窓始まり差小さい順選離右側終わり変化相関確率' + '反発歴史下げた後各回中央値直近最大始値終値以下続き数える範囲超えた線端切っています上戻った' + p[lg]);
+  await loadFonts(JSON.stringify(p.img) + 'イベント前後今日週来変動発表日本時間予定なしほか件翌年月日このあと前回指標重要度順同じ時間の変化米国市場外相関足強中程度弱逆連動無係時間前後直近' + '暗号資産ブーム危機歴史全体時価総額対数目盛り塗り輪盗まれ失われ面積波各テーマ資金量最大推定含主な時点数字並べ原因示直近月預かり資産貸し出しステーブル発行額取引高日ごと範囲一覧百万記録大きな終値今回年' + '強制決済買い売り証拠金足りなくなったポジション取引所強制的に決済されること銘柄別価格取得できませんでした下げたところで上げたまとめて清算された多かった最大時間ごと上下合算全市場' + '米中間選挙投票日年間最安確定伸びます例影響判断前後時間足終値破産申請' + '相関推移左軸右軸価格変化率同方向逆方向現在直近傾向関係はっきりした計算騰落率ぶん使って出来事原因影響向き分かりませんデータ不足流出急変動' + 'ショック後発生前日終値並べる比較同じ目今回前回水準戻るまで最安連鎖破綻崩壊上昇相場途中被害規模約倍ちがう基金全額補償発表出金停止週間足推計当時万億' + '定期更新区切り次動いたら' + '凍結未凍結保有積み上げ交換回数時間ごとアドレス持つ方向売る件現況独自追跡記録確認合計預けた別含まないウォレット出金大きさ量四角今回取得できず数字すべて入金売却証拠ではありません出典前回から発生替え日本' + '❄🔒🧊最初受取先残っている行き先時系列日本時間刻送り先コントラクトへ' + '過去最大の流出今回発生から12時間資金動き確定疑い未確認新しい送金先数今ここ凍結億ドルのまま約万上記録交換分散移動別小分け以内' + '巨額清算額直近銘柄別ロングショート記録は途中からの最大1件全市場ではありません公開清算ストリームの合算' + '今のBTCがなぞっている過去実況一致率点線＝その後予測月火水木金土日〜予定これまでの投稿同じ日主要な指標はありませんほか件資金はどこへ送金新しい送金先交換コントラクトへ件数最初追跡終わり方残存段数上限未追跡確定オンチェーン記録証拠大型ハッキング流出疑い未確認発生声明まで、あと戻るのか同じような前の価格に戻った以内中央値形が近かった回復日予測記録直近急落急騰その後下げた上げた回中以上水色今回点線時間半分今回に最も似た重ねる各回の発表前形状比較は返信へ①②③確率ではありません上昇下落結果並べ残り選定使計算基準価格騰落率' + '平常日比直前中央値取り直し数時間のみを含む次の清算経済指標発表を含む反応棒今回過去各回太線細線倍率平均因果示すものではありませんの合算1時間足あたり' + '大量清算の後山積み上がったまだ戻る' + 'ランキング推移' + '時期のうち位今回下回近かった' + '平常時倍番目順位多かった' + '多さ位真ん中最も少ない棒ごと' + '年以降すべての日変化ロング清算建玉匹敵する回前後終値割合倍条件入る少ないため差小さい順合計無期限記録上' + '事件疑惑中後' + 'AI暗号資産主要企業トップ突然退いた日今ここ選び方性質それぞれ違います破産解任司法取引辞任伝えられた氏' + '今回の下げと形が最も近い過去当時この先はまだ分からない米大きな流出破綻同じ時期に起きたことで原因とは限りません出来事記録すべて日前目後' + '参考直前細い点線左うち' + '同じだけここから最も近い形差最小予想ではありませんそろえた前線' + '下げた後回その後日間どうだったか今回より上下幅底をつけるまで中央値最大半分入る帯すべて範囲届いた初めて変化あける足終値安値点古い順そこから' + '今日同じ形をした過去日直近いま一致率窓始まり差小さい順選離右側終わり変化相関確率' + '反発歴史下げた後各回中央値直近最大始値終値以下続き数える範囲超えた線端切っています上戻った' + p[lg]);
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const g = cv.getContext('2d');
   if (p.sr === 'histw' && p.img && p.img.hist) { cv.width = 1440; cv.height = 1300; drawHistW(g, p.img.hist, lg); return cv; }   // v273
   if (p.sr === 'histm' && p.img && p.img.month) { cv.width = 1440; cv.height = 1100; drawHistM(g, p.img.month, lg); return cv; }   // v273
@@ -1580,7 +1613,8 @@ export async function drawPost(p, lg) {
   TONE = p.sr === 'pat' ? sgn(im.q && im.q.chg) : p.sr === 'spike' ? sgn(im.coins && im.coins.BTC) : p.sr === 'arch' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.c60 : im.chg)
     : p.sr === 'week' ? sgn(im.coins && im.coins.BTC ? im.coins.BTC.chg : null) : p.sr === 'vol' ? TONES.gold : p.sr === 'liq' || p.sr === 'liqday' ? TONES.red : p.sr === 'liqimp' ? TONES.purple : TONES.blue;
   const LV = p.img && p.img.live && p.img.live[lg];   // v204: 毎朝・夜は BTC実況の画像
-  if (p.sr === 'liqcmp' && p.img && p.img.lq) { cv.height = LH; drawLiqCmp(g, p.img.lq, lg); }   // v289
+  if (p.sr === 'liqshock' && p.img && p.img.ls) { cv.height = LH; drawLiqShock(g, p.img.ls, lg); }   // v299
+  else if (p.sr === 'liqcmp' && p.img && p.img.lq) { cv.height = LH; drawLiqCmp(g, p.img.lq, lg); }   // v289
   else if (p.sr === 'ceo' && p.img && p.img.ceo) { cv.height = LH; drawCeo(g, p.img.ceo, lg); }   // v286
   else if (p.sr === 'dropcmp' && p.img && p.img.cmp) { cv.height = LH; drawDropCmp(g, p.img.cmp, lg); }   // v285
   else if (p.sr === 'drop' && p.img && p.img.drop) { cv.height = LH; drawDrop(g, p.img.drop, lg); }   // v284

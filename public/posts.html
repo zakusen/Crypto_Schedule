@@ -134,7 +134,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
     </div></div>
   <div class="tg"><div class="tgh"><b>過去と比べてコピペで出す</b><span>大きく動いた時に。2017年(清算は2022年8月)からのデータで比べます</span></div>
     <div class="tl">
-      <div class="ti"><button class="chip" id="lqcBtn" title="この30日の下落幅と、30日間のロング清算額が、どちらも今回に近い過去の回(2022年8月以降)を探し、その後30日を並べた本文と画像を作る(コピペで投稿)">💥 30日の清算ランキングと、その後</button><span class="td">30日間のロング清算ランキングと、その後の推移</span></div>
+      <div class="ti"><button class="chip" id="lqcBtn" title="この30日の下落幅と、30日間のロング清算額が、どちらも今回に近い過去の回(2022年8月以降)を探し、その後30日を並べた本文と画像を作る(コピペで投稿)">💥 大量清算の後のBTC</button><span class="td">30日の清算が同規模だった過去と、戻るまでの日数</span></div>
       <div class="ti"><button class="chip" id="dpBtn" title="BTC がこの30日で大きく下げた時に。同じだけ下げた過去の回(2017年〜)のうち、形が最も近い回のその後60日と、過去の回の半分が入る幅を重ねた本文と画像を作る(コピペで投稿)">📉 下落のその後をコピペで作る</button><span class="td">30日で10%以上下げた時、最も近い過去のその後60日</span></div>
       <div class="ti"><button class="chip" id="cpBtn" title="今回の下げと、形が最も近い過去の回を上下に並べ、それぞれの時期の FOMC・米CPI・大きな流出/破綻を印で付けた本文と画像を作る(コピペで投稿)">🧭 最も近い過去と、その時期の出来事</button><span class="td">最も近い過去と、それぞれの時期の出来事</span></div>
       <div class="ti"><button class="chip" id="smBtn" title="直近24時間のBTCの形(1時間足)に近い過去の24時間を2017年から探し、その後72時間を並べた本文と画像を作る(コピペで投稿)">🔎 今日と同じ形を探す</button><span class="td">直近24時間に形が近い過去の日と、その後72時間</span></div>
@@ -604,8 +604,10 @@ runBtn('lqcBtn', async (b) => { b.textContent = '清算と建玉を読み込み�
   const k = []; let st = liq[0][0] - 40 * 864e5, host = null; const now = Date.now();
   while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
     if (!j) throw new Error('Binance の日足が取れません'); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 864e5; }
-  const sd = L.liqStudy(k, liq, oi); if (!sd) throw new Error('今日までの清算がそろっていません'); if (!sd.cases.length) throw new Error('比べられる過去の回がありません');
-  return L.liqDraft(sd, now); });
+  // v299: ショック後のBTC と同じ型(大量清算の後のBTC)に変えた。ランキング(liqStudy/liqDraft)は残すが使わない
+  const cr = ((await (await fetch('/booms-data.json')).json()) || {}).crises || [];
+  const sd = L.liqShock(k, liq, cr); if (!sd) throw new Error('今日までの清算がそろっていません'); if (sd.cases.length < 2) throw new Error('比べられる過去の時期が少なすぎます');
+  return L.liqShockDraft(sd, now); });
 // v286: トップが退いた日のBTC。2022年7月からの日足だけ取る(v287: Celsius 2022-09-27 の30日前から要るため)
 runBtn('ceoBtn', async (b) => { const k = []; let st = Date.UTC(2022, 6, 1), host = null; const now = Date.now();
   while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
