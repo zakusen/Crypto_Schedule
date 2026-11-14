@@ -1571,18 +1571,21 @@ function drawLiqShock(g, d, lg) {
   const en = lg === 'en', CY = '#2ee6ff', CL = ['#ff8c1a', '#19d3a2', '#8f84ff'], M = '#7f93ad', D = d.D, A = d.A, rr = (x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); };
   const B = (v) => '$' + (v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : Math.round(v / 1e6) + 'M'), nm = (x) => x.ym + (x.name ? (en ? ' · ' : '・') + x.name : '');
   shockFrame(g, lg, 'BTC / LIQUIDATION COMPARE');
+  if (d.n != null) lt(g, 'DAY ' + d.n, W - 34, 48, { s: 20, w: 900, f: LN, c: CY, a: 'right' });   // v300: 毎日の版
   lt(g, en ? 'BTC after mass liquidations' : '大量清算の後のBTC', 36, 118, { s: 50, w: 900 });
   lt(g, en ? 'Past periods with similar 30-day long liquidations' : '30日間のロング清算が今回と同規模だった過去', 40, 150, { s: 17, w: 700, c: '#cfe0f2' });
   lt(g, en ? 'Aligned on the peak day; 30 days before = 0%' : '清算の山の日でそろえ、30日前の終値＝0%', 40, 174, { s: 15, w: 700, c: M });
-  shockTop(g, [[640, en ? 'Now' : '今回', B(d.now.s), CY, 32]].concat(d.cases.map((x, i) => [780 + i * 125, x.ym, B(x.s), CL[i]])), 0, en, en ? '30-day long liquidations' : '30日間のロング清算');
-  const all = [].concat(...d.cases.map((x) => x.days.filter((q) => q[0] <= A).map((q) => q[1])), d.now.days.map((q) => q[1])), vmax = Math.ceil((Math.max(...all) + 3) / 10) * 10, vmin = Math.floor((Math.min(...all) - 3) / 10) * 10;
+  const pc = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+  if (d.n != null) shockTop(g, [[640, en ? 'Now' : '今回', pc(d.now.d0), CY, 32]].concat(d.cases.map((x, i) => [780 + i * 125, x.ym, pc(x.atN), CL[i]])), 0, en, en ? `Same day ${d.n}` : `同じ${d.n}日目の比較`);
+  else shockTop(g, [[640, en ? 'Now' : '今回', B(d.now.s), CY, 32]].concat(d.cases.map((x, i) => [780 + i * 125, x.ym, B(x.s), CL[i]])), 0, en, en ? '30-day long liquidations' : '30日間のロング清算');
+  const all = [].concat(...d.cases.map((x) => x.days.filter((q) => q[0] <= A).map((q) => q[1])), d.now.days.map((q) => q[1]), [0]), vmax = Math.ceil((Math.max(...all) + 3) / 10) * 10, vmin = Math.floor((Math.min(...all) - 3) / 10) * 10;
   const x0 = 100, x1 = 1080, y0 = 200, y1 = 600, X = (dd) => x0 + (dd + D) / (D + A) * (x1 - x0), Y = (v) => y0 + (vmax - v) / (vmax - vmin) * (y1 - y0);
   g.fillStyle = 'rgba(255,255,255,.025)'; g.fillRect(x0, y0, X(0) - x0, y1 - y0);
   for (let v = vmin; v <= vmax; v += 10) { g.strokeStyle = v ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.35)'; g.lineWidth = 1; g.setLineDash(v ? [] : [6, 5]); g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); g.setLineDash([]); lt(g, (v > 0 ? '+' : '') + v + '%', x0 - 12, Y(v) + 5, { s: 15, w: 800, f: LN, c: v ? M : '#fff', a: 'right' }); }
   [-30, 0, 30, 60, 90].filter((v) => v >= -D && v <= A).forEach((dd) => { g.strokeStyle = 'rgba(255,255,255,.03)'; g.beginPath(); g.moveTo(X(dd), y0); g.lineTo(X(dd), y1); g.stroke(); lt(g, dd === 0 ? (en ? 'Peak' : '清算の山') : (dd > 0 ? '+' : '') + dd + (en ? 'd' : '日'), X(dd), y1 + 26, { s: 15, w: 800, c: dd === 0 ? '#fff' : '#cfe0f2', a: 'center' }); });
   g.strokeStyle = 'rgba(255,255,255,.4)'; g.lineWidth = 1.5; g.setLineDash([3, 4]); g.beginPath(); g.moveTo(X(0), y0); g.lineTo(X(0), y1); g.stroke(); g.setLineDash([]);
   lt(g, en ? '30 days of liquidations' : '清算が積み上がった30日', (x0 + X(0)) / 2, y0 + 22, { s: 14, w: 800, c: M, a: 'center' });
-  lt(g, en ? '0% = price before the liquidations' : '0%＝清算が積み上がる前の価格', X(0) + 60, Y(0) + 22, { s: 13, w: 700, c: '#cfe0f2' });
+  lt(g, en ? '0% = price before the liquidations' : '0%＝清算が積み上がる前の価格', X(45), Y(0) - 10, { s: 13, w: 700, c: '#cfe0f2' });
   const clip = [x0, y0 - 4, x1 - x0 + 8, y1 - y0 + 8];
   d.cases.forEach((x, i) => shockLine(g, x.days.filter((q) => q[0] <= A), CL[i], 2.6, [6, 5], X, Y, clip));
   // 戻った日の札(0%の線の上)。90日より後なら右端に
@@ -1590,7 +1593,8 @@ function drawLiqShock(g, d, lg) {
     if (x.rec != null && x.rec <= A) { g.strokeStyle = c; g.lineWidth = 2.5; g.beginPath(); g.arc(X(x.rec), Y(0), 8, 0, 7); g.stroke(); const up = i % 2 === 0, y = up ? Y(0) - 46 - i * 6 : Y(0) + 14 + i * 6; g.fillStyle = c; rr(X(x.rec) - 56, y, 112, 28, 6); g.fill(); lt(g, lab, X(x.rec), y + 20, { s: 15, w: 900, c: '#0b1220', a: 'center' }); }
     else { const y = Y(0) + 14 + i * 34; g.fillStyle = c; rr(X(A) - 124, y, 120, 28, 6); g.fill(); lt(g, lab + (x.rec != null ? ' →' : ''), X(A) - 64, y + 20, { s: 15, w: 900, c: '#0b1220', a: 'center' }); } });
   shockNow(g, X, Y, y0, y1, d.now, en, d.now.d0 < -12);
-  const lg2 = [[CY, en ? `Now (last 30 days · ${B(d.now.s)})` : `今回（この30日・${B(d.now.s)}）`, null, 5]].concat(d.cases.map((x, i) => [CL[i], nm(x) + `（${B(x.s)}）`, [6, 5], 2.6]));
+  const ad = new Date(d.now.t), aj = `${ad.getUTCMonth() + 1}/${ad.getUTCDate()}`;
+  const lg2 = [[CY, d.n != null ? (en ? `Now (30 days to the ${aj} peak · ${B(d.now.s)})` : `今回（${aj}の山までの30日・${B(d.now.s)}）`) : (en ? `Now (last 30 days · ${B(d.now.s)})` : `今回（この30日・${B(d.now.s)}）`), null, 5]].concat(d.cases.map((x, i) => [CL[i], nm(x) + `（${B(x.s)}）`, [6, 5], 2.6]));
   lg2.forEach(([c, l, da, w], i) => { const xx = 40 + (i % 2) * 560, y = 652 + Math.floor(i / 2) * 28; g.strokeStyle = c; g.lineWidth = w; g.setLineDash(da || []); g.beginPath(); g.moveTo(xx, y); g.lineTo(xx + 40, y); g.stroke(); g.setLineDash([]); lt(g, l, xx + 50, y + 6, { s: 16, w: 800, c: '#e8f0fb' }); });
   g.strokeStyle = '#2a4466'; g.lineWidth = 1; g.beginPath(); g.moveTo(36, 700); g.lineTo(W - 36, 700); g.stroke();
   const rs = d.cases.map((x) => x.ym + ' ' + (x.rec == null ? (en ? 'not yet' : 'まだ') : x.rec + (en ? 'd' : '日'))).join(en ? ' · ' : '・');

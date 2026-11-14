@@ -432,14 +432,16 @@ try {
   const after = cur.days.filter((q) => q[0] >= 0), low = Math.min(...after.map((q) => q[1])), lowPosted = Math.min(0, ...mine.map((p) => { const c = p.img && p.img.shock && p.img.shock.ev[L.SHOCK.cur]; return c ? Math.min(...c.days.filter((q) => q[0] >= 0).map((q) => q[1])) : 0; }));
   const spikeNow = all.some((p) => p.sr === 'spike' && NOW - (p.due || 0) >= 0 && NOW - (p.due || 0) < 3 * H);
   const trig = cur.recover != null && !mine.some((p) => p.why === 'recover') ? 'recover' : (after.length && after[after.length - 1][1] === low && low <= lowPosted - 3 ? 'low' : (spikeNow ? 'spike' : null));
-  const h = L.J(NOW).getUTCHours(), busy = all.some((p) => { if (!L.isAuto(p) || p.sr === 'shockbn' || p.sr === 'shockcmp') return false; const d = p.due || 0; return L.SHOCKFIXED.has(p.sr) ? Math.abs(d - NOW) < G.fixed : d > NOW - G.before && d < NOW + G.after; });   // v251
+  const lsDay = Math.floor((NOW + 9 * H) / DAY) * DAY - 9 * H, lsAt = lsDay + L.LIQSHOCK.at, lsOn = (lsDay - Date.UTC(+L.LIQSHOCK.anchor.slice(0, 4), +L.LIQSHOCK.anchor.slice(5, 7) - 1, +L.LIQSHOCK.anchor.slice(8, 10))) / DAY <= L.LIQSHOCK.end && !all.some((p) => p.sr === 'liqshock' && p.img && p.img.ls && p.img.ls.now && p.img.ls.now.rec != null && p.id !== 'liqshock:' + L.isoDay(NOW));
+  const lsBusy = lsOn && Math.abs(NOW - lsAt) < L.LIQSHOCK.gap;   // v300: 大量清算の後のBTC(18:30)の前後2時間はショック比較を出さない(下書きができる前から)
+  const h = L.J(NOW).getUTCHours(), busy = all.some((p) => { if (!L.isAuto(p) || p.sr === 'shockbn' || p.sr === 'shockcmp') return false; const d = p.due || 0; return L.SHOCKFIXED.has(p.sr) ? Math.abs(d - NOW) < G.fixed : d > NOW - G.before && d < NOW + G.after; }) || lsBusy;   // v251 / v300
   const next = last && last.sr === 'shockbn' ? 'shockcmp' : 'shockbn';
   let force = null; try { force = await (await site('/api/admin/rx-one?name=sf')).json(); } catch (_) {}   // v252: /posts.html の「ショック比較を今出す」
   const fwhy = force && force.at && NOW - force.at < 3 * H && force.at > lastT ? 'f' + Math.floor(force.at / 60000) : null;
   if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(force.kind === 'shockbn' || force.kind === 'shockcmp' ? force.kind : next, fwhy);   // v254: ボタンで選んだほう
   else if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
-  else if (trig && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
+  else if (trig && !lsBusy && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
   else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < G.slotPerDay) put1(next, 'slot' + h);   // v258: 時刻を付けて、同じ日・同じ種類の2本目もぶつからない
   else if (today === 0 && h === G.last && NOW - lastT >= G.every) put1(next, 'slot' + h);   // v251: 22時台まで1本も出ていなければ、空きを待たずに出す(1日最低1本)
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
@@ -565,6 +567,21 @@ try {
     try { await site('/api/admin/rx-put?name=bm', { method: 'POST', headers: { 'content-type': 'text/plain' }, body }); LOG('✓ サイトへ保存しました'); } catch (e) { LOG('✗ サイトへ保存できません: ' + e.message + '（bad name ならサイトの Worker が古い版のまま）'); }
   }
 } catch (e) { console.log('[booms] ✗ 失敗', e.message); }
+
+// ---- 4d6) v300: 大量清算の後のBTC。毎日 18:30(日本時間)。0日目 = L.LIQSHOCK.anchor。前の価格に戻った日の分を出したら終わり(90日目まで)
+try {
+  const lsDay = Math.floor((NOW + 9 * H) / DAY) * DAY - 9 * H, id = 'liqshock:' + L.isoDay(NOW), A0 = Date.UTC(+L.LIQSHOCK.anchor.slice(0, 4), +L.LIQSHOCK.anchor.slice(5, 7) - 1, +L.LIQSHOCK.anchor.slice(8, 10));
+  const done = [...byId.values()].some((p) => p.sr === 'liqshock' && p.img && p.img.ls && p.img.ls.now && p.img.ls.now.rec != null);
+  if (NOW >= lsDay + L.LIQSHOCK.at && !byId.has(id) && !done && (lsDay - A0) / DAY >= 0 && (lsDay - A0) / DAY <= L.LIQSHOCK.end) {
+    const lj = await (await site('/api/liq?sym=BTC&step=86400')).json(), liq = (lj.buckets || []).map((x) => [x[0], x[1], x[2]]);
+    const k = []; let st = liq.length ? liq[0][0] - 40 * DAY : Date.UTC(2022, 6, 1);
+    while (st < NOW) { const j = await klines('BTCUSDT', '1d', st, 1000); if (!j || !j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + DAY; }
+    const cr = (JSON.parse(fs.readFileSync(path.join(here, '..', 'public', 'booms-data.json'), 'utf8')).crises) || [];
+    const sd = liq.length > 200 && k.length > 200 ? L.liqShock(k, liq, cr, 30, 90, L.LIQSHOCK.anchor) : null;
+    if (sd && sd.cases.length >= 2 && sd.n >= 1) { const d = L.liqShockDay(sd, NOW); put(d); console.log('[x] 大量清算の後のBTC:', d.id, sd.n + '日目', 'ja', L.xlen(d.ja)); }
+    else console.log('[x] 大量清算の後のBTC: データ不足', { liq: liq.length, k: k.length, n: sd && sd.n });
+  }
+} catch (e) { console.log('[x] 大量清算の後のBTC: 失敗', e.message); }
 
 // ---- 4d5) v273: 年表の投稿。週1(日曜12時〜・2017年〜今)と毎日(13時〜・直近1か月)。データは booms-data.json(手で集めた分と推定)＋DefiLlama
 try {

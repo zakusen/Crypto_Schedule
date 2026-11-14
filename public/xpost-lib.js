@@ -418,7 +418,7 @@ export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWi
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
 // v280: pre(発表前の予告)と arch(発表後の値動き)は自動投稿をやめた(ビューが少ないため。下書きは他の機能の材料として作り続ける。FOMC などの予告は fomc で別)
 // v298: 夜のまとめ(sum)・値動きの大きさ(vol)・BTC実況(pat)・ハッキング追跡(hack・bnstatus・bnreply)の自動投稿をやめた(ビューがほぼ無いため。下書きは作り続ける)
-export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (p.sr === 'histw' || p.sr === 'histm' || p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (p.sr === 'liqshock' || p.sr === 'histw' || p.sr === 'histm' || p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -1091,20 +1091,23 @@ export function liqDraft(st, now) {
   return { id: 'liqcmp:copy:' + now, sr: 'liqcmp', man: 1, due: now, ja, en, img: { lq: { ...st, y0, cj: st.cases.map((x) => dj(x.t)), ce: st.cases.map((x) => enDate(x.t)), at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` } } };
 }
 // v299: 大量清算の後のBTC(ショック後のBTC と同じ型)。30日間のロング清算が今回と同規模だった過去の時期を3つ。清算の山の日 = 0日目、30日前の終値 = 0%。「清算が積み上がる前の価格」に戻るまでの日数
-export function liqShock(k, liq, crises, D = 30, A = 90) {
+export function liqShock(k, liq, crises, D = 30, A = 90, anchor = null) {   // v300: anchor(YYYY-MM-DD)を渡すと、その日を清算の山(0日目)に固定して、今日まで線を伸ばす
   const dk = (t) => Math.floor(t / DAY), L = new Map(liq.map((x) => [dk(x[0]), x[1]])), c = k.map((x) => x[4]), n = k.length;
   const sum = (i) => { const d0 = dk(k[i][0]); let s = 0, m = 0; for (let j = d0 - D + 1; j <= d0; j++) if (L.has(j)) { s += L.get(j); m++; } return m >= D * .8 ? s : null; };
   const pts = []; for (let i = D; i < n; i++) { const s = sum(i); if (s != null) pts.push({ i, s }); }
-  const now = pts[pts.length - 1]; if (!now || now.i < n - 3) return null;
-  const peaks = []; for (const p of pts.filter((p) => p.i < n - 1 - 45).sort((a, b) => b.s - a.s)) { if (peaks.some((o) => Math.abs(o.i - p.i) < 45)) continue; peaks.push(p); }
+  let now = pts[pts.length - 1]; if (!now || now.i < n - 3) return null;
+  if (anchor) { const ta = Date.UTC(+anchor.slice(0, 4), +anchor.slice(5, 7) - 1, +anchor.slice(8, 10)), pa = pts.find((p) => k[p.i][0] === ta); if (!pa) return null; now = pa; }
+  const peaks = []; for (const p of pts.filter((p) => p.i < now.i - 45).sort((a, b) => b.s - a.s)) { if (peaks.some((o) => Math.abs(o.i - p.i) < 45)) continue; peaks.push(p); }
   const near = peaks.slice().sort((a, b) => Math.abs(Math.log(a.s / now.s)) - Math.abs(Math.log(b.s / now.s))).slice(0, 3).sort((a, b) => a.i - b.i);
   const dj = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}`; };
   const nm = (t) => { const cs = (crises || []).filter((x) => { const o = Math.round((Date.UTC(+x.d.slice(0, 4), +x.d.slice(5, 7) - 1, +x.d.slice(8, 10)) - t) / DAY); return o >= -D - 5 && o <= 5; }); return cs.length ? cs[cs.length - 1].n : ''; };
   const cases = near.map((p) => { const b = c[p.i - D], days = []; for (let d = -D; d <= A && p.i + d < n; d++) days.push([d, +((c[p.i + d] / b - 1) * 100).toFixed(2)]);
     let rec = null; for (let d = 1; p.i + d < n; d++) if (c[p.i + d] >= b) { rec = d; break; }
     return { t: k[p.i][0], s: p.s, days, d0: +((c[p.i] / b - 1) * 100).toFixed(1), rec, ym: dj(k[p.i][0]), name: nm(k[p.i][0]) }; });
-  const b = c[n - 1 - D], cur = []; for (let d = -D; d <= 0; d++) cur.push([d, +((c[n - 1 + d] / b - 1) * 100).toFixed(2)]);
-  return { D, A, now: { t: k[n - 1][0], s: now.s, days: cur, d0: cur[cur.length - 1][1], px: [b, c[n - 1]] }, cases, since: k[pts[0].i][0], nPeaks: peaks.length };
+  const ia = now.i, b = c[ia - D], cur = []; for (let d = -D; d <= A && ia + d < n; d++) cur.push([d, +((c[ia + d] / b - 1) * 100).toFixed(2)]);
+  const dn = cur[cur.length - 1][0]; let rec = null; for (let d = 1; ia + d < n && d <= A; d++) if (c[ia + d] >= b) { rec = d; break; }
+  cases.forEach((x) => { const q = x.days.find((z) => z[0] === dn); x.atN = q ? q[1] : null; });
+  return { D, A, anchor, n: anchor ? dn : null, now: { t: k[ia][0], s: now.s, days: cur, d0: cur[cur.length - 1][1], px: [b, c[Math.min(n - 1, ia + Math.max(0, dn))]], rec }, cases, since: k[pts[0].i][0], nPeaks: peaks.length };
 }
 export function liqShockDraft(st, now) {
   const B = (v) => '$' + (v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : Math.round(v / 1e6) + 'M'), sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear();
@@ -1113,4 +1116,17 @@ export function liqShockDraft(st, now) {
   let en = `BTC: ${B(st.now.s)} long liquidations in 30 days\n${st.cases.length} past periods of similar size: days to regain the pre-liquidation price\n\n` + st.cases.map((x) => `- ${x.ym}${x.name ? ' (' + x.name + ')' : ''} ${B(x.s)}: ${re(x)}`).join('\n') + `\n\nNow: ${sg(st.now.d0)} in 30 days\nPast record, not a forecast.`;
   for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
   return { id: 'liqshock:copy:' + now, sr: 'liqshock', man: 1, due: now, ja, en, img: { ls: { ...st, y0 } } };
+}
+
+// v300: 大量清算の後のBTC を毎日 18:30(日本時間)に。0日目 = LIQSHOCK.anchor に固定して、1日ずつ線を伸ばす。前の価格に戻った日か90日目で終わり。英語は出さない(ショック後のBTC と同じ)
+export const LIQSHOCK = { anchor: '2026-11-14', at: 18.5 * H, end: 90, gap: 2 * H };
+export function liqShockDay(st, now) {
+  const B = (v) => '$' + (v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : Math.round(v / 1e6) + 'M'), sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear(), N = st.n;
+  const ad = new Date(st.now.t), aj = `${ad.getUTCMonth() + 1}/${ad.getUTCDate()}`, rj = (x) => x.rec == null ? 'まだ' : x.rec + '日';
+  const head = st.now.rec != null ? `清算が積み上がる前の価格に、${st.now.rec}日目で戻りました` : `今回 ${sg(st.now.d0)}(清算が積み上がる前の価格＝0%)`;
+  const mk = (cs) => `大量清算の後のBTC ${N}日目\n30日間のロング清算 ${B(st.now.s)} の山(${aj})から${N}日\n${head}\n\n同規模だった過去の、同じ${N}日目\n` + cs.map((x) => `・${x.ym}${x.name ? '(' + x.name + ')' : ''} ${sg(x.atN)} 戻るまで${rj(x)}`).join('\n') + `\n\n過去の記録。予測ではありません`;
+  let ja = mk(st.cases); if (xlen(ja) > 280) ja = mk(st.cases.map((x) => ({ ...x, name: '' })));
+  for (const tg of ['\n#ビットコイン #BTC', '\n#BTC', '']) if (xlen(ja + tg) <= 280) { ja += tg; break; }
+  const day = Math.floor((now + JST) / DAY) * DAY - JST;
+  return { id: 'liqshock:' + isoDay(now), sr: 'liqshock', due: day + LIQSHOCK.at, langs: ['ja'], ja, en: '', img: { ls: { ...st, y0 } } };
 }
