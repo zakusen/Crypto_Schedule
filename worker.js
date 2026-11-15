@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-11-15-v301';
+const VERSION = '2026-11-15-v307';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -2056,6 +2056,8 @@ export default {
     if (url.pathname === '/api/stake') return cached(ctx, request, 120, () => stakeApi(env, url.searchParams.get('sym')));
     if (url.pathname === '/api/liqimpact') { const r = await liqImpactGated(ctx, request, env, url); r.headers.set('cache-control', 'private, no-store'); return r; }   // v164: 清算×指標(平常比) / v168: 全回は有料
     if (url.pathname === '/api/liq') return cached(ctx, request, 20, () => liqApi(env, url));
+    if (url.pathname === '/api/fng') return cached(ctx, request, 3600, async () => {   // v305: 恐怖指数(alternative.me)の全期間の中継(ブラウザから直接取れない時用)
+      try { const r = await fetch('https://api.alternative.me/fng/?limit=0&format=json', { headers: { 'User-Agent': 'signal-archive/1.0', Accept: 'application/json' } }); const t = await r.text(); return new Response(t, { status: r.status, headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*' } }); } catch (e) { return json({ error: String((e && e.message) || e) }, 502); } });
     if (url.pathname === '/api/cb') return cached(ctx, request, 3600, async () => {   // v301: Coinbase BTC-USD 日足の中継(ブラウザから直接取れない時用)。start/end = ISO 日付、最大300日
       const st = url.searchParams.get('start') || '', en = url.searchParams.get('end') || '';
       if (!/^\d{4}-\d\d-\d\d$/.test(st) || !/^\d{4}-\d\d-\d\d$/.test(en)) return json({ error: 'bad params' }, 400);

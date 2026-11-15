@@ -1143,3 +1143,76 @@ export function cbPremium(cb, bn, k) {
   const cur = R.length && R[R.length - 1].open ? R[R.length - 1] : null;
   return { pr, runs: R.slice().sort((a, b) => b.days - a.days), cur, last: pr[pr.length - 1] };
 }
+// v302: Coinbase プレミアムの連続マイナス(2020年以降。2018〜19年は USDT の価格のずれで Binance の価格が歪むため除く)。日足の終値で比べる(CoinGlass の数え方とは違う)
+//   連続マイナスの始まった日を0日目にそろえ、その日の前日の終値＝0%。今回と、過去の長い3回。過去の回は終わった日と、その30日後
+export function cbStudy(cb, bn, k, from = '2020-01-01', top = 3) {
+  const t0 = Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10)), r = cbPremium(cb.filter((x) => x[0] >= t0), bn, k);
+  if (!r.cur) return { none: true, last: r.last };
+  const dk = (t) => Math.floor(t / DAY), K = new Map(k.map((x, i) => [dk(x[0]), i])), c = k.map((x) => x[4]);
+  const path = (from2, len, ext) => { const i = K.get(dk(from2)); if (i == null || i < 1) return []; const b = c[i - 1], o = [[0, 0]]; for (let d = 0; d < len + ext && i + d < c.length; d++) o.push([d + 1, +((c[i + d] / b - 1) * 100).toFixed(2)]); return o; };   // 0日目 = 前日の終値、1日目 = 始まった日
+  const past = r.runs.filter((x) => !x.open).slice(0, top).sort((a, b) => a.from - b.from).map((x) => ({ ...x, days2: path(x.from, x.days, 30) }));
+  const rank = 1 + r.runs.filter((x) => !x.open && x.days > r.cur.days).length;
+  return { since: t0, cur: { ...r.cur, days2: path(r.cur.from, r.cur.days, 0) }, past, rank, n: r.runs.length, last: r.last };
+}
+export function cbDraft(st, now) {
+  const ym = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}`; }, m = (t) => new Date(t).getUTCMonth() + 1, sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const y0 = new Date(st.since).getUTCFullYear(), c = st.cur, best = st.past.slice().sort((a, b) => b.days - a.days)[0];
+  const rk = st.rank === 1 ? `${y0}年以降で最長` : `${y0}年以降で${st.rank}番目の長さ(1位は${ym(best.from)}〜${m(best.to)}月の${best.days}日)`;
+  const rke = st.rank === 1 ? `the longest since ${y0}` : `#${st.rank} since ${y0} (record: ${best.days} days, ${ym(best.from)}–${m(best.to)})`;
+  let ja = `Coinbaseプレミアム ${c.days}日連続マイナス\n${rk}\n\n過去の長い回が終わった後30日のBTC\n` + st.past.map((x) => `・${ym(x.from)}〜${m(x.to)}月 ${x.days}日→${sg(x.after30)}`).join('\n') + `\n\n今回の${c.days}日間のBTC ${sg(c.during)}\n日足の終値で比較。予測ではありません`;
+  let en = `Coinbase premium: negative for ${c.days} straight days\n${rke}\n\nBTC 30 days after past long streaks ended\n` + st.past.map((x) => `- ${ym(x.from)}–${m(x.to)}: ${x.days}d → ${sg(x.after30)}`).join('\n') + `\n\nBTC over these ${c.days} days: ${sg(c.during)}\nDaily closes. Not a forecast.`;
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  return { id: 'cbprem:copy:' + now, sr: 'cbprem', man: 1, due: now, ja, en, img: { cb: { ...st, y0, cy: st.past.map((x) => ym(x.from) + '〜' + m(x.to) + '月'), ce: st.past.map((x) => ym(x.from) + '–' + m(x.to)) } } };
+}
+// v303: 最高値の半値。前の2回の下げ相場(2017/12・2021/11 の最高値)と今回を、最高値の日からの日数でそろえ、最高値からの下げ(%)を重ねる。半値を割った日(安値)と底(終値の最安)に印
+export const HALF_CYC = [{ k: '2018', ja: '2017→18年', en: '2017–18', a: '2017-09-01', b: '2019-06-30' }, { k: '2022', ja: '2021→22年', en: '2021–22', a: '2021-01-01', b: '2023-06-30' }, { k: 'now', ja: '今回', en: 'Now', a: '2024-01-01', b: '2099-01-01' }];
+export function halfStudy(k) {
+  const U = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+  return HALF_CYC.map((cy) => { const idx = k.map((x, i) => i).filter((i) => k[i][0] >= U(cy.a) && k[i][0] <= U(cy.b)); if (!idx.length) return null;
+    let ia = idx[0]; for (const i of idx) if (k[i][2] > k[ia][2]) ia = i; const ath = k[ia][2];
+    let rec = null; if (cy.k !== 'now') { for (let i = ia + 1; i < k.length; i++) if (k[i][4] >= ath) { rec = { d: i - ia, t: k[i][0] }; break; } }   // v304: 最高値(日足の高値)を終値で取り戻した日
+    const end = cy.k === 'now' ? k.length - 1 : Math.min(k.length - 1, ia + (rec ? rec.d + 30 : 1300)), path = []; let half = null, ib = ia;
+    for (let i = ia; i <= end; i++) { path.push([i - ia, +((k[i][4] / ath - 1) * 100).toFixed(2)]); if (half == null && k[i][3] <= ath / 2) half = { d: i - ia, t: k[i][0], low: k[i][3] }; if ((!rec || i - ia <= rec.d) && k[i][4] < k[ib][4]) ib = i; }
+    const bot = { d: ib - ia, t: k[ib][0], pct: +((k[ib][4] / ath - 1) * 100).toFixed(1), px: k[ib][4] };
+    return { ...cy, ath, athT: k[ia][0], path, half, bot, rec, now: k[end][4], nowPct: +((k[end][4] / ath - 1) * 100).toFixed(1), lowPct: +((Math.min(...k.slice(ia, end + 1).map((x) => x[3])) / ath - 1) * 100).toFixed(1), last: end - ia }; }).filter(Boolean);
+}
+export function halfDraft(cs, now) {
+  const cur = cs.find((x) => x.k === 'now'), past = cs.filter((x) => x.k !== 'now'), $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), ym = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+  const hj = cur.half ? `BTC、最高値の半値割れ(最高値から${cur.half.d}日)` : `BTC 最高値から ${cur.nowPct}%(半値まで あと${(-50 - cur.nowPct).toFixed(1)}%)`;
+  const he = cur.half ? `BTC below half its ATH (${cur.half.d} days after the peak)` : `BTC ${cur.nowPct}% from its ATH`;
+  const mk = (lowLine) => {
+    const ja = `${hj}\n` + (lowLine ? `最高値 ${$(cur.ath)}(${ym(cur.athT)})→安値 ${$(cur.ath * (1 + cur.lowPct / 100))}\n` : '') + `\n前の2回は\n` + past.map((x) => `・${x.ja} 半値${x.half ? x.half.d + '日目' : 'なし'}→底${x.bot.pct}%(${x.bot.d}日目)→最高値へ${x.rec ? x.rec.d + '日目' : 'まだ'}`).join('\n') + `\n\n今回は最高値から${cur.last}日目\n過去の記録。予測ではありません`;
+    const en = `${he}\n` + (lowLine ? `ATH ${$(cur.ath)} (${ym(cur.athT)}) → low ${$(cur.ath * (1 + cur.lowPct / 100))}\n` : '') + `\nPrevious two:\n` + past.map((x) => `- ${x.en}: half d${x.half ? x.half.d : '—'}, bottom ${x.bot.pct}% d${x.bot.d}, ATH again d${x.rec ? x.rec.d : '—'}`).join('\n') + `\n\nNow: day ${cur.last}. Past record, not a forecast.`;
+    return [ja, en]; };
+  let [ja, en] = mk(true); if (xlen(ja) > 280 || xlen(en) > 280) [ja, en] = mk(false);
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  return { id: 'half:copy:' + now, sr: 'half', man: 1, due: now, ja, en, img: { half: { cs } } };
+}
+
+// v305: 恐怖指数(alternative.me Fear & Greed)が今の値以下になった過去の回と、その後60日のBTC。回 = 指数が今の値以下になった最初の日(前の回から30日以上あける)。0日目の終値＝0%
+export function fngStudy(fng, k, crises, A = 60, TH = 24, MAXD = 600) {   // v306: 回の区切りは「極度の恐怖(24以下)に入った日」に固定(今の値ではなく)
+  const dk = (t) => Math.floor(t / DAY), F = new Map(fng.map((x) => [dk(x[0]), x[1]])), K = new Map(k.map((x, i) => [dk(x[0]), i])), c = k.map((x) => x[4]);
+  const last = fng.reduce((a, x) => x[0] > a[0] ? x : a, fng[0]), th = TH, days = [...F.keys()].sort((a, b) => a - b);
+  const ep = []; let lastLow = -1e9; for (const d of days) { if (F.get(d) <= th) { if (d - lastLow > 30) ep.push(d); lastLow = d; } }   // 新しい回 = 30日を超えてその水準より上にいた後、また下がった日
+  const nowD = dk(last[0]), curD = ep.length && nowD - ep[ep.length - 1] <= 90 ? ep[ep.length - 1] : nowD, past = ep.filter((d) => d !== curD);
+  const nm = (t) => { const cs = (crises || []).filter((x) => Math.abs(Math.round((Date.UTC(+x.d.slice(0, 4), +x.d.slice(5, 7) - 1, +x.d.slice(8, 10)) - t) / DAY)) <= 14); return cs.length ? cs[cs.length - 1].n : ''; };
+  const one = (d0, len) => { const i = K.get(d0); if (i == null) return null; const b = c[i];
+    // v307: 元値(0日目の終値)に戻るまで。底は「元値に戻るまで」の間の最安。線は戻った日の10日後まで(最長 MAXD 日)
+    let rec = null; for (let d = 1; i + d < c.length && d <= MAXD; d++) if (c[i + d] >= b && d > 1) { const lowBefore = Math.min(...k.slice(i + 1, i + d).map((x) => x[3])); if (lowBefore < b) { rec = d; break; } }
+    let mn = 0, md = 0; for (let d = 1; d <= (rec || MAXD) && i + d < c.length; d++) { const v = (k[i + d][3] / b - 1) * 100; if (v < mn) { mn = v; md = d; } }
+    const L2 = rec ? Math.min(MAXD, rec + 10) : MAXD, p = []; for (let d = 0; d <= L2 && i + d < c.length; d++) p.push([d, +((c[i + d] / b - 1) * 100).toFixed(2)]);
+    return { t: k[i][0], v: F.get(d0), p, dd: +mn.toFixed(1), ld: md, rec, a30: i + 30 < c.length ? +((c[i + 30] / b - 1) * 100).toFixed(1) : null, name: nm(k[i][0]) }; };
+  const cases = past.map((d) => one(d, A)).filter((x) => x && x.a30 != null), cur = one(curD, A), recN = cases.filter((x) => x.rec != null).length;
+  const med = (a) => { a = a.filter((v) => v != null).sort((x, y) => x - y); if (!a.length) return null; const h = a.length >> 1; return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2; };
+  return { th, nowV: last[1], cls: last[2] || '', cur, cases, recN, MAXD, up30: cases.filter((x) => x.a30 > 0).length, ddMed: med(cases.map((x) => x.dd)), recMed: med(cases.map((x) => x.rec)), since: fng[fng.length - 1] ? Math.min(...fng.map((x) => x[0])) : 0, A };
+}
+export function fngDraft(st, now) {
+  const ym = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}`; }, sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear(), N = st.cases.length;
+  const JA = { 'Extreme Fear': '極度の恐怖', Fear: '恐怖', Neutral: '中立', Greed: '強欲', 'Extreme Greed': '極度の強欲' }, labE = st.cls || '', lab = JA[labE] || labE;   // v306: 区分は alternative.me の value_classification をそのまま
+  const show = st.cases.slice().sort((a, b) => b.t - a.t).slice(0, 4).sort((a, b) => a.t - b.t);
+  const mk = (cs) => [`恐怖指数 ${st.nowV}(${lab})\n${y0}年以降、極度の恐怖(${st.th}以下)に入った過去${N}回\n入った日の価格(元値)に戻ったのは${st.recN}回・中央値${st.recMed == null ? '—' : Math.round(st.recMed) + '日'}\nその間の底 中央値${sg(st.ddMed)}\n\n` + cs.map((x) => `・${ym(x.t)}${x.name ? '(' + x.name + ')' : ''} 底${sg(x.dd)}→元値まで${x.rec == null ? st.MAXD + '日超' : x.rec + '日'}`).join('\n') + `\n\n過去の記録。予測ではありません`,
+    `Fear & Greed ${st.nowV} (${labE})\n${N} past entries into Extreme Fear (≤${st.th}) since ${y0}\nBack to the entry-day price: ${st.recN}/${N}, median ${st.recMed == null ? '—' : Math.round(st.recMed) + 'd'}\nLow in between, median ${sg(st.ddMed)}\n\n` + cs.map((x) => `- ${ym(x.t)}${x.name ? ' (' + x.name + ')' : ''}: low ${sg(x.dd)}, back in ${x.rec == null ? '>' + st.MAXD + 'd' : x.rec + 'd'}`).join('\n') + `\n\nPast record. Not a forecast.`];
+  let n = show.length, [ja, en] = mk(show); while (n > 1 && (xlen(ja) > 280 || xlen(en) > 280)) [ja, en] = mk(show.slice(-(--n)));
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  return { id: 'fng:copy:' + now, sr: 'fng', man: 1, due: now, ja, en, img: { fng: { ...st, y0, lab, labE, show } } };
+}

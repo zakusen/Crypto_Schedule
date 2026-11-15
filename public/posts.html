@@ -134,10 +134,13 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
     </div></div>
   <div class="tg"><div class="tgh"><b>過去と比べてコピペで出す</b><span>大きく動いた時に。2017年(清算は2022年8月)からのデータで比べます</span></div>
     <div class="tl">
+      <div class="ti"><button class="chip" id="fngBtn">😱 恐怖指数が極度の恐怖に入った時</button><span class="td">極度の恐怖(24以下)に入った過去の回と、その後60日のBTC(2018年〜)</span></div>
+      <div class="ti"><button class="chip" id="halfBtn">🌗 最高値の半値</button><span class="td">最高値からの下げを、前の2回の下げ相場(2018・2022)と最高値の日でそろえて比べる</span></div>
       <div class="ti"><button class="chip" id="lqcBtn" title="この30日の下落幅と、30日間のロング清算額が、どちらも今回に近い過去の回(2022年8月以降)を探し、その後30日を並べた本文と画像を作る(コピペで投稿)">💥 大量清算の後のBTC</button><span class="td">30日の清算が同規模だった過去と、戻るまでの日数</span></div>
       <div class="ti"><button class="chip" id="dpBtn" title="BTC がこの30日で大きく下げた時に。同じだけ下げた過去の回(2017年〜)のうち、形が最も近い回のその後60日と、過去の回の半分が入る幅を重ねた本文と画像を作る(コピペで投稿)">📉 下落のその後をコピペで作る</button><span class="td">30日で10%以上下げた時、最も近い過去のその後60日</span></div>
       <div class="ti"><button class="chip" id="cpBtn" title="今回の下げと、形が最も近い過去の回を上下に並べ、それぞれの時期の FOMC・米CPI・大きな流出/破綻を印で付けた本文と画像を作る(コピペで投稿)">🧭 最も近い過去と、その時期の出来事</button><span class="td">最も近い過去と、それぞれの時期の出来事</span></div>
       <div class="ti"><button class="chip" id="smBtn" title="直近24時間のBTCの形(1時間足)に近い過去の24時間を2017年から探し、その後72時間を並べた本文と画像を作る(コピペで投稿)">🔎 今日と同じ形を探す</button><span class="td">直近24時間に形が近い過去の日と、その後72時間</span></div>
+      <div class="ti"><button class="chip" id="cbBtn">🇺🇸 Coinbase プレミアムの連続マイナス</button><span class="td">連続マイナスの日数を、2020年以降の長い回と比べる</span></div>
       <div class="ti"><button class="chip" id="cbvBtn">🔍 Coinbase プレミアムを検証</button><span class="td">毎日のプレミアム・連続マイナス日数・過去の長い順(投稿はしない)</span></div>
       <div class="ti"><button class="chip" id="ceoBtn" title="暗号資産・AI の主要企業のトップが事件や疑惑の中で退いた日(Celsius・FTX・Binance・NVIDIA)の前後30日のBTCを、退いた日を真ん中にして重ねた本文と画像を作る(コピペで投稿)">👔 トップが退いた日のBTC</button><span class="td">CEO が退いた日の前後のBTC</span></div>
     </div></div>
@@ -609,10 +612,26 @@ runBtn('lqcBtn', async (b) => { b.textContent = '清算と建玉を読み込み�
   const cr = ((await (await fetch('/booms-data.json')).json()) || {}).crises || [];
   const sd = L.liqShock(k, liq, cr); if (!sd) throw new Error('今日までの清算がそろっていません'); if (sd.cases.length < 2) throw new Error('比べられる過去の時期が少なすぎます');
   return L.liqShockDraft(sd, now); });
+// v305: 恐怖指数(alternative.me)。ブラウザから直接、だめならサイトの中継 /api/fng
+runBtn('fngBtn', async (b) => { b.textContent = '恐怖指数を読み込み中…'; let j = null;
+  try { const r = await fetch('https://api.alternative.me/fng/?limit=0&format=json'); if (r.ok) j = await r.json(); } catch (_) {}
+  if (!j || !j.data) { const r = await fetch('/api/fng'); if (!r.ok) throw new Error('恐怖指数が取れません HTTP ' + r.status); j = await r.json(); }
+  const fng = (j.data || []).map((x) => [Number(x.timestamp) * 1000, Number(x.value), x.value_classification || '']).filter((x) => x[0] > 0 && Number.isFinite(x[1])); if (fng.length < 500) throw new Error('恐怖指数の日数が足りません(' + fng.length + ')');
+  const k = []; let st = Date.UTC(2018, 0, 1), host = null; const now = Date.now();
+  while (st < now) { let jj = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { jj = await r.json(); host = h; break; } } catch (_) {} }
+    if (!jj) throw new Error('Binance の日足が取れません'); if (!jj.length) break; for (const x of jj) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +jj[jj.length - 1][0] + 864e5; b.textContent = `取得中… ${new Date(st).getUTCFullYear()}年`; }
+  const cr = ((await (await fetch('/booms-data.json')).json()) || {}).crises || [];
+  const sd = L.fngStudy(fng, k, cr); if (sd.nowV > 24) throw new Error('今の恐怖指数は ' + sd.nowV + '(' + sd.cls + ')で、極度の恐怖(24以下)ではありません'); if (sd.cases.length < 3) throw new Error('比べる過去の回が少なすぎます(' + sd.cases.length + '回・指数' + sd.th + ')'); return L.fngDraft(sd, now); });
+// v303: 最高値の半値(Binance 日足 2017年〜)
+runBtn('halfBtn', async (b) => { const k = []; let st = Date.UTC(2017, 7, 17), host = null; const now = Date.now();
+  while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
+    if (!j) throw new Error('Binance の日足が取れません'); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 864e5; b.textContent = `取得中… ${new Date(st).getUTCFullYear()}年`; }
+  const cs = L.halfStudy(k); if (cs.length < 3) throw new Error('3つの下げ相場がそろいません'); return L.halfDraft(cs, now); });
+// v302: Coinbase プレミアムの連続マイナスをコピペで
+runBtn('cbBtn', async (b) => { const { cb, k } = await cbFetch(b); const st = L.cbStudy(cb, k.map((x) => [x[0], x[4]]), k); if (st.none) throw new Error('今は連続マイナス中ではありません(最新 ' + st.last[1].toFixed(3) + '%)'); if (st.past.length < 2) throw new Error('比べる過去の回が少なすぎます'); return L.cbDraft(st, Date.now()); });
 // v301: Coinbase プレミアムの検証(投稿は作らない。結果を表で出すだけ)
-document.getElementById('cbvBtn').onclick = async (e) => {
-  const b = e.currentTarget, t0 = b.textContent; b.disabled = true; let via = 'ブラウザから直接';
-  try {
+async function cbFetch(b) {   // v302: Coinbase と Binance の日足(2017年〜)。検証と投稿で共通
+  let via = 'ブラウザから直接';
     const cb = []; const day = 864e5, now = Date.now(); let st = Date.UTC(2017, 7, 17);
     while (st < now) { const en = Math.min(st + 299 * day, now), s1 = new Date(st).toISOString().slice(0, 10), e1 = new Date(en).toISOString().slice(0, 10); let j = null;
       if (via === 'ブラウザから直接') { try { const r = await fetch(`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=86400&start=${s1}T00:00:00Z&end=${e1}T00:00:00Z`); if (r.ok) j = await r.json(); } catch (_) {} if (!j) via = 'サイトの中継(/api/cb)'; }
@@ -622,6 +641,12 @@ document.getElementById('cbvBtn').onclick = async (e) => {
     const k = []; st = Date.UTC(2017, 7, 17); let host = null;
     while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
       if (!j) throw new Error('Binance の日足が取れません'); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + day; b.textContent = `Binance 取得中… ${new Date(st).getUTCFullYear()}年`; }
+  return { cb, k, via };
+}
+document.getElementById('cbvBtn').onclick = async (e) => {
+  const b = e.currentTarget, t0 = b.textContent; b.disabled = true;
+  try {
+    const { cb, k, via } = await cbFetch(b);
     const r = L.cbPremium(cb, k.map((x) => [x[0], x[4]]), k), d = (t) => new Date(t).toISOString().slice(0, 10), f = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
     let box = document.getElementById('cbvBox'); if (!box) { box = document.createElement('div'); box.id = 'cbvBox'; box.style.cssText = 'margin:14px 20px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;font:13px/1.7 system-ui;color:var(--tx);white-space:pre-wrap;overflow:auto'; (document.getElementById('tools') || b.parentNode).after(box); }
     box.textContent = `Coinbase プレミアムの検証（日足の終値で計算・データ ${via}）\n` +
