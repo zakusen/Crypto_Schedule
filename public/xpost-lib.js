@@ -1225,3 +1225,41 @@ export function fngDraft(st, now) {
   for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
   return { id: 'fng:copy:' + now, sr: 'fng', man: 1, due: now, ja, en, img: { fng: { ...st, y0, lab, labE, show } } };
 }
+// v313: V字リバウンド。今の「30日で大きく下げた底 → そこから戻した」と同じ形の過去の回を探し、その後30日で前の底を割ったかを数える。
+//   k = Binance 日足 [[t,o,h,l,c]] 古い順。x = 底からの日数、y = 底(その日の安値)からの%。
+export function vStudy(k, crises, A = 30) {
+  const n = k.length, lo = k.map((x) => x[3]), hi = k.map((x) => x[2]), c = k.map((x) => x[4]), last = n - 1;
+  const nm = (t) => { const cs = (crises || []).filter((x) => Math.abs(Math.round((Date.UTC(+x.d.slice(0, 4), +x.d.slice(5, 7) - 1, +x.d.slice(8, 10)) - t) / DAY)) <= 21); return cs.length ? cs[cs.length - 1].n : ''; };
+  const mxH = (a, b) => { let m = 0; for (let i = Math.max(0, a); i <= b; i++) m = Math.max(m, hi[i]); return m; };
+  let bi = last; for (let i = last; i >= last - 21 && i > 0; i--) if (lo[i] < lo[bi]) bi = i;   // 今の底 = 直近21日の最安
+  const dn = last - bi, bounce = (c[last] / lo[bi] - 1) * 100, drop = (lo[bi] / mxH(bi - 30, bi) - 1) * 100;
+  let B = Math.max(5, Math.floor(bounce)), DR = Math.max(10, Math.floor(-drop / 5) * 5);
+  const path = (j, len) => { const p = []; for (let d = 0; d <= len && j + d < n; d++) p.push([d, +((c[j + d] / lo[j] - 1) * 100).toFixed(2)]); return p; };
+  const scan = () => { const cases = []; let skip = -1;
+  for (let i = 31; i < last - 2; i++) { if (i <= skip) continue;
+    let j = i; for (let q = i; q >= i - 21 && q > 30; q--) if (lo[q] < lo[j]) j = q;
+    if (j === i || (lo[j] / mxH(j - 30, j) - 1) * 100 > -DR || (c[i] / lo[j] - 1) * 100 < B) continue;
+    let brk = null; for (let d = 1; d <= A && i + d < n; d++) if (lo[i + d] < lo[j]) { brk = i + d - j; break; }
+    const ok = i + A <= last || brk != null; if (ok) cases.push({ t: k[j][0], ti: k[i][0], dn: i - j, brk, a30: i + A <= last ? +((c[i + A] / c[i] - 1) * 100).toFixed(1) : null, up: +((c[i] / lo[j] - 1) * 100).toFixed(1), drop: +((lo[j] / mxH(j - 30, j) - 1) * 100).toFixed(1), p: path(j, i - j + A), name: nm(k[j][0]) });
+    skip = i + 45; }
+  return cases; };
+  // 過去の回が8回に届くまで、下げ幅を5%ずつ(最小10%)、戻し幅を2%ずつ(最小5%)ゆるめる
+  let cases = scan(); while (cases.length < 8 && (DR > 10 || B > 5)) { if (DR > 10) DR -= 5; else B = Math.max(5, B - 2); cases = scan(); }
+  const med = (a) => { a = a.filter((v) => v != null).sort((x, y) => x - y); if (!a.length) return null; const h = a.length >> 1; return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2; };
+  const br = cases.filter((x) => x.brk != null);
+  return { B, DR, A, bounce: +bounce.toFixed(1), drop: +drop.toFixed(1), dn, low: lo[bi], lowT: k[bi][0], nowP: c[last], cur: { t: k[bi][0], p: path(bi, dn) }, cases, brkN: br.length, brkMed: med(br.map((x) => x.brk)), a30Med: med(cases.filter((x) => x.brk == null).map((x) => x.a30)), since: k[0][0] };
+}
+export function vDraft(st, now) {
+  const ym = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}`; }, md = (t) => { const d = new Date(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear(), N = st.cases.length, ok = N - st.brkN;
+  const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), show = st.cases.slice().sort((a, b) => b.t - a.t).slice(0, 10).sort((a, b) => a.t - b.t);
+  const mk = (m) => { const rc = m ? show.slice(-m).reverse() : [];
+    const ja = [`BTC 底から${sg(st.bounce)}(${md(st.lowT)}の${$(st.low)}から${st.dn}日)`, `${y0}年以降、30日で${st.DR}%以上下げた後に底から${st.B}%以上戻した過去${N}回`, '', `その後30日で前の底を割った ${st.brkN}回`, st.brkN ? `・割ったのは 中央値で底から${Math.round(st.brkMed)}日目` : null, `割らなかった ${ok}回`, ok && st.a30Med != null ? `・30日後 中央値${sg(st.a30Med)}` : null,
+      m ? '' : null, ...rc.map((x) => `・${ym(x.t)}${x.name ? '(' + x.name + ')' : ''} ${x.brk != null ? x.brk + '日目に底割れ' : '割らず'}`), '', '過去の記録。予測ではありません'];
+    const en = [`BTC ${sg(st.bounce)} off the low (${$(st.low)} on ${md(st.lowT)}, ${st.dn}d ago)`, `Since ${y0}: ${N} times BTC bounced ${st.B}%+ off a low after a ${st.DR}%+ 30-day drop`, '', `Broke that low within 30 days: ${st.brkN}`, st.brkN ? `- median: day ${Math.round(st.brkMed)} from the low` : null, `Held the low: ${ok}`, ok && st.a30Med != null ? `- 30 days later, median ${sg(st.a30Med)}` : null,
+      m ? '' : null, ...rc.map((x) => `- ${ym(x.t)}${x.name ? ' (' + x.name + ')' : ''}: ${x.brk != null ? 'broke on day ' + x.brk : 'held'}`), '', 'Past record. Not a forecast.'];
+    return [ja, en].map((a) => a.filter((v) => v != null).join('\n')); };
+  let m = Math.min(3, show.length), [ja, en] = mk(m); while (m > 0 && (xlen(ja) > 280 || xlen(en) > 280)) [ja, en] = mk(--m);
+  if (m === 1) [ja, en] = mk(0);   // 1回だけの箇条書きは出さない
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  return { id: 'vreb:copy:' + now, sr: 'vreb', man: 1, due: now, ja, en, img: { vreb: { ...st, y0, show } } };
+}

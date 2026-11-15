@@ -134,6 +134,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
     </div></div>
   <div class="tg"><div class="tgh"><b>過去と比べてコピペで出す</b><span>大きく動いた時に。2017年(清算は2022年8月)からのデータで比べます</span></div>
     <div class="tl">
+      <div class="ti"><button class="chip" id="vrBtn" title="直近21日の底から戻している時に。30日で同じくらい下げた後、同じくらい戻した過去の回(2017年〜)が、その後30日で前の底を割ったかを並べた本文と画像を作る(コピペで投稿)">↩️ V字リバウンドは続いたか</button><span class="td">底から戻した過去の回が、その後30日で前の底を割ったか</span></div>
       <div class="ti"><button class="chip" id="fngBtn">😱 恐怖指数が極度の恐怖に入った時</button><span class="td">極度の恐怖(24以下)に入った過去の回と、その後60日のBTC(2018年〜)</span></div>
       <div class="ti"><button class="chip" id="lqcBtn" title="この30日の下落幅と、30日間のロング清算額が、どちらも今回に近い過去の回(2022年8月以降)を探し、その後30日を並べた本文と画像を作る(コピペで投稿)">💥 大量清算の後のBTC</button><span class="td">30日の清算が同規模だった過去と、戻るまでの日数</span></div>
       <div class="ti"><button class="chip" id="dpBtn" title="BTC がこの30日で大きく下げた時に。同じだけ下げた過去の回(2017年〜)のうち、形が最も近い回のその後60日と、過去の回の半分が入る幅を重ねた本文と画像を作る(コピペで投稿)">📉 下落のその後をコピペで作る</button><span class="td">30日で10%以上下げた時、最も近い過去のその後60日</span></div>
@@ -612,6 +613,11 @@ runBtn('lqcBtn', async (b) => { b.textContent = '清算と建玉を読み込み�
   const sd = L.liqShock(k, liq, cr); if (!sd) throw new Error('今日までの清算がそろっていません'); if (sd.cases.length < 2) throw new Error('比べられる過去の時期が少なすぎます');
   return L.liqShockDraft(sd, now); });
 // v305: 恐怖指数(alternative.me)。ブラウザから直接、だめならサイトの中継 /api/fng
+runBtn('vrBtn', async (b) => { const k = []; let st = Date.UTC(2017, 7, 17), host = null; const now = Date.now();   // v313
+  while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
+    if (!j) throw new Error('Binance の日足が取れません'); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 864e5; b.textContent = `取得中… ${new Date(st).getUTCFullYear()}年`; }
+  const cr = ((await (await fetch('/booms-data.json')).json()) || {}).crises || [];
+  const sd = L.vStudy(k, cr); if (sd.dn < 1 || sd.bounce < 5) throw new Error(`今は底から ${sd.bounce}%(${sd.dn}日)で、リバウンド中とは言えません`); if (sd.drop > -10) throw new Error(`底の前の下げが ${sd.drop}% で、10%以上ではありません`); if (sd.cases.length < 3) throw new Error('比べる過去の回が少なすぎます(' + sd.cases.length + '回)'); return L.vDraft(sd, now); });
 runBtn('fngBtn', async (b) => { b.textContent = '恐怖指数を読み込み中…'; let j = null;
   try { const r = await fetch('https://api.alternative.me/fng/?limit=0&format=json'); if (r.ok) j = await r.json(); } catch (_) {}
   if (!j || !j.data) { const r = await fetch('/api/fng'); if (!r.ok) throw new Error('恐怖指数が取れません HTTP ' + r.status); j = await r.json(); }
