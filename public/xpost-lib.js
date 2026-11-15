@@ -1210,9 +1210,18 @@ export function fngDraft(st, now) {
   const ym = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}`; }, sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear(), N = st.cases.length;
   const JA = { 'Extreme Fear': '極度の恐怖', Fear: '恐怖', Neutral: '中立', Greed: '強欲', 'Extreme Greed': '極度の強欲' }, labE = st.cls || '', lab = JA[labE] || labE;   // v306: 区分は alternative.me の value_classification をそのまま
   const show = st.cases.slice().sort((a, b) => b.t - a.t).slice(0, 10).sort((a, b) => a.t - b.t);   // v309: 画像の色付きの線は新しい10回(本文は入るだけ)
-  const mk = (cs) => [`恐怖指数 ${st.nowV}(${lab})\n${y0}年以降、極度の恐怖(${st.th}以下)に入った過去${N}回\n入った日の価格(元値)に戻ったのは${st.recN}回・中央値${st.recMed == null ? '—' : Math.round(st.recMed) + '日'}\nその間の底 中央値${sg(st.ddMed)}\n\n` + cs.map((x) => `・${ym(x.t)}${x.name ? '(' + x.name + ')' : ''} 底${sg(x.dd)}→${x.rec == null ? (x.el < st.MAXD ? 'まだ元値に戻っていない(' + x.el + '日目)' : '元値まで' + st.MAXD + '日超') : x.rec + '日で元値'}`).join('\n') + `\n\n過去の記録。予測ではありません`,
-    `Fear & Greed ${st.nowV} (${labE})\n${N} past entries into Extreme Fear (≤${st.th}) since ${y0}\nBack to the entry-day price: ${st.recN}/${N}, median ${st.recMed == null ? '—' : Math.round(st.recMed) + 'd'}\nLow in between, median ${sg(st.ddMed)}\n\n` + cs.map((x) => `- ${ym(x.t)}${x.name ? ' (' + x.name + ')' : ''}: low ${sg(x.dd)}, ${x.rec == null ? (x.el < st.MAXD ? 'not back yet (day ' + x.el + ')' : 'not back in ' + st.MAXD + 'd+') : 'back in ' + x.rec + 'd'}`).join('\n') + `\n\nPast record. Not a forecast.`];
-  let n = Math.min(4, show.length), [ja, en] = mk(show.slice(-n)); while (n > 1 && (xlen(ja) > 280 || xlen(en) > 280)) [ja, en] = mk(show.slice(-(--n)));
+  // v312: 本文は戻るまでの日数(中央値・平均・何日以内に何回・最長)と、まだ戻っていない回
+  const rc = st.cases.filter((x) => x.rec != null), avg = rc.length ? Math.round(rc.reduce((a, x) => a + x.rec, 0) / rc.length) : null, w7 = rc.filter((x) => x.rec <= 7).length, w30 = rc.filter((x) => x.rec <= 30).length;
+  const lg = rc.slice().sort((a, b) => b.rec - a.rec)[0], nb = st.cases.filter((x) => x.rec == null), nm = (x, e) => ym(x.t) + (x.name ? (e ? ' (' + x.name + ')' : '(' + x.name + ')') : '');
+  const mk = (o) => {
+    const ja = [`恐怖指数 ${st.nowV}(${lab})`, `${y0}年以降、極度の恐怖(${st.th}以下)に入った過去${N}回`, '', `入った日の価格(元値)に戻った ${st.recN}回`,
+      `・戻るまで 中央値${st.recMed == null ? '—' : Math.round(st.recMed) + '日'}/平均${avg == null ? '—' : avg + '日'}`, o.w ? `・7日以内 ${w7}回/30日以内 ${w30}回` : null, o.l && lg ? `・最長 ${nm(lg)} ${lg.rec}日` : null,
+      `・その間の底 中央値${sg(st.ddMed)}`, nb.length ? '\nまだ戻っていない：' + nb.map((x) => nm(x) + (x.el < st.MAXD ? `(${x.el}日目)` : `(${st.MAXD}日超)`)).join('、') : null, '', '過去の記録。予測ではありません'];
+    const en = [`Fear & Greed ${st.nowV} (${labE})`, `Since ${y0}: ${N} entries into Extreme Fear (≤${st.th})`, '', `Back to the entry price: ${st.recN}/${N}`,
+      `- Days to get back: median ${st.recMed == null ? '—' : Math.round(st.recMed) + 'd'}, avg ${avg == null ? '—' : avg + 'd'}`, o.w ? `- ≤7d: ${w7} / ≤30d: ${w30}` : null, o.l && lg ? `- Longest: ${nm(lg, 1)} ${lg.rec}d` : null,
+      `- Low in between, median ${sg(st.ddMed)}`, nb.length ? '\nNot back yet: ' + nb.map((x) => nm(x, 1) + (x.el < st.MAXD ? ` (day ${x.el})` : ` (${st.MAXD}d+)`)).join(', ') : null, '', 'Past record. Not a forecast.'];
+    return [ja, en].map((a) => a.filter((v) => v != null).join('\n')); };
+  let ja, en; for (const o of [{ w: 1, l: 1 }, { w: 0, l: 1 }, { w: 0, l: 0 }]) { [ja, en] = mk(o); if (xlen(ja) <= 280 && xlen(en) <= 280) break; }
   for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
   return { id: 'fng:copy:' + now, sr: 'fng', man: 1, due: now, ja, en, img: { fng: { ...st, y0, lab, labE, show } } };
 }
