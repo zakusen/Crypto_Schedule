@@ -617,7 +617,7 @@ runBtn('vrBtn', async (b) => { const k = []; let st = Date.UTC(2017, 7, 17), hos
   while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
     if (!j) throw new Error('Binance の日足が取れません'); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 864e5; b.textContent = `取得中… ${new Date(st).getUTCFullYear()}年`; }
   const cr = ((await (await fetch('/booms-data.json')).json()) || {}).crises || [];
-  const sd = L.vStudy(k, cr); if (!(sd.bounce > 0)) throw new Error('今が直近21日の最安値で、まだ戻していません');   // v314: 底から0〜1日目でも出す if (sd.drop > -10) throw new Error(`底の前の下げが ${sd.drop}% で、10%以上ではありません`); if (sd.cases.length < 3) throw new Error('比べる過去の回が少なすぎます(' + sd.cases.length + '回)'); return L.vDraft(sd, now); });
+  const sd = L.vStudy(k, cr); if (!(sd.bounce > 0)) throw new Error('今が直近21日の最安値で、まだ戻していません'); /* v314: 底から0〜1日目でも出す */ if (sd.drop > -10) throw new Error(`底の前の下げが ${sd.drop}% で、10%以上ではありません`); if (sd.cases.length < 3) throw new Error('比べる過去の回が少なすぎます(' + sd.cases.length + '回)'); return L.vDraft(sd, now); });
 runBtn('fngBtn', async (b) => { b.textContent = '恐怖指数を読み込み中…'; let j = null;
   try { const r = await fetch('https://api.alternative.me/fng/?limit=0&format=json'); if (r.ok) j = await r.json(); } catch (_) {}
   if (!j || !j.data) { const r = await fetch('/api/fng'); if (!r.ok) throw new Error('恐怖指数が取れません HTTP ' + r.status); j = await r.json(); }
