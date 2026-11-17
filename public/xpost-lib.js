@@ -1119,7 +1119,7 @@ export function liqShockDraft(st, now) {
 }
 
 // v300: 大量清算の後のBTC を毎日 18:30(日本時間)に。0日目 = LIQSHOCK.anchor に固定して、1日ずつ線を伸ばす。前の価格に戻った日か90日目で終わり。英語は出さない(ショック後のBTC と同じ)
-export const LIQSHOCK = { anchor: '2026-11-14', at: 18.5 * H, end: 90, gap: 2 * H };
+export const LIQSHOCK = { anchor: '2026-11-14', at: 18.5 * H, end: 90, gap: 2 * H, mile: [7, 14, 30, 60, 90] };   // v316: 毎日ではなく節目の日(mile)と、元の価格に戻った日だけ出す
 export function liqShockDay(st, now) {
   const B = (v) => '$' + (v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : Math.round(v / 1e6) + 'M'), sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear(), N = st.n;
   const ad = new Date(st.now.t), aj = `${ad.getUTCMonth() + 1}/${ad.getUTCDate()}`, rj = (x) => x.rec == null ? 'まだ' : x.rec + '日';
