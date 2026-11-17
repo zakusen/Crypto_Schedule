@@ -134,6 +134,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
     </div></div>
   <div class="tg"><div class="tgh"><b>過去と比べてコピペで出す</b><span>大きく動いた時に。2017年(清算は2022年8月)からのデータで比べます</span></div>
     <div class="tl">
+      <div class="ti"><button class="chip" id="lkpBtn" title="今に似ている過去の総合上位のうち、この1年の回を今と並べた本文と画像を作る(コピペで投稿)">🔁 この形、今年◯回目</button><span class="td">総合で今に近い、この1年の回とその後60日</span></div>
       <div class="ti"><button class="chip" id="lkBtn" title="今の値動きに近い過去の日を、6つの物差し(1か月の形・30日の上げ下げ幅・最高値からの位置・1週間の形・14日の値幅・恐怖指数)の総合で探し、その後の動きを表にする(調べる用・投稿はしない)">🔎 今に似ている過去を調べる</button><span class="td">6つの物差しの総合で、近い過去とその後(調べる用)</span></div>
       <div class="ti"><button class="chip" id="vrBtn" title="直近21日の底から戻している時に。30日で同じくらい下げた後、同じくらい戻した過去の回(2017年〜)が、その後30日で前の底を割ったかを並べた本文と画像を作る(コピペで投稿)">↩️ V字リバウンドは続いたか</button><span class="td">底から戻した過去の回が、その後30日で前の底を割ったか</span></div>
       <div class="ti"><button class="chip" id="fngBtn">😱 恐怖指数が極度の恐怖に入った時</button><span class="td">極度の恐怖(24以下)に入った過去の回と、その後60日のBTC(2018年〜)</span></div>
@@ -614,6 +615,15 @@ runBtn('lqcBtn', async (b) => { b.textContent = '清算と建玉を読み込み�
   const sd = L.liqShock(k, liq, cr); if (!sd) throw new Error('今日までの清算がそろっていません'); if (sd.cases.length < 2) throw new Error('比べられる過去の時期が少なすぎます');
   return L.liqShockDraft(sd, now); });
 // v305: 恐怖指数(alternative.me)。ブラウザから直接、だめならサイトの中継 /api/fng
+// v318: この形、今年◯回目(コピペ)
+runBtn('lkpBtn', async (b) => { const k = []; let st = Date.UTC(2017, 7, 17), host = null; const now = Date.now();
+  while (st < now) { let j = null; for (const h of host ? [host] : ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${st}&limit=1000`); if (r.ok) { j = await r.json(); host = h; break; } } catch (_) {} }
+    if (!j) throw new Error('Binance の日足が取れません'); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); st = +j[j.length - 1][0] + 864e5; b.textContent = `取得中… ${new Date(st).getUTCFullYear()}年`; }
+  let fj = null; try { const r = await fetch('https://api.alternative.me/fng/?limit=0&format=json'); if (r.ok) fj = await r.json(); } catch (_) {}
+  if (!fj || !fj.data) { try { const r = await fetch('/api/fng'); if (r.ok) fj = await r.json(); } catch (_) {} }
+  const fng = ((fj && fj.data) || []).map((x) => [Number(x.timestamp) * 1000, Number(x.value), x.value_classification || '']).filter((x) => x[0] > 0 && Number.isFinite(x[1]));
+  const cr = ((await (await fetch('/booms-data.json')).json()) || {}).crises || [];
+  const R = L.likeStudy(k, fng, cr); if (!R.recent.length) throw new Error('総合上位5つに、この1年の回がありません(1位 ' + new Date(R.top[0].t).toISOString().slice(0, 10) + ')'); return L.likeDraft(R, now); });
 // v317: 今に似ている過去(調べる用)。結果は表で出し、まるごとコピーできる
 document.getElementById('lkBtn').onclick = async (e) => { const b = e.currentTarget, t0 = b.textContent; b.disabled = true;
   try { const k = []; let st = Date.UTC(2017, 7, 17), host = null; const now = Date.now();

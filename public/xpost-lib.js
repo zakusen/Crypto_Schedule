@@ -1287,8 +1287,26 @@ export function likeStudy(k, fng, crises, AFT = 60) {
   const after = (i) => { let mn = 0, md = 0, rec = null, below = false; for (let d = 1; d <= 365 && i + d <= n; d++) { const v = c[i + d] / c[i] - 1; if (d <= AFT && v < mn) { mn = v; md = d; } if (v < 0) below = true; if (below && rec == null && v >= 0) rec = d; }
     const at = (d) => i + d <= n ? +((c[i + d] / c[i] - 1) * 100).toFixed(1) : null; return { a7: at(7), a14: at(14), a30: at(30), a60: at(60), low: +(mn * 100).toFixed(1), lowD: md, rec: below ? rec : 0 }; };
   const pick = (list, K, gap = 45) => { const out = []; for (const x of list) { if (out.every((o) => Math.abs(o.i - x.i) > gap)) out.push(x); if (out.length >= K) break; } return out; };
-  const fmt = (x) => ({ t: k[x.i][0], s: +x.s.toFixed(3), ps: x.ps.map((v) => v == null ? null : +v.toFixed(3)), name: nm(k[x.i][0]), ...after(x.i) });
-  const top = pick(score, 5).map(fmt);
+  const path = (i, B = 30, Af = AFT) => { const p = []; for (let d = -B; d <= Af && i + d <= n; d++) if (i + d >= 0) p.push([d, +((c[i + d] / c[i] - 1) * 100).toFixed(2)]); return p; };
+  const fmt = (x) => ({ t: k[x.i][0], s: +x.s.toFixed(3), ps: x.ps.map((v) => v == null ? null : +v.toFixed(3)), name: nm(k[x.i][0]), ...after(x.i), p: path(x.i) });
+  const top = pick(score, 5).map(fmt).map((x, r) => ({ ...x, rank: r + 1 }));
+  const recent = top.filter((x) => k[n][0] - x.t <= 400 * DAY);   // v318: この1年(400日)の中で同じ形だった回
   const per = M.map((me, j) => { const l = score.filter((x) => x.ps[j] != null).slice().sort((a, b) => a.ps[j] - b.ps[j]); return { id: me.id, ja: me.ja, en: me.en, best: pick(l, 3).map((x) => ({ t: k[x.i][0], name: nm(k[x.i][0]) })) }; });
-  return { now: { t: k[n][0], c: c[n], r30: +(r30(n) * 100).toFixed(1), dd: +(dd(n) * 100).toFixed(1), rg14: +((Math.exp(rg(n)) - 1) * 100).toFixed(1), fng: fv(n) ?? null }, M: M.map((x) => x.ja), top, per, N: cand.length };
+  return { recent, cur: path(n, 30, 0), now: { t: k[n][0], c: c[n], r30: +(r30(n) * 100).toFixed(1), dd: +(dd(n) * 100).toFixed(1), rg14: +((Math.exp(rg(n)) - 1) * 100).toFixed(1), fng: fv(n) ?? null }, M: M.map((x) => x.ja), top, per, N: cand.length };
+}
+
+// v318: 「この形、今年◯回目」(スポット)。likeStudy の総合上位のうち、この1年の回を今と並べる
+export function likeDraft(R, now) {
+  const md = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, mo = (t) => (new Date(t).getUTCMonth() + 1), sg = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v + '%';
+  const rc = R.recent.slice(0, 3).sort((a, b) => a.t - b.t), yr = new Date(R.now.t).getUTCFullYear(), same = rc.every((x) => new Date(x.t).getUTCFullYear() === yr), cnt = rc.length + 1;
+  const hj = same ? `この形、今年${cnt}回目` : `この形、この1年で${cnt}回目`, he = same ? `This shape: ${cnt}${cnt === 2 ? 'nd' : cnt === 3 ? 'rd' : 'th'} time this year` : `This shape: ${cnt} times in a year`;
+  const oth = R.top.find((x) => !rc.includes(x)), rec = (x, e) => x.rec === 0 ? (e ? 'never below' : '下回らず') : x.rec == null ? (e ? 'not back in 365d' : '365日内に戻らず') : (e ? `back in ${x.rec}d` : `${x.rec}日で元値`);
+  const mk = (o) => [
+    [`BTC ${hj}`, `6つの物差しで、2017年以降の${R.N.toLocaleString('en-US')}日から今に近い日を探すと`, rc.slice().sort((a, b) => a.rank - b.rank).map((x) => `${x.rank}位 ${md(x.t)}`).join('・'), o && oth ? `(${oth.rank}位は ${md(oth.t)})` : null, '', 'その後60日',
+      ...rc.map((x) => `・${mo(x.t)}月型：${x.lowD}日目に底${sg(x.low)}・${rec(x)}・60日後${sg(x.a60)}`), '', '過去の記録。予測ではありません'],
+    [`BTC — ${he}`, `Closest of ${R.N.toLocaleString('en-US')} days since 2017 (6 measures): ` + rc.slice().sort((a, b) => a.rank - b.rank).map((x) => `#${x.rank} ${md(x.t)}`).join(', '), o && oth ? `(#${oth.rank}: ${md(oth.t)})` : null, '', 'The next 60 days',
+      ...rc.map((x) => `- ${md(x.t)}: low ${sg(x.low)} (day ${x.lowD}), ${rec(x, 1)}, day 60 ${sg(x.a60)}`), '', 'Past record. Not a forecast.']].map((a) => a.filter((v) => v != null).join('\n'));
+  let [ja, en] = mk(1); if (xlen(ja) > 280 || xlen(en) > 280) [ja, en] = mk(0);
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  return { id: 'like:copy:' + now, sr: 'like', man: 1, due: now, ja, en, img: { like: { now: R.now, cur: R.cur, rc, oth: oth ? { t: oth.t, rank: oth.rank, a60: oth.a60 } : null, N: R.N, M: R.M, hj, he } } };
 }
