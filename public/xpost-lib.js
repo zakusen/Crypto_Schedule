@@ -1263,3 +1263,32 @@ export function vDraft(st, now) {
   for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
   return { id: 'vreb:copy:' + now, sr: 'vreb', man: 1, due: now, ja, en, img: { vreb: { ...st, y0, show } } };
 }
+// v317: 今に似ている過去(調べる用)。物差しごとの近さを順位(0=一番近い〜1)にして平均し、総合で近い日を出す。
+//   k = Binance 日足 [[t,o,h,l,c]] 古い順、fng = [[t,値,分類]](無くてもよい)。
+export function likeStudy(k, fng, crises, AFT = 60) {
+  const n = k.length - 1, c = k.map((x) => x[4]), hi = k.map((x) => x[2]), lo = k.map((x) => x[3]), lc = c.map(Math.log), dk = (t) => Math.floor(t / DAY);
+  const F = new Map((fng || []).map((x) => [dk(x[0]), x[1]]));
+  const corr = (a, b, L) => { let sa = 0, sb = 0; for (let q = 0; q <= L; q++) { sa += lc[a - q]; sb += lc[b - q]; } sa /= L + 1; sb /= L + 1; let xy = 0, xx = 0, yy = 0; for (let q = 0; q <= L; q++) { const x = lc[a - q] - sa, y = lc[b - q] - sb; xy += x * y; xx += x * x; yy += y * y; } return xx && yy ? xy / Math.sqrt(xx * yy) : 0; };
+  const runMax = []; let m = 0; for (let i = 0; i <= n; i++) { m = Math.max(m, hi[i]); runMax.push(m); }
+  const r30 = (i) => c[i] / c[i - 30] - 1, dd = (i) => c[i] / runMax[i] - 1, rg = (i) => { let H2 = 0, L2 = 1e18; for (let q = i - 13; q <= i; q++) { H2 = Math.max(H2, hi[q]); L2 = Math.min(L2, lo[q]); } return Math.log(H2 / L2); };
+  const fv = (i) => F.get(dk(k[i][0]));
+  const M = [
+    { id: 'shape30', ja: '1か月の形', en: '30-day shape', f: (i) => 1 - corr(i, n, 30) },
+    { id: 'ret30', ja: '30日の上げ下げ幅', en: '30-day change', f: (i) => Math.abs(r30(i) - r30(n)) },
+    { id: 'ath', ja: '最高値からの位置', en: 'distance from ATH', f: (i) => Math.abs(dd(i) - dd(n)) },
+    { id: 'shape7', ja: '1週間の形', en: '7-day shape', f: (i) => 1 - corr(i, n, 7) },
+    { id: 'vol14', ja: '14日の値幅', en: '14-day range', f: (i) => Math.abs(rg(i) - rg(n)) },
+    { id: 'fng', ja: '恐怖指数', en: 'Fear & Greed', f: (i) => fv(i) == null || fv(n) == null ? null : Math.abs(fv(i) - fv(n)) },
+  ];
+  const cand = []; for (let i = 60; i <= n - AFT; i++) cand.push(i);
+  const pr = M.map((me) => { const v = cand.map((i) => [i, me.f(i)]).filter((x) => x[1] != null).sort((a, b) => a[1] - b[1]); const P = new Map(); v.forEach(([i], r) => P.set(i, r / Math.max(1, v.length - 1))); return P; });
+  const score = cand.map((i) => { const ps = pr.map((P) => P.get(i)).filter((v) => v != null); return { i, s: ps.reduce((a, v) => a + v, 0) / ps.length, ps: pr.map((P) => P.get(i)) }; }).sort((a, b) => a.s - b.s);
+  const nm = (t) => { const cs = (crises || []).filter((x) => Math.abs(Math.round((Date.UTC(+x.d.slice(0, 4), +x.d.slice(5, 7) - 1, +x.d.slice(8, 10)) - t) / DAY)) <= 30); return cs.length ? cs[cs.length - 1].n : ''; };
+  const after = (i) => { let mn = 0, md = 0, rec = null, below = false; for (let d = 1; d <= 365 && i + d <= n; d++) { const v = c[i + d] / c[i] - 1; if (d <= AFT && v < mn) { mn = v; md = d; } if (v < 0) below = true; if (below && rec == null && v >= 0) rec = d; }
+    const at = (d) => i + d <= n ? +((c[i + d] / c[i] - 1) * 100).toFixed(1) : null; return { a7: at(7), a14: at(14), a30: at(30), a60: at(60), low: +(mn * 100).toFixed(1), lowD: md, rec: below ? rec : 0 }; };
+  const pick = (list, K, gap = 45) => { const out = []; for (const x of list) { if (out.every((o) => Math.abs(o.i - x.i) > gap)) out.push(x); if (out.length >= K) break; } return out; };
+  const fmt = (x) => ({ t: k[x.i][0], s: +x.s.toFixed(3), ps: x.ps.map((v) => v == null ? null : +v.toFixed(3)), name: nm(k[x.i][0]), ...after(x.i) });
+  const top = pick(score, 5).map(fmt);
+  const per = M.map((me, j) => { const l = score.filter((x) => x.ps[j] != null).slice().sort((a, b) => a.ps[j] - b.ps[j]); return { id: me.id, ja: me.ja, en: me.en, best: pick(l, 3).map((x) => ({ t: k[x.i][0], name: nm(k[x.i][0]) })) }; });
+  return { now: { t: k[n][0], c: c[n], r30: +(r30(n) * 100).toFixed(1), dd: +(dd(n) * 100).toFixed(1), rg14: +((Math.exp(rg(n)) - 1) * 100).toFixed(1), fng: fv(n) ?? null }, M: M.map((x) => x.ja), top, per, N: cand.length };
+}
