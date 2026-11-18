@@ -805,13 +805,15 @@ const pctS = (v) => (v > 0 ? '+' : '') + v.toFixed(1) + '%';
 export function shockTexts(sd, lg) {
   const en = lg === 'en', cur = sd.ev[SHOCK.cur], n = sd.n, at = (id) => { const x = sd.ev[id] && sd.ev[id].days.find((q) => q[0] === n); return x ? pctS(x[1]) : '—'; };
   const rc = cur.recover != null ? (en ? `Back to the pre-shock level on day ${cur.recover}.` : `${cur.recover}日目に前の水準へ戻った。`) : '';
-  const main = en
-    ? [`Binance hack 2019 / 2026`, `BTC on day ${n} after the incident (prior close = 0%)`, '', `2026: ${at('binance2026')}`, `2019: ${at('binance2019')}`, rc, '', '2019 came during a rising market, and the loss was ~150x smaller.', 'Past record. This time may differ.', '#Binance #Bitcoin']
-    : [`Binanceハッキング 2019 / 2026`, `発生から${n}日目のBTC（前日の終値＝0%）`, '', `2026：${at('binance2026')}`, `2019：${at('binance2019')}`, rc, '', '前回は同じ時期に上昇相場の途中。被害額も約150倍ちがいます。', '過去の記録で、今回も同じとは限りません', '#Binance #ビットコイン'];
+  // v322: 1行目に今の数字、2行目に過去との答え。作り方の説明は画像に任せる
+  const raw = (id) => { const x = sd.ev[id] && sd.ev[id].days.find((q) => q[0] === n); return x ? x[1] : null; }, a26 = raw('binance2026'), a19 = raw('binance2019'), gap = a26 != null && a19 != null ? Math.round(Math.abs(a26 - a19)) : null;
   const rd = (id) => sd.ev[id].recover != null ? sd.ev[id].recover : (id === 'luna2022' ? 534 : null);
+  const main = en
+    ? [`${n} days since the Binance hack: BTC ${at('binance2026')}`, `Day ${n} after the 2019 hack: ${at('binance2019')}` + (gap != null ? ` (${gap} pts apart)` : ''), rc, '', '2019 came mid-uptrend, and the loss was ~150x smaller.', 'Past record. Not a forecast.', '#Binance #Bitcoin']
+    : [`Binanceハッキングから${n}日、BTCは${at('binance2026')}`, `2019年の同じ${n}日目は${at('binance2019')}` + (gap != null ? `。差は約${gap}ポイント` : ''), rc, '', '前回は上昇相場の途中で、被害額も約150倍ちがいます', '過去の記録。予測ではありません', '#Binance #ビットコイン'];
   const reply = en
-    ? ['BTC after major shocks', `Aligned on day 0 (prior close = 0%), day ${n}:`, `Binance now ${at('binance2026')}`, `Bybit ${at('bybit2025')} / LUNA ${at('luna2022')} / FTX ${at('ftx2022')}`, '', `Days to regain the pre-shock level: FTX ${rd('ftx2022')}, Bybit ${rd('bybit2025')}, LUNA ${rd('luna2022')}`, 'Past record. This time may differ.', '#Bitcoin #Binance']
-    : ['ショック後のBTC', `発生日をそろえて比べる（前日の終値＝0%・${n}日目）`, `今回 Binance ${at('binance2026')}`, `Bybit ${at('bybit2025')}／LUNA ${at('luna2022')}／FTX ${at('ftx2022')}`, '', `前の水準に戻るまで：FTX ${rd('ftx2022')}日・Bybit ${rd('bybit2025')}日・LUNA ${rd('luna2022')}日`, '過去の記録で、今回も同じとは限りません', '#ビットコイン #Binance'];
+    ? [`Day ${n} after a major shock. Binance now: ${at('binance2026')}`, `Same day ${n}: FTX ${at('ftx2022')} / LUNA ${at('luna2022')} / Bybit ${at('bybit2025')}`, '', `Days to get back: FTX ${rd('ftx2022')}, Bybit ${rd('bybit2025')}, LUNA ${rd('luna2022')}`, 'Past record. Not a forecast.', '#Bitcoin #Binance']
+    : [`大きなショックから${n}日目。今回のBinanceは${at('binance2026')}`, `同じ${n}日目：FTX ${at('ftx2022')}／LUNA ${at('luna2022')}／Bybit ${at('bybit2025')}`, '', `元の水準に戻るまで：FTX ${rd('ftx2022')}日・Bybit ${rd('bybit2025')}日・LUNA ${rd('luna2022')}日`, '過去の記録。予測ではありません', '#ビットコイン #Binance'];
   return { main: main.filter((x, i, a) => x !== '' || a[i - 1] !== '').join('\n'), reply: reply.join('\n') };
 }
 // v245: 1本ずつ作る。kind = 'shockbn'(Binance 2019/2026) か 'shockcmp'(ショック後のBTC)。why は id に残す(空き枠・回復・最安・急変動)
@@ -852,9 +854,11 @@ export const corrWord = (v, lg) => v == null ? (lg === 'en' ? 'not enough data' 
 const sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
 export function corrText(c, lg) {
   const st = corrStats(c);
+  // v322: 1行目に「何が起きたか」
+  const ext = st.now != null && st.hi != null && st.now >= st.hi ? 'hi' : st.now != null && st.lo != null && st.now <= st.lo ? 'lo' : null;
   return lg === 'en'
-    ? ['BTC × S&P 500 correlation (1h, last 24h)', `Now ${sg(st.now)} (24h ago ${sg(st.ago)})`, `7-day high ${sg(st.hi)} / low ${sg(st.lo)}`, `Last 24h: ${corrWord(st.now, 'en')}`, '', 'Correlation is not causation. Past record; this time may differ.', '#Bitcoin #SP500'].join('\n')
-    : ['BTC × S&P500 の相関（1時間足・直近24時間）', `現在 ${sg(st.now)}（24時間前 ${sg(st.ago)}）`, `7日の最高 ${sg(st.hi)}・最低 ${sg(st.lo)}`, `直近24時間は、${corrWord(st.now, 'ja')}`, '', '相関は原因を示しません。過去の記録で、今回も同じとは限りません', '#ビットコイン #SP500'].join('\n');
+    ? [`BTC and US stocks (S&P 500), 24h correlation ${sg(st.now)} (24h ago ${sg(st.ago)})`, `${corrWord(st.now, 'en')[0].toUpperCase() + corrWord(st.now, 'en').slice(1)}` + (ext === 'hi' ? ' — the strongest in 7 days' : ext === 'lo' ? ' — the weakest in 7 days' : ` (7-day range ${sg(st.lo)} to ${sg(st.hi)})`), '', 'Correlation is not causation.', '#Bitcoin #SP500'].join('\n')
+    : [`BTCと米国株(S&P500)、直近24時間の相関 ${sg(st.now)}(24時間前 ${sg(st.ago)})`, `${corrWord(st.now, 'ja')}` + (ext === 'hi' ? '。この7日で一番強い' : ext === 'lo' ? '。この7日で一番弱い' : `(7日の幅 ${sg(st.lo)}〜${sg(st.hi)})`), '', '相関は原因を示しません', '#ビットコイン #SP500'].join('\n');
 }
 export function corrDraft(c, now, why) {
   const id = 'corrts:' + isoDay(now) + (why === 'daily' ? '' : ':' + why), ja = corrText(c, 'ja'), en = corrText(c, 'en');
@@ -916,8 +920,8 @@ export function histMerge(base, bm, now) {
 export function histWeekDraft(base, bm, now) {
   const hd = histMerge(base, bm, now), B = Object.fromEntries(hd.booms.map((b) => [b.id, b])), lastV = (b) => b.pts[b.pts.length - 1], peak = (b) => b.pts.reduce((a, q) => q[1] > a[1] ? q : a);
   const pct = (id) => { const b = B[id]; return Math.round(lastV(b)[1] / peak(b)[1] * 100); }, lc = hd.crises[hd.crises.length - 1];
-  const ja = ['暗号資産のブームと危機の歴史（2017〜今）', `DeFiの預かり資産 ${bfmt(lastV(B.defi)[1])}（最大の${pct('defi')}%）`, `DEXの取引高 ${bfmt(lastV(B.dex)[1])}/月（最大の${pct('dex')}%）`, `いちばん新しい危機：${lc.n}（${lc.d.slice(0, 7).replace('-', '年')}月）`, '', '並べたもので、原因を示すものではありません', tagsJa([lc.n], lc.k === 'hack')].join('\n');
-  const en = ['Crypto booms and crises, 2017–now', `DeFi TVL ${bfmtE(lastV(B.defi)[1])} (${pct('defi')}% of peak)`, `DEX volume ${bfmtE(lastV(B.dex)[1])}/mo (${pct('dex')}% of peak)`, `Latest crisis: ${lc.n} (${lc.d.slice(0, 7)})`, '', 'Shown side by side; this does not show cause.', tagsEn([lc.n], lc.k === 'hack')].join('\n');
+  const ja = ['2017年からの暗号資産のブームと危機。今はピークのどこ？', `DeFiの預かり資産 ${bfmt(lastV(B.defi)[1])}(ピークの${pct('defi')}%)`, `DEXの取引高 ${bfmt(lastV(B.dex)[1])}/月(ピークの${pct('dex')}%)`, `一番新しい危機：${lc.n}(${lc.d.slice(0, 7).replace('-', '年')}月)`, '', '並べたもので、原因は示しません', tagsJa([lc.n], lc.k === 'hack')].join('\n');   // v322
+  const en = ['Crypto booms and crises since 2017: where are we vs the peak?', `DeFi TVL ${bfmtE(lastV(B.defi)[1])} (${pct('defi')}% of peak)`, `DEX volume ${bfmtE(lastV(B.dex)[1])}/mo (${pct('dex')}% of peak)`, `Latest crisis: ${lc.n} (${lc.d.slice(0, 7)})`, '', 'Shown side by side; not a cause.', tagsEn([lc.n], lc.k === 'hack')].join('\n');
   return { id: 'histw:' + isoDay(now), sr: 'histw', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { hist: hd } };
 }
 // 直近1か月。危機 = DefiLlama のハッキング一覧(100万ドル以上)＋大型ハッキング(HACKS)＋手で足した出来事(◆・ハッキング)
@@ -931,8 +935,8 @@ export function histMonthDraft(bm, ce, hacks, now) {
   const month = { from, to: isoDay(now), btc: cut(D.btc), defi: cut(D.defi), lend: cut(D.lend), stable: cut(D.stable), dex: cut(D.dex), crises: cr.slice(-10) };
   const ch = (r) => r.length >= 2 ? Math.round((r[r.length - 1][1] / r[0][1] - 1) * 1000) / 10 : null, sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v) + '%';
   const big = [...cr].filter((c) => c.b).sort((a, b) => b.b - a.b)[0], top2 = [...cr].sort((a, b) => (b.b || 0) - (a.b || 0)).map((c) => c.n);
-  const ja = ['直近1か月のブームと危機', `BTC ${sg(ch(month.btc))}・DeFiの預かり資産 ${sg(ch(month.defi))}・ステーブル発行額 ${sg(ch(month.stable))}（30日）`, `危機の記録 ${cr.length}件` + (big ? `（最大 ${big.n} ${bfmt(big.b)}）` : ''), '', '並べたもので、原因を示すものではありません', tagsJa(top2, cr.length > 0)].join('\n');
-  const en = ['Crypto booms and crises: last 30 days', `BTC ${sg(ch(month.btc))} / DeFi TVL ${sg(ch(month.defi))} / stablecoin supply ${sg(ch(month.stable))}`, `${cr.length} incidents recorded` + (big ? ` (largest: ${big.n} ${bfmtE(big.b)})` : ''), '', 'Shown side by side; this does not show cause.', tagsEn(top2, cr.length > 0)].join('\n');
+  const ja = [`この1か月、BTC ${sg(ch(month.btc))}・DeFi ${sg(ch(month.defi))}・ステーブル ${sg(ch(month.stable))}`, `危機の記録は${cr.length}件` + (big ? `。一番大きかったのは${big.n}(${bfmt(big.b)})` : ''), '', '並べたもので、原因は示しません', tagsJa(top2, cr.length > 0)].join('\n');   // v322
+  const en = [`Last 30 days: BTC ${sg(ch(month.btc))}, DeFi ${sg(ch(month.defi))}, stablecoins ${sg(ch(month.stable))}`, `${cr.length} crises recorded` + (big ? `; the largest: ${big.n} (${bfmtE(big.b)})` : ''), '', 'Shown side by side; not a cause.', tagsEn(top2, cr.length > 0)].join('\n');
   return { id: 'histm:' + isoDay(now), sr: 'histm', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { month } };
 }
 // v279: 「反発」の歴史。BTC 1時間足の始値→終値が −5% 以下の回(24時間以内の続きは1回と数える)の、その後7日間。k = [[t,o,h,l,c]] 古い順
@@ -1124,8 +1128,10 @@ export const LIQSHOCK = { anchor: '2026-11-14', at: 18.5 * H, end: 90, gap: 2 * 
 export function liqShockDay(st, now) {
   const B = (v) => '$' + (v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : Math.round(v / 1e6) + 'M'), sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear(), N = st.n;
   const ad = new Date(st.now.t), aj = `${ad.getUTCMonth() + 1}/${ad.getUTCDate()}`, rj = (x) => x.rec == null ? 'まだ' : x.rec + '日';
-  const head = st.now.rec != null ? `清算が積み上がる前の価格に、${st.now.rec}日目で戻りました` : `今回 ${sg(st.now.d0)}(清算が積み上がる前の価格＝0%)`;
-  const mk = (cs) => `大量清算の後のBTC ${N}日目\n30日間のロング清算 ${B(st.now.s)} の山(${aj})から${N}日\n${head}\n\n同規模だった過去の、同じ${N}日目\n` + cs.map((x) => `・${x.ym}${x.name ? '(' + x.name + ')' : ''} ${sg(x.atN)} 戻るまで${rj(x)}`).join('\n') + `\n\n過去の記録。予測ではありません`;
+  // v322: 1行目に今の数字、2行目に過去との答え
+  const pos = st.cases.filter((x) => x.atN != null && x.atN > 0).length, nN = st.cases.filter((x) => x.atN != null).length;
+  const head = st.now.rec != null ? `${B(st.now.s)}の大量清算から${N}日、BTCは清算前の価格に戻った` : `${B(st.now.s)}の大量清算から${N}日、BTCは清算前の価格から${sg(st.now.d0)}`;
+  const mk = (cs) => `${head}\n同じ規模の過去${nN}回、${N}日目に清算前の価格を上回っていたのは${pos}回\n\n` + cs.map((x) => `・${x.ym}${x.name ? '(' + x.name + ')' : ''} ${sg(x.atN)}・${x.rec == null ? 'まだ戻っていない' : x.rec + '日で戻った'}`).join('\n') + `\n\n過去の記録。予測ではありません`;
   let ja = mk(st.cases); if (xlen(ja) > 280) ja = mk(st.cases.map((x) => ({ ...x, name: '' })));
   for (const tg of ['\n#ビットコイン #BTC', '\n#BTC', '']) if (xlen(ja + tg) <= 280) { ja += tg; break; }
   const day = Math.floor((now + JST) / DAY) * DAY - JST;
