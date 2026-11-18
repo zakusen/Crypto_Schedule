@@ -1323,3 +1323,37 @@ export function likeDraft(R, now) {
   for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
   return { id: 'like:copy:' + now, sr: 'like', man: 1, due: now, ja, en, img: { like: { now: R.now, cur: R.cur, rc, oth: oth ? { t: oth.t, rank: oth.rank, a60: oth.a60 } : null, N: R.N, M: R.M, hj, he, fj, fe } } };
 }
+// v323: V字リバウンド(時間足)。暴落の最中に使う。直近24時間の高値→その後の安値で下げ、安値から今までで戻し。
+//   同じくらい下げて同じくらい戻した過去の回(1時間足)が、その後72時間で安値を割ったかを数える。x = 安値からの時間、y = 安値からの%。
+export function vStudyH(k, crises, A = 72) {
+  const n = k.length - 1, lo = k.map((x) => x[3]), hi = k.map((x) => x[2]), c = k.map((x) => x[4]);
+  const nm = (t) => { const cs = (crises || []).filter((x) => Math.abs(Math.round((Date.UTC(+x.d.slice(0, 4), +x.d.slice(5, 7) - 1, +x.d.slice(8, 10)) - t) / DAY)) <= 7); return cs.length ? cs[cs.length - 1].n : ''; };
+  const win = (i) => { let hI = i - 24; for (let q = i - 24; q <= i; q++) if (hi[q] > hi[hI]) hI = q; let bI = hI; for (let q = hI; q <= i; q++) if (lo[q] < lo[bI]) bI = q; return { hI, bI, drop: (lo[bI] / hi[hI] - 1) * 100, up: (c[i] / lo[bI] - 1) * 100 }; };
+  const w = win(n), dn = n - w.bI;
+  let DR = Math.min(-2, Math.ceil(w.drop)), B = Math.max(0.5, Math.floor(w.up * 2) / 2);
+  const path = (j, len) => { const p = []; for (let d = 0; d <= len && j + d <= n; d++) p.push([d, +((c[j + d] / lo[j] - 1) * 100).toFixed(2)]); return p; };
+  const scan = () => { const cs = []; let skip = -1;
+    for (let i = 25; i < n - 1; i++) { if (i <= skip) continue; const x = win(i); if (x.drop > DR || x.up < B || i - x.bI > Math.max(dn + 2, 3)) continue;
+      let brk = null; for (let d = 1; d <= A && i + d <= n; d++) if (lo[i + d] < lo[x.bI]) { brk = i + d - x.bI; break; }
+      if (i + A <= n || brk != null) cs.push({ t: k[x.bI][0], dn: i - x.bI, brk, a30: i + A <= n ? +((c[i + A] / c[i] - 1) * 100).toFixed(1) : null, up: +x.up.toFixed(1), drop: +x.drop.toFixed(1), p: path(x.bI, i - x.bI + A), name: nm(k[x.bI][0]) });
+      skip = i + 48; }
+    return cs; };
+  // 過去の回が8回に届くまで、下げ幅を1%ずつ(-2%まで)、戻し幅を0.5%ずつ(0.5%まで)ゆるめる
+  let cases = scan(); while (cases.length < 8 && (DR < -2 || B > 0.5)) { if (DR < -2) DR += 1; else B = Math.max(0.5, B - 0.5); cases = scan(); }
+  const med = (a) => { a = a.filter((v) => v != null).sort((x, y) => x - y); if (!a.length) return null; const h = a.length >> 1; return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2; };
+  const br = cases.filter((x) => x.brk != null);
+  return { unit: 'h', B, DR, A, bounce: +w.up.toFixed(1), drop: +w.drop.toFixed(1), dn, low: lo[w.bI], lowT: k[w.bI][0], high: hi[w.hI], nowP: c[n], cur: { t: k[w.bI][0], p: path(w.bI, dn) }, cases, brkN: br.length, brkMed: med(br.map((x) => x.brk)), a30Med: med(cases.filter((x) => x.brk == null).map((x) => x.a30)), since: k[0][0] };
+}
+export function vDraftH(st, now) {
+  const hm = (t) => { const d = new Date(t + 9 * H); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.getUTCHours()}時`; }, ym = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}`; }, sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear(), N = st.cases.length, ok = N - st.brkN;
+  const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), show = st.cases.slice().sort((a, b) => b.t - a.t).slice(0, 10).sort((a, b) => a.t - b.t);
+  const mk = (m) => { const rc = m ? show.slice(-m).reverse() : [];
+    const ja = [`BTC 24時間で${sg(st.drop)}の急落から${sg(st.bounce)}戻した(安値${$(st.low)})`, `このリバウンドは続くか。${y0}年以降、同じくらい下げて戻した過去${N}回では`, '', `72時間以内に安値を割った ${st.brkN}回` + (st.brkN ? `(中央値 安値から${Math.round(st.brkMed)}時間)` : ''), `割らなかった ${ok}回` + (ok && st.a30Med != null ? `(72時間後 中央値${sg(st.a30Med)})` : ''),
+      m ? '' : null, ...rc.map((x) => `・${ym(x.t)}${x.name ? '(' + x.name + ')' : ''} ${x.brk != null ? x.brk + '時間後に安値割れ' : '割らず'}`), '', '過去の記録。予測ではありません'];
+    const en = [`BTC bounced ${sg(st.bounce)} after a ${sg(st.drop)} drop in 24h (low ${$(st.low)})`, `Will it hold? ${N} similar drop-and-bounce cases since ${y0}:`, '', `Broke the low within 72h: ${st.brkN}` + (st.brkN ? ` (median ${Math.round(st.brkMed)}h after the low)` : ''), `Held: ${ok}` + (ok && st.a30Med != null ? ` (72h later, median ${sg(st.a30Med)})` : ''),
+      m ? '' : null, ...rc.map((x) => `- ${ym(x.t)}${x.name ? ' (' + x.name + ')' : ''}: ${x.brk != null ? 'broke after ' + x.brk + 'h' : 'held'}`), '', 'Past record. Not a forecast.'];
+    return [ja, en].map((a) => a.filter((v) => v != null).join('\n')); };
+  let m = Math.min(3, show.length), [ja, en] = mk(m); while (m > 0 && (xlen(ja) > 280 || xlen(en) > 280)) [ja, en] = mk(--m); if (m === 1) [ja, en] = mk(0);
+  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  return { id: 'vrebh:copy:' + now, sr: 'vreb', man: 1, due: now, ja, en, img: { vreb: { ...st, y0, show, lowHm: hm(st.lowT) } } };
+}
