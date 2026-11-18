@@ -790,6 +790,7 @@ export const SHOCK = {
   ],
   marks: [3, 7, 14, 30, 60, 76, 90],   // 節目(発生日=0日目)。3日目は初回
   pre: 15, post: 90,
+  mile: [21, 30, 45, 60, 76, 90],   // v321: 空き枠の投稿は、この日(発生日=0日目)に1本だけ。回復・最安・急変動のきっかけ投稿はこれまでどおり
 };
 // rows: Binance の日足 [[openTime, o, h, l, c, ...]]。確定した日だけ(今日の途中の足は除く)
 export function shockSeries(e, rows, now) {
@@ -1299,14 +1300,20 @@ export function likeStudy(k, fng, crises, AFT = 60) {
 export function likeDraft(R, now) {
   const md = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, mo = (t) => (new Date(t).getUTCMonth() + 1), sg = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v + '%';
   const rc = R.recent.slice(0, 3).sort((a, b) => a.t - b.t), yr = new Date(R.now.t).getUTCFullYear(), same = rc.every((x) => new Date(x.t).getUTCFullYear() === yr), cnt = rc.length + 1;
-  const hj = same ? `この形、今年${cnt}回目` : `この形、この1年で${cnt}回目`, he = same ? `This shape: ${cnt}${cnt === 2 ? 'nd' : cnt === 3 ? 'rd' : 'th'} time this year` : `This shape: ${cnt} times in a year`;
+  const dn = R.now.r30 < 0, wj = dn ? 'この下げ方' : 'この上げ方', we = dn ? 'This kind of drop' : 'This kind of rise', fj = `1か月で${sg(R.now.r30)}・最高値から${sg(R.now.dd)}`, fe = `${sg(R.now.r30)} in a month, ${sg(R.now.dd)} from the ATH`;   // v320: 何の投稿か一目で分かるよう、まず今の数字を書く
+  const hj = same ? `${wj}、今年${cnt}回目` : `${wj}、この1年で${cnt}回目`, he = same ? `${we}: ${cnt}${cnt === 2 ? 'nd' : cnt === 3 ? 'rd' : 'th'} time this year` : `${we}: ${cnt} times in a year`;
   const oth = R.top.find((x) => !rc.includes(x)), rec = (x, e) => x.rec === 0 ? (e ? 'never below' : '下回らず') : x.rec == null ? (e ? 'not back in 365d' : '365日内に戻らず') : (e ? `back in ${x.rec}d` : `${x.rec}日で元値`);
+  // v319: 本文を読みやすく(見出し→1位と何位→その後→問いかけ)
+  const md2 = (t) => { const d = new Date(t); return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; }, bj = (x) => (x.lowD === 1 ? '翌日に' : x.lowD + '日目に') + sg(x.low), be = (x) => `${sg(x.low)} ${x.lowD === 1 ? 'the next day' : 'by day ' + x.lowD}`;
+  const rk = rc.slice().sort((a, b) => a.rank - b.rank), rj = (x) => x.rec === 0 ? '下回らず' : x.rec == null ? '1年戻らず' : x.rec <= 7 ? `${x.rec}日で戻り` : `戻るまで${x.rec}日`;
+  const me = (t) => { const d = new Date(t); return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()] + ' ' + d.getUTCDate() + (same ? '' : ', ' + d.getUTCFullYear()); };
+  const re2 = (x) => x.rec === 0 ? 'never below' : x.rec == null ? 'not back in a year' : `back in ${x.rec}d`;
   const mk = (o) => [
-    [`BTC ${hj}`, `6つの物差しで、2017年以降の${R.N.toLocaleString('en-US')}日から今に近い日を探すと`, rc.slice().sort((a, b) => a.rank - b.rank).map((x) => `${x.rank}位 ${md(x.t)}`).join('・'), o && oth ? `(${oth.rank}位は ${md(oth.t)})` : null, '', 'その後60日',
-      ...rc.map((x) => `・${mo(x.t)}月型：${x.lowD}日目に底${sg(x.low)}・${rec(x)}・60日後${sg(x.a60)}`), '', '過去の記録。予測ではありません'],
-    [`BTC — ${he}`, `Closest of ${R.N.toLocaleString('en-US')} days since 2017 (6 measures): ` + rc.slice().sort((a, b) => a.rank - b.rank).map((x) => `#${x.rank} ${md(x.t)}`).join(', '), o && oth ? `(#${oth.rank}: ${md(oth.t)})` : null, '', 'The next 60 days',
-      ...rc.map((x) => `- ${md(x.t)}: low ${sg(x.low)} (day ${x.lowD}), ${rec(x, 1)}, day 60 ${sg(x.a60)}`), '', 'Past record. Not a forecast.']].map((a) => a.filter((v) => v != null).join('\n'));
-  let [ja, en] = mk(1); if (xlen(ja) > 280 || xlen(en) > 280) [ja, en] = mk(0);
+    [`BTC ${fj}`, `${hj}`, '', `2017年以降で今に一番近いのは`, rk.map((x) => `${yr === new Date(x.t).getUTCFullYear() && same ? md2(x.t) : md(x.t)}(${x.rank}位)`).join('・'), '', 'その後',
+      ...rc.map((x) => `${mo(x.t)}月：${bj(x)}、${rj(x)}、60日後${sg(x.a60)}`), '', o ? '今回はどっちの道か。' : null, o ? '' : null, '過去の記録。予測ではありません'],
+    [`BTC ${fe}`, `${he}`, '', `Closest to now since 2017:`, rk.map((x) => `${me(x.t)} (#${x.rank})`).join(', '), '', 'What came next',
+      ...rc.map((x) => `${me(x.t)}: ${be(x)}, ${re2(x)}, day 60 ${sg(x.a60)}`), '', o ? 'Which path this time?' : null, o ? '' : null, 'Past record. Not a forecast.']].map((a) => a.filter((v) => v != null).join('\n'));
+  let ja = mk(1)[0], en = mk(1)[1]; if (xlen(ja) > 280) ja = mk(0)[0]; if (xlen(en) > 280) en = mk(0)[1];   // v319: 問いかけは言語ごとに入るなら入れる
   for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
-  return { id: 'like:copy:' + now, sr: 'like', man: 1, due: now, ja, en, img: { like: { now: R.now, cur: R.cur, rc, oth: oth ? { t: oth.t, rank: oth.rank, a60: oth.a60 } : null, N: R.N, M: R.M, hj, he } } };
+  return { id: 'like:copy:' + now, sr: 'like', man: 1, due: now, ja, en, img: { like: { now: R.now, cur: R.cur, rc, oth: oth ? { t: oth.t, rank: oth.rank, a60: oth.a60 } : null, N: R.N, M: R.M, hj, he, fj, fe } } };
 }

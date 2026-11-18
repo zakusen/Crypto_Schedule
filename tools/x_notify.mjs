@@ -443,7 +443,8 @@ try {
   else if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
   else if (trig && !lsBusy && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
-  else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < G.slotPerDay) put1(next, 'slot' + h);   // v258: 時刻を付けて、同じ日・同じ種類の2本目もぶつからない
+  else if (L.SHOCK.mile && !L.SHOCK.mile.includes(n)) console.log('[x] ショック比較: 節目の日ではないので空き枠には出さない', n + '日目');   // v321
+  else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < (L.SHOCK.mile ? 1 : G.slotPerDay)) put1(next, 'slot' + h);   // v258: 時刻を付けて、同じ日・同じ種類の2本目もぶつからない
   else if (today === 0 && h === G.last && NOW - lastT >= G.every) put1(next, 'slot' + h);   // v251: 22時台まで1本も出ていなければ、空きを待たずに出す(1日最低1本)
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
 } catch (e) { console.log('[x] ショック比較: 失敗', e.message); }
