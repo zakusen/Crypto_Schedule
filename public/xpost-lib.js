@@ -1357,3 +1357,22 @@ export function vDraftH(st, now) {
   for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
   return { id: 'vrebh:copy:' + now, sr: 'vreb', man: 1, due: now, ja, en, img: { vreb: { ...st, y0, show, lowHm: hm(st.lowT) } } };
 }
+// v324: 「この下げ方、今年◯回目」を、初回の日(d0)を0日目に固定して続ける。比べる過去の日(refs)も初回のまま。
+export const LIKE = { d0: '2026-11-15' /* v325: $62,000 をつけた日 */, refs: [['2026-06-07', 1], ['2026-02-04', 3]], cnt: 3, noteJa: 'BTC が $62,000 をつけた日', noteEn: 'BTC hit $62,000' };
+export function likeFixed(k, AFT = 60) {
+  const n = k.length - 1, c = k.map((x) => x[4]), ix = (s) => { const t = Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)); return k.findIndex((x) => x[0] === t); };
+  const path = (i, B = 30, Af = AFT) => { const p = []; for (let d = -B; d <= Af && i + d <= n; d++) if (i + d >= 0) p.push([d, +((c[i + d] / c[i] - 1) * 100).toFixed(2)]); return p; };
+  const after = (i) => { let mn = 0, md = 0, rec = null, below = false; for (let d = 1; d <= 365 && i + d <= n; d++) { const v = c[i + d] / c[i] - 1; if (d <= AFT && v < mn) { mn = v; md = d; } if (v < 0) below = true; if (below && rec == null && v >= 0) rec = d; }
+    const at = (d) => i + d <= n ? +((c[i + d] / c[i] - 1) * 100).toFixed(1) : null; return { a60: at(60), low: +(mn * 100).toFixed(1), lowD: md, rec: below ? rec : 0 }; };
+  const i0 = ix(LIKE.d0); if (i0 < 0) throw new Error('0日目(' + LIKE.d0 + ')の日足がありません');
+  const dN = n - i0, rc = LIKE.refs.map(([s, rank]) => { const i = ix(s); if (i < 0) throw new Error(s + ' の日足がありません'); return { t: k[i][0], rank, ...after(i), p: path(i), atN: i + dN <= n ? +((c[i + dN] / c[i] - 1) * 100).toFixed(1) : null }; }).sort((a, b) => a.t - b.t);
+  return { dN, d0: k[i0][0], nowC: c[n], nowChg: +((c[n] / c[i0] - 1) * 100).toFixed(1), cur: path(i0, 30, dN), rc, cnt: LIKE.cnt };
+}
+export function likeFixedDraft(F, now) {
+  const mo = (t) => new Date(t).getUTCMonth() + 1, md = (t) => { const d = new Date(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, sg = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v + '%', $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
+  const ja = [`BTC「今年${F.cnt}回目の下げ方」から${F.dN}日目、${md(F.d0)}比 ${sg(F.nowChg)}(${$(F.nowC)})`, F.rc.map((x) => `${mo(x.t)}月型の同じ${F.dN}日目は${sg(x.atN)}`).join('、'), '', 'その後60日', ...F.rc.map((x) => `${mo(x.t)}月：${x.lowD === 1 ? '翌日に' : x.lowD + '日目に'}${sg(x.low)}、${x.rec === 0 ? '下回らず' : x.rec == null ? '1年戻らず' : x.rec + '日で戻り'}、60日後${sg(x.a60)}`), '', '今回はどっちの道か。', '', '過去の記録。予測ではありません'].join('\n');
+  const en = [`BTC day ${F.dN} since "this year's ${F.cnt}rd drop of this shape": ${sg(F.nowChg)} vs ${md(F.d0)} (${$(F.nowC)})`, F.rc.map((x) => `${md(x.t)} type on day ${F.dN}: ${sg(x.atN)}`).join(', '), '', 'Which path this time?', '', 'Past record. Not a forecast.'].join('\n');
+  let j = ja, e = en; for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { j = ja + tg; e = en + te; break; } }
+  const yr = new Date(F.d0).getUTCFullYear();
+  return { id: 'likefx:copy:' + now, sr: 'like', man: 1, due: now, ja: j, en: e, img: { like: { now: { t: F.d0, r30: null, dd: null, fng: null }, cur: F.cur, rc: F.rc, oth: null, N: 0, M: [], fixed: F.dN, noteJa: LIKE.noteJa, noteEn: LIKE.noteEn, hj: `今年${F.cnt}回目の下げ方から${F.dN}日目`, he: `Day ${F.dN} since this year's ${F.cnt}rd drop`, fj: `${md(F.d0)}比 ${sg(F.nowChg)}`, fe: `${sg(F.nowChg)} vs ${md(F.d0)}`, yr } } };
+}

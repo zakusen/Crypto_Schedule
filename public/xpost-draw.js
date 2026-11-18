@@ -1744,8 +1744,9 @@ function drawLike(g, d, lg) {
   shockFrame(g, lg, 'BTC / SAME SHAPE AGAIN');
   lt(g, 'BTC ' + (en ? d.fe : d.fj), 38, 80, { s: 22, w: 900, c: '#ff5c72' });   // v320: まず今の数字
   lt(g, en ? d.he : d.hj, 36, 132, { s: en ? 30 : 46, w: 900 });
-  lt(g, en ? `Closest of ${d.N.toLocaleString('en-US')} days since 2017, on 6 measures` : `2017年以降の${d.N.toLocaleString('en-US')}日から、6つの物差しで今に近い日を探した`, 40, 162, { s: 15, w: 700, c: '#cfe0f2' });
-  lt(g, en ? 'Day 0 = the matching day (now = today). That day\'s close = 0%' : '0日目＝同じ形だった日(今回＝今日)。その日の終値＝0%', 40, 184, { s: 13, w: 700, c: M });
+  const FX = d.fixed != null;   // v324: 初回の日を0日目に固定して続ける版
+  lt(g, FX ? (en ? `Day 0 = ${new Date(d.now.t).toISOString().slice(0, 10)}${d.noteEn ? ' (' + d.noteEn + ')' : ''}` : `0日目＝${new Date(d.now.t).toISOString().slice(0, 10)}${d.noteJa ? '（' + d.noteJa + '）' : ''}`) : en ? `Closest of ${d.N.toLocaleString('en-US')} days since 2017, on 6 measures` : `2017年以降の${d.N.toLocaleString('en-US')}日から、6つの物差しで今に近い日を探した`, 40, 162, { s: 15, w: 700, c: '#cfe0f2' });
+  lt(g, FX ? (en ? 'For the past ones, day 0 = the day with the same shape. Close on day 0 = 0%' : '過去の回は、同じ形だった日を0日目に。0日目の終値＝0%') : en ? 'Day 0 = the matching day (now = today). That day\'s close = 0%' : '0日目＝同じ形だった日(今回＝今日)。その日の終値＝0%', 40, 184, { s: 13, w: 700, c: M });
   shockTop(g, d.rc.map((x, i) => [640 + i * 165, en ? `${md(x.t)} · day 60` : `${mo(x.t)}月型・60日後`, sg(x.a60), CL[i % CL.length], 30]), 0, en, en ? 'What came next' : 'その後');
   const all = [0].concat(...d.rc.map((x) => x.p.map((q) => q[1])), d.cur.map((q) => q[1]));
   const vmax = Math.ceil((Math.max(...all) + 3) / 10) * 10, vmin = Math.floor((Math.min(...all) - 3) / 10) * 10;
@@ -1767,7 +1768,9 @@ function drawLike(g, d, lg) {
   const lg2 = [[CY, (en ? 'Now (day 0 = ' : '今回（0日目＝') + new Date(d.now.t).toISOString().slice(0, 10) + (en ? ')' : '）'), 5, null], ['#cfe0f2', en ? 'dashed = what came next · dot = the low' : '点線＝その後・点＝底', 2.4, [6, 4]]];
   lg2.forEach(([c, l, w, da], i) => { const xx = 40 + i * 420, y = 656; g.strokeStyle = c; g.lineWidth = w; g.setLineDash(da || []); g.beginPath(); g.moveTo(xx, y); g.lineTo(xx + 34, y); g.stroke(); g.setLineDash([]); lt(g, l, xx + 42, y + 5, { s: 14, w: 800, c: '#e8f0fb' }); });
   g.strokeStyle = '#2a4466'; g.lineWidth = 1; g.beginPath(); g.moveTo(36, 708); g.lineTo(W - 36, 708); g.stroke();
+  if (FX) lt(g, en ? `Now: day ${d.fixed}, ${d.fe}. ` + d.rc.map((x) => `${md(x.t)} type on day ${d.fixed}: ${sg(x.atN)}`).join(' · ') : `今回：${d.fixed}日目、${d.fj}。` + d.rc.map((x) => `${mo(x.t)}月型の同じ${d.fixed}日目 ${sg(x.atN)}`).join('・'), 40, 744, { s: en ? 16 : 18, w: 900 }); else
   lt(g, en ? `Now: 30 days ${sg(d.now.r30)} · ${sg(d.now.dd)} from ATH · Fear & Greed ${d.now.fng ?? '—'}${d.oth ? ` · (#${d.oth.rank}: ${md(d.oth.t)}, day 60 ${sg(d.oth.a60)})` : ''}` : `今回：30日 ${sg(d.now.r30)}・最高値から ${sg(d.now.dd)}・恐怖指数 ${d.now.fng ?? '—'}${d.oth ? `（${d.oth.rank}位は ${md(d.oth.t)}・60日後 ${sg(d.oth.a60)}）` : ''}`, 40, 744, { s: en ? 16 : 18, w: 900 });
+  if (FX) lt(g, en ? 'Picked on 2026-11-17 by 6 measures (30-day shape, 30-day change, distance from ATH, 7-day shape, 14-day range, Fear & Greed). BTC: Binance BTCUSDT daily.' : '比べる回は、11/17に6つの物差し(1か月の形・30日の上げ下げ幅・最高値からの位置・1週間の形・14日の値幅・恐怖指数)の総合で選んだもの。BTC＝Binance BTCUSDT 日足。', 40, 770, { s: 12, w: 700, c: M }); else
   lt(g, en ? `6 measures: ${['30-day shape', '30-day change', 'distance from ATH', '7-day shape', '14-day range', 'Fear & Greed'].join(', ')}. Ranked on each, averaged. BTC: Binance BTCUSDT daily.` : `物差し＝${d.M.join('・')}。物差しごとの順位を平均。BTC＝Binance BTCUSDT 日足。恐怖指数＝alternative.me。`, 40, 770, { s: 12, w: 700, c: M });
   lt(g, (en ? 'Past record. Not a forecast.' : '過去の記録で、今回も同じとは限りません') + ' · @csa_archive', W - 36, 792, { s: 12, w: 800, c: '#ff9a9a', a: 'right' });
 }
