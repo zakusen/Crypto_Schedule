@@ -251,17 +251,17 @@ export function spikePost(sp, corr, link, liq) {   // link = サイトの URL(�
   // 入らない時は 区切り線 → 色の丸 → タグ → 時間外の注記 → 時刻の行(画像にはある) → 相関の目安の言葉 の順に外す
   // v108: 毎朝の予定と同じ形
   const build = (lang, o) => {
-    const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
+    const en = lang === 'en', rule = '';   /* v327: 区切り線はやめて空行に */
     return [...(o.brand ? [BRAND[lang], ''] : []),
-      en ? `⚡ BTC ${sg(btc)} IN ${W}H` : `⚡ BTC ${W}時間で ${sg(btc)}`, ...(o.nodate ? [] : [en ? (dEnU(sp.t0) === dEnU(sp.t1) ? `${dEnU(sp.t0)} · ${uhm(sp.t0)}→${uhm(sp.t1)} UTC` : `${dEnU(sp.t0, false)} ${uhm(sp.t0)} → ${dEnU(sp.t1, false)} ${uhm(sp.t1)} UTC`) : (dJaL(sp.t0) === dJaL(sp.t1) ? `${dJaL(sp.t0)} · ${hm(sp.t0)}→${hm(sp.t1)} · 日本時間` : `${md} ${hm(sp.t0)} → ${J(sp.t1).getUTCMonth() + 1}/${J(sp.t1).getUTCDate()} ${hm(sp.t1)} · 日本時間`)]), rule,
+      (en ? `⚡ BTC ${sg(btc)} in ${W}h` : `⚡ BTC ${W}時間で ${sg(btc)}`) + (liq ? (en ? `, ${usdS(liq.l + liq.s)} liquidated${liq.mult != null ? ` (${fxs(liq.mult)}x normal)` : ''}` : `、清算${jaUsd(liq.l + liq.s)}${liq.mult != null ? `(普段の${fxs(liq.mult)}倍)` : ''}`) : ''), /* v327: 1行目に今の数字をまとめる */ ...(o.nodate ? [] : [en ? (dEnU(sp.t0) === dEnU(sp.t1) ? `${dEnU(sp.t0)} · ${uhm(sp.t0)}→${uhm(sp.t1)} UTC` : `${dEnU(sp.t0, false)} ${uhm(sp.t0)} → ${dEnU(sp.t1, false)} ${uhm(sp.t1)} UTC`) : (dJaL(sp.t0) === dJaL(sp.t1) ? `${dJaL(sp.t0)} · ${hm(sp.t0)}→${hm(sp.t1)} · 日本時間` : `${md} ${hm(sp.t0)} → ${J(sp.t1).getUTCMonth() + 1}/${J(sp.t1).getUTCDate()} ${hm(sp.t1)} · 日本時間`)]), rule,
       ...COINS.filter(([c]) => sp.coins[c] != null).map(([c, , s]) => `${s} ${c} ${mv(sp.coins[c], o.dot)}`),
       `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open || o.noclosed ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`,
-      ...(rv(30, 'BTC') != null ? [en ? `BTC–S&P500 corr (30D): ${cr('BTC', lang, !o.nolab)}` : `BTCとS&P500の相関(30日): ${cr('BTC', lang, !o.nolab)}`] : []), rule,
-      ...(liq ? [en ? `${usdS(liq.l + liq.s)} liquidated${liq.mult != null ? ` — ${fxs(liq.mult)}x a normal ${W === 1 ? 'hour' : W + 'h'}` : ''} ↓` : `清算${jaUsd(liq.l + liq.s)}${liq.mult != null ? `、普段の${fxs(liq.mult)}倍` : ''} ↓`] : []),
+      ...(rv(30, 'BTC') != null ? [en ? `BTC–S&P500 corr (30D): ${cr('BTC', lang, !o.nolab)}` : `BTCとS&P500の相関(30日): ${cr('BTC', lang, !o.nolab)}`] : []),
+      ...(liq ? [en ? 'Liquidation breakdown in the reply ↓' : '清算の内訳は返信へ↓'] : []),
       ...(link ? ['🔗 ' + link] : []),
       ...(o.tag ? [en ? '#Bitcoin #SP500' : '#ビットコイン #SP500'] : [])].join('\n');
   };
-  const LV = [{ brand: 1, rule: 18, dot: 1, tag: 1 }, { brand: 1, dot: 1, tag: 1 }, { dot: 1, tag: 1 }, { dot: 1 }, {}, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];   // 相関の目安の言葉は最後まで残す(時刻は画像にもある・投稿はすぐ出る)
+  const LV = [{ dot: 1, tag: 1 }, { dot: 1 }, {}, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];   // v327: ブランド行・区切り線はやめた(1行目を今の数字に)   // 相関の目安の言葉は最後まで残す(時刻は画像にもある・投稿はすぐ出る)
   const fitS = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitS('en'), ja = fitS('ja');
   return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, win: W, t0: sp.t0, t1: sp.t1, coins: sp.coins, ...(liq ? { liq: { l: liq.l, s: liq.s, mult: liq.mult != null ? liq.mult : null } } : {}), spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
@@ -291,14 +291,14 @@ export function liqPost(ev) {
   const build = (lang, o) => {
     const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
     return [...(o.brand ? [BRAND[lang], ''] : []),
-      ...(ev.man && ev.hrs ? [en ? `🔥 LIQUIDATIONS · LAST ${ev.hrs}H` : `🔥 清算 · 直近${ev.hrs}時間`] : [en ? '🔥 LIQUIDATION WAVE' : '🔥 巨額清算']), ...(o.nodate ? [] : [rangeTxt(ev.start, ev.end, lang)]), rule,   // v277: 手で作った時は「直近◯時間」
-      ...liqRows(ev.coins), rule,
+      (ev.man && ev.hrs ? (en ? `🔥 ${usdS(tot.l + tot.s)} liquidated in ${ev.hrs}h` : `🔥 直近${ev.hrs}時間で清算${usdS(tot.l + tot.s)}`) : (en ? `🔥 Liquidation wave: ${usdS(tot.l + tot.s)}` : `🔥 巨額清算 ${usdS(tot.l + tot.s)}`)) + (tot.share != null ? (en ? ` (${tot.share}% longs)` : `(ロング${tot.share}%)`) : ''), ...(o.nodate ? [] : [rangeTxt(ev.start, ev.end, lang)]), '',   // v327: 1行目に合計とロングの割合   // v277: 手で作った時は「直近◯時間」
+      ...liqRows(ev.coins),
       en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}`,
       ...(mo && !o.nomax ? [en ? `💥 Largest: ${usdS(mo.usd)} ${mo.coin} ${mo.side}` : `💥 最大の1件: ${usdS(mo.usd)} ${mo.coin}の${mo.side === 'long' ? 'ロング' : 'ショート'}`] : []),
       ...(o.src ? [ev.hrs ? (en ? 'Binance+Bybit+OKX+Huobi' : 'Binance・Bybit・OKX・Huobi合算') : (en ? 'Bybit + OKX' : 'Bybit・OKX合算')] : []),
       ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
   };
-  const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nomax: 1 }, { nomax: 1, nodate: 1 }];
+  const LV = [{ src: 1, tag: 1 }, { tag: 1 }, {}, { nomax: 1 }, { nomax: 1, nodate: 1 }];
   const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitL('en'), ja = fitL('ja');
   return { id: ev.id, sr: 'liq', due: ev.end, en, ja, h: hashStr(en + ja), ...(ev.man ? { man: 1 } : {}),
@@ -312,16 +312,16 @@ export function liqDayPost(day, coins, hours, from, mult, opt = {}) {   // v171:
   const build = (lang, o) => {
     const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
     return [...(o.brand ? [BRAND[lang], ''] : []),
-      en ? '📊 LIQUIDATIONS · LAST 24H' : '📊 清算額 · 直近24時間',
-      ...(o.nodate ? [] : [en ? `to ${dEnU(end)} · ${uhm(end)} UTC${part ? ' (partial)' : ''}` : `${dJaL(end)} ${hm(end)} まで${part ? '（記録は途中から）' : ''}`]), rule,
-      ...liqRows(coins), rule,
+      (en ? `📊 ${usdS(tot.l + tot.s)} liquidated in the last 24h` : `📊 直近24時間の清算 ${usdS(tot.l + tot.s)}`) + (mult && mult.l != null && mult.s != null ? (en ? ` (${fxs(Math.max(mult.l, mult.s))}x a normal day)` : `(平常日の${fxs(Math.max(mult.l, mult.s))}倍)`) : ''),   // v327: 1行目に合計と平常日比
+      ...(o.nodate ? [] : [en ? `to ${dEnU(end)} · ${uhm(end)} UTC${part ? ' (partial)' : ''}` : `${dJaL(end)} ${hm(end)} まで${part ? '（記録は途中から）' : ''}`]), '',
+      ...liqRows(coins),
       en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}${tot.share != null ? ` (${tot.share}% long)` : ''}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}${tot.share != null ? `（ロング${tot.share}%）` : ''}`,
       ...(mult && !o.nomult ? [en ? `📏 vs normal day: Long ×${fxs(mult.l)} · Short ×${fxs(mult.s)}` : `📏 平常日比: ロング ×${fxs(mult.l)} · ショート ×${fxs(mult.s)}`] : []),
       ...(pk && !o.nopeak ? [en ? `⏱ Peak hour ${uhm(pk[0])} UTC · ${usdS(pk[1] + pk[2])}` : `⏱ ピーク ${hm(pk[0])} · ${usdS(pk[1] + pk[2])}`] : []),
       ...(o.src ? [en ? 'Binance+Bybit+OKX+Huobi' : 'Binance・Bybit・OKX・Huobi合算'] : []),   // v171: 毎朝のまとめは /api/liq の集計(Coinalyze 4社)。巨額清算の総括(ライブ受信)は Bybit・OKX のまま
       ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
   };
-  const LV = [{ brand: 1, rule: 18, src: 1, tag: 1 }, { brand: 1, src: 1, tag: 1 }, { brand: 1, tag: 1 }, { tag: 1 }, {}, { nopeak: 1 }, { nopeak: 1, nodate: 1 }, { nopeak: 1, nodate: 1, nomult: 1 }];
+  const LV = [{ src: 1, tag: 1 }, { tag: 1 }, {}, { nopeak: 1 }, { nopeak: 1, nodate: 1 }, { nopeak: 1, nodate: 1, nomult: 1 }];
   const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
   const en = fitL('en'), ja = fitL('ja');
   return { id: opt.id || 'liqday:' + isoDay(day), sr: 'liqday', due: end, ...(opt.langs ? { langs: opt.langs } : {}), en, ja, h: hashStr(en + ja),
@@ -418,7 +418,7 @@ export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWi
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
 // v280: pre(発表前の予告)と arch(発表後の値動き)は自動投稿をやめた(ビューが少ないため。下書きは他の機能の材料として作り続ける。FOMC などの予告は fomc で別)
 // v298: 夜のまとめ(sum)・値動きの大きさ(vol)・BTC実況(pat)・ハッキング追跡(hack・bnstatus・bnreply)の自動投稿をやめた(ビューがほぼ無いため。下書きは作り続ける)
-export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (p.sr === 'liqshock' || p.sr === 'histw' || p.sr === 'histm' || p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'week' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (p.sr === 'liqshock' || p.sr === 'histw' || p.sr === 'histm' || p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -599,16 +599,17 @@ export function fomcText(kind, lv, lg, now) {
   const dt = (t) => { const d = new Date(t - 4 * H); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };   // 日付は米国の発表日(米東部時間)
   const left = Math.max(0, lv.E - now), hh = Math.round(left / H * 2) / 2, leftJa = hh >= 1 ? (Number.isInteger(hh) ? `${hh}時間` : `${Math.floor(hh)}時間半`) : `${Math.max(1, Math.round(left / 60000))}分`;
   const leftEn = hh >= 1 ? `${hh}h` : `${Math.max(1, Math.round(left / 60000))} min`, t = lv.top, m = ['①', '②', '③'];
+  // v327: 1行目＝あと何時間、2行目＝一番似ていた回の答え。説明の行を減らす
   if (kind === 'fomc') return en
-    ? [`${NM} in ${leftEn}.`, `Closest past run-up: ${NM} on ${dt(t[0].fomc)}.`, `BTC 1h after that release: ${sg(t[0].a1)}`, 'Cyan = now, dotted = what came next.', 'Did the other 2 move the same way?', 'Top 3 in the reply ↓', '*Match = shape, not probability', TG].join('\n')
-    : [`${NM}まで、あと${leftJa}。`, `発表前の値動きが今回に最も似ていたのは${dt(t[0].fomc)}の${NM}。`, `その回のBTCは発表後1時間で${sg(t[0].a1)}。`, '水色が今回、点線が過去のその後。', 'ほかの2回は同じ方向だったのか？', 'TOP3の比較は返信へ↓', '※一致率は上昇確率ではありません', TG].join('\n');
+    ? [`${NM} in ${leftEn}.`, `The run-up most like this one: ${NM} on ${dt(t[0].fomc)}. BTC 1h after: ${sg(t[0].a1)}`, '', 'Did the other 2 move the same way? Top 3 in the reply ↓', 'Past record. Not a forecast.', TG].join('\n')
+    : [`${NM}まで、あと${leftJa}。`, `発表前の動きが一番似ていた${dt(t[0].fomc)}の回、BTCは発表後1時間で${sg(t[0].a1)}`, '', 'ほかの2回も同じ方向だったのか？ TOP3は返信へ↓', '過去の記録。予測ではありません', TG].join('\n');
   if (kind === 'fomcc') return en
-    ? [`BTC 1h after the 3 closest past ${NM} releases`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), 'Compared: 24h before release to the same time left. Post-release moves not used.', 'Similar shape ≠ same outcome.', "Result: a new post 1h after the release."].join('\n')
-    : ['似ていた過去3回の、発表後1時間のBTC', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), '比較は「発表24時間前〜今と同じ残り時間」まで。発表後の動きは選定に使っていません。', '似た形でも、その後が同じとは限りません。', '結果は発表1時間後に新しい投稿で出します。'].join('\n');
+    ? [`BTC 1h after the 3 closest past ${NM} releases`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), '', 'Picked by the 24h run-up only. Result: a new post 1h after the release.'].join('\n')
+    : ['発表前の動きが似ていた過去3回、発表後1時間のBTC', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), '', '選んだのは発表前24時間の形だけ。結果は発表1時間後に出します。'].join('\n');
   const same = lv.a1 == null ? null : t.filter((x) => x.a1 != null && Math.sign(x.a1) === Math.sign(lv.a1)).length;
   return en
-    ? [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} result: BTC ${sg(lv.a1)} in the first hour`, '', `The 3 past ${NM} releases whose run-up looked most like this one:`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), 'Cyan = this time, dotted = what came next back then.', TG].join('\n')
-    : [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} 発表後1時間、BTCは${sg(lv.a1)}`, '', '発表前の動きが似ていた過去3回は', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), ...(same != null ? [`今回と同じ方向だったのは3回中${same}回`] : []), '水色が今回、点線が過去のその後。', TG].join('\n');
+    ? [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} result: BTC ${sg(lv.a1)} in the first hour`, '', `The 3 past ${NM} releases whose run-up looked most like this one:`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), TG].join('\n')
+    : [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} 発表後1時間、BTCは${sg(lv.a1)}`, '', '発表前の動きが似ていた過去3回は', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), ...(same != null ? [`今回と同じ方向だったのは3回中${same}回`] : []), TG].join('\n');
 }
 
 
@@ -1366,12 +1367,17 @@ export function likeFixed(k, AFT = 60) {
     const at = (d) => i + d <= n ? +((c[i + d] / c[i] - 1) * 100).toFixed(1) : null; return { a60: at(60), low: +(mn * 100).toFixed(1), lowD: md, rec: below ? rec : 0 }; };
   const i0 = ix(LIKE.d0); if (i0 < 0) throw new Error('0日目(' + LIKE.d0 + ')の日足がありません');
   const dN = n - i0, rc = LIKE.refs.map(([s, rank]) => { const i = ix(s); if (i < 0) throw new Error(s + ' の日足がありません'); return { t: k[i][0], rank, ...after(i), p: path(i), atN: i + dN <= n ? +((c[i + dN] / c[i] - 1) * 100).toFixed(1) : null }; }).sort((a, b) => a.t - b.t);
-  return { dN, d0: k[i0][0], nowC: c[n], nowChg: +((c[n] / c[i0] - 1) * 100).toFixed(1), cur: path(i0, 30, dN), rc, cnt: LIKE.cnt };
+  // v326: 0日目から今日までの線の離れ具合(同じ日の差の平均)。小さい方が「近い」
+  const cur = path(i0, 30, dN); rc.forEach((x) => { const df = []; for (const [d, v] of cur) if (d >= 1) { const q = x.p.find((z) => z[0] === d); if (q) df.push(Math.abs(q[1] - v)); } x.dist = df.length ? df.reduce((a, v) => a + v, 0) / df.length : null; });
+  return { dN, d0: k[i0][0], nowC: c[n], nowChg: +((c[n] / c[i0] - 1) * 100).toFixed(1), cur, rc, cnt: LIKE.cnt };
 }
 export function likeFixedDraft(F, now) {
-  const mo = (t) => new Date(t).getUTCMonth() + 1, md = (t) => { const d = new Date(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, sg = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v + '%', $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
-  const ja = [`BTC「今年${F.cnt}回目の下げ方」から${F.dN}日目、${md(F.d0)}比 ${sg(F.nowChg)}(${$(F.nowC)})`, F.rc.map((x) => `${mo(x.t)}月型の同じ${F.dN}日目は${sg(x.atN)}`).join('、'), '', 'その後60日', ...F.rc.map((x) => `${mo(x.t)}月：${x.lowD === 1 ? '翌日に' : x.lowD + '日目に'}${sg(x.low)}、${x.rec === 0 ? '下回らず' : x.rec == null ? '1年戻らず' : x.rec + '日で戻り'}、60日後${sg(x.a60)}`), '', '今回はどっちの道か。', '', '過去の記録。予測ではありません'].join('\n');
-  const en = [`BTC day ${F.dN} since "this year's ${F.cnt}rd drop of this shape": ${sg(F.nowChg)} vs ${md(F.d0)} (${$(F.nowC)})`, F.rc.map((x) => `${md(x.t)} type on day ${F.dN}: ${sg(x.atN)}`).join(', '), '', 'Which path this time?', '', 'Past record. Not a forecast.'].join('\n');
+  const mo = (t) => new Date(t).getUTCMonth() + 1, md = (t) => { const d = new Date(t); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, sg = (v) => v == null ? '—' : (v > 0 ? '+' : '') + (+v).toFixed(1) + '%', $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
+  // v326: 1行目＝何のシリーズかと問い。今回・各月を縦に並べ、「ここまでは◯月の道に近い」
+  const me = (t) => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][new Date(t).getUTCMonth()];
+  const ds = F.rc.filter((x) => x.dist != null).sort((a, b) => a.dist - b.dist), near = ds.length >= 2 && ds[1].dist - ds[0].dist >= 0.3 ? ds[0] : null;
+  const ja = [`BTC、今年${F.cnt}回目の同じ下げ方。${F.rc.map((x) => mo(x.t) + '月').join('と')}、どっちの道？`, '', `${LIKE.noteJa ? LIKE.noteJa.replace('BTC が ', '').replace(' をつけた日', 'をつけた日') : '0日目'}(${md(F.d0)})から${F.dN}日目`, `今回 ${sg(F.nowChg)}`, ...F.rc.map((x) => `${mo(x.t)}月 ${sg(x.atN)}(その後60日で${sg(x.a60)})`), '', near ? `ここまでは${mo(near.t)}月の道に近い` : 'ここまでは、どちらとも同じくらいの離れ方', '', '過去の記録。予測ではありません'].join('\n');
+  const en = [`BTC: this year's ${F.cnt}rd drop of the same shape. The ${F.rc.map((x) => me(x.t)).join(' or the ')} path?`, '', `Day ${F.dN} since ${LIKE.noteEn ? LIKE.noteEn.replace('BTC hit ', 'hitting ') : 'day 0'} (${md(F.d0)})`, `Now ${sg(F.nowChg)}`, ...F.rc.map((x) => `${me(x.t)} ${sg(x.atN)} (60 days later: ${sg(x.a60)})`), '', near ? `So far, closer to the ${me(near.t)} path` : 'So far, about equally far from both', '', 'Past record. Not a forecast.'].join('\n');
   let j = ja, e = en; for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { j = ja + tg; e = en + te; break; } }
   const yr = new Date(F.d0).getUTCFullYear();
   return { id: 'likefx:copy:' + now, sr: 'like', man: 1, due: now, ja: j, en: e, img: { like: { now: { t: F.d0, r30: null, dd: null, fng: null }, cur: F.cur, rc: F.rc, oth: null, N: 0, M: [], fixed: F.dN, noteJa: LIKE.noteJa, noteEn: LIKE.noteEn, hj: `今年${F.cnt}回目の下げ方から${F.dN}日目`, he: `Day ${F.dN} since this year's ${F.cnt}rd drop`, fj: `${md(F.d0)}比 ${sg(F.nowChg)}`, fe: `${sg(F.nowChg)} vs ${md(F.d0)}`, yr } } };
