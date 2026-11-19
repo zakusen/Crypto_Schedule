@@ -398,7 +398,7 @@ try {
 // ---- 4b2) v217: 急変動の「過去の急変動との比較」(別の投稿)。直近6時間の急変動ごとに1本 ----
 for (const sp of [...byId.values(), ...out].filter((p) => p.sr === 'spike' && p.img && p.img.t1 && NOW - (p.due || 0) < 12 * H)) {   // v219: 12時間以内の急変動
   const id = 'spkcmp:' + sp.id; if (byId.has(id) || out.some((p) => p.id === id)) continue;
-  put(L.spkcmpDraft(sp, NOW)); console.log('[x] 過去の急変動との比較の下書き:', id);
+  continue;   /* v330: 自動で出さなくなったので作らない(本文は投稿時にしか作れず、コピペにできないため) */
 }
 
 // ---- 4b3) v221: 大型ハッキング(HACKS の cur)。発生から12時間以内に1本 ----
@@ -437,7 +437,7 @@ try {
   const lsBusy = lsOn && lsMile && Math.abs(NOW - lsAt) < L.LIQSHOCK.gap;   // v316: 節目の日だけ空ける   // v300: 大量清算の後のBTC(18:30)の前後2時間はショック比較を出さない(下書きができる前から)
   const h = L.J(NOW).getUTCHours(), busy = all.some((p) => { if (!L.isAuto(p) || p.sr === 'shockbn' || p.sr === 'shockcmp') return false; const d = p.due || 0; return L.SHOCKFIXED.has(p.sr) ? Math.abs(d - NOW) < G.fixed : d > NOW - G.before && d < NOW + G.after; }) || lsBusy;   // v251 / v300
   const next = 'shockbn';   // v328: ショック後のBTC(shockcmp)は止めた。Binance 2019 vs 2026 だけ
-  let force = null; try { force = await (await site('/api/admin/rx-one?name=sf')).json(); } catch (_) {}   // v252: /posts.html の「ショック比較を今出す」
+  const force = null;   // v330: 「ショック比較を今出す」(ボタンから自動投稿)は廃止
   const fwhy = force && force.at && NOW - force.at < 3 * H && force.at > lastT ? 'f' + Math.floor(force.at / 60000) : null;
   if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(force.kind === 'shockbn' || force.kind === 'shockcmp' ? force.kind : next, fwhy);   // v254: ボタンで選んだほう
   else if (n < 1 || n > (L.SHOCK.autoEnd || L.SHOCK.post)) console.log('[x] ショック比較: 期間外', n);   // v329: 自動は30日目まで
@@ -488,7 +488,7 @@ try {
   const daily = h >= L.CORRTS.postFrom && h < L.CORRTS.postTo && !mine.some((p) => p.id === 'corrts:' + L.isoDay(NOW));
   const lastV = last && last.img && last.img.corr ? L.corrStats(last.img.corr).now : null;
   const jump = stt.now != null && lastV != null && Math.abs(stt.now - lastV) >= L.CORRTS.jump && NOW - (last.due || 0) >= 6 * H && !mine.some((p) => p.id === 'corrts:' + L.isoDay(NOW) + ':jump');
-  let cf = null; try { cf = await (await site('/api/admin/rx-one?name=cf')).json(); } catch (_) {}   // v261: /posts.html の「相関の推移を今出す」
+  const cf = null;   // v330: 「相関の推移を今出す」(ボタンから自動投稿)は廃止
   const fw = cf && cf.at && NOW - cf.at < 3 * H && cf.at > ((last && last.due) || 0) ? 'f' + Math.floor(cf.at / 60000) : null;
   if (fw && !mine.some((p) => p.why === fw)) { put(L.corrDraft(c, NOW, fw)); console.log('[x] 相関の推移の下書き(ボタン):', stt.now); }
   else if (daily) { put(L.corrDraft(c, NOW, 'daily')); console.log('[x] 相関の推移の下書き(毎日):', stt.now); }

@@ -147,11 +147,10 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
       <div class="ti"><button class="chip" id="cbvBtn">🔍 Coinbase プレミアムを検証</button><span class="td">毎日のプレミアム・連続マイナス日数・過去の長い順(投稿はしない)</span></div>
       <div class="ti"><button class="chip" id="ceoBtn" title="暗号資産・AI の主要企業のトップが事件や疑惑の中で退いた日(Celsius・FTX・Binance・NVIDIA)の前後30日のBTCを、退いた日を真ん中にして重ねた本文と画像を作る(コピペで投稿)">👔 トップが退いた日のBTC</button><span class="td">CEO が退いた日の前後のBTC</span></div>
     </div></div>
-  <div class="tg"><div class="tgh"><b>自動の投稿を今すぐ出す</b><span>押すとすぐ X に投稿されます(英語は30分後)</span></div>
+  <div class="tg"><div class="tgh"><b>止めた自動投稿をコピペで出す</b><span>自動では出さなくなった種類。24時間の清算・ブームと危機・急変動・巨額清算・大量清算の後のBTCは、毎時の下書きが一覧に並ぶので、そこからコピペできます</span></div>
     <div class="tl">
-      <div class="ti"><button class="chip" id="cfBtn" title="BTC×S&amp;P500 の相関の推移を、今の数字で今出す。英語は30分後">🔗 相関の推移を今出す</button><span class="td">BTC × S&P500 の相関の推移</span></div>
-      <div class="ti"><button class="chip sfb" data-k="shockbn" title="Binance 2019/2026 を今出す。英語は30分後に返信で">📉 Binance 2019/2026 を今出す</button><span class="td">Binance 2019/2026 の比較</span></div>
-      <div class="ti"><button class="chip sfb" data-k="shockcmp" title="ショック後のBTC を今出す。英語は30分後に返信で">📉 ショック後のBTC を今出す</button><span class="td">ショック後のBTC</span></div>
+      <div class="ti"><button class="chip" id="sbBtn" title="Binance 2019/2026 の比較を、今日の日数で作る(コピペで投稿)">📉 Binance 2019/2026</button><span class="td">発生から今日の日数で、2019年と並べる</span></div>
+      <div class="ti"><button class="chip" id="scBtn" title="ショック後のBTC(FTX・LUNA・Bybit と並べる)を、今日の日数で作る(コピペで投稿)">📉 ショック後のBTC</button><span class="td">FTX・LUNA・Bybit と同じ日数で並べる</span></div>
     </div></div>
   <div class="tg"><div class="tgh"><b>作る・足す</b></div>
     <div class="tl">
@@ -723,13 +722,6 @@ document.getElementById('xfBtn').onclick = async (e) => {
     box.textContent = L.length ? L.map((f) => new Date(f.at).toLocaleString('ja-JP') + '  ' + f.id + ':' + f.lang + '  HTTP ' + f.status + '\n  ' + f.detail).join('\n') : '失敗の記録はありません';
   } catch (err) { b.textContent = '失敗 ' + err.message; setTimeout(() => (b.textContent = t0), 5000); }
 };
-// v261: 相関の推移を今出す(サイトに合図を置き、X post を起こす。数分で投稿)
-document.getElementById('cfBtn').onclick = async (e) => {
-  const b = e.currentTarget, t0 = b.textContent; b.disabled = true; b.textContent = '送信中…';
-  try { const r = await fetch('/api/admin/rx-put?name=cf', { method: 'POST', headers: { 'x-admin-key': getKey(), 'content-type': 'text/plain' }, body: JSON.stringify({ at: Date.now() }) }); b.textContent = r.ok ? '✓ 合図を送りました(数分で投稿)' : '失敗 HTTP ' + r.status; }
-  catch (err) { b.textContent = '失敗 ' + err.message; }
-  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
-};
 // v259: 相関の推移の図に出来事を手で足す(日時は日本時間)。直近14日より古いものは自動で外す
 document.getElementById('ceBtn').onclick = async (e) => {
   const b = e.currentTarget, t0 = b.textContent;
@@ -746,13 +738,14 @@ document.getElementById('ceBtn').onclick = async (e) => {
   } catch (err) { b.textContent = '失敗 ' + err.message; }
   setTimeout(() => (b.textContent = t0), 8000);
 };
-// v252: ショック比較を今出す(サイトに合図を置き、X post を起こす。数分で投稿)
-document.querySelectorAll('.sfb').forEach((el) => el.onclick = async (e) => {   // v254: どちらを出すか選ぶ
-  const b = e.currentTarget, t0 = b.textContent; b.disabled = true; b.textContent = '送信中…';
-  try { const r = await fetch('/api/admin/rx-put?name=sf', { method: 'POST', headers: { 'x-admin-key': getKey(), 'content-type': 'text/plain' }, body: JSON.stringify({ at: Date.now(), kind: e.currentTarget.dataset.k }) }); b.textContent = r.ok ? '✓ 合図を送りました(数分で投稿)' : '失敗 HTTP ' + r.status; }
-  catch (err) { b.textContent = '失敗 ' + err.message; }
-  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 8000);
-});
+// v330: Binance 2019/2026・ショック後のBTC をコピペで作る(自動投稿に飛ばすボタンは廃止)
+const shockCopy = async (b, kind) => { const ev = {}, now = Date.now();
+  for (const e of L.SHOCK.ev) { const t0 = Date.parse(e.d0 + 'T00:00:00Z'); let rows = null;
+    for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${t0 - 16 * 864e5}&endTime=${Math.min(now, t0 + (L.SHOCK.post + 1) * 864e5)}&limit=1000`); if (r.ok) { rows = await r.json(); break; } } catch (_) {} }
+    const s2 = rows && L.shockSeries(e, rows, now); if (!s2) throw new Error('日足が取れません ' + e.id); ev[e.id] = s2; }
+  const cur = ev[L.SHOCK.cur], n = cur.days[cur.days.length - 1][0]; return { ...L.shockDraft({ ev, n }, now, kind, 'copy'), man: 1 }; };
+runBtn('sbBtn', (b) => shockCopy(b, 'shockbn'));
+runBtn('scBtn', (b) => shockCopy(b, 'shockcmp'));
 </script>
 </body>
 </html>
