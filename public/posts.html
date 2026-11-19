@@ -131,6 +131,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
       <div class="ti"><button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button><span class="td">直近1・6・24時間の清算</span></div>
       <div class="ti"><button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button><span class="td">BTC の急騰・急落を、その時の%で</span></div>
       <div class="ti"><button class="chip" id="niaBtn" title="急落の最中に。直近24時間の高値から今までのローソク足(縦長)と、過去の同じ急落が24時間以内に半分戻したかを1段にした画像と本文を作る(コピペで投稿)">🌊 ナイアガラ(急落の足)</button><span class="td">縦長のローソク足＋過去の同じ急落の答え</span></div>
+      <div class="ti"><button class="chip" id="ipoBtn" title="大型上場の日(コインベース・SpaceX・Anthropic)の前後10日のBTC日足を3段の縦長画像にし、上場日の終値と1週間後を本文に(コピペで投稿)">🔔 大型上場の日×BTC</button><span class="td">3社の上場日前後のBTC日足</span></div>
       <div class="ti"><button class="chip" id="ncBtn" title="ニュースの見出しを入れると、CSA の記録の24時間相関(BTC×S&P500・7日分)と並べた本文と画像を作る(コピペで投稿)">📰 ニュースと相関</button><span class="td">ニュースの見出し＋CSAの相関の記録</span></div>
       <div class="ti"><button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button><span class="td">直近8時間の急落→戻りの引用文</span></div>
     </div></div>
@@ -746,6 +747,11 @@ runBtn('niaBtn', async (b) => { const now = Date.now(), H1 = 36e5;
   for (let q = 0; q < starts.length; q += 8) { await Promise.all(starts.slice(q, q + 8).map(async (st, z) => { for (let tr = 0; tr < 3; tr++) { try { const r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${st}&limit=1000`); if (r.ok) { got[q + z] = await r.json(); break; } } catch (_) {} } done++; })); b.textContent = `取得中… ${Math.round(done / starts.length * 100)}%`; }
   const k1 = []; for (const j of got) for (const x of j || []) k1.push([+x[0], +x[1], +x[2], +x[3], +x[4]]);
   return L.niagaraDraft(nw, k1.length > 1000 ? L.niagaraStudy(k1, nw) : null, now); });
+// v343: 大型上場の日 × BTC(日足)
+runBtn('ipoBtn', async (b) => { const now = Date.now(), D = 864e5; let host = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/ping`); if (r.ok) { host = h; break; } } catch (_) {} }
+  if (!host) throw new Error('Binance に届きません');
+  const evs = await Promise.all(L.IPOS.map(async (e) => { const t0 = Date.parse(e.d + 'T00:00:00Z'), r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${t0 - L.IPO_PRE * D}&endTime=${t0 + L.IPO_POST * D}&limit=40`); if (!r.ok) throw new Error('日足が取れません ' + e.d); return { ...e, bars: (await r.json()).map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]) }; }));
+  return L.ipoDraft(evs, now); });
 // v341: ニュースと相関(見出しは手で入れる。相関は自動投稿と同じ記録 ct)
 runBtn('ncBtn', async (b) => {
   const hj = prompt('ニュースの見出し(日本語)', 'FRBの議事要旨、AIブームの崩れを金融システムのリスクとして議論'); if (!hj) throw new Error('見出しが空です');

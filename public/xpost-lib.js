@@ -1399,3 +1399,25 @@ export function niagaraDraft(nw, st, now) {
   const en = voice({ h: `BTC ${sg(nw.drop)} in ${de} (${$(nw.hi)} → ${$(nw.now)}).`, a: "How it fell isn't the whole story.", b: st && st.N ? [`- ${st.N} past drops of ${-st.TH}%+ within ${st.D}h since ${st.y0}`, `- Won back half the drop within 24h: ${st.back}` + (st.backMed != null ? ` (median ${st.backMed}h)` : ''), `- Didn't: ${st.N - st.back}`] : [], c: 'Same plunge, a different 24 hours after.', minB: 3 }, 'en');
   return { id: 'niagara:copy:' + now, sr: 'niagara', man: 1, due: now, ja, en, img: { nia: { ...nw, st } } };
 }
+// v343: 大型上場の日 × BTC(コピペ)。選び方は先に決めた3件で固定(暗号資産の節目のコインベース、当初調達額で過去最大級のSpaceXとAnthropic)
+export const IPOS = [
+  { k: 'coin', d: '2021-04-14', ja: 'コインベース', en: 'Coinbase', subJa: 'ナスダック直接上場・暗号資産取引所', subEn: 'Nasdaq direct listing · crypto exchange' },
+  { k: 'spcx', d: '2026-06-12', ja: 'SpaceX', en: 'SpaceX', subJa: 'ナスダック上場・当初調達750億ドル', subEn: 'Nasdaq IPO · $75B initial raise' },
+  { k: 'ant', d: '2026-11-19', ja: 'Anthropic（ANT）', en: 'Anthropic (ANT)', subJa: 'ナスダック上場・調達813億ドル・公開価格$83', subEn: 'Nasdaq IPO · $81.3B raised · priced at $83' },
+];
+export const IPO_PRE = 10, IPO_POST = 10, IPO_WK = 7;
+export function ipoStat(ev, now) {
+  const t0 = Date.parse(ev.d + 'T00:00:00Z'), D = 864e5, b = ev.bars || [], at = (t) => b.find((x) => x[0] === t);
+  const d0 = at(t0), w = at(t0 + IPO_WK * D), pre = at(t0 - D);
+  return { t0, live: now < t0 + D, close: d0 ? d0[4] : null, last: b.length ? b[b.length - 1][4] : null, prevClose: pre ? pre[4] : null, wk: d0 && w && now >= t0 + (IPO_WK + 1) * D ? (w[4] / d0[4] - 1) * 100 : null, hiDay: d0 ? d0[2] : null };
+}
+export function ipoDraft(evs, now) {
+  const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const S = evs.map((e) => ({ ...e, st: ipoStat(e, now) })), past = S.filter((e) => !e.st.live), cur = S.find((e) => e.st.live);
+  const yy = (d) => d.slice(2, 4) + '/' + (+d.slice(5, 7)) + '/' + (+d.slice(8, 10));
+  const bj = past.map((e) => `・${yy(e.d)} ${e.ja.replace(/（.*/, '')}上場日 終値${$(e.st.close)}` + (e.st.wk != null ? `→1週間後${sg(e.st.wk)}` : ''));
+  const be = past.map((e) => `- ${e.en.replace(/ \(.*/, '')} (${e.d}): close ${$(e.st.close)}` + (e.st.wk != null ? `, 1w later ${sg(e.st.wk)}` : ''));
+  const ja = voice({ h: cur ? `${cur.ja}が今夜ナスダックで取引開始（当初調達額で過去最大）。` : '大型上場の日のBTC。', a: '注目したいのは、規模だけではありません。', b: bj, c: '大型上場の日、BTCはどう動いてきたか。', minB: 2 }, 'ja');
+  const en = voice({ h: cur ? `${cur.en} debuts on Nasdaq today (record initial raise).` : 'BTC on big listing days.', a: "Size isn't the whole story.", b: be, c: 'How BTC moved on big listing days.', minB: 2 }, 'en');
+  return { id: 'ipo:copy:' + now, sr: 'ipo', man: 1, due: now, ja, en, img: { ipo: { evs: S, now } } };
+}
