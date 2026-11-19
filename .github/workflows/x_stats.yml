@@ -1,0 +1,38 @@
+name: X stats (投稿の数字を取る)
+# v332: 自分の X 投稿のビュー・いいねを X API で取って集計する。手で動かす: Actions → 「X stats」→ Run workflow。
+#   結果は実行画面の Summary(種類別・時間帯別・上位20)と、成果物 x_stats(stats.csv)。
+#   X API の読み取りは件数ぶん課金されるので、max(件数)と days(日数)で上限をかける。
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: '何日前までの投稿を取るか(1〜60)'
+        default: '14'
+      max:
+        description: '最大何件取るか(10〜1000。多いほど費用がかかる)'
+        default: '200'
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Get stats
+        run: node tools/x_stats.mjs
+        env:
+          STATS_DAYS: ${{ github.event.inputs.days }}
+          STATS_MAX: ${{ github.event.inputs.max }}
+          SITE_URL: ${{ secrets.SITE_URL }}
+          RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: x_stats
+          path: x_stats/
