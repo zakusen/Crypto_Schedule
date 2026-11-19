@@ -1,6 +1,7 @@
 name: X stats (投稿の数字を取る)
 # v332→v338: 自分の X 投稿のビュー・いいねを X API で取って集計する。
-#   手で動かす: Actions → 「X stats」→ Run workflow。結果は実行画面の Summary と、成果物 x_stats(stats.csv / stats.json)。
+#   手で動かす: Actions → 「X stats」→ Run workflow。結果は実行画面の Summary と、成果物 x_stats(report.html・stats.csv・stats.json・img/)。
+#   v339: report.html をブラウザで開くと、画像・本文・ビューの一覧が見られる(列の見出しで並べ替え)。
 #   毎日 23:55(日本時間)に、フォロワー数だけを記録する(X API は1件読むだけ。投稿は読まない)。
 #   SITE_URL・RX_ADMIN_KEY があると、フォロワー数をサイトにためて、自動投稿の下書きとも突き合わせる。
 on:
@@ -14,6 +15,9 @@ on:
       max:
         description: '最大何件取るか(10〜1000。多いほど費用がかかる)'
         default: '200'
+      images:
+        description: '画像も保存するか(1 = 保存する、0 = しない)'
+        default: '1'
 jobs:
   stats:
     runs-on: ubuntu-latest
@@ -29,6 +33,7 @@ jobs:
           FOLLOWERS_ONLY: ${{ github.event_name == 'schedule' && '1' || '0' }}
           STATS_DAYS: ${{ github.event.inputs.days }}
           STATS_MAX: ${{ github.event.inputs.max }}
+          STATS_IMAGES: ${{ github.event.inputs.images || '0' }}
           SITE_URL: ${{ secrets.SITE_URL }}
           RX_ADMIN_KEY: ${{ secrets.RX_ADMIN_KEY }}
           X_API_KEY: ${{ secrets.X_API_KEY }}
