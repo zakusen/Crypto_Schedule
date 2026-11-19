@@ -476,6 +476,7 @@ catch (e) { console.log('[x] BTC実況のカードでエラー', e.message); }
 try {
   const st = NOW - (L.CORRTS.days + 2) * DAY, bt = await coin1h('BTC', st, NOW), sp = await pac('SP500', '1h', st, NOW), c = L.corrSeries(bt, sp, NOW);
   if (!c) throw new Error('計算できない');
+  try { L.corrGold(c, bt, await bnc1h('PAXGUSDT', st, NOW), NOW); } catch (e) { console.log('[x] 金(PAXG)の相関:', e.message, '(S&P500 だけで続けます)'); }   // v345
   // 出来事(◆)：手で入れたもの(管理画面)・大型ハッキング・急変動。期間内で新しい順に最大4つ
   let man = []; try { man = ((await (await site('/api/admin/rx-one?name=ce')).json()) || {}).ev || []; } catch (_) {}
   const t0 = c.t[0], t1 = c.end, all = [...byId.values(), ...out], evs = [];
