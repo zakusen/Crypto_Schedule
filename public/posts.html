@@ -130,8 +130,10 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
     <div class="tl">
       <div class="ti"><button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button><span class="td">直近1・6・24時間の清算</span></div>
       <div class="ti"><button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button><span class="td">BTC の急騰・急落を、その時の%で</span></div>
-      <div class="ti"><button class="chip" id="niaBtn" title="急落の最中に。直近24時間の高値から今までのローソク足(縦長)と、過去の同じ急落が24時間以内に半分戻したかを1段にした画像と本文を作る(コピペで投稿)">🌊 ナイアガラ(急落の足)</button><span class="td">縦長のローソク足＋過去の同じ急落の答え</span></div>
+      <div class="ti"><button class="chip" id="niaBtn" title="急落の最中に。直近1/3/6/12/24時間(選べる)の高値から今までのローソク足(縦長)と、過去の同じ急落が24時間以内に半分戻したかを1段にした画像と本文を作る(コピペで投稿)">🌊 ナイアガラ(急落の足)</button><span class="td">時間を選んで縦長のローソク足＋過去の同じ急落の答え</span></div>
       <div class="ti"><button class="chip" id="ipoBtn" title="大型上場の日(コインベース・SpaceX・Anthropic)の取引開始の前後24時間のBTC(15分足)を1枚に重ね、取引開始から24時間後の変化を本文に(コピペで投稿)">🔔 大型上場の日×BTC</button><span class="td">取引開始の前後24時間・15分足</span></div>
+      <div class="ti"><button class="chip" id="csBtn" title="BTC×S&P500 の相関(7日・24時間窓)を、自動投稿と同じ記録から本文と画像に(コピペで投稿)">📈 相関 S&P500</button><span class="td">自動投稿と同じ記録から</span></div>
+      <div class="ti"><button class="chip" id="cgBtn" title="BTC×金(PAXG)の相関(7日・24時間窓)を、Binance の1時間足からその場で計算して本文と画像に(コピペで投稿)">🥇 相関 金(GOLD)</button><span class="td">Binance 1時間足・金はPAXG</span></div>
       <div class="ti"><button class="chip" id="ncBtn" title="ニュースの見出しを入れると、CSA の記録の24時間相関(BTC×S&P500・7日分)と並べた本文と画像を作る(コピペで投稿)">📰 ニュースと相関</button><span class="td">ニュースの見出し＋CSAの相関の記録</span></div>
       <div class="ti"><button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button><span class="td">直近8時間の急落→戻りの引用文</span></div>
     </div></div>
@@ -737,11 +739,12 @@ document.getElementById('ceBtn').onclick = async (e) => {
 };
 // v342: ナイアガラ(急落のローソク足)
 runBtn('niaBtn', async (b) => { const now = Date.now(), H1 = 36e5;
+  const hrs = Number(prompt('直近何時間の高値から作りますか？ 1 / 3 / 6 / 12 / 24', '24')); if (![1, 3, 6, 12, 24].includes(hrs)) throw new Error('1 / 3 / 6 / 12 / 24 のどれかを入れてください');   // v346: 急変動と同じく時間を選ぶ
   let host = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/ping`); if (r.ok) { host = h; break; } } catch (_) {} }
   if (!host) throw new Error('Binance に届きません');
   const j5 = await (await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=1000`)).json();
-  const k5 = j5.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]); const nw = L.niagaraFind(k5, now); if (!nw) throw new Error('5分足が足りません');
-  if (nw.dropLo > -2) throw new Error(`直近24時間の高値からの下げが ${nw.dropLo}% で、2%未満です`);
+  const k5 = j5.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]); const nw = L.niagaraFind(k5, now, hrs); if (!nw) throw new Error('5分足が足りません');
+  const minD = hrs <= 3 ? 1 : 2; if (nw.dropLo > -minD) throw new Error(`直近${hrs}時間の高値からの下げが ${nw.dropLo}% で、${minD}%未満です`);
   const starts = []; for (let st = Date.UTC(2017, 7, 17); st < now; st += 1000 * H1) starts.push(st);
   const got = new Array(starts.length); let done = 0;
   for (let q = 0; q < starts.length; q += 8) { await Promise.all(starts.slice(q, q + 8).map(async (st, z) => { for (let tr = 0; tr < 3; tr++) { try { const r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${st}&limit=1000`); if (r.ok) { got[q + z] = await r.json(); break; } } catch (_) {} } done++; })); b.textContent = `取得中… ${Math.round(done / starts.length * 100)}%`; }
@@ -752,6 +755,12 @@ runBtn('ipoBtn', async (b) => { const now = Date.now(), H1 = 36e5; let host = nu
   if (!host) throw new Error('Binance に届きません');
   const evs = await Promise.all(L.IPOS.map(async (e) => { const r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=${L.IPO_IV}&startTime=${e.t0 - L.IPO_PRE * H1}&endTime=${Math.min(now, e.t0 + L.IPO_POST * H1 - 1)}&limit=1000`); if (!r.ok) throw new Error('15分足が取れません ' + e.d); return { ...e, bars: (await r.json()).map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]) }; }));
   return L.ipoDraft(evs, now); });
+// v347: 相関をコピペで(S&P500 は記録 ct・金はその場で計算)
+runBtn('csBtn', async () => { const r = await fetch('/api/admin/rx-one?name=ct', { headers: { 'x-admin-key': getKey() }, cache: 'no-store' }); if (!r.ok) throw new Error('相関の記録が読めません(' + r.status + ')');
+  const c = await r.json(); if (!c || !Array.isArray(c.r) || !c.r.length) throw new Error('相関の記録がまだありません'); return L.corrCopy(c, Date.now()); });
+runBtn('cgBtn', async () => { const now = Date.now(), H1 = 36e5, st = now - (L.CORRTS.days + 2) * 24 * H1;
+  const k = async (pair) => { for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=${pair}&interval=1h&startTime=${st}&limit=1000`); if (r.ok) return (await r.json()).map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]); } catch (_) {} } throw new Error(pair + ' の1時間足が取れません'); };
+  const c = L.corrSeries(await k('BTCUSDT'), await k('PAXGUSDT'), now); if (!c) throw new Error('相関を計算できません'); c.vs = 'au'; c.ev = []; return L.corrCopy(c, now); });
 // v341: ニュースと相関(見出しは手で入れる。相関は自動投稿と同じ記録 ct)
 runBtn('ncBtn', async (b) => {
   const hj = prompt('ニュースの見出し(日本語)', 'FRBの議事要旨、AIブームの崩れを金融システムのリスクとして議論'); if (!hj) throw new Error('見出しが空です');

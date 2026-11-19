@@ -1115,12 +1115,12 @@ function drawShockCmp(g, sd, lg) {
 }
 // v259: BTC × S&P500 の相関の推移。c = { t, r, b, s, ev, end }
 function drawCorrTs(g, c, lg) {
-  const en = lg === 'en', CY = '#2ee6ff', BT = '#9db3d1', SP = '#e09a52', AU = '#ffd84d', M = '#8ea2bf', n = c.t.length, H2 = LH;
+  const en = lg === 'en', au = c.vs === 'au', CY = '#2ee6ff', BT = '#9db3d1', SP = au ? '#ffd84d' : '#e09a52', M = '#8ea2bf', n = c.t.length, H2 = LH, SN = au ? (en ? 'Gold' : '金') : 'S&P 500';   // v347: 金版
   g.fillStyle = '#070d16'; g.fillRect(0, 0, W, H2); g.fillStyle = CY; g.fillRect(0, 0, W, 5);
   g.fillStyle = M; g.beginPath(); g.arc(46, 42, 6, 0, 7); g.fill();
   g.font = `600 14px ${LN}`; g.letterSpacing = '2px'; g.fillStyle = M; g.fillText('MARKET RELATIONSHIP  /  07 DAYS', 62, 47); g.letterSpacing = '0px';
   const st = corrStatsD(c), sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
-  lt(g, c.gr ? (en ? 'BTC × S&P 500 / Gold correlation' : 'BTC × S&P 500・金 の相関') : (en ? 'BTC × S&P 500 correlation' : 'BTC × S&P 500 の相関'), 40, 106, { s: 40, w: 900 });
+  lt(g, en ? `BTC × ${SN} correlation` : `BTC × ${SN} の相関`, 40, 106, { s: 40, w: 900 });
   const word = st.now == null ? (en ? 'Not enough data' : 'データ不足') : st.now >= 0.5 ? (en ? 'Last 24h: moving in the same direction' : '直近24時間は、同じ方向に動く傾向') : st.now <= -0.5 ? (en ? 'Last 24h: moving in opposite directions' : '直近24時間は、逆方向に動く傾向') : (en ? 'Last 24h: no clear relationship' : '直近24時間は、はっきりした関係なし');
   lt(g, word, 42, 142, { s: 20, w: 800, c: CY });
   g.strokeStyle = '#1c2a3d'; g.lineWidth = 1; g.beginPath(); g.moveTo(36, 166); g.lineTo(W - 36, 166); g.stroke();
@@ -1128,8 +1128,7 @@ function drawCorrTs(g, c, lg) {
   const pv = [...c.b, ...c.s].filter((v) => v != null), pm = Math.max(3, Math.ceil(Math.max(...pv.map(Math.abs), 0) / 3) * 3), YP = (v) => y0 + (pm - v) / (2 * pm) * (y1 - y0);
   lt(g, en ? 'Left: 24h correlation' : '左軸　24時間相関', 92, 202, { s: 18, w: 800 });
   g.strokeStyle = BT; g.lineWidth = 2; g.beginPath(); g.moveTo(352, 196); g.lineTo(374, 196); g.stroke(); lt(g, 'BTC', 382, 202, { s: 15, w: 600, c: BT, f: LN });
-  g.strokeStyle = SP; g.beginPath(); g.moveTo(440, 196); g.lineTo(462, 196); g.stroke(); lt(g, 'S&P 500', 470, 202, { s: 15, w: 600, c: SP, f: LN });
-  if (c.gr) { g.strokeStyle = AU; g.lineWidth = 2.6; g.beginPath(); g.moveTo(560, 196); g.lineTo(582, 196); g.stroke(); lt(g, en ? 'Gold corr.' : '金との相関', 590, 202, { s: 15, w: 800, c: AU }); }
+  g.strokeStyle = SP; g.beginPath(); g.moveTo(440, 196); g.lineTo(462, 196); g.stroke(); lt(g, SN, 470, 202, { s: 15, w: 600, c: SP, f: LN });
   lt(g, en ? 'Right: price change' : '右軸　価格変化率', 1010, 200, { s: 16, w: 700, c: M, a: 'right' }); lt(g, en ? '7 days ago = 0%' : '7日前＝0%', 1010, 220, { s: 12, w: 600, c: M, a: 'right' });
   lt(g, en ? 'same' : '同方向', 30, 222, { s: 11, w: 600, c: M }); lt(g, en ? 'opposite' : '逆方向', 30, 556, { s: 11, w: 600, c: M });
   g.fillStyle = 'rgba(46,230,255,.08)'; g.fillRect(x0, YC(1), x1 - x0, YC(0.5) - YC(1));
@@ -1137,10 +1136,10 @@ function drawCorrTs(g, c, lg) {
   g.setLineDash([3, 3]); g.strokeStyle = M; g.beginPath(); g.moveTo(X(ia), y0); g.lineTo(X(ia), y1); g.stroke(); g.setLineDash([]);
   [[1, pm], [0.5, pm / 2], [0, 0], [-0.5, -pm / 2], [-1, -pm]].forEach(([v, p]) => { g.strokeStyle = v ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.2)'; g.setLineDash(v ? [] : [4, 4]); g.beginPath(); g.moveTo(x0, YC(v)); g.lineTo(x1, YC(v)); g.stroke(); g.setLineDash([]); lt(g, (v > 0 ? '+' : '') + (v ? v.toFixed(1) : '0'), x0 - 14, YC(v) + 5, { s: 14, w: 600, c: '#cfd8e6', a: 'right', f: LN }); lt(g, (p > 0 ? '+' : '') + p + '%', x1 + 12, YC(v) + 5, { s: 12, w: 600, c: M, f: LN }); });
   const line = (a, Y, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.lineJoin = 'round'; g.beginPath(); let on = false; a.forEach((v, i) => { if (v == null) { on = false; return; } on ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)); on = true; }); g.stroke(); };
-  line(c.b, YP, BT, 1.8); line(c.s, YP, SP, 1.8); if (c.gr) line(c.gr, YC, AU, 2.6); line(c.r, YC, CY, 3.2);   // v345: 金(GOLD)との相関も同じ左軸に
+  line(c.b, YP, BT, 1.8); line(c.s, YP, SP, 1.8); line(c.r, YC, CY, 3.2);
   const a = st.i >= 24 ? c.r[st.i - 24] : null;
   if (a != null) { g.fillStyle = '#e8f0fb'; g.beginPath(); g.arc(X(st.i - 24), YC(a), 5, 0, 7); g.fill(); const by = YC(a) + (a > 0 ? 12 : -38); g.fillStyle = '#14243a'; g.fillRect(X(st.i - 24) - 118, by, 108, 26); lt(g, (en ? '24h ago ' : '24時間前 ') + a.toFixed(2), X(st.i - 24) - 64, by + 18, { s: 13, w: 600, c: '#e8f0fb', a: 'center' }); }
-  if (st.now != null) { const yy = YC(st.now); g.fillStyle = CY; g.beginPath(); g.arc(X(st.i), yy, 7, 0, 7); g.fill(); g.strokeStyle = CY; g.lineWidth = 2; g.beginPath(); g.moveTo(X(st.i), yy); g.lineTo(1010, yy); g.stroke(); const bx = 1010, by = Math.min(Math.max(yy - 42, 180), y1 - 70); g.fillStyle = '#102438'; g.fillRect(bx, by, 160, 88); g.fillStyle = CY; g.fillRect(bx, by, 3, 88); lt(g, en ? 'Correlation now' : '現在の相関', bx + 16, by + 26, { s: 14, w: 600, c: '#cfe0f2' }); lt(g, sg(st.now), bx + 16, by + 70, { s: 36, w: 800, c: CY, f: LN }); if (c.gr) { let j = c.gr.length - 1; while (j >= 0 && c.gr[j] == null) j--; const gv = j >= 0 ? c.gr[j] : null; if (gv != null) { const gy = by + 96; g.fillStyle = '#1d1a0c'; g.fillRect(bx, gy, 160, 40); g.fillStyle = AU; g.fillRect(bx, gy, 3, 40); lt(g, (en ? 'Gold ' : '金 ') + sg(gv), bx + 16, gy + 28, { s: 20, w: 800, c: AU, f: LN }); g.fillStyle = AU; g.beginPath(); g.arc(X(j), YC(gv), 5, 0, 7); g.fill(); } } }
+  if (st.now != null) { const yy = YC(st.now); g.fillStyle = CY; g.beginPath(); g.arc(X(st.i), yy, 7, 0, 7); g.fill(); g.strokeStyle = CY; g.lineWidth = 2; g.beginPath(); g.moveTo(X(st.i), yy); g.lineTo(1010, yy); g.stroke(); const bx = 1010, by = Math.min(Math.max(yy - 42, 180), y1 - 70); g.fillStyle = '#102438'; g.fillRect(bx, by, 160, 88); g.fillStyle = CY; g.fillRect(bx, by, 3, 88); lt(g, en ? 'Correlation now' : '現在の相関', bx + 16, by + 26, { s: 14, w: 600, c: '#cfe0f2' }); lt(g, sg(st.now), bx + 16, by + 70, { s: 36, w: 800, c: CY, f: LN }); }
   const evs = (c.ev || []).map((e) => ({ ...e, i: Math.round((e.t - c.t[0]) / 3600e3) })).filter((e) => e.i >= 0 && e.i < n), nums = ['①', '②', '③', '④'];
   for (let d = 7; d >= 0; d--) { const i = Math.max(0, n - 1 - d * 24); lt(g, d ? (en ? d + 'd ago' : d + '日前') : (en ? 'Now' : '現在'), X(i), y1 + 30, { s: 14, w: 600, c: M, a: 'center' }); }
   const rows = [[], []];
@@ -1151,7 +1150,7 @@ function drawCorrTs(g, c, lg) {
   lt(g, en ? 'Correlation of 1h returns over the previous 24h, shifted hourly. Prices: change from 7 days ago.' : '相関は1時間ごとの騰落率で、直前24時間ぶんを使って計算。価格は7日前を0%とした変化率。', 40, 722, { s: 14, w: 600, c: M });
   lt(g, en ? '◆ = events in the same period. This chart cannot show cause or direction of influence.' : '◆は同じ時期に起きた出来事。原因や影響の向きは、この図からは分かりません。', 40, 750, { s: 14, w: 600, c: M });
   lt(g, en ? 'Past record. This time may differ.' : '過去の記録で、今回も同じとは限りません', W - 36, 750, { s: 14, w: 800, c: '#ff9a9a', a: 'right' });
-  lt(g, c.gr ? (en ? 'Pacifica 1h · Gold: PAXG (Binance) · @csa_archive' : 'Pacifica 1時間足・金はPAXG（Binance）・@csa_archive') : (en ? 'Pacifica 1h · @csa_archive' : 'Pacifica 1時間足・@csa_archive'), W - 36, 778, { s: 12, w: 600, c: M, a: 'right' });
+  lt(g, au ? (en ? 'Binance 1h (BTC, gold = PAXG) · @csa_archive' : 'Binance 1時間足（BTC・金はPAXG）・@csa_archive') : (en ? 'Pacifica 1h · @csa_archive' : 'Pacifica 1時間足・@csa_archive'), W - 36, 778, { s: 12, w: 600, c: M, a: 'right' });
 }
 function corrStatsD(c) { let i = c.r.length - 1; while (i >= 0 && c.r[i] == null) i--; return { i, now: i >= 0 ? c.r[i] : null }; }
 // v260→v264: 米中間選挙の前後3日のBTC(1時間足)。md = { ev:{ id:{ pts:[[h,pct]], h1d, h3d, min } }, h, done, src }

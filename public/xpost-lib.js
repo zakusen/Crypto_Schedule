@@ -826,15 +826,6 @@ export function corrSeries(bt, sp, now) {
   }
   return out;
 }
-// v345: 金(GOLD)との相関を c に足す。au = 金の1時間足(PAXG)。c.t と同じ時刻で、同じ24時間窓。gr = 相関・g = 7日前＝0% の変化率
-export function corrGold(c, bt, au, now) {
-  const fin = (a) => new Map((a || []).filter((x) => x[0] + H <= now).map((x) => [x[0], x[4]]));
-  const B = fin(bt), G = fin(au); if (!B.size || !G.size || !c) return c;
-  const ret = (m, t) => { const a = m.get(t - H), b = m.get(t); return a > 0 && b > 0 ? Math.log(b / a) : null; }, g0 = G.get(c.t[0] - H) || G.get(c.t[0]);
-  c.gr = c.t.map((t) => { const x = [], y = []; for (let k = t - (CORRTS.win - 1) * H; k <= t; k += H) { const a = ret(B, k), b = ret(G, k); if (a != null && b != null) { x.push(a); y.push(b); } } const r = x.length >= CORRTS.win * 0.8 ? pearson(x, y) : null; return r == null || !isFinite(r) ? null : Math.round(r * 100) / 100; });
-  c.g = c.t.map((t) => { const v = G.get(t); return v && g0 ? +((v / g0 - 1) * 100).toFixed(2) : null; });
-  return c;
-}
 const lastOf = (a) => { for (let i = a.length - 1; i >= 0; i--) if (a[i] != null) return [i, a[i]]; return [-1, null]; };
 export function corrStats(c) {
   const [i, now] = lastOf(c.r), ago = i >= 24 ? c.r[i - 24] : null, v = c.r.filter((x) => x != null);
@@ -845,11 +836,13 @@ const sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
 export function corrText(c, lg) {
   const st = corrStats(c);
   // v340: 語り口をそろえる
-  const gNow = c.gr ? lastOf(c.gr)[1] : null;   // v345
+  const au = c.vs === 'au';   // v347: 金(GOLD)版。c.s が金の変化率
   const ext = st.now != null && st.hi != null && st.now >= st.hi ? 'hi' : st.now != null && st.lo != null && st.now <= st.lo ? 'lo' : null, en = lg === 'en';
-  return voice(en ? { h: `BTC vs US stocks: 24h correlation ${sg(st.now)}.`, a: "The number alone isn't the story.", b: [`- 24h ago: ${sg(st.ago)}`, gNow != null ? `- BTC vs gold: ${sg(gNow)}` : null, `- 7-day range: ${sg(st.lo)} to ${sg(st.hi)}`, ext ? `- The ${ext === 'hi' ? 'strongest' : 'weakest'} link in 7 days` : `- Now: ${corrWord(st.now, 'en')}`], c: 'Whether BTC moves with stocks changes day to day.' }
-    : { h: `BTCと米国株、直近24時間の相関は${sg(st.now)}。`, a: '注目したいのは、数字の大きさだけではありません。', b: [`・24時間前は${sg(st.ago)}`, gNow != null ? `・金（GOLD）との相関は${sg(gNow)}` : null, `・この7日の幅は${sg(st.lo)}〜${sg(st.hi)}`, ext ? `・この7日でいちばん${ext === 'hi' ? '強い' : '弱い'}つながり` : `・今の状態：${corrWord(st.now, 'ja')}`], c: '「BTCは株と別」かどうかは、日によって変わる。' }, lg, gNow != null ? '$BTC #SP500 #GOLD' : '$BTC #SP500');
+  return voice(en ? { h: au ? `BTC vs gold: 24h correlation ${sg(st.now)}.` : `BTC vs US stocks: 24h correlation ${sg(st.now)}.`, a: "The number alone isn't the story.", b: [`- 24h ago: ${sg(st.ago)}`, `- 7-day range: ${sg(st.lo)} to ${sg(st.hi)}`, ext ? `- The ${ext === 'hi' ? 'strongest' : 'weakest'} link in 7 days` : `- Now: ${corrWord(st.now, 'en')}`], c: au ? 'Whether BTC trades like digital gold changes day to day.' : 'Whether BTC moves with stocks changes day to day.' }
+    : { h: au ? `BTCと金、直近24時間の相関は${sg(st.now)}。` : `BTCと米国株、直近24時間の相関は${sg(st.now)}。`, a: '注目したいのは、数字の大きさだけではありません。', b: [`・24時間前は${sg(st.ago)}`, `・この7日の幅は${sg(st.lo)}〜${sg(st.hi)}`, ext ? `・この7日でいちばん${ext === 'hi' ? '強い' : '弱い'}つながり` : `・今の状態：${corrWord(st.now, 'ja')}`], c: au ? '「BTCはデジタルゴールド」かどうかは、日によって変わる。' : '「BTCは株と別」かどうかは、日によって変わる。' }, lg, au ? '$BTC #GOLD' : '$BTC #SP500');
 }
+// v347: 相関をコピペで作る(S&P500 = CSA の記録 ct / 金 = その場で計算)。自動投稿とは別
+export function corrCopy(c, now) { const ja = corrText(c, 'ja'), en = corrText(c, 'en'); return { id: 'corrts:copy:' + (c.vs || 'sp') + ':' + now, sr: 'corrts', man: 1, due: now, ja, en, img: { corr: c } }; }
 export function corrDraft(c, now, why) {
   const id = 'corrts:' + isoDay(now) + (why === 'daily' ? '' : ':' + why), ja = corrText(c, 'ja'), en = corrText(c, 'en');
   return { id, sr: 'corrts', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { corr: c }, why };
@@ -1377,19 +1370,19 @@ export function newsCorrDraft(c, o, now) {
   return { id: 'newscorr:copy:' + now, sr: 'newscorr', man: 1, due: now, ja, en, img: { nc: { t: c.t, r: c.r, i, ago: st.ago, now: st.now, lo: st.lo, hi: st.hi, ta, tn, hj: o.ja, he: o.en || o.ja, subj: o.subj || '', sube: o.sube || '', src: o.src || '', srce: o.srce || o.src || '' } } };
 }
 // v342: ナイアガラ(急落のローソク足)。5分足から「直近24時間の高値 → 今」を切り出し、本数が60〜120本になる足の長さに束ねる
-export function niagaraFind(k5, now) {
+export function niagaraFind(k5, now, hrs = 24) {   // v346: hrs = 高値を探す時間(直近 hrs 時間の高値 → 今)
   const n = k5.length - 1; if (n < 50) return null;
-  let hi = Math.max(0, n - 288); for (let i = hi; i <= n; i++) if (k5[i][2] > k5[hi][2]) hi = i;
+  let hi = Math.max(0, n - Math.round(hrs * 12)); for (let i = hi; i <= n; i++) if (k5[i][2] > k5[hi][2]) hi = i;
   let lo = hi; for (let i = hi; i <= n; i++) if (k5[i][3] < k5[lo][3]) lo = i;
   const span = n - hi + 1, lead = Math.max(6, Math.round(span * 0.25)), tfm = (span + lead) <= 120 ? 1 : (span + lead) <= 360 ? 3 : 12;   // 5分足 / 15分足 / 1時間足
   const s0 = Math.max(0, hi - lead * 1), bars = [];
   for (let i = s0; i <= n; i += tfm) { const g = k5.slice(i, Math.min(n + 1, i + tfm)); if (!g.length) break; bars.push([g[0][0], g[0][1], Math.max(...g.map((x) => x[2])), Math.min(...g.map((x) => x[3])), g[g.length - 1][4]]); }
   const H0 = k5[hi][2], L0 = k5[lo][3], C = k5[n][4], durH = (k5[n][0] + 5 * 60000 - k5[hi][0]) / 3600e3;
-  return { bars, tf: tfm === 1 ? '5m' : tfm === 3 ? '15m' : '1h', hi: H0, hiT: k5[hi][0], lo: L0, loT: k5[lo][0], now: C, nowT: k5[n][0] + 5 * 60000, drop: +((C / H0 - 1) * 100).toFixed(1), dropLo: +((L0 / H0 - 1) * 100).toFixed(1), durH: +durH.toFixed(1), at: now };
+  return { bars, tf: tfm === 1 ? '5m' : tfm === 3 ? '15m' : '1h', hi: H0, hiT: k5[hi][0], lo: L0, loT: k5[lo][0], now: C, nowT: k5[n][0] + 5 * 60000, drop: +((C / H0 - 1) * 100).toFixed(1), dropLo: +((L0 / H0 - 1) * 100).toFixed(1), durH: +durH.toFixed(1), hrs, at: now };
 }
 // 過去の同じ急落(1時間足): 「D時間以内に高値から今と同じくらい下げた」最初の時間を数え、その後24時間で下げ幅の半分を戻したか
 export function niagaraStudy(k1, nw) {
-  const n = k1.length - 1, D = Math.max(1, Math.ceil(nw.durH)); let TH = Math.min(-2, Math.trunc(nw.dropLo)), out = [];
+  const n = k1.length - 1, D = Math.max(1, Math.ceil(nw.durH)); let TH = Math.min(nw.hrs && nw.hrs <= 3 ? -1 : -2, Math.trunc(nw.dropLo)), out = [];
   const scan = () => { const out = []; let skip = -1;
   for (let i = D; i < n - 1; i++) { if (i <= skip) continue; let h = i - D; for (let q = i - D; q <= i; q++) if (k1[q][2] > k1[h][2]) h = q;
     const dr = (k1[i][3] / k1[h][2] - 1) * 100; if (dr > TH) continue;
