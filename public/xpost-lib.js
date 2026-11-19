@@ -6,7 +6,7 @@ export const M5 = 3e5, H = 36e5, DAY = 24 * H, JST = 9 * H;
 export const REGIONS = ['US', 'JP', 'EU'];
 export const REGION_EN = { US: 'US', JP: 'Japan', EU: 'Euro area' };
 // 投稿する時刻: 今日・今週の予定 = その日の 9:30 / 発表後の値動き = 発表の65分後 / 先週のまとめ = 月曜 10:00
-export const DAILY_AT = 9.5 * H, ARCH_WAIT = 65 * 60000, WEEK_AT = 10 * H;
+export const DAILY_AT = 6 * H /* v337: 予定表(日本語)は朝6時 */, ARCH_WAIT = 65 * 60000, WEEK_AT = 10 * H;
 
 // ---- 文字の数え方(X: 日本語などは2、URLは23。上限280) ----
 // 絵文字は1つで2と数える(異体字セレクタは数えない・国旗は2文字で1つ)
@@ -404,9 +404,9 @@ export function liqImpPost(g, imp) {
 export const AUTO_DAILY_FROM = '2026-10-09';   // v104: 10/9 から自動(X の手の予約は消してもらう)
 // v173: 言語ごとの投稿時刻。dues = {en, ja}(無ければ due)。langs = 出す言語(無ければ英日両方)
 export const SPLIT_FROM = '2026-10-11';                       // この日(日本時間)の分から英日の時刻を分ける
-export const EN_DAILY_AT = 11.5 * H, EN_WEEK_AT = 14 * H, EN_LIQDAY_AT = 13 * H;   // 英語: 毎朝の予定 11:30 UTC / 週間記録 土曜 14:00 UTC / 清算のまとめ 13:00 UTC
+export const EN_DAILY_AT = 13.5 * H /* v337: 英語の予定表は 13:30 UTC = 日本時間22:30 */, EN_WEEK_AT = 14 * H, EN_LIQDAY_AT = 13 * H;   // 英語: 毎朝の予定 11:30 UTC / 週間記録 土曜 14:00 UTC / 清算のまとめ 13:00 UTC
 // v282: 英語版を出さない種類(英語でビュー・反応が無かったもの)。英語に残す = daily・fomc系・spike・liq・liqday・hack系・histm/histw・midterm など
-export const EN_OFF = new Set(['week', 'sum', 'pat', 'vol', 'shockbn', 'shockcmp', 'corrts']);
+export const EN_OFF = new Set(['week', 'sum', 'pat', 'vol', 'shockbn', 'shockcmp']);   // v336: 相関の英語は戻す(予定表・指標と並んでプロフィールのクリック・反応率が高い)
 export const langsOf = (p) => (p && Array.isArray(p.langs) && p.langs.length ? p.langs : ['en', 'ja']).filter((lg) => !(lg === 'en' && p && EN_OFF.has(p.sr)));
 export const dueOf = (p, lg) => (p && p.dues && p.dues[lg]) || (p && p.due) || 0;
 export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
@@ -420,7 +420,7 @@ export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch
 // v298: 夜のまとめ(sum)・値動きの大きさ(vol)・BTC実況(pat)・ハッキング追跡(hack・bnstatus・bnreply)の自動投稿をやめた(ビューがほぼ無いため。下書きは作り続ける)
 // v328: 自動で出すのは 予定表・BTC×S&P500相関・FOMC/CPI/雇用統計/PCE の予告(1時間前+TOP3)と結果・Binance 2019 vs 2026(90日で自然に終わる) だけ。
 //   止めた: 24時間の清算・巨額清算・指標前後の清算・急変動(と返信・過去比較)・ショック後のBTC・ブームと危機(週・月)・大量清算の後のBTC・週のまとめ。下書きは作られるが投稿されない
-export const AUTO_ON = new Set(['corrts', 'fomc', 'fomcc', 'fomcres', 'shockbn']);
+export const AUTO_ON = new Set(['corrts', 'fomc', 'fomcc', 'shockbn']);   // v337: 指標の結果(fomcres)も止めた
 export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (AUTO_ON.has(p.sr) || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
@@ -428,9 +428,11 @@ export function dueList(posts, events, now) {
   for (const p of posts || []) { seen.add(p.id); if (!isAuto(p) || !p.due) continue; for (const lg of langsOf(p)) { const d = dueOf(p, lg); if (!(p.done && p.done[lg]) && d > now - winOf(p) && d < now + 8 * DAY) items.push({ id: p.id, due: d }); } }   // v173: 言語ごと
   for (const g of autoGroups(events)) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
-  for (const k of [0, 1]) { for (const [id, due] of sumDues(now + k * DAY)) if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v202: 夜のまとめ
-  for (const { g, k } of bigGroups(events)) for (let n = 1; n <= FOMC_SLOTS.length; n++) { const id = fomcId(g[0].ts, n, k), due = g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告
-  for (const { g, k } of bigGroups(events)) { const id = fomcId(g[0].ts, 'res', k), due = g[0].ts + FOMC_RES; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
+  for (const m of SHOCK.mile || []) { const d0 = Date.parse((SHOCK.ev.find((e) => e.id === SHOCK.cur) || {}).d0 + 'T00:00:00Z') + m * DAY, due = dayStart(d0 + 12 * H) + 23 * H + 40 * 60000, id = 'shockwake:' + m; if (due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v337: Binance の節目の日の23:40に X post を起こす
+  for (const k of [0, 1]) { const due = dayStart(now + k * DAY) + CORRTS.postFrom * H + 10 * 60000, id = 'corrts:' + isoDay(due); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v336: 相関の定時(0時台)に X post を起こす
+  // v337: 夜のまとめ(sum)は止めたので、起こす予定も入れない
+  for (const { g, k } of bigGroups(events)) for (let n = 1; n <= FOMC_SLOTS.length; n++) { if (FOMC_OFF.has(n)) continue; const id = fomcId(g[0].ts, n, k), due = n === FOMC_SLOTS.length ? fomcPreDue(g[0].ts) : g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告
+  // v337: 指標の結果(fomcres)は自動で出さないので、起こす予定も入れない
   for (const g of autoGroups(events)) { const id = preId(g), due = g[0].ts - PRE_AHEAD; if (!seen.has(id) && due > now - PRE_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v181: 発表前の予告
   return { at: now, items: items.sort((a, b) => a.due - b.due) };
 }
@@ -586,9 +588,11 @@ export const FOMC_SLOTS = [14.5 * H, 9 * H, 4 * H, 1 * H], FOMC_RES = 65 * 60000
 export const isFomc = (e) => e.l === 'macro' && e.c === 'US' && e.s === 'FOMC';
 export const fomcId = (ts, n, k = 'fomc') => k + ':' + ts + ':' + n;   // v215: k = fomc / cpi / nfp / pce
 export const BIG_NAME = { fomc: { ja: 'FOMC', en: 'FOMC', tag: { ja: '#FOMC #BTC', en: '#FOMC #BTC' } }, cpi: { ja: '米CPI', en: 'US CPI', tag: { ja: '#CPI #BTC', en: '#CPI #BTC' } }, nfp: { ja: '米雇用統計', en: 'US jobs report', tag: { ja: '#雇用統計 #BTC', en: '#NFP #BTC' } }, pce: { ja: '米PCE', en: 'US PCE', tag: { ja: '#PCE #BTC', en: '#PCE #BTC' } } };
+// v337: 指標の予告は日本時間23時に出す(発表の30分前より後になる時、つまり22:30発表などは、発表の30分前)
+export const fomcPreDue = (ts) => { let c = dayStart(ts) + 23 * H; while (c > ts - 30 * 60000) c -= DAY; return ts - c > 12 * H ? ts - 30 * 60000 : c; };
 export function fomcDrafts(ts, k = 'fomc') {
   const out = [], ph = { ja: '（投稿する時に、その時点の計算で本文と画像を作ります）', en: '(Text and image are made at posting time.)' };
-  FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n, k), due = ts - sl, img = { t: ts, n, k }; if (FOMC_OFF.has(n)) return;   // v281
+  FOMC_SLOTS.forEach((sl, i) => { const n = i + 1, id = fomcId(ts, n, k), due = n === FOMC_SLOTS.length ? fomcPreDue(ts) : ts - sl, img = { t: ts, n, k }; if (FOMC_OFF.has(n)) return;   // v281 / v337: 最後の予告は fomcPreDue
     out.push({ id, sr: 'fomc', due, ...ph, h: 'fomc' + n, img });
     out.push({ id: id + ':c', sr: 'fomcc', parent: id, due, ...ph, h: 'fomcc' + n, img }); });
   // v214: 結果は単独の新しい投稿(返信だと分かりづらいため)。チャートで今回の発表後の動きを見せる
@@ -829,10 +833,10 @@ export function shockDraft(sd, now, kind, why) {
 // v245: 空き枠の条件。日本時間9〜23時、前の4時間と先の2時間に自動投稿が無い、前のショック比較から4時間
 // v251: 定時の投稿(daily・pre・arch・vol・pat・sum・week・liqday)は前後30分だけよける。それ以外の自動投稿(急変動・清算・資金の現況など)は前2時間・先1時間
 export const SHOCKFIXED = new Set(['histw', 'histm', 'midterm', 'corrts', 'daily', 'pre', 'arch', 'vol', 'pat', 'sum', 'week', 'liqday']);
-export const SHOCKGAP = { from: 9, to: 23, before: 2 * H, after: 1 * H, fixed: 30 * 60000, last: 22, every: 4 * H, trigGap: 3 * H, perDay: 3, slotPerDay: 2 }   // v250: 空き枠は4時間あけて1日2本まで(交互)。きっかけ込みで1日3本まで;
+export const SHOCKGAP = { from: 23, to: 24, before: 2 * H, after: 1 * H, fixed: 30 * 60000, last: 23 /* v337: 空き枠は日本時間23時台だけ(22:30〜1:00の窓) */, every: 4 * H, trigGap: 3 * H, perDay: 3, slotPerDay: 2 }   // v250: 空き枠は4時間あけて1日2本まで(交互)。きっかけ込みで1日3本まで;
 
 // ---- v259: BTC × S&P500 の相関の推移(1時間足・直近24時間の相関を1時間ずつずらして7日分) ----
-export const CORRTS = { days: 7, win: 24, maxEv: 4, postFrom: 6, postTo: 9, jump: 0.5 };
+export const CORRTS = { days: 7, win: 24, maxEv: 4, postFrom: 0, postTo: 2, jump: 0.5 };   // v336: 定時は日本時間0〜2時(米国株が開いた直後。0〜2時の回は6〜8時の約2倍のビュー)
 // bt・sp = [[開始ms, 始, 高, 安, 終]]。確定した足だけ。返り値 { at, end, t:[], r:[], b:[], s:[] }  r = 相関(null あり)・b/s = 7日前＝0% の変化率
 export function corrSeries(bt, sp, now) {
   const fin = (a) => new Map((a || []).filter((x) => x[0] + H <= now).map((x) => [x[0], x[4]]));
