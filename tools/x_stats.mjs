@@ -50,11 +50,11 @@ const BASEF = 'created_at,public_metrics,in_reply_to_user_id,referenced_tweets,l
 let FIELDS = BASEF + ',non_public_metrics', npm = true;   // non_public_metrics(プロフィール・リンクのクリック)は自分の30日以内の投稿だけ。拒まれたら外す
 const tweets = [], media = new Map(); let next = null;
 do {
-  const q = new URLSearchParams({ max_results: String(Math.min(100, Math.max(5, MAX - tweets.length))), 'tweet.fields': FIELDS, expansions: 'attachments.media_keys', 'media.fields': 'type', exclude: 'retweets', start_time: since });
+  const q = new URLSearchParams({ max_results: String(Math.min(100, Math.max(5, MAX - tweets.length))), 'tweet.fields': FIELDS, expansions: 'attachments.media_keys', 'media.fields': 'type,url,preview_image_url', exclude: 'retweets', start_time: since });
   if (next) q.set('pagination_token', next);
   let j; try { j = await xget(`https://api.x.com/2/users/${me.id}/tweets?${q}`); }
   catch (e) { if (npm && /HTTP (400|403)/.test(e.message)) { console.log('[stats] クリック数(non_public_metrics)は取れないので外します:', e.message.slice(0, 160)); npm = false; FIELDS = BASEF; continue; } throw e; }
-  for (const m of (j.includes && j.includes.media) || []) media.set(m.media_key, m.type);
+  for (const m of (j.includes && j.includes.media) || []) media.set(m.media_key, { type: m.type, url: m.url || m.preview_image_url || null });   // v339: 画像の URL も
   for (const t of j.data || []) if (tweets.length < MAX) tweets.push(t);
   next = j.meta && j.meta.next_token;
 } while (next && tweets.length < MAX);
@@ -82,7 +82,7 @@ const kindOf = (t, depth = 0) => { const k = bySr.get(String(t.id)); if (k) retu
 const sorted = tweets.slice().sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
 const prevT = new Map(); { let last = null; for (const t of sorted) { if (!t.in_reply_to_user_id) { prevT.set(t.id, last); last = Date.parse(t.created_at); } } }
 const rows = tweets.map((t) => { const m = t.public_metrics || {}, n = t.non_public_metrics || {}, d = J(t.created_at), reply = !!t.in_reply_to_user_id, selfReply = reply && String(t.in_reply_to_user_id) === String(me.id), K = kindOf(t);
-  const txt = t.text || '', first = txt.split('\n')[0], mk = (t.attachments && t.attachments.media_keys) || [], mt = mk.map((x) => media.get(x)).filter(Boolean);
+  const txt = t.text || '', first = txt.split('\n')[0], mk = (t.attachments && t.attachments.media_keys) || [], mo = mk.map((x) => media.get(x)).filter(Boolean), mt = mo.map((x) => x.type), imgUrl = (mo.find((x) => x.url) || {}).url || null;
   const eng = (m.like_count || 0) + (m.retweet_count || 0) + (m.reply_count || 0) + (m.quote_count || 0) + (m.bookmark_count || 0);
   const pv = prevT.get(t.id);
   return { id: t.id, t: Date.parse(t.created_at), jst: d.toISOString().slice(0, 16).replace('T', ' '), day: d.toISOString().slice(0, 10), hour: d.getUTCHours(), wd: '日月火水木金土'[d.getUTCDay()],
@@ -90,15 +90,23 @@ const rows = tweets.map((t) => { const m = t.public_metrics || {}, n = t.non_pub
     views: m.impression_count ?? null, likes: m.like_count || 0, rts: m.retweet_count || 0, replies: m.reply_count || 0, quotes: m.quote_count || 0, bm: m.bookmark_count || 0, eng,
     prof: n.user_profile_clicks ?? null, link: n.url_link_clicks ?? null, media: mt.length ? (mt.includes('video') || mt.includes('animated_gif') ? '動画' : '画像') : 'なし',
     len: [...txt].length, flen: [...first].length, emoji: /^\p{Extended_Pictographic}/u.test(first), tags: ((t.entities && t.entities.hashtags) || []).length, url: ((t.entities && t.entities.urls) || []).length > 0,
-    gap: pv != null ? Math.round((Date.parse(t.created_at) - pv) / 60000) : null, age: (NOW - Date.parse(t.created_at)) / 3600e3, head: first.slice(0, 70) }; });
+    gap: pv != null ? Math.round((Date.parse(t.created_at) - pv) / 60000) : null, age: (NOW - Date.parse(t.created_at)) / 3600e3, head: first.slice(0, 70), text: txt.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'), imgUrl, img: null }; });   // v339: 本文そのままと画像
 const matched = rows.filter((r) => r.src === '下書き').length;
 console.log('[stats] 下書き', nDraft + '件(うち X の ID あり ' + nTw + '件)。下書きと一致', matched + '件・本文から推定', rows.filter((r) => r.src === '本文').length + '件・親から', rows.filter((r) => r.src === '親').length + '件');
 
 // ---- 3) 集計 ----
 const out = path.join(process.cwd(), 'x_stats'); fs.mkdirSync(out, { recursive: true });
 const csvq = (v) => /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : String(v);
-const COLS = [['日時(日本時間)', 'jst'], ['曜日', 'wd'], ['時', 'hour'], ['言語', 'lang'], ['種類', 'kind'], ['種類の決め方', 'src'], ['親/返信', 'to'], ['ビュー', 'views'], ['いいね', 'likes'], ['リポスト', 'rts'], ['返信', 'replies'], ['引用', 'quotes'], ['ブックマーク', 'bm'], ['反応の合計', 'eng'], ['プロフィールのクリック', 'prof'], ['リンクのクリック', 'link'], ['画像', 'media'], ['本文の字数', 'len'], ['1行目の字数', 'flen'], ['絵文字で始まる', 'emoji'], ['ハッシュタグ数', 'tags'], ['リンクあり', 'url'], ['前の親投稿から(分)', 'gap'], ['経過(時間)', 'age'], ['1行目', 'head']];
+// ---- v339: 画像を軽くして保存(X の画像サーバーの small サイズの JPEG。だいたい幅680px・数十KB)。STATS_IMAGES=0 で取らない ----
+if (process.env.STATS_IMAGES !== '0') { fs.mkdirSync(path.join(out, 'img'), { recursive: true }); let ok = 0, ng = 0; const todo = rows.filter((r) => r.imgUrl);
+  for (let q = 0; q < todo.length; q += 8) await Promise.all(todo.slice(q, q + 8).map(async (r) => { try { const u = new URL(r.imgUrl); const base = u.origin + u.pathname.replace(/\.(jpg|jpeg|png|webp)$/i, ''); const res = await fetch(base + '?format=jpg&name=small', { signal: AbortSignal.timeout(20000) }); if (!res.ok) throw new Error(res.status); fs.writeFileSync(path.join(out, 'img', r.id + '.jpg'), Buffer.from(await res.arrayBuffer())); r.img = 'img/' + r.id + '.jpg'; ok++; } catch (_) { ng++; } }));
+  console.log('[stats] 画像を保存:', ok + '枚', ng ? '(取れなかった ' + ng + '枚)' : ''); }
+const COLS = [['日時(日本時間)', 'jst'], ['曜日', 'wd'], ['時', 'hour'], ['言語', 'lang'], ['種類', 'kind'], ['種類の決め方', 'src'], ['親/返信', 'to'], ['ビュー', 'views'], ['いいね', 'likes'], ['リポスト', 'rts'], ['返信', 'replies'], ['引用', 'quotes'], ['ブックマーク', 'bm'], ['反応の合計', 'eng'], ['プロフィールのクリック', 'prof'], ['リンクのクリック', 'link'], ['画像', 'media'], ['本文の字数', 'len'], ['1行目の字数', 'flen'], ['絵文字で始まる', 'emoji'], ['ハッシュタグ数', 'tags'], ['リンクあり', 'url'], ['前の親投稿から(分)', 'gap'], ['経過(時間)', 'age'], ['1行目', 'head'], ['本文', 'text'], ['画像ファイル', 'img'], ['画像のURL', 'imgUrl']];
 fs.writeFileSync(path.join(out, 'stats.csv'), '﻿' + [[...COLS.map((c) => c[0]), 'URL'], ...rows.sort((a, b) => b.t - a.t).map((r) => [...COLS.map(([, k]) => r[k] == null ? '' : typeof r[k] === 'number' && k === 'age' ? r[k].toFixed(1) : r[k]), `https://x.com/${me.username}/status/${r.id}`])].map((a) => a.map(csvq).join(',')).join('\n'));
+// v339: 一覧のページ(report.html)。画像と本文とビューを並べて、ブラウザで開いて見られる。列の見出しを押すと並べ替え
+{ const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const trs = rows.slice().sort((a, b) => b.t - a.t).map((r) => `<tr><td data-v="${r.t}">${esc(r.jst)}<br><small>${esc(r.wd)}・${esc(r.lang)}・${esc(r.to)}</small></td><td>${esc(r.kind)}</td><td class="n" data-v="${r.views ?? -1}">${r.views ?? '—'}</td><td class="n" data-v="${r.likes}">${r.likes}</td><td class="n" data-v="${r.eng}">${r.eng}</td><td class="n" data-v="${r.prof ?? -1}">${r.prof ?? '—'}</td><td>${r.img ? `<a href="${esc(r.img)}"><img src="${esc(r.img)}" loading="lazy"></a>` : ''}</td><td class="t">${esc(r.text)}<br><a href="https://x.com/${esc(me.username)}/status/${esc(r.id)}">X で開く</a></td></tr>`).join('');
+  fs.writeFileSync(path.join(out, 'report.html'), `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>X の投稿 @${esc(me.username)}</title><style>body{font:14px/1.5 system-ui,sans-serif;margin:16px;background:#0b0f16;color:#e6edf6}table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #223;padding:6px 8px;vertical-align:top}th{position:sticky;top:0;background:#111a27;cursor:pointer;text-align:left}td.n{text-align:right;font-variant-numeric:tabular-nums}td.t{white-space:pre-wrap;max-width:520px}img{width:220px;border-radius:6px}a{color:#7cc4ff}small{color:#8aa}</style><h1>X の投稿 @${esc(me.username)}（直近${DAYS}日・${rows.length}件）</h1><p>列の見出しを押すと並べ替えます。</p><table id="t"><thead><tr><th>日時</th><th>種類</th><th>ビュー</th><th>いいね</th><th>反応</th><th>プロフィール</th><th>画像</th><th>本文</th></tr></thead><tbody>${trs}</tbody></table><script>document.querySelectorAll('th').forEach((th,i)=>th.onclick=()=>{const tb=document.querySelector('#t tbody'),rs=[...tb.rows],d=th.dataset.d=th.dataset.d==='1'?'-1':'1';rs.sort((a,b)=>{const x=a.cells[i].dataset.v??a.cells[i].textContent,y=b.cells[i].dataset.v??b.cells[i].textContent;return (isNaN(x)||isNaN(y)?String(x).localeCompare(y):x-y)*d});rs.forEach(r=>tb.append(r))});</script>`); }
 fs.writeFileSync(path.join(out, 'stats.json'), JSON.stringify({ at: new Date().toISOString(), user: me.username, days: DAYS, rows }, null, 1));
 const med = (a) => { a = a.filter((v) => v != null).sort((x, y) => x - y); if (!a.length) return null; const h = a.length >> 1; return a.length % 2 ? a[h] : Math.round((a[h - 1] + a[h]) / 2); };
 const avg = (a, f = 0) => { a = a.filter((v) => v != null); return a.length ? +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(f) : null; };
