@@ -257,15 +257,9 @@ const shortName = (it) => it.sr === 'pre' ? '予告 ' + ((it.g || (it.post && it
 function render() {
   const now = Date.now();
   if (!VIEW) { const d = jd(now); VIEW = { y: d.getUTCFullYear(), m: d.getUTCMonth() }; }
-  // 今やること
-  const T = [];
-  for (const it of ITEMS) { const s = stateOf(it, now); if (s === 'warn') T.push({ cls: 'warn', ic: '⚠', tt: `${LABEL[it.sr]} ${fmtDT(it.due)} — 予約した後に予定が変わりました`, sub: 'Xの予約を消して、新しい内容で予約し直してください', id: it.id, go: '直す' }); }
-  for (const it of ITEMS) { const s = stateOf(it, now); if (s === 'ready' && !AUTO(it)) T.push({ cls: 'now', ic: ICON[it.sr], tt: `今すぐ投稿: ${LABEL[it.sr]}${it.sr === 'arch' ? ' — ' + shortName(it) : ''}`, sub: `投稿時刻 ${fmtDT(it.due)}${it.post ? '' : '(価格を取得中…)'}`, id: it.id, go: '投稿する' }); }
-  const plan = ITEMS.filter((it) => it.sr === 'daily' && !AUTO(it) && stateOf(it, now) === 'todo' && it.due < now + 8 * L.DAY);
-  if (plan.length) T.push({ cls: 'plan', ic: '🗓', tt: `予約がまだの「今日・今週の予定」 ${plan.length}件(${fmtDT(plan[0].due).split(' ')[0]}〜${fmtDT(plan[plan.length - 1].due).split(' ')[0]})`, sub: '順番に開いて、Xで 9:30 に予約していきます', id: plan[0].id, go: '順番に予約する' });
-  const nx = ITEMS.find((it) => it.sr !== 'daily' && stateOf(it, now) === 'wait');
-  if (nx) T.push({ cls: 'wait', ic: '⏳', tt: `次の値動き投稿: ${shortName(nx)}(発表 ${fmtDT(nx.g ? nx.g[0].ts : nx.due - L.ARCH_WAIT)})`, sub: `投稿は ${fmtDT(nx.due)} ・ ${left(nx.due - now)}。時刻になるとこのページが下書きを作ります(このタブを開いたままに)` });
-  if (!T.length) T.push({ cls: 'wait', ic: '✔', tt: '今やることはありません', sub: '' });
+  // v331: 「今やること」は廃止。止めた自動投稿の、種類ごとの最新の下書きを並べてコピペで出す
+  const FRESH = { spike: 12 * L.H, liq: 12 * L.H, liqimp: 12 * L.H, liqday: 24 * L.H, histm: 24 * L.H, histw: 7 * L.DAY, liqshock: 48 * L.H };
+  const LATEST = Object.keys(FRESH).map((sr) => ITEMS.filter((it) => it.sr === sr && it.post && it.post.ja && it.due <= now && now - it.due < FRESH[sr]).sort((a, b) => b.due - a.due)[0]).filter(Boolean).sort((a, b) => b.due - a.due);
   // カレンダー(月曜はじまり)
   const first = Date.UTC(VIEW.y, VIEW.m, 1) - L.JST, start = L.weekStart(first);
   const nextM = Date.UTC(VIEW.y, VIEW.m + 1, 1) - L.JST, weeks = Math.ceil((nextM - start) / (7 * L.DAY));
@@ -277,10 +271,10 @@ function render() {
     cells += `<div class="cell ${out ? 'out' : ''} ${day < today ? 'past' : ''} ${day === today ? 'today' : ''}"><div class="dn"><span>${d.getUTCDate()}</span>${day === today ? '<span>今日</span>' : ''}</div>
       ${its.map((it) => { const s = stateOf(it, now); return `<button class="ev ${s}" data-open="${esc(it.id)}" title="${esc(LABEL[it.sr] + ' ' + fmtDT(it.due))}"><span>${ICON[it.sr]}</span><span class="t">${L.hm(it.due)}</span><span class="n">${esc(shortName(it) || '')}</span><span class="s">${stxt(it, s)}</span></button>`; }).join('')}</div>`;
   }
-  const n = ITEMS.filter((it) => ['ready', 'warn'].includes(stateOf(it, now))).length;
+  const n = LATEST.filter((it) => now - it.due < 3 * L.H).length;   // v331: 3時間以内の新しい下書きの数
   document.title = (n ? `(${n}) ` : '') + 'CSA POSTS';
   $('#main').innerHTML = `
-    <h2>✅ 今やること</h2><div id="todo">${T.map((t) => `<div class="task ${t.cls}" ${t.id ? `data-open="${esc(t.id)}"` : ''}><span class="ic">${t.ic}</span><div><div class="tt">${esc(t.tt)}</div>${t.sub ? `<div class="sub">${esc(t.sub)}</div>` : ''}</div>${t.go ? `<button class="btn ${t.cls === 'now' ? 'cy' : 'main'} go">${t.go} →</button>` : ''}</div>`).join('')}</div>
+    <h2>🆕 最新の下書き（コピペ）</h2><div id="todo">${LATEST.length ? LATEST.map((it) => `<div class="task ${now - it.due < 3 * L.H ? 'now' : 'wait'}"><span class="ic">${ICON[it.sr] || '📝'}</span><div style="flex:1"><div class="tt">${now - it.due < 3 * L.H ? '🆕 ' : ''}${esc(LABEL[it.sr] || it.sr)}</div><div class="sub">${esc(fmtDT(it.due))}・${esc(((m) => m < 60 ? m + '分' : m < 2880 ? Math.round(m / 60) + '時間' : Math.round(m / 1440) + '日')(Math.max(1, Math.round((now - it.due) / 6e4))))}前・${esc((it.post.ja || '').split('\n')[0].slice(0, 60))}</div></div><button class="chip" data-cp="${esc(it.id)}">コピペを作る</button></div>`).join('') : '<div class="task wait"><span class="ic">✔</span><div><div class="tt">新しい下書きはありません</div></div></div>'}</div>
     <div class="calbar"><h2 style="margin:0">📅 カレンダー</h2><button class="chip" data-mv="-1">‹ 前の月</button><span class="ym">${VIEW.y}年${VIEW.m + 1}月</span><button class="chip" data-mv="1">次の月 ›</button><button class="chip" data-mv="0">今月</button>
       <div class="legend"><span><i style="background:var(--gold)"></i>未予約・待ち</span><span><i style="background:var(--cyan)"></i>今投稿できる</span><span><i style="background:var(--up)"></i>済み</span><span><i style="background:var(--dn)"></i>要修正</span><span>🗓 今日・今週の予定(9:30)</span><span>⏰ 予告(発表15分前)</span><span>📈 発表後の値動き(発表65分後)</span><span>📊 週間記録(土曜10:00)</span></div></div>
     <div class="cal">${cells}</div>
@@ -746,6 +740,12 @@ const shockCopy = async (b, kind) => { const ev = {}, now = Date.now();
   const cur = ev[L.SHOCK.cur], n = cur.days[cur.days.length - 1][0]; return { ...L.shockDraft({ ev, n }, now, kind, 'copy'), man: 1 }; };
 runBtn('sbBtn', (b) => shockCopy(b, 'shockbn'));
 runBtn('scBtn', (b) => shockCopy(b, 'shockcmp'));
+// v331: 最新の下書きからコピペを作る(画面の上の一覧)
+document.getElementById('main').addEventListener('click', async (e) => { const b = e.target.closest('[data-cp]'); if (!b) return; e.stopPropagation();
+  const it = ITEMS.find((x) => x.id === b.dataset.cp); if (!it || !it.post) return; const t0 = b.textContent; b.disabled = true; b.textContent = '作っています…';
+  try { await copyBox({ ...it.post, man: 1 }, it.sr, b); const box = document.getElementById('cpBox'); if (box) box.scrollIntoView({ behavior: 'smooth', block: 'start' }); b.textContent = '✓ 下に出しました'; }
+  catch (err) { b.textContent = '失敗 ' + err.message; }
+  setTimeout(() => { b.textContent = t0; b.disabled = false; }, 6000); }, true);
 </script>
 </body>
 </html>
