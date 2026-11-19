@@ -418,7 +418,10 @@ export const winOf = (p) => (p && (p.sr === 'pre' || String(p.id || '').startsWi
 export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch):\d+:US$/.test(String(p.id)) && ((p.img && /FOMC|Powell|議長/.test((p.img.ja || '') + ' ' + (p.img.en || ''))) || /FOMC|Powell|議長/.test((p.ja || '') + (p.en || '')));   // v211: FOMC の古い形の予告・値動き
 // v280: pre(発表前の予告)と arch(発表後の値動き)は自動投稿をやめた(ビューが少ないため。下書きは他の機能の材料として作り続ける。FOMC などの予告は fomc で別)
 // v298: 夜のまとめ(sum)・値動きの大きさ(vol)・BTC実況(pat)・ハッキング追跡(hack・bnstatus・bnreply)の自動投稿をやめた(ビューがほぼ無いため。下書きは作り続ける)
-export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (p.sr === 'liqshock' || p.sr === 'histw' || p.sr === 'histm' || p.sr === 'midterm' || p.sr === 'corrts' || p.sr === 'shockbn' || p.sr === 'shockcmp' || p.sr === 'spkcmp' || p.sr === 'fomc' || p.sr === 'fomcc' || p.sr === 'fomcres' || p.sr === 'spike' || p.sr === 'spikeliq' || p.sr === 'liq' || p.sr === 'liqday' || p.sr === 'liqimp' || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+// v328: 自動で出すのは 予定表・BTC×S&P500相関・FOMC/CPI/雇用統計/PCE の予告(1時間前+TOP3)と結果・Binance 2019 vs 2026(90日で自然に終わる) だけ。
+//   止めた: 24時間の清算・巨額清算・指標前後の清算・急変動(と返信・過去比較)・ショック後のBTC・ブームと危機(週・月)・大量清算の後のBTC・週のまとめ。下書きは作られるが投稿されない
+export const AUTO_ON = new Set(['corrts', 'fomc', 'fomcc', 'fomcres', 'shockbn']);
+export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (AUTO_ON.has(p.sr) || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
@@ -791,7 +794,7 @@ export const SHOCK = {
   ],
   marks: [3, 7, 14, 30, 60, 76, 90],   // 節目(発生日=0日目)。3日目は初回
   pre: 15, post: 90,
-  mile: [21, 30, 45, 60, 76, 90],   // v321: 空き枠の投稿は、この日(発生日=0日目)に1本だけ。回復・最安・急変動のきっかけ投稿はこれまでどおり
+  mile: [21, 30], autoEnd: 30,   /* v329: 自動は30日目の比較で終わり(画像・ボタンのデータは post まで) */   // v321: 空き枠の投稿は、この日(発生日=0日目)に1本だけ。回復・最安・急変動のきっかけ投稿はこれまでどおり
 };
 // rows: Binance の日足 [[openTime, o, h, l, c, ...]]。確定した日だけ(今日の途中の足は除く)
 export function shockSeries(e, rows, now) {

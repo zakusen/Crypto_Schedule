@@ -436,13 +436,13 @@ try {
   const lsMile = (L.LIQSHOCK.mile || []).includes(Math.round((lsDay - Date.UTC(+L.LIQSHOCK.anchor.slice(0, 4), +L.LIQSHOCK.anchor.slice(5, 7) - 1, +L.LIQSHOCK.anchor.slice(8, 10))) / DAY));
   const lsBusy = lsOn && lsMile && Math.abs(NOW - lsAt) < L.LIQSHOCK.gap;   // v316: 節目の日だけ空ける   // v300: 大量清算の後のBTC(18:30)の前後2時間はショック比較を出さない(下書きができる前から)
   const h = L.J(NOW).getUTCHours(), busy = all.some((p) => { if (!L.isAuto(p) || p.sr === 'shockbn' || p.sr === 'shockcmp') return false; const d = p.due || 0; return L.SHOCKFIXED.has(p.sr) ? Math.abs(d - NOW) < G.fixed : d > NOW - G.before && d < NOW + G.after; }) || lsBusy;   // v251 / v300
-  const next = last && last.sr === 'shockbn' ? 'shockcmp' : 'shockbn';
+  const next = 'shockbn';   // v328: ショック後のBTC(shockcmp)は止めた。Binance 2019 vs 2026 だけ
   let force = null; try { force = await (await site('/api/admin/rx-one?name=sf')).json(); } catch (_) {}   // v252: /posts.html の「ショック比較を今出す」
   const fwhy = force && force.at && NOW - force.at < 3 * H && force.at > lastT ? 'f' + Math.floor(force.at / 60000) : null;
   if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(force.kind === 'shockbn' || force.kind === 'shockcmp' ? force.kind : next, fwhy);   // v254: ボタンで選んだほう
-  else if (n < 1 || n > L.SHOCK.post) console.log('[x] ショック比較: 期間外', n);
+  else if (n < 1 || n > (L.SHOCK.autoEnd || L.SHOCK.post)) console.log('[x] ショック比較: 期間外', n);   // v329: 自動は30日目まで
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
-  else if (trig && !lsBusy && NOW - lastT >= G.trigGap && today < G.perDay) put1(trig === 'recover' ? 'shockbn' : 'shockcmp', trig);
+  else if (trig && !lsBusy && NOW - lastT >= G.trigGap && today < G.perDay) put1('shockbn', trig);
   else if (L.SHOCK.mile && !L.SHOCK.mile.includes(n)) console.log('[x] ショック比較: 節目の日ではないので空き枠には出さない', n + '日目');   // v321
   else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < (L.SHOCK.mile ? 1 : G.slotPerDay)) put1(next, 'slot' + h);   // v258: 時刻を付けて、同じ日・同じ種類の2本目もぶつからない
   else if (today === 0 && h === G.last && NOW - lastT >= G.every) put1(next, 'slot' + h);   // v251: 22時台まで1本も出ていなければ、空きを待たずに出す(1日最低1本)
