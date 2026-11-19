@@ -145,7 +145,7 @@ function dailyPost(day, vol = null, ext = null) {   // v195: vol = /api/vol(今�
       const c = en ? (cb ? 'MONETARY POLICY' : 'MACRO DATA') : `${r[1]}・${cb ? '金融政策' : '経済指標'}`;
       return [`🔴 ${en ? eh(g[0].ts) : hm(g[0].ts)}`, `🟡 ${cb ? '🏦' : r[0]} ${name}`, ...(cat ? ['   ' + c] : [])];
     };
-    const tag = en ? '#Macro #Bitcoin #Crypto' : '#経済指標 #ビットコイン #仮想通貨';
+    const tag = en ? '$BTC #Macro' : '$BTC #経済指標';   // v340: $BTC に
     const mk = (tn, o) => {
       const rule = '━'.repeat(o.rule), rest = tg.length - tn;
       const body = tg.length ? tg.slice(0, tn).flatMap((g, i) => [...(i ? [''] : []), ...ev(g, o.cat)]) : [en ? 'No scheduled events' : '予定なし'];
@@ -154,9 +154,9 @@ function dailyPost(day, vol = null, ext = null) {   // v195: vol = /api/vol(今�
         ...body, ...(rest > 0 ? ['', en ? `+${rest} more` : `ほか${rest}件`] : []), '', rule,
         ...(o.ex ? EX[lang].slice(0, o.ex) : []),
         ...(nx ? ['', en ? `🟢 NEXT SIGNAL · ${dEn(nx[0].ts)} · ${eh(nx[0].ts)}` : `🟢 次の予定 · ${dJa(nx[0].ts)} · ${hm(nx[0].ts)}`, `🟡 ${isCB(nx) ? '🏦' : (REG[nx[0].c] || ['📅'])[0]} ${en ? groupLine(nx, 'en').toUpperCase() : groupLine(nx, 'ja')}`] : []),
-        '', tag].join('\n');
+        '', L.sigOf(lang), tag].join('\n');   // v340: 署名「数字で見るBTCの歴史。」
     };
-    const OPT = [{ brand: 1, cat: 1, rule: 18 }, { brand: 1, cat: 1, rule: 10 }, { cat: 1, rule: 10 }, { rule: 10 }];
+    const OPT = [{ cat: 1, rule: 10 }, { rule: 10 }, { rule: 6 }];   // v340: ブランド行はやめて、最後に署名
     for (let tn = tg.length; tn >= 0; tn--) for (let k = EX[lang].length; k >= 0; k--) for (const o of OPT) { const t = mk(tn, { ...o, ex: k }); if (xlen(t) <= 260) return t; }   // 優先: 指標 > 追加の行 > ブランド行・線の長さ   // v195/v202: 追加の行(📊🔁✅)は指標より後回し。260 = 番号の行の分をあける   // v195: 📊の行は指標より後回し
     return mk(0, OPT[OPT.length - 1]);
   };

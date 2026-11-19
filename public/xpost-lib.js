@@ -250,19 +250,11 @@ export function spikePost(sp, corr, link, liq) {   // link = サイトの URL(�
   // 1行 = 銘柄・同じ1時間の変化・S&P500 との相関(30日。7日は画像とサイト)。URL は必ず残す。
   // 入らない時は 区切り線 → 色の丸 → タグ → 時間外の注記 → 時刻の行(画像にはある) → 相関の目安の言葉 の順に外す
   // v108: 毎朝の予定と同じ形
-  const build = (lang, o) => {
-    const en = lang === 'en', rule = '';   /* v327: 区切り線はやめて空行に */
-    return [...(o.brand ? [BRAND[lang], ''] : []),
-      (en ? `⚡ BTC ${sg(btc)} in ${W}h` : `⚡ BTC ${W}時間で ${sg(btc)}`) + (liq ? (en ? `, ${usdS(liq.l + liq.s)} liquidated${liq.mult != null ? ` (${fxs(liq.mult)}x normal)` : ''}` : `、清算${jaUsd(liq.l + liq.s)}${liq.mult != null ? `(普段の${fxs(liq.mult)}倍)` : ''}`) : ''), /* v327: 1行目に今の数字をまとめる */ ...(o.nodate ? [] : [en ? (dEnU(sp.t0) === dEnU(sp.t1) ? `${dEnU(sp.t0)} · ${uhm(sp.t0)}→${uhm(sp.t1)} UTC` : `${dEnU(sp.t0, false)} ${uhm(sp.t0)} → ${dEnU(sp.t1, false)} ${uhm(sp.t1)} UTC`) : (dJaL(sp.t0) === dJaL(sp.t1) ? `${dJaL(sp.t0)} · ${hm(sp.t0)}→${hm(sp.t1)} · 日本時間` : `${md} ${hm(sp.t0)} → ${J(sp.t1).getUTCMonth() + 1}/${J(sp.t1).getUTCDate()} ${hm(sp.t1)} · 日本時間`)]), rule,
-      ...COINS.filter(([c]) => sp.coins[c] != null).map(([c, , s]) => `${s} ${c} ${mv(sp.coins[c], o.dot)}`),
-      `📈 S&P500 ${mv(sp.spx, o.dot)}${sp.open || o.noclosed ? '' : en ? ' (US market closed)' : '(米国市場の時間外)'}`,
-      ...(rv(30, 'BTC') != null ? [en ? `BTC–S&P500 corr (30D): ${cr('BTC', lang, !o.nolab)}` : `BTCとS&P500の相関(30日): ${cr('BTC', lang, !o.nolab)}`] : []),
-      ...(liq ? [en ? 'Liquidation breakdown in the reply ↓' : '清算の内訳は返信へ↓'] : []),
-      ...(link ? ['🔗 ' + link] : []),
-      ...(o.tag ? [en ? '#Bitcoin #SP500' : '#ビットコイン #SP500'] : [])].join('\n');
-  };
-  const LV = [{ dot: 1, tag: 1 }, { dot: 1 }, {}, { noclosed: 1 }, { noclosed: 1, nodate: 1 }, { noclosed: 1, nodate: 1, nolab: 1 }];   // v327: ブランド行・区切り線はやめた(1行目を今の数字に)   // 相関の目安の言葉は最後まで残す(時刻は画像にもある・投稿はすぐ出る)
-  const fitS = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
+  // v340: 語り口をそろえる(何が起きたか → 注目したいのは → 同じ時間に動いたもの → 締め → 署名)
+  const oth = COINS.filter(([c]) => c !== SPIKE_COIN && sp.coins[c] != null).map(([c]) => `${c} ${sg(sp.coins[c])}`);
+  const fitS = (lang) => { const en = lang === 'en', up = btc >= 0, cl = sp.open ? '' : en ? ' (US market closed)' : '（米国市場の時間外）';
+    return voice(en ? { h: `BTC ${up ? 'up' : 'down'} ${sg(btc)} in ${W}h.`, a: `The ${up ? 'rise' : 'drop'} itself isn't the whole story.`, b: [oth.length ? `- ${oth.join(' / ')}` : null, `- S&P500 ${sp.spx == null ? '—' : sg(sp.spx)}${cl}`, liq ? `- Liquidated: ${usdS(liq.l + liq.s)}${liq.mult != null ? ` (${fxs(liq.mult)}x normal)` : ''}` : null, rv(30, 'BTC') != null ? `- BTC–S&P500 corr (30D): ${cr('BTC', lang, true)}` : null], c: 'What moved, and how much, in the same hour.' }
+      : { h: `BTCが${W}時間で${sg(btc)}。`, a: `注目したいのは、BTCの${up ? '上げ' : '下げ'}幅だけではありません。`, b: [oth.length ? `・${oth.join('／')}` : null, `・S&P500 ${sp.spx == null ? '—' : sg(sp.spx)}${cl}`, liq ? `・清算${jaUsd(liq.l + liq.s)}${liq.mult != null ? `（普段の${fxs(liq.mult)}倍）` : ''}` : null, rv(30, 'BTC') != null ? `・BTCと株の相関(30日) ${cr('BTC', lang, true)}` : null], c: '同じ時間に、何がどれだけ動いたか。' }, lang, '$BTC #SP500' + (link ? '\n🔗 ' + link : '')); };
   const en = fitS('en'), ja = fitS('ja');
   return { id: sp.id, sr: 'spike', due: sp.due, en, ja, h: hashStr(en + ja), img: { v: 2, win: W, t0: sp.t0, t1: sp.t1, coins: sp.coins, ...(liq ? { liq: { l: liq.l, s: liq.s, mult: liq.mult != null ? liq.mult : null } } : {}), spx: sp.spx, open: sp.open, hit: sp.hit, link: !!link, ser: sp.ser || null, corr: corr ? { 30: corr.w[30], 7: corr.w[7], end: corr.end } : null } };
 }
@@ -288,18 +280,10 @@ const rangeTxt = (a, b, lang) => lang === 'en'
 // ev = Worker が記録した事象 {id, start, end, capped, coins:{BTC:{long,short,peak}}, maxOne:{usd,coin,side,ts}, ser:[[t,long,short]], man?}
 export function liqPost(ev) {
   const tot = liqTot(ev.coins), mo = ev.maxOne;
-  const build = (lang, o) => {
-    const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
-    return [...(o.brand ? [BRAND[lang], ''] : []),
-      (ev.man && ev.hrs ? (en ? `🔥 ${usdS(tot.l + tot.s)} liquidated in ${ev.hrs}h` : `🔥 直近${ev.hrs}時間で清算${usdS(tot.l + tot.s)}`) : (en ? `🔥 Liquidation wave: ${usdS(tot.l + tot.s)}` : `🔥 巨額清算 ${usdS(tot.l + tot.s)}`)) + (tot.share != null ? (en ? ` (${tot.share}% longs)` : `(ロング${tot.share}%)`) : ''), ...(o.nodate ? [] : [rangeTxt(ev.start, ev.end, lang)]), '',   // v327: 1行目に合計とロングの割合   // v277: 手で作った時は「直近◯時間」
-      ...liqRows(ev.coins),
-      en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}`,
-      ...(mo && !o.nomax ? [en ? `💥 Largest: ${usdS(mo.usd)} ${mo.coin} ${mo.side}` : `💥 最大の1件: ${usdS(mo.usd)} ${mo.coin}の${mo.side === 'long' ? 'ロング' : 'ショート'}`] : []),
-      ...(o.src ? [ev.hrs ? (en ? 'Binance+Bybit+OKX+Huobi' : 'Binance・Bybit・OKX・Huobi合算') : (en ? 'Bybit + OKX' : 'Bybit・OKX合算')] : []),
-      ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
-  };
-  const LV = [{ src: 1, tag: 1 }, { tag: 1 }, {}, { nomax: 1 }, { nomax: 1, nodate: 1 }];
-  const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
+  // v340: 語り口をそろえる
+  const fitL = (lang) => { const en = lang === 'en', T = usdS(tot.l + tot.s);
+    return voice(en ? { h: ev.man && ev.hrs ? `${T} liquidated in ${ev.hrs}h.` : `Liquidation wave: ${T}.`, a: "The total isn't the whole story.", b: [`- Long ${usdS(tot.l)} / Short ${usdS(tot.s)}${tot.share != null ? ` (${tot.share}% long)` : ''}`, mo ? `- Largest single: ${usdS(mo.usd)} ${mo.coin} ${mo.side}` : null], c: 'Every wave leans a different way.' }
+      : { h: ev.man && ev.hrs ? `直近${ev.hrs}時間で清算${T}。` : `巨額清算 ${T}。`, a: '注目したいのは、額だけではありません。', b: [`・ロング${usdS(tot.l)}／ショート${usdS(tot.s)}${tot.share != null ? `（ロング${tot.share}%）` : ''}`, mo ? `・最大の1件：${usdS(mo.usd)} ${mo.coin}の${mo.side === 'long' ? 'ロング' : 'ショート'}` : null], c: '同じ清算でも、偏り方は毎回ちがう。' }, lang, '$BTC #清算'.replace('#清算', en ? '#Liquidations' : '#清算')); };
   const en = fitL('en'), ja = fitL('ja');
   return { id: ev.id, sr: 'liq', due: ev.end, en, ja, h: hashStr(en + ja), ...(ev.man ? { man: 1 } : {}),
     img: { v: 1, kind: 'wave', ...(ev.hrs ? { hrs: ev.hrs } : {}), ...(ev.px ? { px: ev.px } : {}), start: ev.start, end: ev.end, capped: !!ev.capped, coins: ev.coins, maxOne: mo || null, ser: ev.ser || [] } };
@@ -309,20 +293,10 @@ export function liqDayPost(day, coins, hours, from, mult, opt = {}) {   // v171:
   const end = opt.end || day + LIQ_DAY_AT, start = end - DAY, tot = liqTot(coins);
   let pk = null; for (const h of hours || []) if (!pk || h[1] + h[2] > pk[1] + pk[2]) pk = h;
   const part = from && from > start + 36e5;
-  const build = (lang, o) => {
-    const en = lang === 'en', rule = '━'.repeat(o.rule || 10);
-    return [...(o.brand ? [BRAND[lang], ''] : []),
-      (en ? `📊 ${usdS(tot.l + tot.s)} liquidated in the last 24h` : `📊 直近24時間の清算 ${usdS(tot.l + tot.s)}`) + (mult && mult.l != null && mult.s != null ? (en ? ` (${fxs(Math.max(mult.l, mult.s))}x a normal day)` : `(平常日の${fxs(Math.max(mult.l, mult.s))}倍)`) : ''),   // v327: 1行目に合計と平常日比
-      ...(o.nodate ? [] : [en ? `to ${dEnU(end)} · ${uhm(end)} UTC${part ? ' (partial)' : ''}` : `${dJaL(end)} ${hm(end)} まで${part ? '（記録は途中から）' : ''}`]), '',
-      ...liqRows(coins),
-      en ? `🔴 Long ${usdS(tot.l)} · 🟢 Short ${usdS(tot.s)}${tot.share != null ? ` (${tot.share}% long)` : ''}` : `🔴 ロング ${usdS(tot.l)} · 🟢 ショート ${usdS(tot.s)}${tot.share != null ? `（ロング${tot.share}%）` : ''}`,
-      ...(mult && !o.nomult ? [en ? `📏 vs normal day: Long ×${fxs(mult.l)} · Short ×${fxs(mult.s)}` : `📏 平常日比: ロング ×${fxs(mult.l)} · ショート ×${fxs(mult.s)}`] : []),
-      ...(pk && !o.nopeak ? [en ? `⏱ Peak hour ${uhm(pk[0])} UTC · ${usdS(pk[1] + pk[2])}` : `⏱ ピーク ${hm(pk[0])} · ${usdS(pk[1] + pk[2])}`] : []),
-      ...(o.src ? [en ? 'Binance+Bybit+OKX+Huobi' : 'Binance・Bybit・OKX・Huobi合算'] : []),   // v171: 毎朝のまとめは /api/liq の集計(Coinalyze 4社)。巨額清算の総括(ライブ受信)は Bybit・OKX のまま
-      ...(o.tag ? [en ? '#Crypto #Liquidations' : '#仮想通貨 #清算'] : [])].join('\n');
-  };
-  const LV = [{ src: 1, tag: 1 }, { tag: 1 }, {}, { nopeak: 1 }, { nopeak: 1, nodate: 1 }, { nopeak: 1, nodate: 1, nomult: 1 }];
-  const fitL = (lang) => { for (const o of LV) { const t = build(lang, o); if (xlen(t) <= 280) return t; } return build(lang, LV[LV.length - 1]); };
+  // v340: 語り口をそろえる
+  const fitL = (lang) => { const en = lang === 'en', T = usdS(tot.l + tot.s), mx = mult && mult.l != null && mult.s != null ? fxs(Math.max(mult.l, mult.s)) : null;
+    return voice(en ? { h: `${T} liquidated in the last 24h${mx ? ` (${mx}x a normal day)` : ''}.`, a: "The total isn't the whole story.", b: [`- Long ${usdS(tot.l)} / Short ${usdS(tot.s)}${tot.share != null ? ` (${tot.share}% long)` : ''}`, mult ? `- vs normal day: Long x${fxs(mult.l)} / Short x${fxs(mult.s)}` : null, pk ? `- Busiest hour: ${uhm(pk[0])} UTC, ${usdS(pk[1] + pk[2])}` : null], c: 'Every day leans a different way.' }
+      : { h: `直近24時間の清算は${T}${mx ? `（平常日の${mx}倍）` : ''}。`, a: '注目したいのは、額だけではありません。', b: [`・ロング${usdS(tot.l)}／ショート${usdS(tot.s)}${tot.share != null ? `（ロング${tot.share}%）` : ''}`, mult ? `・平常日比：ロング×${fxs(mult.l)}／ショート×${fxs(mult.s)}` : null, pk ? `・いちばん多かった1時間：${hm(pk[0])}・${usdS(pk[1] + pk[2])}` : null], c: '同じ1日でも、清算の偏り方は毎回ちがう。' }, lang, en ? '$BTC #Liquidations' : '$BTC #清算'); };
   const en = fitL('en'), ja = fitL('ja');
   return { id: opt.id || 'liqday:' + isoDay(day), sr: 'liqday', due: end, ...(opt.langs ? { langs: opt.langs } : {}), en, ja, h: hashStr(en + ja),
     img: { v: 2, kind: 'day', start, end, coins, hours: hours || [], partial: !!part, mult: mult || null, ...(opt.px ? { px: opt.px } : {}) } };   // v278: px = BTC の価格 [[t, 終値]](新しい清算の画像)
@@ -607,12 +581,11 @@ export function fomcText(kind, lv, lg, now) {
   const left = Math.max(0, lv.E - now), hh = Math.round(left / H * 2) / 2, leftJa = hh >= 1 ? (Number.isInteger(hh) ? `${hh}時間` : `${Math.floor(hh)}時間半`) : `${Math.max(1, Math.round(left / 60000))}分`;
   const leftEn = hh >= 1 ? `${hh}h` : `${Math.max(1, Math.round(left / 60000))} min`, t = lv.top, m = ['①', '②', '③'];
   // v327: 1行目＝あと何時間、2行目＝一番似ていた回の答え。説明の行を減らす
-  if (kind === 'fomc') return en
-    ? [`${NM} in ${leftEn}.`, `The run-up most like this one: ${NM} on ${dt(t[0].fomc)}. BTC 1h after: ${sg(t[0].a1)}`, '', 'Did the other 2 move the same way? Top 3 in the reply ↓', 'Past record. Not a forecast.', TG].join('\n')
-    : [`${NM}まで、あと${leftJa}。`, `発表前の動きが一番似ていた${dt(t[0].fomc)}の回、BTCは発表後1時間で${sg(t[0].a1)}`, '', 'ほかの2回も同じ方向だったのか？ TOP3は返信へ↓', '過去の記録。予測ではありません', TG].join('\n');
-  if (kind === 'fomcc') return en
-    ? [`BTC 1h after the 3 closest past ${NM} releases`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), '', 'Picked by the 24h run-up only. Result: a new post 1h after the release.'].join('\n')
-    : ['発表前の動きが似ていた過去3回、発表後1時間のBTC', ...t.map((x, i) => `${m[i]}${dt(x.fomc)}：${sg(x.a1)}`), '', '選んだのは発表前24時間の形だけ。結果は発表1時間後に出します。'].join('\n');
+  // v340: 語り口をそろえる
+  if (kind === 'fomc') return voice(en ? { h: `${NM} in ${leftEn}.`, a: "The result isn't the whole story.", b: [`- Run-up most like this one: ${NM} on ${dt(t[0].fomc)}`, `- BTC 1h after it: ${sg(t[0].a1)}`, '- The other 2 closest: in the reply ↓'], c: 'Same release, a different BTC reaction each time.' }
+    : { h: `${NM}まで、あと${leftJa}。`, a: '注目したいのは、結果の数字だけではありません。', b: [`・発表前の動きが一番似ていた回：${dt(t[0].fomc)}`, `・その回、発表後1時間のBTC：${sg(t[0].a1)}`, '・ほかの2回は返信へ↓'], c: '同じ発表でも、BTCの反応は毎回ちがう。' }, lg, TG.replace('#BTC', '$BTC'));
+  if (kind === 'fomcc') return voice(en ? { h: `The 3 past ${NM} releases with the closest run-up`, b: t.map((x, i) => `${m[i]} ${dt(x.fomc)}: BTC 1h after ${sg(x.a1)}`), c: 'Picked by the 24h run-up only.' }
+    : { h: '発表前の動きが似ていた過去3回', b: t.map((x, i) => `${m[i]}${dt(x.fomc)}：発表後1時間 ${sg(x.a1)}`), c: '選んだのは、発表前24時間の形だけ。' }, lg, '');
   const same = lv.a1 == null ? null : t.filter((x) => x.a1 != null && Math.sign(x.a1) === Math.sign(lv.a1)).length;
   return en
     ? [`${lv.k === 'fomc' || !lv.k ? '🏦' : '🇺🇸'} ${NM} result: BTC ${sg(lv.a1)} in the first hour`, '', `The 3 past ${NM} releases whose run-up looked most like this one:`, ...t.map((x, i) => `${m[i]} ${dt(x.fomc)}: ${sg(x.a1)}`), ...(same != null ? [`Same direction: ${same} of 3`] : []), TG].join('\n')
@@ -816,13 +789,13 @@ export function shockTexts(sd, lg) {
   // v322: 1行目に今の数字、2行目に過去との答え。作り方の説明は画像に任せる
   const raw = (id) => { const x = sd.ev[id] && sd.ev[id].days.find((q) => q[0] === n); return x ? x[1] : null; }, a26 = raw('binance2026'), a19 = raw('binance2019'), gap = a26 != null && a19 != null ? Math.round(Math.abs(a26 - a19)) : null;
   const rd = (id) => sd.ev[id].recover != null ? sd.ev[id].recover : (id === 'luna2022' ? 534 : null);
-  const main = en
-    ? [`${n} days since the Binance hack: BTC ${at('binance2026')}`, `Day ${n} after the 2019 hack: ${at('binance2019')}` + (gap != null ? ` (${gap} pts apart)` : ''), rc, '', '2019 came mid-uptrend, and the loss was ~150x smaller.', 'Past record. Not a forecast.', '#Binance #Bitcoin']
-    : [`Binanceハッキングから${n}日、BTCは${at('binance2026')}`, `2019年の同じ${n}日目は${at('binance2019')}` + (gap != null ? `。差は約${gap}ポイント` : ''), rc, '', '前回は上昇相場の途中で、被害額も約150倍ちがいます', '過去の記録。予測ではありません', '#Binance #ビットコイン'];
-  const reply = en
-    ? [`Day ${n} after a major shock. Binance now: ${at('binance2026')}`, `Same day ${n}: FTX ${at('ftx2022')} / LUNA ${at('luna2022')} / Bybit ${at('bybit2025')}`, '', `Days to get back: FTX ${rd('ftx2022')}, Bybit ${rd('bybit2025')}, LUNA ${rd('luna2022')}`, 'Past record. Not a forecast.', '#Bitcoin #Binance']
-    : [`大きなショックから${n}日目。今回のBinanceは${at('binance2026')}`, `同じ${n}日目：FTX ${at('ftx2022')}／LUNA ${at('luna2022')}／Bybit ${at('bybit2025')}`, '', `元の水準に戻るまで：FTX ${rd('ftx2022')}日・Bybit ${rd('bybit2025')}日・LUNA ${rd('luna2022')}日`, '過去の記録。予測ではありません', '#ビットコイン #Binance'];
-  return { main: main.filter((x, i, a) => x !== '' || a[i - 1] !== '').join('\n'), reply: reply.join('\n') };
+  // v340: 語り口をそろえる
+  const main = voice(en ? { h: `${n} days since the Binance hack: BTC ${at('binance2026')}.`, a: "Today's move isn't the whole story.", b: [`- Day ${n} after the 2019 hack: ${at('binance2019')}`, gap != null ? `- Gap: about ${gap} pts` : null, rc ? '- ' + rc : null], c: '2019 came mid-uptrend, and the loss was ~150x smaller.' }
+    : { h: `Binanceハッキングから${n}日、BTCは${at('binance2026')}。`, a: '注目したいのは、今の値動きだけではありません。', b: [`・2019年の同じ${n}日目：${at('binance2019')}`, gap != null ? `・差：約${gap}ポイント` : null, rc ? '・' + rc : null], c: '前回は上昇相場の途中で、被害額も約150倍ちがう。' }, lg, '#Binance $BTC');
+  const rdj = (id) => rd(id) == null ? 'まだ' : rd(id) + '日', rde = (id) => rd(id) == null ? 'not yet' : rd(id) + 'd';
+  const reply = voice(en ? { h: `Day ${n} after a major shock. Binance now: ${at('binance2026')}.`, a: "The drop size isn't the whole story.", b: [`- FTX: ${at('ftx2022')} on day ${n}, back in ${rde('ftx2022')}`, `- LUNA: ${at('luna2022')} on day ${n}, back in ${rde('luna2022')}`, `- Bybit: ${at('bybit2025')} on day ${n}, back in ${rde('bybit2025')}`], c: 'Same kind of shock, different road afterwards.' }
+    : { h: `大きなショックから${n}日目。今回のBinanceは${at('binance2026')}。`, a: '注目したいのは、下げ幅だけではありません。', b: [`・FTX：同じ日${at('ftx2022')}、元に戻るまで${rdj('ftx2022')}`, `・LUNA：同じ日${at('luna2022')}、元に戻るまで${rdj('luna2022')}`, `・Bybit：同じ日${at('bybit2025')}、元に戻るまで${rdj('bybit2025')}`], c: '同じショックでも、その後の道のりは同じではない。' }, lg, '#Binance $BTC');
+  return { main, reply };
 }
 // v245: 1本ずつ作る。kind = 'shockbn'(Binance 2019/2026) か 'shockcmp'(ショック後のBTC)。why は id に残す(空き枠・回復・最安・急変動)
 export function shockDraft(sd, now, kind, why) {
@@ -862,11 +835,10 @@ export const corrWord = (v, lg) => v == null ? (lg === 'en' ? 'not enough data' 
 const sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
 export function corrText(c, lg) {
   const st = corrStats(c);
-  // v322: 1行目に「何が起きたか」
-  const ext = st.now != null && st.hi != null && st.now >= st.hi ? 'hi' : st.now != null && st.lo != null && st.now <= st.lo ? 'lo' : null;
-  return lg === 'en'
-    ? [`BTC and US stocks (S&P 500), 24h correlation ${sg(st.now)} (24h ago ${sg(st.ago)})`, `${corrWord(st.now, 'en')[0].toUpperCase() + corrWord(st.now, 'en').slice(1)}` + (ext === 'hi' ? ' — the strongest in 7 days' : ext === 'lo' ? ' — the weakest in 7 days' : ` (7-day range ${sg(st.lo)} to ${sg(st.hi)})`), '', 'Correlation is not causation.', '#Bitcoin #SP500'].join('\n')
-    : [`BTCと米国株(S&P500)、直近24時間の相関 ${sg(st.now)}(24時間前 ${sg(st.ago)})`, `${corrWord(st.now, 'ja')}` + (ext === 'hi' ? '。この7日で一番強い' : ext === 'lo' ? '。この7日で一番弱い' : `(7日の幅 ${sg(st.lo)}〜${sg(st.hi)})`), '', '相関は原因を示しません', '#ビットコイン #SP500'].join('\n');
+  // v340: 語り口をそろえる
+  const ext = st.now != null && st.hi != null && st.now >= st.hi ? 'hi' : st.now != null && st.lo != null && st.now <= st.lo ? 'lo' : null, en = lg === 'en';
+  return voice(en ? { h: `BTC vs US stocks: 24h correlation ${sg(st.now)}.`, a: "The number alone isn't the story.", b: [`- 24h ago: ${sg(st.ago)}`, `- 7-day range: ${sg(st.lo)} to ${sg(st.hi)}`, ext ? `- The ${ext === 'hi' ? 'strongest' : 'weakest'} link in 7 days` : `- Now: ${corrWord(st.now, 'en')}`], c: 'Whether BTC moves with stocks changes day to day.' }
+    : { h: `BTCと米国株、直近24時間の相関は${sg(st.now)}。`, a: '注目したいのは、数字の大きさだけではありません。', b: [`・24時間前は${sg(st.ago)}`, `・この7日の幅は${sg(st.lo)}〜${sg(st.hi)}`, ext ? `・この7日でいちばん${ext === 'hi' ? '強い' : '弱い'}つながり` : `・今の状態：${corrWord(st.now, 'ja')}`], c: '「BTCは株と別」かどうかは、日によって変わる。' }, lg, '$BTC #SP500');
 }
 export function corrDraft(c, now, why) {
   const id = 'corrts:' + isoDay(now) + (why === 'daily' ? '' : ':' + why), ja = corrText(c, 'ja'), en = corrText(c, 'en');
@@ -928,8 +900,9 @@ export function histMerge(base, bm, now) {
 export function histWeekDraft(base, bm, now) {
   const hd = histMerge(base, bm, now), B = Object.fromEntries(hd.booms.map((b) => [b.id, b])), lastV = (b) => b.pts[b.pts.length - 1], peak = (b) => b.pts.reduce((a, q) => q[1] > a[1] ? q : a);
   const pct = (id) => { const b = B[id]; return Math.round(lastV(b)[1] / peak(b)[1] * 100); }, lc = hd.crises[hd.crises.length - 1];
-  const ja = ['2017年からの暗号資産のブームと危機。今はピークのどこ？', `DeFiの預かり資産 ${bfmt(lastV(B.defi)[1])}(ピークの${pct('defi')}%)`, `DEXの取引高 ${bfmt(lastV(B.dex)[1])}/月(ピークの${pct('dex')}%)`, `一番新しい危機：${lc.n}(${lc.d.slice(0, 7).replace('-', '年')}月)`, '', '並べたもので、原因は示しません', tagsJa([lc.n], lc.k === 'hack')].join('\n');   // v322
-  const en = ['Crypto booms and crises since 2017: where are we vs the peak?', `DeFi TVL ${bfmtE(lastV(B.defi)[1])} (${pct('defi')}% of peak)`, `DEX volume ${bfmtE(lastV(B.dex)[1])}/mo (${pct('dex')}% of peak)`, `Latest crisis: ${lc.n} (${lc.d.slice(0, 7)})`, '', 'Shown side by side; not a cause.', tagsEn([lc.n], lc.k === 'hack')].join('\n');
+  const lcj = `${lc.n}(${lc.d.slice(0, 7).replace('-', '年')}月)`;   // v340: 語り口をそろえる
+  const ja = voice({ h: '2017年からの暗号資産のブームと危機。今はピークのどこ？', a: '注目したいのは、値段だけではありません。', b: [`・DeFiの預かり資産 ${bfmt(lastV(B.defi)[1])}（ピークの${pct('defi')}%）`, `・DEXの取引高 ${bfmt(lastV(B.dex)[1])}/月（ピークの${pct('dex')}%）`, `・いちばん新しい危機：${lcj}`], c: '同じ「冬」でも、深さと長さは毎回ちがう。' }, 'ja', tagsJa([lc.n], lc.k === 'hack'));
+  const en = voice({ h: 'Crypto booms and crises since 2017: where are we vs the peak?', a: "Price isn't the whole story.", b: [`- DeFi TVL ${bfmtE(lastV(B.defi)[1])} (${pct('defi')}% of peak)`, `- DEX volume ${bfmtE(lastV(B.dex)[1])}/mo (${pct('dex')}% of peak)`, `- Latest crisis: ${lc.n} (${lc.d.slice(0, 7)})`], c: 'Every "winter" differs in depth and length.' }, 'en', tagsEn([lc.n], lc.k === 'hack'));
   return { id: 'histw:' + isoDay(now), sr: 'histw', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { hist: hd } };
 }
 // 直近1か月。危機 = DefiLlama のハッキング一覧(100万ドル以上)＋大型ハッキング(HACKS)＋手で足した出来事(◆・ハッキング)
@@ -943,8 +916,8 @@ export function histMonthDraft(bm, ce, hacks, now) {
   const month = { from, to: isoDay(now), btc: cut(D.btc), defi: cut(D.defi), lend: cut(D.lend), stable: cut(D.stable), dex: cut(D.dex), crises: cr.slice(-10) };
   const ch = (r) => r.length >= 2 ? Math.round((r[r.length - 1][1] / r[0][1] - 1) * 1000) / 10 : null, sg = (v) => v == null ? '—' : (v > 0 ? '+' : v < 0 ? '−' : '±') + Math.abs(v) + '%';
   const big = [...cr].filter((c) => c.b).sort((a, b) => b.b - a.b)[0], top2 = [...cr].sort((a, b) => (b.b || 0) - (a.b || 0)).map((c) => c.n);
-  const ja = [`この1か月、BTC ${sg(ch(month.btc))}・DeFi ${sg(ch(month.defi))}・ステーブル ${sg(ch(month.stable))}`, `危機の記録は${cr.length}件` + (big ? `。一番大きかったのは${big.n}(${bfmt(big.b)})` : ''), '', '並べたもので、原因は示しません', tagsJa(top2, cr.length > 0)].join('\n');   // v322
-  const en = [`Last 30 days: BTC ${sg(ch(month.btc))}, DeFi ${sg(ch(month.defi))}, stablecoins ${sg(ch(month.stable))}`, `${cr.length} crises recorded` + (big ? `; the largest: ${big.n} (${bfmtE(big.b)})` : ''), '', 'Shown side by side; not a cause.', tagsEn(top2, cr.length > 0)].join('\n');
+  const ja = voice({ h: `この1か月、BTC ${sg(ch(month.btc))}・DeFi ${sg(ch(month.defi))}・ステーブル ${sg(ch(month.stable))}。`, a: '注目したいのは、値動きだけではありません。', b: [`・危機の記録：${cr.length}件`, big ? `・いちばん大きかったのは${big.n}（${bfmt(big.b)}）` : null], c: '値動きと出来事を、同じ時間軸に並べる。' }, 'ja', tagsJa(top2, cr.length > 0));   // v340
+  const en = voice({ h: `Last 30 days: BTC ${sg(ch(month.btc))}, DeFi ${sg(ch(month.defi))}, stablecoins ${sg(ch(month.stable))}.`, a: "Price isn't the whole story.", b: [`- Crises recorded: ${cr.length}`, big ? `- The largest: ${big.n} (${bfmtE(big.b)})` : null], c: 'Prices and events on the same timeline.' }, 'en', tagsEn(top2, cr.length > 0));
   return { id: 'histm:' + isoDay(now), sr: 'histm', due: now, dues: { ja: now, en: now + 30 * 60000 }, ja, en, h: hashStr(ja + en), img: { month } };
 }
 // v279: 「反発」の歴史。BTC 1時間足の始値→終値が −5% 以下の回(24時間以内の続きは1回と数える)の、その後7日間。k = [[t,o,h,l,c]] 古い順
@@ -966,9 +939,9 @@ export function rebDraft(ev, now, src = 'Binance BTCUSDT') {
   const last = ev[n - 1], y0 = new Date(ev[0].t + JST).getUTCFullYear(), d = new Date(last.t + JST), sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
   const lj = `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`, le = enDate(last.t);
   const s = { n, y0, u24, n24, u7, n7, rec, recH, m24: med[24], m7: med[168], worst: Math.min(...ev.map((e) => e.drop)) };
-  let ja = `「反発」の歴史\n\nBTCが1時間で5%以上下げた回(${y0}年以降 ${n}回)のその後\n\n下げた時の終値より上だった回\n・24時間後 ${u24}/${n24}回\n・7日後 ${u7}/${n7}回\n\n中央値 24時間後 ${sg(med[24])} / 7日後 ${sg(med[168])}\n7日以内に下げる前の値へ戻った ${rec}/${n}回\n\n過去の記録で、今回も同じとは限りません`;
-  let en = `A history of rebounds\n\nBTC after a 5%+ drop within one hour (${n} times since ${y0})\n\nAbove the close of the drop hour:\n- 24h later: ${u24}/${n24}\n- 7 days later: ${u7}/${n7}\n\nMedian: ${sg(med[24])} after 24h / ${sg(med[168])} after 7d\nBack to the pre-drop price within 7d: ${rec}/${n}\n\nPast record. This time may differ.`;
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる
+  const ja = voice({ h: `BTCが1時間で5%以上下げた回は、${y0}年以降${n}回。`, a: '注目したいのは、下げ幅だけではありません。', b: [`・24時間後、下げた時の値より上：${u24}/${n24}回`, `・7日後に上：${u7}/${n7}回`, `・7日以内に下げる前の値へ戻った：${rec}/${n}回`, `・中央値：24時間後${sg(med[24])}／7日後${sg(med[168])}`], c: '同じ急落でも、その後の反発は同じではない。' }, 'ja');
+  const en = voice({ h: `BTC has dropped 5%+ within an hour ${n} times since ${y0}.`, a: "The drop size isn't the whole story.", b: [`- Above the drop-hour close 24h later: ${u24}/${n24}`, `- Higher 7 days later: ${u7}/${n7}`, `- Back to the pre-drop price within 7d: ${rec}/${n}`, `- Median: ${sg(med[24])} after 24h / ${sg(med[168])} after 7d`], c: 'Same plunge, a different rebound each time.' }, 'en');
   return { id: 'rebound:copy:' + now, sr: 'rebound', man: 1, due: now, ja, en,
     img: { reb: { s, med, src, ev: ev.map((e) => ({ drop: e.drop, p: e.pts.filter((_, h) => h % 2 === 0) })), last: { drop: last.drop, p: last.pts.filter((_, h) => h % 2 === 0), ja: lj, en: le } } } };
 }
@@ -986,9 +959,9 @@ export function samePath(k, W = 24, A = 72, top = 5) {
 export function sameDraft(sp, now) {
   const sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', dj = (t) => { const d = new Date(t + JST); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, m = sp.m.slice(0, 3);
   const up = sp.m.filter((x) => x.a24 > 0).length, $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
-  let ja = `今日のBTCと形が近かった過去の日\n\n直近24時間 ${$(sp.hi)}→${$(sp.lo)}→${$(sp.now)}\n\nその後 24時間/72時間\n` + m.map((x, i) => `${'①②③'[i]}${dj(x.t)} ${sg(x.a24)}/${sg(x.a72)}`).join('\n') + `\n\n似た${sp.m.length}回中、24時間後に上 ${up}回\n過去の記録で、今回も同じとは限りません`;
-  let en = `Past days shaped like BTC's last 24h\n\nLast 24h: ${$(sp.hi)} → ${$(sp.lo)} → ${$(sp.now)}\n\nNext 24h / 72h\n` + m.map((x, i) => `${'①②③'[i]} ${enDate(x.t)}: ${sg(x.a24)} / ${sg(x.a72)}`).join('\n') + `\n\nHigher 24h later: ${up} of ${sp.m.length}\nPast record. This time may differ.`;
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる
+  const ja = voice({ h: '今日のBTCと、形が近かった過去の日。', a: `直近24時間 ${$(sp.hi)}→${$(sp.lo)}→${$(sp.now)}`, b: [...m.map((x, i) => `${'①②③'[i]}${dj(x.t)}：24時間後${sg(x.a24)}／72時間後${sg(x.a72)}`), `・似た${sp.m.length}回中、24時間後に上：${up}回`], c: '同じ形でも、その後の72時間は同じではない。' }, 'ja');
+  const en = voice({ h: "Past days shaped like BTC's last 24h.", a: `Last 24h: ${$(sp.hi)} → ${$(sp.lo)} → ${$(sp.now)}`, b: [...m.map((x, i) => `${'①②③'[i]} ${enDate(x.t)}: ${sg(x.a24)} after 24h / ${sg(x.a72)} after 72h`), `- Higher 24h later: ${up} of ${sp.m.length}`], c: 'Same shape, a different 72 hours after.' }, 'en');
   return { id: 'samepath:copy:' + now, sr: 'samepath', man: 1, due: now, ja, en, img: { same: { ...sp, lj: sp.m.map((x) => dj(x.t)), le: sp.m.map((x) => enDate(x.t)) } } };
 }
 // v284: 下落のその後。日足 k = [[t,o,h,l,c]] 古い順。「30日で th% 以上の下げ」に初めて入った日(前回から30日以上あける)を起点に、その後60日。
@@ -1014,9 +987,9 @@ export function dropStudy(k, th, D = 30, A = 60) {
 export function dropDraft(ds, now) {
   const s = ds.s, sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
   const dj = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, nr = ds.near;
-  let ja = `BTC ${ds.D}日で ${sg(ds.cur)}\n${ds.D}日で${ds.th}%以上下げた過去${ds.n}回は、ここからどうなったか\n\n・さらに下げた幅 中央値 ${sg(s.ddMed)}(最大 ${sg(s.ddMin)})\n・底まで 中央値 ${s.ldMed}日\n・30日後に上だった ${s.up30}/${ds.n}回\n\n形が最も近い回 ${dj(nr.t)}→30日後 ${sg(nr.a30)}\n\n過去の記録で、今回も同じとは限りません`;
-  let en = `BTC: ${sg(ds.cur)} in ${ds.D} days\nWhat happened next in the ${ds.n} past cases of a ${ds.th}%+ drop\n\n- Further drop: median ${sg(s.ddMed)} (worst ${sg(s.ddMin)})\n- Days to the low: median ${s.ldMed}\n- Higher after 30 days: ${s.up30}/${ds.n}\n\nClosest shape: ${enDate(nr.t)} → ${sg(nr.a30)} after 30d\n\nPast record. This time may differ.`;
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる(ユーザーの見本の形)
+  const ja = voice({ h: `BTC、${ds.D}日で${sg(ds.cur)}。`, a: '注目したいのは、下落率だけではありません。', b: [`・${ds.D}日で${ds.th}%以上下げた過去${ds.n}回`, `・底まで：中央値${s.ldMed}日`, `・さらに下げた幅：中央値${sg(s.ddMed)}（最大${sg(s.ddMin)}）`, `・30日後に上だった：${s.up30}/${ds.n}回`, `・形が最も近い回：${dj(nr.t)}→30日後${sg(nr.a30)}`], c: '同じ「暴落」でも、その後の経過は同じではない。' }, 'ja');
+  const en = voice({ h: `BTC: ${sg(ds.cur)} in ${ds.D} days.`, a: "The drop size isn't the whole story.", b: [`- ${ds.n} past drops of ${ds.th}%+ in ${ds.D} days`, `- Days to the low: median ${s.ldMed}`, `- Further drop: median ${sg(s.ddMed)} (worst ${sg(s.ddMin)})`, `- Higher 30 days later: ${s.up30}/${ds.n}`, `- Closest shape: ${enDate(nr.t)} → ${sg(nr.a30)} after 30d`], c: 'Same "crash", a different road afterwards.' }, 'en');
   const jt = new Date(now + JST), z = (v) => String(v).padStart(2, '0');
   ds = { ...ds, nj: dj(nr.t), ne: enDate(nr.t), at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` };
   return { id: 'drop:copy:' + now, sr: 'drop', man: 1, due: now, ja, en, img: { drop: ds } };
@@ -1040,9 +1013,9 @@ export function cmpDraft(k, ds, crises, now) {
   const dj = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
   const uq = (a) => a.filter((v, i) => a.indexOf(v) === i), lj = (e) => uq(e.map((x) => x.ja)).join('・') || 'なし', le = (e) => uq(e.map((x) => x.en)).join(', ') || 'none';
   const pre = evP.filter((e) => e.o <= 0), aft = evP.filter((e) => e.o > 0);
-  let ja = `今回の下げと、形が最も近い過去(${dj(nr.t)})\nそれぞれの時期に起きたこと\n\n今回 ${D}日 ${sg(ds.cur)}：${lj(evN)}\n当時 ${D}日 ${sg(pastPct)}：${lj(pre)}\n当時のその後60日：${lj(aft)}\n\n同じ時期に起きたことで、原因とは限りません`;
-  let en = `This drop vs the closest past shape (${enDate(nr.t)})\nWhat happened around each\n\nNow, ${sg(ds.cur)} in ${D}d: ${le(evN)}\nThen, ${sg(pastPct)} in ${D}d: ${le(pre)}\nThe 60 days after: ${le(aft)}\n\nSame period, not necessarily the cause.`;
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる(「原因とは限らない」は必ず残す)
+  const ja = voice({ h: `今回の下げと、形が最も近い過去（${dj(nr.t)}）。`, a: '注目したいのは、値動きの形だけではありません。', b: [`・今回の${D}日（${sg(ds.cur)}）：${lj(evN)}`, `・当時の${D}日（${sg(pastPct)}）：${lj(pre)}`, `・当時のその後60日：${lj(aft)}`], c: '同じ時期に起きたことで、原因とは限らない。', keepC: 1 }, 'ja');
+  const en = voice({ h: `This drop vs the closest past shape (${enDate(nr.t)}).`, a: "The shape isn't the whole story.", b: [`- Now, ${D}d (${sg(ds.cur)}): ${le(evN)}`, `- Then, ${D}d (${sg(pastPct)}): ${le(pre)}`, `- The 60 days after: ${le(aft)}`], c: 'Same period, not necessarily the cause.', keepC: 1 }, 'en');
   const jt = new Date(now + JST), z = (v) => String(v).padStart(2, '0');
   return { id: 'cmp:copy:' + now, sr: 'dropcmp', man: 1, due: now, ja, en, img: { cmp: { D, A, cur, past, evN, evP, curPct: ds.cur, pastPct, pj: dj(nr.t), pe: enDate(nr.t), px: [c[n - 1 - D], c[n - 1]], ppx: [c[i0 - D], c[i0]],
     at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` } } };
@@ -1094,12 +1067,9 @@ export function liqStudy(k, liq, oi, D = 30, A = 30) {
 export function liqDraft(st, now) {
   const sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', dj = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, y0 = new Date(st.since).getUTCFullYear(), N = st.cases.length;
     const rj = (v) => v >= 50 ? `上位${Math.max(1, Math.round(100 - v))}%` : `下位${Math.max(1, Math.round(v))}%`, re2 = (v) => v >= 50 ? `top ${Math.max(1, Math.round(100 - v))}%` : `bottom ${Math.max(1, Math.round(v))}%`;
-  const mk = (nc) => { const cs = st.cases.slice(-nc), more = N - nc;
-    const ja = `BTC 30日間のロング清算ランキングと、その後の推移\n今回 $${(st.now.usd / 1e9).toFixed(1)}B は${y0}年以降で${st.rank}位(同じ30日のBTC ${sg(st.now.r)})\n清算額と下落幅が今回に${st.strict ? '近い' : '最も近い'}過去${N}回の30日後${more ? '(新しい' + nc + '回)' : ''}\n\n` + cs.map((x) => `${dj(x.t)} ${sg(x.a30)}`).join('\n') + `\n\n${N}回中、30日後に上 ${st.up}回\n過去の記録で、今回も同じとは限りません`;
-    const en = `BTC 30-day long liquidation ranking & what came next\nNow: $${(st.now.usd / 1e9).toFixed(1)}B, #${st.rank} since ${y0} (BTC ${sg(st.now.r)})\n${N} past periods ${st.strict ? 'close' : 'closest'} on liquidations & drop, 30d later${more ? ' (latest ' + nc + ')' : ''}:\n\n` + cs.map((x) => `${enDate(x.t)} ${sg(x.a30)}`).join('\n') + `\n\nHigher 30d later: ${st.up} of ${N}\nPast record. This time may differ.`;
-    return [ja, en]; };
-  let nc = N, [ja, en] = mk(nc); while (nc > 2 && (xlen(ja) > 280 || xlen(en) > 280)) [ja, en] = mk(--nc);
-  for (const [tg, te] of [['\n#ビットコイン #清算', '\n#Bitcoin #Liquidations'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる
+  const ja = voice({ h: `BTC、30日間のロング清算$${(st.now.usd / 1e9).toFixed(1)}B。${y0}年以降で${st.rank}位。`, a: '注目したいのは、順位だけではありません。', b: [...st.cases.slice(-4).map((x) => `・${dj(x.t)}：30日後${sg(x.a30)}`), `・${N}回中、30日後に上：${st.up}回`], c: '同じ規模でも、その後の30日は同じではない。' }, 'ja', '$BTC #清算');
+  const en = voice({ h: `BTC 30-day long liquidations: $${(st.now.usd / 1e9).toFixed(1)}B, #${st.rank} since ${y0}.`, a: "The rank isn't the whole story.", b: [...st.cases.slice(-4).map((x) => `- ${enDate(x.t)}: ${sg(x.a30)} 30d later`), `- Higher 30d later: ${st.up} of ${N}`], c: 'Same size, a different 30 days after.' }, 'en', '$BTC #Liquidations');
   const jt = new Date(now + JST), z = (v) => String(v).padStart(2, '0');
   return { id: 'liqcmp:copy:' + now, sr: 'liqcmp', man: 1, due: now, ja, en, img: { lq: { ...st, y0, cj: st.cases.map((x) => dj(x.t)), ce: st.cases.map((x) => enDate(x.t)), at: `${jt.getUTCFullYear()}.${z(jt.getUTCMonth() + 1)}.${z(jt.getUTCDate())} ${z(jt.getUTCHours())}:${z(jt.getUTCMinutes())} JST` } } };
 }
@@ -1125,9 +1095,9 @@ export function liqShock(k, liq, crises, D = 30, A = 90, anchor = null) {   // v
 export function liqShockDraft(st, now) {
   const B = (v) => '$' + (v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : Math.round(v / 1e6) + 'M'), sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear();
   const rj = (x) => x.rec == null ? 'まだ戻っていない' : x.rec + '日', re = (x) => x.rec == null ? 'not yet' : x.rec + 'd';
-  let ja = `BTC 30日間のロング清算 ${B(st.now.s)}\n同規模の清算があった過去${st.cases.length}回、清算が積み上がる前の価格に戻るまで\n\n` + st.cases.map((x) => `・${x.ym}${x.name ? '(' + x.name + ')' : ''} ${B(x.s)}→${rj(x)}`).join('\n') + `\n\n今回は30日で ${sg(st.now.d0)}\n過去の記録。予測ではありません`;
-  let en = `BTC: ${B(st.now.s)} long liquidations in 30 days\n${st.cases.length} past periods of similar size: days to regain the pre-liquidation price\n\n` + st.cases.map((x) => `- ${x.ym}${x.name ? ' (' + x.name + ')' : ''} ${B(x.s)}: ${re(x)}`).join('\n') + `\n\nNow: ${sg(st.now.d0)} in 30 days\nPast record, not a forecast.`;
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる
+  const ja = voice({ h: `BTC、30日間のロング清算${B(st.now.s)}。`, a: '注目したいのは、額の大きさだけではありません。', b: [...st.cases.map((x) => `・${x.ym}${x.name ? '(' + x.name + ')' : ''} ${B(x.s)}→${x.rec == null ? 'まだ戻っていない' : '戻るまで' + x.rec + '日'}`), `・今回は30日で${sg(st.now.d0)}`], c: '同じ清算でも、戻るまでの日数は同じではない。' }, 'ja');
+  const en = voice({ h: `BTC 30-day long liquidations: ${B(st.now.s)}.`, a: "The size isn't the whole story.", b: [...st.cases.map((x) => `- ${x.ym}${x.name ? ' (' + x.name + ')' : ''} ${B(x.s)} → back in ${re(x)}`), `- Now: ${sg(st.now.d0)} over 30 days`], c: 'Same flush, a different time to recover.' }, 'en');
   return { id: 'liqshock:copy:' + now, sr: 'liqshock', man: 1, due: now, ja, en, img: { ls: { ...st, y0 } } };
 }
 
@@ -1139,9 +1109,8 @@ export function liqShockDay(st, now) {
   // v322: 1行目に今の数字、2行目に過去との答え
   const pos = st.cases.filter((x) => x.atN != null && x.atN > 0).length, nN = st.cases.filter((x) => x.atN != null).length;
   const head = st.now.rec != null ? `${B(st.now.s)}の大量清算から${N}日、BTCは清算前の価格に戻った` : `${B(st.now.s)}の大量清算から${N}日、BTCは清算前の価格から${sg(st.now.d0)}`;
-  const mk = (cs) => `${head}\n同じ規模の過去${nN}回、${N}日目に清算前の価格を上回っていたのは${pos}回\n\n` + cs.map((x) => `・${x.ym}${x.name ? '(' + x.name + ')' : ''} ${sg(x.atN)}・${x.rec == null ? 'まだ戻っていない' : x.rec + '日で戻った'}`).join('\n') + `\n\n過去の記録。予測ではありません`;
-  let ja = mk(st.cases); if (xlen(ja) > 280) ja = mk(st.cases.map((x) => ({ ...x, name: '' })));
-  for (const tg of ['\n#ビットコイン #BTC', '\n#BTC', '']) if (xlen(ja + tg) <= 280) { ja += tg; break; }
+  // v340: 語り口をそろえる
+  const ja = voice({ h: head + '。', a: `注目したいのは、${N}日目の値段だけではありません。`, b: [`・同じ規模の過去${nN}回、${N}日目に清算前の価格を上回っていた：${pos}回`, ...st.cases.map((x) => `・${x.ym}${x.name ? '(' + x.name + ')' : ''} ${sg(x.atN)}・${x.rec == null ? 'まだ戻っていない' : x.rec + '日で戻った'}`)], c: '同じ清算でも、戻るまでの日数は同じではない。' }, 'ja');
   const day = Math.floor((now + JST) / DAY) * DAY - JST;
   return { id: 'liqshock:' + isoDay(now), sr: 'liqshock', due: day + LIQSHOCK.at, langs: ['ja'], ja, en: '', img: { ls: { ...st, y0 } } };
 }
@@ -1174,9 +1143,9 @@ export function cbDraft(st, now) {
   const y0 = new Date(st.since).getUTCFullYear(), c = st.cur, best = st.past.slice().sort((a, b) => b.days - a.days)[0];
   const rk = st.rank === 1 ? `${y0}年以降で最長` : `${y0}年以降で${st.rank}番目の長さ(1位は${ym(best.from)}〜${m(best.to)}月の${best.days}日)`;
   const rke = st.rank === 1 ? `the longest since ${y0}` : `#${st.rank} since ${y0} (record: ${best.days} days, ${ym(best.from)}–${m(best.to)})`;
-  let ja = `Coinbaseプレミアム ${c.days}日連続マイナス\n${rk}\n\n過去の長い回が終わった後30日のBTC\n` + st.past.map((x) => `・${ym(x.from)}〜${m(x.to)}月 ${x.days}日→${sg(x.after30)}`).join('\n') + `\n\n今回の${c.days}日間のBTC ${sg(c.during)}\n日足の終値で比較。予測ではありません`;
-  let en = `Coinbase premium: negative for ${c.days} straight days\n${rke}\n\nBTC 30 days after past long streaks ended\n` + st.past.map((x) => `- ${ym(x.from)}–${m(x.to)}: ${x.days}d → ${sg(x.after30)}`).join('\n') + `\n\nBTC over these ${c.days} days: ${sg(c.during)}\nDaily closes. Not a forecast.`;
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる
+  const ja = voice({ h: `Coinbaseプレミアム、${c.days}日連続マイナス。`, a: '注目したいのは、日数だけではありません。', b: [`・${rk}`, ...st.past.map((x) => `・${ym(x.from)}〜${m(x.to)}月 ${x.days}日→終わった後30日${sg(x.after30)}`), `・今回の${c.days}日間のBTC ${sg(c.during)}`], c: '同じマイナスでも、その後の30日は同じではない。' }, 'ja');
+  const en = voice({ h: `Coinbase premium: negative for ${c.days} days in a row.`, a: "The streak isn't the whole story.", b: [`- ${rke}`, ...st.past.map((x) => `- ${ym(x.from)}–${m(x.to)}: ${x.days}d → ${sg(x.after30)} in the 30 days after`), `- BTC over these ${c.days} days: ${sg(c.during)}`], c: 'Same streak, a different 30 days after.' }, 'en');
   return { id: 'cbprem:copy:' + now, sr: 'cbprem', man: 1, due: now, ja, en, img: { cb: { ...st, y0, cy: st.past.map((x) => ym(x.from) + '〜' + m(x.to) + '月'), ce: st.past.map((x) => ym(x.from) + '–' + m(x.to)) } } };
 }
 // v303: 最高値の半値。前の2回の下げ相場(2017/12・2021/11 の最高値)と今回を、最高値の日からの日数でそろえ、最高値からの下げ(%)を重ねる。半値を割った日(安値)と底(終値の最安)に印
@@ -1228,16 +1197,10 @@ export function fngDraft(st, now) {
   // v312: 本文は戻るまでの日数(中央値・平均・何日以内に何回・最長)と、まだ戻っていない回
   const rc = st.cases.filter((x) => x.rec != null), avg = rc.length ? Math.round(rc.reduce((a, x) => a + x.rec, 0) / rc.length) : null, w7 = rc.filter((x) => x.rec <= 7).length, w30 = rc.filter((x) => x.rec <= 30).length;
   const lg = rc.slice().sort((a, b) => b.rec - a.rec)[0], nb = st.cases.filter((x) => x.rec == null), nm = (x, e) => ym(x.t) + (x.name ? (e ? ' (' + x.name + ')' : '(' + x.name + ')') : '');
-  const mk = (o) => {
-    const ja = [`恐怖指数 ${st.nowV}(${lab})`, `${y0}年以降、極度の恐怖(${st.th}以下)に入った過去${N}回`, '', `入った日の価格(元値)に戻った ${st.recN}回`,
-      `・戻るまで 中央値${st.recMed == null ? '—' : Math.round(st.recMed) + '日'}/平均${avg == null ? '—' : avg + '日'}`, o.w ? `・7日以内 ${w7}回/30日以内 ${w30}回` : null, o.l && lg ? `・最長 ${nm(lg)} ${lg.rec}日` : null,
-      `・その間の底 中央値${sg(st.ddMed)}`, nb.length ? '\nまだ戻っていない：' + nb.map((x) => nm(x) + (x.el < st.MAXD ? `(${x.el}日目)` : `(${st.MAXD}日超)`)).join('、') : null, '', '過去の記録。予測ではありません'];
-    const en = [`Fear & Greed ${st.nowV} (${labE})`, `Since ${y0}: ${N} entries into Extreme Fear (≤${st.th})`, '', `Back to the entry price: ${st.recN}/${N}`,
-      `- Days to get back: median ${st.recMed == null ? '—' : Math.round(st.recMed) + 'd'}, avg ${avg == null ? '—' : avg + 'd'}`, o.w ? `- ≤7d: ${w7} / ≤30d: ${w30}` : null, o.l && lg ? `- Longest: ${nm(lg, 1)} ${lg.rec}d` : null,
-      `- Low in between, median ${sg(st.ddMed)}`, nb.length ? '\nNot back yet: ' + nb.map((x) => nm(x, 1) + (x.el < st.MAXD ? ` (day ${x.el})` : ` (${st.MAXD}d+)`)).join(', ') : null, '', 'Past record. Not a forecast.'];
-    return [ja, en].map((a) => a.filter((v) => v != null).join('\n')); };
-  let ja, en; for (const o of [{ w: 1, l: 1 }, { w: 0, l: 1 }, { w: 0, l: 0 }]) { [ja, en] = mk(o); if (xlen(ja) <= 280 && xlen(en) <= 280) break; }
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる
+  const nbj = nb.length ? nb.map((x) => nm(x) + (x.el < st.MAXD ? `(${x.el}日目)` : `(${st.MAXD}日超)`)).join('、') : null, nbe = nb.length ? nb.map((x) => nm(x, 1) + (x.el < st.MAXD ? ` (day ${x.el})` : ` (${st.MAXD}d+)`)).join(', ') : null;
+  const ja = voice({ h: `恐怖指数 ${st.nowV}（${lab}）。`, a: '注目したいのは、数字の低さだけではありません。', b: [`・${y0}年以降、極度の恐怖(${st.th}以下)に入った過去${N}回`, `・入った日の価格に戻るまで：中央値${st.recMed == null ? '—' : Math.round(st.recMed) + '日'}／平均${avg == null ? '—' : avg + '日'}`, `・その間の底：中央値${sg(st.ddMed)}`, nbj ? `・まだ戻っていない：${nbj}` : null, lg ? `・いちばん長かった回：${nm(lg)} ${lg.rec}日` : null], c: '同じ恐怖でも、抜けるまでの日数は同じではない。' }, 'ja');
+  const en = voice({ h: `Fear & Greed ${st.nowV} (${labE}).`, a: "How low it is isn't the whole story.", b: [`- ${N} past entries into Extreme Fear (≤${st.th}) since ${y0}`, `- Back to the entry price: median ${st.recMed == null ? '—' : Math.round(st.recMed) + 'd'}, avg ${avg == null ? '—' : avg + 'd'}`, `- Low in between: median ${sg(st.ddMed)}`, nbe ? `- Not back yet: ${nbe}` : null, lg ? `- Longest: ${nm(lg, 1)} ${lg.rec}d` : null], c: 'Same fear, a different time to get out.' }, 'en');
   return { id: 'fng:copy:' + now, sr: 'fng', man: 1, due: now, ja, en, img: { fng: { ...st, y0, lab, labE, show } } };
 }
 // v313: V字リバウンド。今の「30日で大きく下げた底 → そこから戻した」と同じ形の過去の回を探し、その後30日で前の底を割ったかを数える。
@@ -1322,13 +1285,9 @@ export function likeDraft(R, now) {
   const rk = rc.slice().sort((a, b) => a.rank - b.rank), rj = (x) => x.rec === 0 ? '下回らず' : x.rec == null ? '1年戻らず' : x.rec <= 7 ? `${x.rec}日で戻り` : `戻るまで${x.rec}日`;
   const me = (t) => { const d = new Date(t); return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()] + ' ' + d.getUTCDate() + (same ? '' : ', ' + d.getUTCFullYear()); };
   const re2 = (x) => x.rec === 0 ? 'never below' : x.rec == null ? 'not back in a year' : `back in ${x.rec}d`;
-  const mk = (o) => [
-    [`BTC ${fj}`, `${hj}`, '', `2017年以降で今に一番近いのは`, rk.map((x) => `${yr === new Date(x.t).getUTCFullYear() && same ? md2(x.t) : md(x.t)}(${x.rank}位)`).join('・'), '', 'その後',
-      ...rc.map((x) => `${mo(x.t)}月：${bj(x)}、${rj(x)}、60日後${sg(x.a60)}`), '', o ? '今回はどっちの道か。' : null, o ? '' : null, '過去の記録。予測ではありません'],
-    [`BTC ${fe}`, `${he}`, '', `Closest to now since 2017:`, rk.map((x) => `${me(x.t)} (#${x.rank})`).join(', '), '', 'What came next',
-      ...rc.map((x) => `${me(x.t)}: ${be(x)}, ${re2(x)}, day 60 ${sg(x.a60)}`), '', o ? 'Which path this time?' : null, o ? '' : null, 'Past record. Not a forecast.']].map((a) => a.filter((v) => v != null).join('\n'));
-  let ja = mk(1)[0], en = mk(1)[1]; if (xlen(ja) > 280) ja = mk(0)[0]; if (xlen(en) > 280) en = mk(0)[1];   // v319: 問いかけは言語ごとに入るなら入れる
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる
+  const ja = voice({ h: `BTC ${fj}。${hj}。`, a: '注目したいのは、下げ幅だけではありません。', b: [`・2017年以降で今に近い日：${rk.map((x) => `${same ? md2(x.t) : md(x.t)}(${x.rank}位)`).join('・')}`, ...rc.map((x) => `・${mo(x.t)}月：${bj(x)}、${rj(x)}、60日後${sg(x.a60)}`)], c: '今回はどっちの道か。' }, 'ja');
+  const en = voice({ h: `BTC ${fe}. ${he}.`, a: "The drop size isn't the whole story.", b: [`- Closest days since 2017: ${rk.map((x) => `${me(x.t)} (#${x.rank})`).join(', ')}`, ...rc.map((x) => `- ${me(x.t)}: ${be(x)}, ${re2(x)}, day 60 ${sg(x.a60)}`)], c: 'Which path this time?' }, 'en');
   return { id: 'like:copy:' + now, sr: 'like', man: 1, due: now, ja, en, img: { like: { now: R.now, cur: R.cur, rc, oth: oth ? { t: oth.t, rank: oth.rank, a60: oth.a60 } : null, N: R.N, M: R.M, hj, he, fj, fe } } };
 }
 // v323: V字リバウンド(時間足)。暴落の最中に使う。直近24時間の高値→その後の安値で下げ、安値から今までで戻し。
@@ -1355,14 +1314,9 @@ export function vStudyH(k, crises, A = 72) {
 export function vDraftH(st, now) {
   const hm = (t) => { const d = new Date(t + 9 * H); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.getUTCHours()}時`; }, ym = (t) => { const d = new Date(t); return `${d.getUTCFullYear()}/${d.getUTCMonth() + 1}`; }, sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%', y0 = new Date(st.since).getUTCFullYear(), N = st.cases.length, ok = N - st.brkN;
   const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), show = st.cases.slice().sort((a, b) => b.t - a.t).slice(0, 10).sort((a, b) => a.t - b.t);
-  const mk = (m) => { const rc = m ? show.slice(-m).reverse() : [];
-    const ja = [`BTC 24時間で${sg(st.drop)}の急落から${sg(st.bounce)}戻した(安値${$(st.low)})`, `このリバウンドは続くか。${y0}年以降、同じくらい下げて戻した過去${N}回では`, '', `72時間以内に安値を割った ${st.brkN}回` + (st.brkN ? `(中央値 安値から${Math.round(st.brkMed)}時間)` : ''), `割らなかった ${ok}回` + (ok && st.a30Med != null ? `(72時間後 中央値${sg(st.a30Med)})` : ''),
-      m ? '' : null, ...rc.map((x) => `・${ym(x.t)}${x.name ? '(' + x.name + ')' : ''} ${x.brk != null ? x.brk + '時間後に安値割れ' : '割らず'}`), '', '過去の記録。予測ではありません'];
-    const en = [`BTC bounced ${sg(st.bounce)} after a ${sg(st.drop)} drop in 24h (low ${$(st.low)})`, `Will it hold? ${N} similar drop-and-bounce cases since ${y0}:`, '', `Broke the low within 72h: ${st.brkN}` + (st.brkN ? ` (median ${Math.round(st.brkMed)}h after the low)` : ''), `Held: ${ok}` + (ok && st.a30Med != null ? ` (72h later, median ${sg(st.a30Med)})` : ''),
-      m ? '' : null, ...rc.map((x) => `- ${ym(x.t)}${x.name ? ' (' + x.name + ')' : ''}: ${x.brk != null ? 'broke after ' + x.brk + 'h' : 'held'}`), '', 'Past record. Not a forecast.'];
-    return [ja, en].map((a) => a.filter((v) => v != null).join('\n')); };
-  let m = Math.min(3, show.length), [ja, en] = mk(m); while (m > 0 && (xlen(ja) > 280 || xlen(en) > 280)) [ja, en] = mk(--m); if (m === 1) [ja, en] = mk(0);
-  for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { ja += tg; en += te; break; } }
+  // v340: 語り口をそろえる
+  const ja = voice({ h: `BTC、24時間で${sg(st.drop)}の急落から${sg(st.bounce)}戻した（安値${$(st.low)}）。`, a: '注目したいのは、戻した幅だけではありません。', b: [`・同じくらい下げて戻した過去${N}回（${y0}年以降）`, `・72時間以内に安値を割った：${st.brkN}回` + (st.brkN ? `（中央値 安値から${Math.round(st.brkMed)}時間）` : ''), `・割らなかった：${ok}回` + (ok && st.a30Med != null ? `（72時間後 中央値${sg(st.a30Med)}）` : '')], c: '同じ反発でも、その後の道のりは同じではない。', minB: 3 }, 'ja');
+  const en = voice({ h: `BTC bounced ${sg(st.bounce)} after a ${sg(st.drop)} drop in 24h (low ${$(st.low)}).`, a: "The bounce size isn't the whole story.", b: [`- ${N} similar drop-and-bounce cases since ${y0}`, `- Broke the low within 72h: ${st.brkN}` + (st.brkN ? ` (median ${Math.round(st.brkMed)}h after the low)` : ''), `- Held: ${ok}` + (ok && st.a30Med != null ? ` (72h later, median ${sg(st.a30Med)})` : '')], c: 'Same bounce, a different road afterwards.', minB: 3 }, 'en');
   return { id: 'vrebh:copy:' + now, sr: 'vreb', man: 1, due: now, ja, en, img: { vreb: { ...st, y0, show, lowHm: hm(st.lowT) } } };
 }
 // v324: 「この下げ方、今年◯回目」を、初回の日(d0)を0日目に固定して続ける。比べる過去の日(refs)も初回のまま。
@@ -1383,9 +1337,23 @@ export function likeFixedDraft(F, now) {
   // v326: 1行目＝何のシリーズかと問い。今回・各月を縦に並べ、「ここまでは◯月の道に近い」
   const me = (t) => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][new Date(t).getUTCMonth()];
   const ds = F.rc.filter((x) => x.dist != null).sort((a, b) => a.dist - b.dist), near = ds.length >= 2 && ds[1].dist - ds[0].dist >= 0.3 ? ds[0] : null;
-  const ja = [`BTC、今年${F.cnt}回目の同じ下げ方。${F.rc.map((x) => mo(x.t) + '月').join('と')}、どっちの道？`, '', `${LIKE.noteJa ? LIKE.noteJa.replace('BTC が ', '').replace(' をつけた日', 'をつけた日') : '0日目'}(${md(F.d0)})から${F.dN}日目`, `今回 ${sg(F.nowChg)}`, ...F.rc.map((x) => `${mo(x.t)}月 ${sg(x.atN)}(その後60日で${sg(x.a60)})`), '', near ? `ここまでは${mo(near.t)}月の道に近い` : 'ここまでは、どちらとも同じくらいの離れ方', '', '過去の記録。予測ではありません'].join('\n');
-  const en = [`BTC: this year's ${F.cnt}rd drop of the same shape. The ${F.rc.map((x) => me(x.t)).join(' or the ')} path?`, '', `Day ${F.dN} since ${LIKE.noteEn ? LIKE.noteEn.replace('BTC hit ', 'hitting ') : 'day 0'} (${md(F.d0)})`, `Now ${sg(F.nowChg)}`, ...F.rc.map((x) => `${me(x.t)} ${sg(x.atN)} (60 days later: ${sg(x.a60)})`), '', near ? `So far, closer to the ${me(near.t)} path` : 'So far, about equally far from both', '', 'Past record. Not a forecast.'].join('\n');
-  let j = ja, e = en; for (const [tg, te] of [['\n#ビットコイン #BTC', '\n#Bitcoin #BTC'], ['\n#BTC', '\n#BTC'], ['', '']]) { if (xlen(ja + tg) <= 280 && xlen(en + te) <= 280) { j = ja + tg; e = en + te; break; } }
+  // v340: 語り口をそろえる
+  const nj = LIKE.noteJa ? LIKE.noteJa.replace('BTC が ', '').replace(' をつけた日', 'をつけた日') : '0日目', ne = LIKE.noteEn ? LIKE.noteEn.replace('BTC hit ', 'hitting ') : 'day 0';
+  const j = voice({ h: `BTC、今年${F.cnt}回目の同じ下げ方。`, a: `${F.rc.map((x) => mo(x.t) + '月').join('と')}、どっちの道？`, b: [`・${nj}(${md(F.d0)})から${F.dN}日目：今回 ${sg(F.nowChg)}`, ...F.rc.map((x) => `・${mo(x.t)}月の同じ日 ${sg(x.atN)}（その後60日で${sg(x.a60)}）`)], c: near ? `ここまでは${mo(near.t)}月の道に近い。` : 'ここまでは、どちらとも同じくらいの離れ方。', keepC: 1 }, 'ja');
+  const e = voice({ h: `BTC: this year's ${F.cnt}rd drop of the same shape.`, a: `The ${F.rc.map((x) => me(x.t)).join(' or the ')} path?`, b: [`- Day ${F.dN} since ${ne} (${md(F.d0)}): now ${sg(F.nowChg)}`, ...F.rc.map((x) => `- ${me(x.t)} on the same day: ${sg(x.atN)} (60d later ${sg(x.a60)})`)], c: near ? `So far, closer to the ${me(near.t)} path.` : 'So far, about equally far from both.', keepC: 1 }, 'en');
   const yr = new Date(F.d0).getUTCFullYear();
   return { id: 'likefx:copy:' + now, sr: 'like', man: 1, due: now, ja: j, en: e, img: { like: { now: { t: F.d0, r30: null, dd: null, fng: null }, cur: F.cur, rc: F.rc, oth: null, N: 0, M: [], fixed: F.dN, noteJa: LIKE.noteJa, noteEn: LIKE.noteEn, hj: `今年${F.cnt}回目の下げ方から${F.dN}日目`, he: `Day ${F.dN} since this year's ${F.cnt}rd drop`, fj: `${md(F.d0)}比 ${sg(F.nowChg)}`, fe: `${sg(F.nowChg)} vs ${md(F.d0)}`, yr } } };
+}
+
+// ==== v340: 語り口をそろえる(何が起きたか → 注目したいのは〜だけではない → 答えの数字 → 締め → 署名)。280字に入るよう、角度の行・タグ・締め・署名・箇条書きの順に削る ====
+export function sigOf(lg) { return lg === 'en' ? 'BTC history, in numbers.' : '数字で見るBTCの歴史。'; }
+export function voice(P, lg, tags = '$BTC') {
+  const b = (P.b || []).filter((x) => x != null && x !== '');
+  const mk = (nb, o) => [P.h, o.a && P.a ? P.a : null, '', ...b.slice(0, nb), '', o.c && P.c ? P.c : null, o.s ? sigOf(lg) : null, o.t && tags ? tags : null].filter((x) => x != null).join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '');
+  const OS = [{ a: 1, c: 1, s: 1, t: 1 }, { a: 1, c: 1, s: 1 }, { c: 1, s: 1, t: 1 }, { c: 1, s: 1 }, { c: 1, t: 1 }, { c: 1 }, { s: 1 }, {}].filter((o) => !P.keepC || o.c);
+  const L1 = [{ a: 1, c: 1, s: 1, t: 1 }, { a: 1, c: 1, s: 1 }, { c: 1, s: 1, t: 1 }, { c: 1, s: 1 }];   // まず締めと署名を残したまま、箇条書きを2つまで減らす
+  for (const o of L1.slice(0, 2)) for (let nb = b.length; nb >= Math.max(1, P.minB || b.length - 1); nb--) { const t = mk(nb, o); if (xlen(t) <= 280) return t; }   // 「注目したいのは」の行を優先して残す
+  for (let nb = b.length; nb >= Math.max(1, b.length - 2); nb--) for (const o of L1.slice(2)) { const t = mk(nb, o); if (xlen(t) <= 280) return t; }
+  for (let nb = b.length; nb >= Math.min(1, b.length); nb--) for (const o of OS) { const t = mk(nb, o); if (xlen(t) <= 280) return t; }
+  return mk(Math.min(1, b.length), P.keepC ? { c: 1 } : {});
 }
