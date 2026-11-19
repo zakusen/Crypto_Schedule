@@ -31,8 +31,20 @@ async function xget(url) {
 }
 
 // ---- 1) 自分の投稿を取る(v335: 画像・リンク・ハッシュタグ・プロフィールのクリックなども) ----
-const me = (await xget('https://api.x.com/2/users/me')).data;
+const me = (await xget('https://api.x.com/2/users/me?user.fields=public_metrics')).data, pm = me.public_metrics || {};   // v338: フォロワー数なども取る
 console.log('[stats] アカウント:', '@' + me.username, '期間:', DAYS + '日', '上限:', MAX + '件');
+// ---- v338: フォロワー数を日付ごとにサイト(KV の fh)へためる。1日1件(同じ日は上書き)。最大400日 ----
+const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+let FH = [];
+if (SITE && KEY) {
+  try { const j = await (await fetch(SITE + '/api/admin/rx-one?name=fh', { headers: { 'x-admin-key': KEY }, signal: AbortSignal.timeout(30000) })).json(); FH = Array.isArray(j.h) ? j.h : []; } catch (e) { console.log('[stats] フォロワーの記録が読めません:', e.message); }
+  FH = FH.filter((x) => x.d !== today); FH.push({ d: today, at: Date.now(), followers: pm.followers_count ?? null, following: pm.following_count ?? null, tweets: pm.tweet_count ?? null, listed: pm.listed_count ?? null }); FH.sort((a, b) => a.d.localeCompare(b.d)); FH = FH.slice(-400);
+  try { const r = await fetch(SITE + '/api/admin/rx-put?name=fh', { method: 'POST', headers: { 'x-admin-key': KEY, 'content-type': 'text/plain' }, body: JSON.stringify({ h: FH }), signal: AbortSignal.timeout(30000) }); console.log('[stats] フォロワーの記録を保存:', r.status, FH.length + '日分'); } catch (e) { console.log('[stats] フォロワーの記録を保存できません:', e.message); }
+} else { FH = [{ d: today, followers: pm.followers_count ?? null, following: pm.following_count ?? null, tweets: pm.tweet_count ?? null, listed: pm.listed_count ?? null }]; console.log('[stats] SITE_URL・RX_ADMIN_KEY がないので、フォロワー数は今回の分だけ(ためられません)'); }
+console.log('[stats] フォロワー', pm.followers_count, 'フォロー', pm.following_count, '投稿', pm.tweet_count);
+
+if (process.env.FOLLOWERS_ONLY === '1') { console.log('[stats] フォロワーの記録だけで終わります(毎日の定時)'); process.exit(0); }   // v338: 毎日の定時は X API を1件読むだけ
+
 const since = new Date(Date.now() - DAYS * 864e5).toISOString().replace(/\.\d+Z$/, 'Z');
 const BASEF = 'created_at,public_metrics,in_reply_to_user_id,referenced_tweets,lang,conversation_id,attachments,entities';
 let FIELDS = BASEF + ',non_public_metrics', npm = true;   // non_public_metrics(プロフィール・リンクのクリック)は自分の30日以内の投稿だけ。拒まれたら外す
@@ -104,6 +116,7 @@ const heat = (rs, rowKey, rowsK) => { const H = ['0-2', '3-5', '6-8', '9-11', '1
 const days = group(rows, (r) => r.day).sort((a, b) => a.k.localeCompare(b.k));
 const all = stat(rows), allP = stat(rows.filter((r) => !r.reply));
 const md = [`## X の投稿の数字（@${me.username}・直近${DAYS}日・${rows.length}件）`, '',
+  `- フォロワー ${pm.followers_count ?? '—'}人・フォロー ${pm.following_count ?? '—'}人・これまでの投稿 ${pm.tweet_count ?? '—'}件（${today}）`,
   `- 全体：平均ビュー ${all.avg}・中央値 ${all.med}・合計 ${all.tv.toLocaleString('en-US')}・反応率 ${all.er}`,
   `- 親投稿だけ：${allP.n}件・平均 ${allP.avg}・中央値 ${allP.med}`,
   `- 種類の決め方：下書きと一致 ${matched}件・本文から推定 ${rows.filter((r) => r.src === '本文').length}件・親から ${rows.filter((r) => r.src === '親').length}件・不明 ${rows.filter((r) => r.src === '—').length}件`,
@@ -125,6 +138,9 @@ const md = [`## X の投稿の数字（@${me.username}・直近${DAYS}日・${ro
   T('リンクの有無（親投稿）', group(par, (r) => r.url ? 'リンクあり' : 'リンクなし'), ''),
   T('前の親投稿からの間隔（親投稿）', group(par, (r) => bin(r.gap, [30, 60, 120, 240, 480], '分')).sort(order()), '間隔', '連投すると伸びにくいかを見る表です。'),
   T('本文の直し(v322・11/18)の前と後（親投稿）', group(par, (r) => r.t < Date.parse('2026-11-18T15:00:00Z') ? '前(〜11/18)' : '後(11/19〜)'), ''),
+  '### フォロワーの記録（X stats を回した日ごと）', '', '| 日付 | フォロワー | 前回から | フォロー | その日の投稿のビュー合計 | その日いちばん見られた投稿 |', '|---|---|---|---|---|---|',
+  ...FH.slice(-30).map((x, i, a) => { const pv = i ? a[i - 1].followers : null, dr = rows.filter((r) => r.day === x.d), top = dr.slice().sort((p, q) => (q.views || 0) - (p.views || 0))[0];
+    return `| ${x.d} | ${x.followers ?? '—'} | ${pv != null && x.followers != null ? (x.followers - pv >= 0 ? '+' : '') + (x.followers - pv) : '—'} | ${x.following ?? '—'} | ${dr.length ? sum(dr.map((r) => r.views)) : '—'} | ${top ? (top.views + '・' + top.head.slice(0, 30).replace(/\|/g, '｜')) : '—'} |`; }), '',
   '### 日ごとの推移（すべての投稿）', '', '| 日付 | 件数 | 平均ビュー | 中央値 | 最大 | 合計 |', '|---|---|---|---|---|---|', ...days.map((x) => `| ${x.k} | ${x.n} | ${x.avg ?? '—'} | ${x.med ?? '—'} | ${x.max} | ${x.tv} |`), '',
   '### ビューの多い投稿 30', '', '| 日時 | 種類 | 言語 | ビュー | いいね | 反応率 | 1行目 |', '|---|---|---|---|---|---|---|',
   ...rows.slice().sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 30).map((r) => `| ${r.jst} | ${r.kind}${r.reply ? '（返信）' : ''} | ${r.lang} | ${r.views ?? '—'} | ${r.likes} | ${r.views ? (r.eng / r.views * 100).toFixed(1) + '%' : '—'} | ${r.head.replace(/\|/g, '｜')} |`), '',
