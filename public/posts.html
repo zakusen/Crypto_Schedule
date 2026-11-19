@@ -130,6 +130,8 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
     <div class="tl">
       <div class="ti"><button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button><span class="td">直近1・6・24時間の清算</span></div>
       <div class="ti"><button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button><span class="td">BTC の急騰・急落を、その時の%で</span></div>
+      <div class="ti"><button class="chip" id="niaBtn" title="急落の最中に。直近24時間の高値から今までのローソク足(縦長)と、過去の同じ急落が24時間以内に半分戻したかを1段にした画像と本文を作る(コピペで投稿)">🌊 ナイアガラ(急落の足)</button><span class="td">縦長のローソク足＋過去の同じ急落の答え</span></div>
+      <div class="ti"><button class="chip" id="ncBtn" title="ニュースの見出しを入れると、CSA の記録の24時間相関(BTC×S&P500・7日分)と並べた本文と画像を作る(コピペで投稿)">📰 ニュースと相関</button><span class="td">ニュースの見出し＋CSAの相関の記録</span></div>
       <div class="ti"><button class="chip" id="vBtn" title="直近8時間のBTC 5分足から、急落→戻りの引用文と画像を今つくる(手で投稿)">⚡ 戻り引用文</button><span class="td">直近8時間の急落→戻りの引用文</span></div>
     </div></div>
   <div class="tg"><div class="tgh"><b>過去と比べてコピペで出す</b><span>大きく動いた時に。2017年(清算は2022年8月)からのデータで比べます</span></div>
@@ -732,6 +734,26 @@ document.getElementById('ceBtn').onclick = async (e) => {
   } catch (err) { b.textContent = '失敗 ' + err.message; }
   setTimeout(() => (b.textContent = t0), 8000);
 };
+// v342: ナイアガラ(急落のローソク足)
+runBtn('niaBtn', async (b) => { const now = Date.now(), H1 = 36e5;
+  let host = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/ping`); if (r.ok) { host = h; break; } } catch (_) {} }
+  if (!host) throw new Error('Binance に届きません');
+  const j5 = await (await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=1000`)).json();
+  const k5 = j5.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]); const nw = L.niagaraFind(k5, now); if (!nw) throw new Error('5分足が足りません');
+  if (nw.dropLo > -2) throw new Error(`直近24時間の高値からの下げが ${nw.dropLo}% で、2%未満です`);
+  const starts = []; for (let st = Date.UTC(2017, 7, 17); st < now; st += 1000 * H1) starts.push(st);
+  const got = new Array(starts.length); let done = 0;
+  for (let q = 0; q < starts.length; q += 8) { await Promise.all(starts.slice(q, q + 8).map(async (st, z) => { for (let tr = 0; tr < 3; tr++) { try { const r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${st}&limit=1000`); if (r.ok) { got[q + z] = await r.json(); break; } } catch (_) {} } done++; })); b.textContent = `取得中… ${Math.round(done / starts.length * 100)}%`; }
+  const k1 = []; for (const j of got) for (const x of j || []) k1.push([+x[0], +x[1], +x[2], +x[3], +x[4]]);
+  return L.niagaraDraft(nw, k1.length > 1000 ? L.niagaraStudy(k1, nw) : null, now); });
+// v341: ニュースと相関(見出しは手で入れる。相関は自動投稿と同じ記録 ct)
+runBtn('ncBtn', async (b) => {
+  const hj = prompt('ニュースの見出し(日本語)', 'FRBの議事要旨、AIブームの崩れを金融システムのリスクとして議論'); if (!hj) throw new Error('見出しが空です');
+  const he = prompt('見出し(英語。空なら日本語のまま)', 'Fed minutes: officials flag an AI bust as a financial-system risk') || hj;
+  const src = prompt('出典(画像の右下に出ます)', 'FRB FOMC議事要旨(2026年11月18日公表)') || '';
+  const r = await fetch('/api/admin/rx-one?name=ct', { headers: { 'x-admin-key': getKey() }, cache: 'no-store' }); if (!r.ok) throw new Error('相関の記録が読めません(' + r.status + ')');
+  const c = await r.json(); if (!c || !Array.isArray(c.r) || !c.r.length) throw new Error('相関の記録がまだありません');
+  return L.newsCorrDraft(c, { ja: hj, en: he, src, srce: src, tagJa: '$BTC #FOMC', tagEn: '$BTC #FOMC' }, Date.now()); });
 // v330: Binance 2019/2026・ショック後のBTC をコピペで作る(自動投稿に飛ばすボタンは廃止)
 const shockCopy = async (b, kind) => { const ev = {}, now = Date.now();
   for (const e of L.SHOCK.ev) { const t0 = Date.parse(e.d0 + 'T00:00:00Z'); let rows = null;

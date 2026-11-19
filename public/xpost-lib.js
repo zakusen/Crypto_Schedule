@@ -1357,3 +1357,45 @@ export function voice(P, lg, tags = '$BTC') {
   for (let nb = b.length; nb >= Math.min(1, b.length); nb--) for (const o of OS) { const t = mk(nb, o); if (xlen(t) <= 280) return t; }
   return mk(Math.min(1, b.length), P.keepC ? { c: 1 } : {});
 }
+// v341: ニュース×相関(コピペ)。見出し(ニュース)は手で入れ、相関は CSA の記録(KV の ct = 自動投稿の相関と同じもの)から
+export function newsCorrDraft(c, o, now) {
+  const st = corrStats(c), sg2 = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2), i = st.i, t = (k) => c.t[k] != null ? c.t[k] + H : null;
+  const jd = (ms) => { const d = new Date(ms + JST); return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${d.getUTCHours()}時`; }, ed = (ms) => { const d = new Date(ms); return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()]} ${d.getUTCDate()} ${String(d.getUTCHours()).padStart(2, '0')}:00 UTC`; };
+  const tn = t(i), ta = i >= 24 ? t(i - 24) : null, upj = st.ago != null && st.now != null ? (st.now >= st.ago ? '強まった' : '弱まった') : null, upe = st.ago != null && st.now != null ? (st.now >= st.ago ? 'grew stronger' : 'weakened') : null;
+  const ja = voice({ h: o.ja.replace(/。$/, '') + '。', a: '注目したいのは、株だけではありません。', b: [`・BTCとS&P500の24時間相関：${sg2(st.ago)}（${ta ? jd(ta) : '24時間前'}）→${sg2(st.now)}（${jd(tn)}）`, `・直近7日の相関の幅：${sg2(st.lo)}〜${sg2(st.hi)}`], c: upj ? `同じ24時間で、BTCと株のつながりが${upj}。` : null, minB: 2 }, 'ja', o.tagJa || '$BTC');
+  const en = voice({ h: (o.en || o.ja).replace(/\.$/, '') + '.', a: "Stocks aren't the whole story.", b: [`- BTC vs S&P 500, 24h correlation: ${sg2(st.ago)} → ${sg2(st.now)} (${ed(tn)})`, `- 7-day range: ${sg2(st.lo)} to ${sg2(st.hi)}`], c: upe ? `In the same 24h, the BTC–stocks link ${upe}.` : null, minB: 2 }, 'en', o.tagEn || '$BTC');
+  return { id: 'newscorr:copy:' + now, sr: 'newscorr', man: 1, due: now, ja, en, img: { nc: { t: c.t, r: c.r, i, ago: st.ago, now: st.now, lo: st.lo, hi: st.hi, ta, tn, hj: o.ja, he: o.en || o.ja, subj: o.subj || '', sube: o.sube || '', src: o.src || '', srce: o.srce || o.src || '' } } };
+}
+// v342: ナイアガラ(急落のローソク足)。5分足から「直近24時間の高値 → 今」を切り出し、本数が60〜120本になる足の長さに束ねる
+export function niagaraFind(k5, now) {
+  const n = k5.length - 1; if (n < 50) return null;
+  let hi = Math.max(0, n - 288); for (let i = hi; i <= n; i++) if (k5[i][2] > k5[hi][2]) hi = i;
+  let lo = hi; for (let i = hi; i <= n; i++) if (k5[i][3] < k5[lo][3]) lo = i;
+  const span = n - hi + 1, lead = Math.max(6, Math.round(span * 0.25)), tfm = (span + lead) <= 120 ? 1 : (span + lead) <= 360 ? 3 : 12;   // 5分足 / 15分足 / 1時間足
+  const s0 = Math.max(0, hi - lead * 1), bars = [];
+  for (let i = s0; i <= n; i += tfm) { const g = k5.slice(i, Math.min(n + 1, i + tfm)); if (!g.length) break; bars.push([g[0][0], g[0][1], Math.max(...g.map((x) => x[2])), Math.min(...g.map((x) => x[3])), g[g.length - 1][4]]); }
+  const H0 = k5[hi][2], L0 = k5[lo][3], C = k5[n][4], durH = (k5[n][0] + 5 * 60000 - k5[hi][0]) / 3600e3;
+  return { bars, tf: tfm === 1 ? '5m' : tfm === 3 ? '15m' : '1h', hi: H0, hiT: k5[hi][0], lo: L0, loT: k5[lo][0], now: C, nowT: k5[n][0] + 5 * 60000, drop: +((C / H0 - 1) * 100).toFixed(1), dropLo: +((L0 / H0 - 1) * 100).toFixed(1), durH: +durH.toFixed(1), at: now };
+}
+// 過去の同じ急落(1時間足): 「D時間以内に高値から今と同じくらい下げた」最初の時間を数え、その後24時間で下げ幅の半分を戻したか
+export function niagaraStudy(k1, nw) {
+  const n = k1.length - 1, D = Math.max(1, Math.ceil(nw.durH)); let TH = Math.min(-2, Math.trunc(nw.dropLo)), out = [];
+  const scan = () => { const out = []; let skip = -1;
+  for (let i = D; i < n - 1; i++) { if (i <= skip) continue; let h = i - D; for (let q = i - D; q <= i; q++) if (k1[q][2] > k1[h][2]) h = q;
+    const dr = (k1[i][3] / k1[h][2] - 1) * 100; if (dr > TH) continue;
+    let lo = k1[i][3], j = i; for (; j < Math.min(n, i + 6); j++) { if (k1[j + 1][3] < lo) lo = k1[j + 1][3]; else break; }   // 底(続けて下げる間は延ばす)
+    const half = lo + (k1[h][2] - lo) / 2; let back = null; for (let d = 1; d <= 24 && j + d <= n; d++) if (k1[j + d][2] >= half) { back = d; break; }
+    if (j + 24 <= n || back != null) out.push({ t: k1[h][0], dr: +dr.toFixed(1), back }); skip = i + 48; }
+  return out; };
+  out = scan(); while (out.length < 5 && TH < -2) { TH += 1; out = scan(); }   // 過去の回が5回に届くまで、下げ幅を1%ずつゆるめる
+  const y0 = new Date(k1[0][0]).getUTCFullYear(), bk = out.filter((x) => x.back != null);
+  const med = (a) => { a = a.slice().sort((x, y) => x - y); if (!a.length) return null; const h = a.length >> 1; return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2; };
+  return { D, TH, N: out.length, back: bk.length, backMed: med(bk.map((x) => x.back)), y0 };
+}
+export function niagaraDraft(nw, st, now) {
+  const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), sg = (v) => (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+  const dj = nw.durH < 1 ? Math.round(nw.durH * 60) + '分' : (Math.round(nw.durH * 10) / 10) + '時間', de = nw.durH < 1 ? Math.round(nw.durH * 60) + 'm' : (Math.round(nw.durH * 10) / 10) + 'h';
+  const ja = voice({ h: `BTCが${dj}で${sg(nw.drop)}（${$(nw.hi)}→${$(nw.now)}）。`, a: '注目したいのは、落ち方だけではありません。', b: st && st.N ? [`・${st.y0}年以降、${st.D}時間以内に${-st.TH}%以上下げた過去${st.N}回`, `・24時間以内に下げ幅の半分を戻した：${st.back}回` + (st.backMed != null ? `（中央値${st.backMed}時間）` : ''), `・戻さなかった：${st.N - st.back}回`] : [], c: '同じ急落でも、その後の24時間は同じではない。', minB: 3 }, 'ja');
+  const en = voice({ h: `BTC ${sg(nw.drop)} in ${de} (${$(nw.hi)} → ${$(nw.now)}).`, a: "How it fell isn't the whole story.", b: st && st.N ? [`- ${st.N} past drops of ${-st.TH}%+ within ${st.D}h since ${st.y0}`, `- Won back half the drop within 24h: ${st.back}` + (st.backMed != null ? ` (median ${st.backMed}h)` : ''), `- Didn't: ${st.N - st.back}`] : [], c: 'Same plunge, a different 24 hours after.', minB: 3 }, 'en');
+  return { id: 'niagara:copy:' + now, sr: 'niagara', man: 1, due: now, ja, en, img: { nia: { ...nw, st } } };
+}
