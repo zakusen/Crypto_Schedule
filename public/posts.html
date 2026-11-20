@@ -130,6 +130,10 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
     <div class="tl">
       <div class="ti"><button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button><span class="td">直近1・6・24時間の清算</span></div>
       <div class="ti"><button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button><span class="td">BTC の急騰・急落を、その時の%で</span></div>
+      <div class="ti"><button class="chip" id="pnBtn" title="4時間足(11/10〜今)に、3回のパニック売り(11/13〜14・11/15〜16・今夜)の安値と、②のあとの戻りを印した画像と本文(コピペで投稿)">🔻 パニック売り3回</button><span class="td">4時間足に①②③の安値</span></div>
+      <div class="ti"><button class="chip" id="twBtn" title="当初調達額で歴代1位・2位の上場(SpaceX・Anthropic)。上場日からの日数をそろえ、今回のローソク足に前回の道(90日後まで)を光る線で重ねる(コピペで投稿)">🛤 前回の道を重ねる</button><span class="td">SpaceX上場の道 × 今回のAnthropic</span></div>
+      <div class="ti"><button class="chip" id="sigBtn" title="先に決めた5つの底のサイン(週足6週連続安・365日高値から-30%・恐怖と強欲≤20・資金調達率7日平均≤0・建玉14日で-15%)の今の点灯数と、過去に4つ以上点灯した全部の回の30日後・90日後を、画像と本文にする(コピペで投稿)">🚦 底のサイン(5つ)</button><span class="td">今の点灯数と、過去に4つ以上点灯した全部の回</span></div>
+      <div class="ti"><button class="chip" id="lnBtn" title="価格の線(例 62000)を入れると、過去約2.7年で上からその線に来た回と、その後30日で持ちこたえたか・割り込んだかを、3日足のローソクと表にした画像と本文を作る(コピペで投稿)">📏 この線は何？(サポートの過去)</button><span class="td">線の値段を入れて、過去に来た回とその後</span></div>
       <div class="ti"><button class="chip" id="niaBtn" title="急落の最中に。直近1/3/6/12/24時間(選べる)の高値から今までのローソク足(縦長)と、過去の同じ急落が24時間以内に半分戻したかを1段にした画像と本文を作る(コピペで投稿)">🌊 ナイアガラ(急落の足)</button><span class="td">時間を選んで縦長のローソク足＋過去の同じ急落の答え</span></div>
       <div class="ti"><button class="chip" id="ipoBtn" title="大型上場の日(コインベース・SpaceX・Anthropic)の取引開始の前後24時間のBTC(15分足)を1枚に重ね、取引開始から24時間後の変化を本文に(コピペで投稿)">🔔 大型上場の日×BTC</button><span class="td">取引開始の前後24時間・15分足</span></div>
       <div class="ti"><button class="chip" id="csBtn" title="BTC×S&P500 の相関(7日・24時間窓)を、自動投稿と同じ記録から本文と画像に(コピペで投稿)">📈 相関 S&P500</button><span class="td">自動投稿と同じ記録から</span></div>
@@ -761,6 +765,27 @@ runBtn('csBtn', async () => { const r = await fetch('/api/admin/rx-one?name=ct',
 runBtn('cgBtn', async () => { const now = Date.now(), H1 = 36e5, st = now - (L.CORRTS.days + 2) * 24 * H1;
   const k = async (pair) => { for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=${pair}&interval=1h&startTime=${st}&limit=1000`); if (r.ok) return (await r.json()).map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]); } catch (_) {} } throw new Error(pair + ' の1時間足が取れません'); };
   const c = L.corrSeries(await k('BTCUSDT'), await k('PAXGUSDT'), now); if (!c) throw new Error('相関を計算できません'); c.vs = 'au'; c.ev = []; return L.corrCopy(c, now); });
+// v348: 価格の線の過去(日足・最大1000日)
+runBtn('lnBtn', async () => { const L0 = Number(String(prompt('どの値段の線を調べますか？(ドル)', '62000') || '').replace(/[,$\s]/g, '')); if (!(L0 > 1000)) throw new Error('値段を数字で入れてください');
+  const now = Date.now(); let j = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000`); if (r.ok) { j = await r.json(); break; } } catch (_) {} }
+  if (!j) throw new Error('日足が取れません'); return L.lineDraft(j.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]), L0, now); });
+// v349: 底のサイン(Binance 現物日足・先物の資金調達率と建玉・alternative.me の恐怖と強欲)
+runBtn('sigBtn', async () => { const now = Date.now(), D = 864e5, J = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error('取れません ' + u.split('?')[0]); return r.json(); };
+  let host = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/ping`); if (r.ok) { host = h; break; } } catch (_) {} } if (!host) throw new Error('Binance に届きません');
+  const k = []; for (let a = Date.UTC(2017, 7, 17); a < now; ) { const j = await J(`${host}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${a}&limit=1000`); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); a = +j[j.length - 1][0] + D; if (j.length < 1000) break; }
+  const fj = await J('https://api.alternative.me/fng/?limit=0&format=json'), fng = (fj.data || []).map((x) => [+x.timestamp * 1000, +x.value]);
+  const fund = []; for (let a = Date.UTC(2019, 8, 1); a < now; ) { const j = await J(`https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&startTime=${a}&limit=1000`); if (!j.length) break; for (const x of j) fund.push([+x.fundingTime, +x.fundingRate]); a = +j[j.length - 1].fundingTime + 1; if (j.length < 1000) break; }
+  let oi = []; try { oi = (await J('https://fapi.binance.com/futures/data/openInterestHist?symbol=BTCUSDT&period=1d&limit=30')).map((x) => [+x.timestamp, +x.sumOpenInterest]); } catch (_) {}
+  return L.sigDraft(k, fng, fund, oi, now); });
+// v350→v351: 前回の道を、今回に重ねる(日足・上場日の前14日〜後90日)
+runBtn('twBtn', async () => { const now = Date.now(), D = 864e5; let host = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/ping`); if (r.ok) { host = h; break; } } catch (_) {} } if (!host) throw new Error('Binance に届きません');
+  const J = async (u) => { const r = await fetch(host + u); if (!r.ok) throw new Error('取れません'); return r.json(); }, A = L.IPOS.find((e) => e.k === 'spcx'), B = L.IPOS.find((e) => e.k === 'ant');
+  const kd = async (ev) => { const d0 = Date.parse(ev.d + 'T00:00:00Z'); return (await J(`/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${d0 - L.TWIN.pre * D}&endTime=${d0 + L.TWIN.post * D}&limit=200`)).map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]); };
+  const op = async (t) => { const j = await J(`/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${t}&limit=1`); if (!j.length) throw new Error('取引開始の価格が取れません'); return +j[0][1]; };
+  return L.twinDraft(await kd(A), await kd(B), await op(A.t0), await op(B.t0), now); });
+// v352: パニック売り3回(4時間足 11/10〜)
+runBtn('pnBtn', async () => { const now = Date.now(); let j = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=4h&startTime=${Date.UTC(2026, 10, 10)}&limit=1000`); if (r.ok) { j = await r.json(); break; } } catch (_) {} }
+  if (!j) throw new Error('4時間足が取れません'); return L.panicDraft(j.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]), now); });
 // v341: ニュースと相関(見出しは手で入れる。相関は自動投稿と同じ記録 ct)
 runBtn('ncBtn', async (b) => {
   const hj = prompt('ニュースの見出し(日本語)', 'FRBの議事要旨、AIブームの崩れを金融システムのリスクとして議論'); if (!hj) throw new Error('見出しが空です');

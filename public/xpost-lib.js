@@ -1425,3 +1425,111 @@ export function ipoDraft(evs, now) {
   const en = voice({ h: cur ? `${cur.en} debuts on Nasdaq today (record initial raise).` : 'BTC on big listing days.', a: "Size isn't the whole story.", b: be, c: 'How BTC moved on big listing days.', minB: 2 }, 'en');
   return { id: 'ipo:copy:' + now, sr: 'ipo', man: 1, due: now, ja, en, img: { ipo: { evs: S, now } } };
 }
+// v348: 価格の線(サポート)の過去。日足で「上からこの線に来た回(線の±1.5%に安値が入った日。直前10日は安値が帯より上で、終値が線の3%より上の日がある)」を数え、
+// その後30日で終値が線の3%下を割ったか(割った/持ちこたえた)と、30日後の線からの位置。予想はしない(過去の記録だけ)
+export const LINE = { band: 0.015, above: 0.03, pre: 10, look: 30, brk: 0.03 };
+export function lineStudy(k, L, now) {
+  const n = k.length - 1, out = []; let skip = -1;
+  for (let i = LINE.pre; i <= n; i++) { if (i <= skip) continue; if (k[i][3] > L * (1 + LINE.band)) continue;
+    let ok = true, far = false; for (let q = i - LINE.pre; q < i; q++) { if (k[q][3] <= L * (1 + LINE.band)) { ok = false; break; } if (k[q][4] > L * (1 + LINE.above)) far = true; } if (!ok || !far) continue;
+    const end = Math.min(n, i + LINE.look), live = i + LINE.look > n; let br = null, mn = i;
+    for (let j = i; j <= end; j++) { if (k[j][3] < k[mn][3]) mn = j; if (br == null && k[j][4] < L * (1 - LINE.brk)) br = j; }
+    out.push({ t: k[i][0], live, broke: br != null, brT: br != null ? k[br][0] : null, low: k[mn][3], lowT: k[mn][0], d30: live ? null : +((k[i + LINE.look][4] / L - 1) * 100).toFixed(1) });
+    skip = i + LINE.look; }
+  const done = out.filter((e) => !e.live), held = done.filter((e) => !e.broke);
+  return { L, ev: out, n: done.length, held: held.length, broke: done.length - held.length, cur: out.find((e) => e.live) || null, last: done[done.length - 1] || null, from: k[0][0], now: k[n][4], at: now };
+}
+export function lineDraft(k, L, now) {
+  const s = lineStudy(k, L, now), $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), yrs = ((k[k.length - 1][0] - k[0][0]) / (365.25 * DAY)).toFixed(1);
+  const jd = (ms) => { const d = new Date(ms + JST); return `${String(d.getUTCFullYear()).slice(2)}/${d.getUTCMonth() + 1}/${d.getUTCDate()}`; }, ed = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const ja = voice({ h: `BTCは${$(L)}付近で踏みとどまっている。この線は何なのか。`, a: '注目したいのは、今の値段だけではありません。',
+    b: [`・この${yrs}年で、上からこの線に来たのは${s.n}回`, `・その後30日、3%以上割らずに持ちこたえた：${s.held}回`, `・割り込んだ：${s.broke}回`, s.last ? `・前回は${jd(s.last.t)}（${s.last.broke ? '割り込んだ' : '持ちこたえた'}）` : null],
+    c: '上がるかは分からない。この線の過去は、こうだった。', minB: 3 }, 'ja');
+  const en = voice({ h: `BTC is holding near ${$(L)}. What is this line?`, a: "Today's price isn't the whole story.",
+    b: [`- Visits to this line from above in ${yrs} years: ${s.n}`, `- Held (no close 3%+ below) for 30 days: ${s.held}`, `- Broke below: ${s.broke}`, s.last ? `- Last time: ${ed(s.last.t)} (${s.last.broke ? 'broke' : 'held'})` : null],
+    c: "Whether it goes up, no one knows. This is the line's record.", minB: 3 }, 'en');
+  const bars = []; const k3 = k.filter((x) => x[0] >= now - 360 * DAY); for (let i = 0; i < k3.length; i += 3) { const g = k3.slice(i, i + 3); bars.push([g[0][0], g[0][1], Math.max(...g.map((x) => x[2])), Math.min(...g.map((x) => x[3])), g[g.length - 1][4]]); }
+  return { id: 'line:copy:' + now, sr: 'line', man: 1, due: now, ja, en, img: { line: { ...s, bars, yrs } } };
+}
+// v349: 底のサイン点灯数(定義は先に固定)。日足の終値(UTC)で毎日判定
+// 1 週足6週以上連続安 / 2 直近365日の高値から-30%以上 / 3 恐怖と強欲≤20 / 4 資金調達率7日平均≤0 / 5 建玉が14日前より-15%以上(履歴が取れる日だけ)
+// 過去の回 = 点灯4つ以上の日(建玉が判定不可の日は残り4つ全部)。続いた日は最初の日で1回、その後30日は数えない
+export const SIG = { wk: 6, dd: 0.30, fng: 20, fd: 7, oi: -0.15, oiD: 14, min: 4, cool: 30 };
+export function sigCalc(k, fng, fund, oi) {
+  const n = k.length, wkOf = (t) => { const d = new Date(t), w = (d.getUTCDay() + 6) % 7; return t - w * DAY; };
+  const wk = []; for (let i = 0; i < n; i++) { const w = wkOf(k[i][0]); if (!wk.length || wk[wk.length - 1].w !== w) wk.push({ w, i }); else wk[wk.length - 1].i = i; }
+  const wIdx = new Map(); wk.forEach((x, j) => { for (let i = j ? wk[j - 1].i + 1 : 0; i <= x.i; i++) wIdx.set(i, j); });
+  const F = new Map(fng.map(([t, v]) => [Math.floor(t / DAY) * DAY, v])), O = new Map(oi.map(([t, v]) => [Math.floor(t / DAY) * DAY, v]));
+  const fs = fund.slice().sort((a, b) => a[0] - b[0]); let fa = 0, fb = 0, sum = 0;
+  const days = [];
+  for (let i = 0; i < n; i++) { const t = k[i][0], c = k[i][4];
+    const j = wIdx.get(i); let st = 0; for (let q = j; q >= 1; q--) { const cq = q === j ? c : k[wk[q].i][4], cp = k[wk[q - 1].i][4]; if (cq < cp) st++; else break; }
+    let hi = 0; for (let q = Math.max(0, i - 364); q <= i; q++) hi = Math.max(hi, k[q][2]); const dd = c / hi - 1;
+    const fv = F.has(t) ? F.get(t) : null;
+    while (fb < fs.length && fs[fb][0] < t + DAY) { sum += fs[fb][1]; fb++; } while (fa < fb && fs[fa][0] < t + DAY - SIG.fd * DAY) { sum -= fs[fa][1]; fa++; }
+    const fr = fs.length && fs[0][0] <= t - SIG.fd * DAY + DAY && fb > fa ? sum / (fb - fa) : null;
+    const o1 = O.get(t), o0 = O.get(t - SIG.oiD * DAY), oc = o1 && o0 ? o1 / o0 - 1 : null;
+    const s = [st >= SIG.wk, dd <= -SIG.dd, fv == null ? null : fv <= SIG.fng, fr == null ? null : fr <= 0, oc == null ? null : oc <= SIG.oi];
+    days.push({ t, c, s, v: [st, dd * 100, fv, fr == null ? null : fr * 100, oc == null ? null : oc * 100], lit: s.filter((x) => x === true).length, av: s.filter((x) => x != null).length }); }
+  return days;
+}
+export function sigStudy(k, fng, fund, oi, now) {
+  const days = sigCalc(k, fng, fund, oi), n = days.length, ev = []; let skip = -1;
+  const ok = (d) => d.s[2] != null && d.s[3] != null;   // 恐怖指数と資金調達率がそろう日から
+  for (let i = 0; i < n; i++) { const d = days[i]; if (!ok(d) || i <= skip) continue; const need = d.s[4] == null ? 4 : SIG.min; if (d.lit < need) continue;
+    const at = (h) => (i + h < n ? +((days[i + h].c / d.c - 1) * 100).toFixed(1) : null); let mn = d.c; for (let q = i; q < Math.min(n, i + 91); q++) mn = Math.min(mn, k[q][3]);
+    ev.push({ t: d.t, lit: d.lit, av: d.av, c: d.c, d30: at(30), d90: at(90), dd: +((mn / d.c - 1) * 100).toFixed(1), live: i + 90 >= n }); skip = i + SIG.cool; }
+  const done = ev.filter((e) => e.d90 != null), up = done.filter((e) => e.d90 > 0).length, md = done.length ? done.map((e) => e.d90).sort((a, b) => a - b)[Math.floor(done.length / 2)] : null;
+  const from = days.find(ok); return { now: days[n - 1], ev, n: done.length, up, dn: done.length - up, med: md, from: from ? from.t : null, at: now };
+}
+export function sigDraft(k, fng, fund, oi, now) {
+  const s = sigStudy(k, fng, fund, oi, now), d = s.now, $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const nmJ = ['週足の連続安', '高値から-30%', '極度の恐怖', '資金調達率マイナス', '建玉の急減'], nmE = ['Weekly losing streak', '30%+ off the high', 'Extreme fear', 'Negative funding', 'Open interest flush'];
+  const onJ = nmJ.filter((_, i) => d.s[i]).join('・'), onE = nmE.filter((_, i) => d.s[i]).join(', '), yr = new Date(s.from).getUTCFullYear();
+  const ja = voice({ h: `BTCの底のサイン、いま5つ中${d.lit}つ点灯（${onJ || 'なし'}）。`, a: '注目したいのは、今の点灯数だけではありません。',
+    b: [`・${yr}年以降、4つ以上点灯したのは${s.n + s.ev.filter((e) => e.d90 == null).length}回`, `・90日後に上だった：${s.up}回／下だった：${s.dn}回`, s.med != null ? `・90日後の中央値：${sg(s.med)}` : null],
+    c: '過去は、こうだった。', minB: 2 }, 'ja');
+  const en = voice({ h: `BTC bottom signals: ${d.lit} of 5 lit now (${onE || 'none'}).`, a: "Today's count isn't the whole story.",
+    b: [`- 4+ signals lit since ${yr}: ${s.n + s.ev.filter((e) => e.d90 == null).length} times`, `- 90 days later: higher ${s.up}, lower ${s.dn}`, s.med != null ? `- Median 90 days later: ${sg(s.med)}` : null],
+    c: 'This is what the past looked like.', minB: 2 }, 'en');
+  const k3 = k.filter((x) => x[0] >= now - 360 * DAY), bars = []; for (let i = 0; i < k3.length; i += 3) { const g = k3.slice(i, i + 3); bars.push([g[0][0], g[0][1], Math.max(...g.map((x) => x[2])), Math.min(...g.map((x) => x[3])), g[g.length - 1][4]]); }
+  return { id: 'sig:copy:' + now, sr: 'sig', man: 1, due: now, ja, en, img: { sig: { ...s, bars } } };
+}
+// v350→v351: 「前回の道を、今回に重ねる」。当初調達額で歴代1位・2位の上場(SpaceX・Anthropic)。横軸 = 上場日からの日数(日足・UTC)、
+// 縦軸 = 上場日のNY取引開始の価格からの%。今回はローソク足、前回は同じ日数の道を光る線で(今日より先も)。予想ではなく前回の記録
+export const TWIN = { pre: 14, post: 90 };
+export function twinDraft(ka, kb, p1, p2, now) {
+  const A = IPOS.find((e) => e.k === 'spcx'), B = IPOS.find((e) => e.k === 'ant'), sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
+  const rel = (k, ev, p) => { const d0 = Date.parse(ev.d + 'T00:00:00Z'); return k.map(([t, o, h, l, c]) => [Math.round((t - d0) / DAY), (o / p - 1) * 100, (h / p - 1) * 100, (l / p - 1) * 100, (c / p - 1) * 100]).filter((r) => r[0] >= -TWIN.pre && r[0] <= TWIN.post); };
+  const ga = rel(ka, A, p1), gb = rel(kb, B, p2), at = (g, d) => (g.find((r) => r[0] === d) || [])[4];
+  const preA = at(ga, -TWIN.pre) != null ? (1 / (1 + at(ga, -TWIN.pre) / 100) - 1) * 100 : null, preB = at(gb, -TWIN.pre) != null ? (1 / (1 + at(gb, -TWIN.pre) / 100) - 1) * 100 : null;   // 上場前14日 → 上場の価格 の変化
+  let lo = null; for (const r of ga) if (r[0] >= 0 && r[0] <= 30 && (!lo || r[3] < lo[3])) lo = r;
+  const e90 = at(ga, TWIN.post), last = gb[gb.length - 1], dayB = last ? last[0] : 0;
+  const s = { ga, gb, p1, p2, preA, preB, lo: lo && { d: lo[0], v: lo[3] }, e90, dayB, nowPct: last ? last[4] : null };
+  const ja = voice({ h: '前回の最大上場（SpaceX）の道を、今回のAnthropicに重ねると。', a: null,
+    b: [preA != null && preB != null ? `・上場前の14日：前回${sg(preA)}／今回${sg(preB)}` : null, lo ? `・前回は上場から${lo[0]}日目に安値（${sg(lo[3])}）` : null, e90 != null ? `・前回の90日後：${sg(e90)}` : null],
+    c: '今回も同じとは限らない。前回は、こうだった。', minB: 3, keepC: 1 }, 'ja');
+  const en = voice({ h: "The last mega IPO (SpaceX), laid over today's Anthropic listing.", a: null,
+    b: [preA != null && preB != null ? `- 14 days before listing: last time ${sg(preA)}, now ${sg(preB)}` : null, lo ? `- Last time the low came on day ${lo[0]} (${sg(lo[3])})` : null, e90 != null ? `- Last time, 90 days later: ${sg(e90)}` : null],
+    c: 'No promise it repeats. This is what happened last time.', minB: 3, keepC: 1 }, 'en');
+  return { id: 'twin:copy:' + now, sr: 'twin', man: 1, due: now, ja, en, img: { twin: s } };
+}
+// v352: パニック売りの回数(コピペ)。4時間足(11/10〜今)に、先に決めた3つの期間(①11/13〜14 ②11/15〜16 ③11/20 12:00 UTC〜今)の安値を印。清算額は報道の値
+export const PANIC = [
+  { k: 1, a: Date.UTC(2026, 10, 13), b: Date.UTC(2026, 10, 15), ja: '11/13〜14', en: 'Nov 13–14', liqJa: '清算 約16億ドル', liqEn: '$1.6B liquidated' },
+  { k: 2, a: Date.UTC(2026, 10, 15), b: Date.UTC(2026, 10, 17), ja: '11/15〜16', en: 'Nov 15–16', liqJa: '清算 20億ドル超', liqEn: '$2B+ liquidated' },
+  { k: 3, a: Date.UTC(2026, 10, 20, 12), b: Infinity, ja: '今夜', en: 'Tonight', liqJa: '', liqEn: '' },
+];
+export function panicDraft(k4, now) {
+  const $ = (v) => '$' + Math.round(v).toLocaleString('en-US');
+  const ev = PANIC.map((p) => { let lo = null; for (const x of k4) if (x[0] >= p.a && x[0] < p.b && (!lo || x[3] < lo[3])) lo = x; return { ...p, lo: lo && { t: lo[0], v: lo[3] } }; });
+  let reb = null; for (const x of k4) if (x[0] >= PANIC[1].b && x[0] < PANIC[2].a && (!reb || x[2] > reb[2])) reb = x;
+  const last = k4[k4.length - 1][4], e = ev;
+  const ja = voice({ h: `BTC、${last < 60000 ? '6万ドル割れ。' : ''}9日で3度目のパニック売り。`, a: '注目したいのは、パニックの「その後」です。',
+    b: [e[0].lo ? `・11/13〜14 安値${$(e[0].lo.v)}→2日後に次のパニック` : null, e[1].lo && reb ? `・11/15〜16 安値${$(e[1].lo.v)}→${$(reb[2])}まで戻った` : null, e[2].lo ? `・今夜 ${$(e[2].lo.v)}。その戻りは消えた` : null],
+    c: '3度目の後は、まだ誰も知らない。', minB: 3 }, 'ja');
+  const en = voice({ h: `BTC: the 3rd panic sell-off in 9 days.`, a: 'Look at what came after each one.',
+    b: [e[0].lo ? `- Nov 13–14: low ${$(e[0].lo.v)}, next panic 2 days later` : null, e[1].lo && reb ? `- Nov 15–16: low ${$(e[1].lo.v)}, bounced to ${$(reb[2])}` : null, e[2].lo ? `- Tonight: ${$(e[2].lo.v)}. The bounce is gone.` : null],
+    c: 'What follows the 3rd, no one knows yet.', minB: 3 }, 'en');
+  return { id: 'panic:copy:' + now, sr: 'panic', man: 1, due: now, ja, en, img: { panic: { bars: k4, ev, reb: reb && { t: reb[0], v: reb[2] }, last, now } } };
+}
