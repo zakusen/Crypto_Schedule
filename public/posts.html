@@ -130,6 +130,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
     <div class="tl">
       <div class="ti"><button class="chip" id="lqBtn" title="清算の本文と画像を、直近1・6・24時間で作る(コピペで投稿・自動では出さない)">🔥 清算をコピペで作る</button><span class="td">直近1・6・24時間の清算</span></div>
       <div class="ti"><button class="chip" id="spBtn" title="BTC の急騰・急落の本文と画像を、その時の%で作る(コピペで投稿・自動では出さない)">⚡ 急変動をコピペで作る</button><span class="td">BTC の急騰・急落を、その時の%で</span></div>
+      <div class="ti"><button class="chip" id="stkBtn" title="Binanceの週足(2017〜)で、6週以上続けて下げた時期を全部見つけ、新しい3回を週足のローソクで縦に並べる。過去の回は終わって4週後の変化(コピペで投稿)">📉 週足の連続安</button><span class="td">6週以上の連続安を全部・週足チャート</span></div>
       <div class="ti"><button class="chip" id="pnBtn" title="4時間足(11/10〜今)に、3回のパニック売り(11/13〜14・11/15〜16・今夜)の安値と、②のあとの戻りを印した画像と本文(コピペで投稿)">🔻 パニック売り3回</button><span class="td">4時間足に①②③の安値</span></div>
       <div class="ti"><button class="chip" id="twBtn" title="当初調達額で歴代1位・2位の上場(SpaceX・Anthropic)。上場日からの日数をそろえ、今回のローソク足に前回の道(90日後まで)を光る線で重ねる(コピペで投稿)">🛤 前回の道を重ねる</button><span class="td">SpaceX上場の道 × 今回のAnthropic</span></div>
       <div class="ti"><button class="chip" id="sigBtn" title="先に決めた5つの底のサイン(週足6週連続安・365日高値から-30%・恐怖と強欲≤20・資金調達率7日平均≤0・建玉14日で-15%)の今の点灯数と、過去に4つ以上点灯した全部の回の30日後・90日後を、画像と本文にする(コピペで投稿)">🚦 底のサイン(5つ)</button><span class="td">今の点灯数と、過去に4つ以上点灯した全部の回</span></div>
@@ -786,6 +787,9 @@ runBtn('twBtn', async () => { const now = Date.now(), D = 864e5; let host = null
 // v352: パニック売り3回(4時間足 11/10〜)
 runBtn('pnBtn', async () => { const now = Date.now(); let j = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=4h&startTime=${Date.UTC(2026, 10, 10)}&limit=1000`); if (r.ok) { j = await r.json(); break; } } catch (_) {} }
   if (!j) throw new Error('4時間足が取れません'); return L.panicDraft(j.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]), now); });
+// v355: 週足の連続安
+runBtn('stkBtn', async () => { const now = Date.now(); let j = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1w&limit=1000`); if (r.ok) { j = await r.json(); break; } } catch (_) {} }
+  if (!j) throw new Error('週足が取れません'); return L.streakDraft(j.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]), now); });
 // v341: ニュースと相関(見出しは手で入れる。相関は自動投稿と同じ記録 ct)
 runBtn('ncBtn', async (b) => {
   const hj = prompt('ニュースの見出し(日本語)', 'FRBの議事要旨、AIブームの崩れを金融システムのリスクとして議論'); if (!hj) throw new Error('見出しが空です');

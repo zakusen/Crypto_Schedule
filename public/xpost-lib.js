@@ -1531,3 +1531,22 @@ export function panicDraft(k4, now) {
     c: 'What follows the 3rd, no one knows yet.', minB: 3 }, 'en');
   return { id: 'panic:copy:' + now, sr: 'panic', man: 1, due: now, ja, en, img: { panic: { bars: k4, ev, reb: reb && { t: reb[0], v: reb[2] }, last, now } } };
 }
+// v355: 週足の連続安(コピペ)。Binance の週足(月曜始まり・UTC)で、終値が前の週を下回った週が6週以上続いた時期を全部見つける(今週は暫定)。
+// 過去の回は「終わってから4週後」の変化。チャートは各回を「始まりの8週前〜終わりの8週後」で縦に並べる
+export const STREAK = { min: 6, pad: 8, after: 4 };
+export function streakFind(kw, now) {
+  const out = []; let s = -1;
+  for (let i = 1; i <= kw.length; i++) { const dn = i < kw.length && kw[i][4] < kw[i - 1][4];
+    if (dn) { if (s < 0) s = i; continue; }
+    if (s >= 0) { const e = i - 1, len = e - s + 1; if (len >= STREAK.min) { const live = e === kw.length - 1, a = e + STREAK.after < kw.length ? kw[e + STREAK.after][4] : null;
+      out.push({ s, e, len, live, t0: kw[s][0], t1: kw[e][0], drop: +((kw[e][4] / kw[s - 1][4] - 1) * 100).toFixed(1), aft: a == null || live ? null : +((a / kw[e][4] - 1) * 100).toFixed(1) }); } s = -1; } }
+  return out;
+}
+export function streakDraft(kw, now) {
+  const S = streakFind(kw, now), cur = S.find((x) => x.live), past = S.filter((x) => !x.live), sg = (v) => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const ym = (t, en) => { const d = new Date(t); return en ? `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()]} ${d.getUTCFullYear()}` : `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月`; };
+  const y0 = new Date(kw[0][0]).getUTCFullYear();
+  const ja = voice({ h: cur ? `BTC、週足で${cur.len}週連続の下げ（今週は暫定）。` : `BTC、週足の連続安の記録。`, b: [cur ? `${STREAK.min}週以上続いたのは、${y0}年以降でこれが${S.length}回目。` : `${STREAK.min}週以上続いたのは、${y0}年以降で${S.length}回。`, ...past.slice(-2).map((x) => `${ym(x.t0)}からの${x.len}週（${sg(x.drop)}）は、終わって4週後に${x.aft == null ? '—' : sg(x.aft)}。`)], minB: 2 }, 'ja');
+  const en = voice({ h: cur ? `BTC: ${cur.len} straight red weekly candles (this week not closed yet).` : 'BTC weekly losing streaks.', b: [`${STREAK.min}+ week streaks since ${y0}: ${S.length}${cur ? ', including this one' : ''}.`, ...past.slice(-2).map((x) => `${ym(x.t0, 1)}: ${x.len} weeks (${sg(x.drop)}), ${x.aft == null ? '—' : sg(x.aft)} 4 weeks after it ended.`)], minB: 2 }, 'en');
+  return { id: 'streak:copy:' + now, sr: 'streak', man: 1, due: now, ja, en, img: { streak: { kw, S, y0, now } } };
+}
