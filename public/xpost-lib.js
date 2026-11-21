@@ -833,13 +833,11 @@ export function corrStats(c) {
 }
 export const corrWord = (v, lg) => v == null ? (lg === 'en' ? 'not enough data' : 'データ不足') : v >= 0.5 ? (lg === 'en' ? 'moving in the same direction' : '同じ方向に動く傾向') : v <= -0.5 ? (lg === 'en' ? 'moving in opposite directions' : '逆方向に動く傾向') : (lg === 'en' ? 'no clear relationship' : 'はっきりした関係なし');
 const sg = (v) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2);
-export function corrText(c, lg) {
-  const st = corrStats(c);
-  // v340: 語り口をそろえる
-  const au = c.vs === 'au';   // v347: 金(GOLD)版。c.s が金の変化率
-  const ext = st.now != null && st.hi != null && st.now >= st.hi ? 'hi' : st.now != null && st.lo != null && st.now <= st.lo ? 'lo' : null, en = lg === 'en';
-  return voice(en ? { h: au ? `BTC vs gold: 24h correlation ${sg(st.now)}.` : `BTC vs US stocks: 24h correlation ${sg(st.now)}.`, a: "The number alone isn't the story.", b: [`- 24h ago: ${sg(st.ago)}`, `- 7-day range: ${sg(st.lo)} to ${sg(st.hi)}`, ext ? `- The ${ext === 'hi' ? 'strongest' : 'weakest'} link in 7 days` : `- Now: ${corrWord(st.now, 'en')}`], c: au ? 'Whether BTC trades like digital gold changes day to day.' : 'Whether BTC moves with stocks changes day to day.' }
-    : { h: au ? `BTCと金、直近24時間の相関は${sg(st.now)}。` : `BTCと米国株、直近24時間の相関は${sg(st.now)}。`, a: '注目したいのは、数字の大きさだけではありません。', b: [`・24時間前は${sg(st.ago)}`, `・この7日の幅は${sg(st.lo)}〜${sg(st.hi)}`, ext ? `・この7日でいちばん${ext === 'hi' ? '強い' : '弱い'}つながり` : `・今の状態：${corrWord(st.now, 'ja')}`], c: au ? '「BTCはデジタルゴールド」かどうかは、日によって変わる。' : '「BTCは株と別」かどうかは、日によって変わる。' }, lg, au ? '$BTC #GOLD' : '$BTC #SP500');
+export function corrText(c, lg) {   // v354: 文章で(1行目＝今の連動、次に物差し、24時間前と7日の幅)
+  const st = corrStats(c), au = c.vs === 'au', en = lg === 'en';
+  const ext = st.now != null && st.hi != null && st.now >= st.hi ? 'hi' : st.now != null && st.lo != null && st.now <= st.lo ? 'lo' : null;
+  if (en) return voice({ h: `BTC and ${au ? 'gold' : 'US stocks'}: correlation ${sg(st.now)} right now.`, b: [`24h correlation. 1 means moving in lockstep, 0 means no link.`, `24h ago it was ${sg(st.ago)}. The 7-day range: ${sg(st.lo)} to ${sg(st.hi)}.`, ext ? `The ${ext === 'hi' ? 'strongest' : 'weakest'} link in 7 days.` : null] }, lg);
+  return voice({ h: `BTCと${au ? '金' : '米国株'}、今の連動は${sg(st.now)}。`, b: [`直近24時間の相関で、1なら完全に同じ向き、0なら無関係。`, `24時間前は${sg(st.ago)}、この7日の幅は${sg(st.lo)}〜${sg(st.hi)}。`, ext ? `この7日でいちばん${ext === 'hi' ? '強い' : '弱い'}つながり。` : null] }, lg);
 }
 // v347: 相関をコピペで作る(S&P500 = CSA の記録 ct / 金 = その場で計算)。自動投稿とは別
 export function corrCopy(c, now) { const ja = corrText(c, 'ja'), en = corrText(c, 'en'); return { id: 'corrts:copy:' + (c.vs || 'sp') + ':' + now, sr: 'corrts', man: 1, due: now, ja, en, img: { corr: c } }; }
@@ -1342,23 +1340,23 @@ export function likeFixedDraft(F, now) {
   const ds = F.rc.filter((x) => x.dist != null).sort((a, b) => a.dist - b.dist), near = ds.length >= 2 && ds[1].dist - ds[0].dist >= 0.3 ? ds[0] : null;
   // v340: 語り口をそろえる
   const nj = LIKE.noteJa ? LIKE.noteJa.replace('BTC が ', '').replace(' をつけた日', 'をつけた日') : '0日目', ne = LIKE.noteEn ? LIKE.noteEn.replace('BTC hit ', 'hitting ') : 'day 0';
-  const j = voice({ h: `BTC、今年${F.cnt}回目の同じ下げ方。`, a: `${F.rc.map((x) => mo(x.t) + '月').join('と')}、どっちの道？`, b: [`・${nj}(${md(F.d0)})から${F.dN}日目：今回 ${sg(F.nowChg)}`, ...F.rc.map((x) => `・${mo(x.t)}月の同じ日 ${sg(x.atN)}（その後60日で${sg(x.a60)}）`)], c: near ? `ここまでは${mo(near.t)}月の道に近い。` : 'ここまでは、どちらとも同じくらいの離れ方。', keepC: 1 }, 'ja');
-  const e = voice({ h: `BTC: this year's ${F.cnt}rd drop of the same shape.`, a: `The ${F.rc.map((x) => me(x.t)).join(' or the ')} path?`, b: [`- Day ${F.dN} since ${ne} (${md(F.d0)}): now ${sg(F.nowChg)}`, ...F.rc.map((x) => `- ${me(x.t)} on the same day: ${sg(x.atN)} (60d later ${sg(x.a60)})`)], c: near ? `So far, closer to the ${me(near.t)} path.` : 'So far, about equally far from both.', keepC: 1 }, 'en');
+  const j = voice({ h: `BTC、今年${F.cnt}回目の同じ下げ方。`, a: `${F.rc.map((x) => mo(x.t) + '月').join('と')}、どっちの道？`, b: [`・${nj}(${md(F.d0)})から${F.dN}日目：今回 ${sg(F.nowChg)}`, ...F.rc.map((x) => `・${mo(x.t)}月の同じ日 ${sg(x.atN)}（その後60日で${sg(x.a60)}）`)], fact: near ? `ここまでは${mo(near.t)}月の道に近い。` : 'ここまでは、どちらとも同じくらいの離れ方。', keepC: 1 }, 'ja');
+  const e = voice({ h: `BTC: this year's ${F.cnt}rd drop of the same shape.`, a: `The ${F.rc.map((x) => me(x.t)).join(' or the ')} path?`, b: [`- Day ${F.dN} since ${ne} (${md(F.d0)}): now ${sg(F.nowChg)}`, ...F.rc.map((x) => `- ${me(x.t)} on the same day: ${sg(x.atN)} (60d later ${sg(x.a60)})`)], fact: near ? `So far, closer to the ${me(near.t)} path.` : 'So far, about equally far from both.', keepC: 1 }, 'en');
   const yr = new Date(F.d0).getUTCFullYear();
   return { id: 'likefx:copy:' + now, sr: 'like', man: 1, due: now, ja: j, en: e, img: { like: { now: { t: F.d0, r30: null, dd: null, fng: null }, cur: F.cur, rc: F.rc, oth: null, N: 0, M: [], fixed: F.dN, noteJa: LIKE.noteJa, noteEn: LIKE.noteEn, hj: `今年${F.cnt}回目の下げ方から${F.dN}日目`, he: `Day ${F.dN} since this year's ${F.cnt}rd drop`, fj: `${md(F.d0)}比 ${sg(F.nowChg)}`, fe: `${sg(F.nowChg)} vs ${md(F.d0)}`, yr } } };
 }
 
-// ==== v340: 語り口をそろえる(何が起きたか → 注目したいのは〜だけではない → 答えの数字 → 締め → 署名)。280字に入るよう、角度の行・タグ・締め・署名・箇条書きの順に削る ====
-export function sigOf(lg) { return lg === 'en' ? 'BTC history, in numbers.' : '数字で見るBTCの歴史。'; }
+// ==== v340→v354: 本文の形。11/21 に書き方を決め直した(くさい文をやめる)
+// 1行目＝事実と数字の意外さを短く / 本文＝1行に1つの事実、数字は3行まで / 締め＝過去の事実があるときだけ(P.fact)。
+// 前置き(P.a「注目したいのは〜」)・名言風の締め(P.c)・署名は使わない。タグは $BTC だけ。箇条書きの「・」「- 」は外す
+export function sigOf(lg) { return ''; }
 export function voice(P, lg, tags = '$BTC') {
-  const b = (P.b || []).filter((x) => x != null && x !== '');
-  const mk = (nb, o) => [P.h, o.a && P.a ? P.a : null, '', ...b.slice(0, nb), '', o.c && P.c ? P.c : null, o.s ? sigOf(lg) : null, o.t && tags ? tags : null].filter((x) => x != null).join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '');
-  const OS = [{ a: 1, c: 1, s: 1, t: 1 }, { a: 1, c: 1, s: 1 }, { c: 1, s: 1, t: 1 }, { c: 1, s: 1 }, { c: 1, t: 1 }, { c: 1 }, { s: 1 }, {}].filter((o) => !P.keepC || o.c);
-  const L1 = [{ a: 1, c: 1, s: 1, t: 1 }, { a: 1, c: 1, s: 1 }, { c: 1, s: 1, t: 1 }, { c: 1, s: 1 }];   // まず締めと署名を残したまま、箇条書きを2つまで減らす
-  for (const o of L1.slice(0, 2)) for (let nb = b.length; nb >= Math.max(1, P.minB || b.length - 1); nb--) { const t = mk(nb, o); if (xlen(t) <= 280) return t; }   // 「注目したいのは」の行を優先して残す
-  for (let nb = b.length; nb >= Math.max(1, b.length - 2); nb--) for (const o of L1.slice(2)) { const t = mk(nb, o); if (xlen(t) <= 280) return t; }
-  for (let nb = b.length; nb >= Math.min(1, b.length); nb--) for (const o of OS) { const t = mk(nb, o); if (xlen(t) <= 280) return t; }
-  return mk(Math.min(1, b.length), P.keepC ? { c: 1 } : {});
+  const tg = '$BTC', strip = (x) => String(x).replace(/^\s*(・|- |-\s|①|②|③)\s*/, '').trim();
+  const b = (P.b || []).filter((x) => x != null && x !== '').map(strip).slice(0, 3);
+  const mk = (nb, t) => [P.h, '', ...b.slice(0, nb), ...(P.fact ? ['', P.fact] : []), ...(t ? ['', tg] : [])].join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '');
+  for (const t of [1, 0]) for (let nb = b.length; nb >= Math.max(1, Math.min(b.length, P.minB || 1)); nb--) { const x = mk(nb, t); if (xlen(x) <= 280) return x; }
+  for (let nb = b.length; nb >= 0; nb--) { const x = mk(nb, 0); if (xlen(x) <= 280) return x; }
+  return P.h;
 }
 // v341: ニュース×相関(コピペ)。見出し(ニュース)は手で入れ、相関は CSA の記録(KV の ct = 自動投稿の相関と同じもの)から
 export function newsCorrDraft(c, o, now) {

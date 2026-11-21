@@ -145,7 +145,7 @@ function dailyPost(day, vol = null, ext = null) {   // v195: vol = /api/vol(今�
       const c = en ? (cb ? 'MONETARY POLICY' : 'MACRO DATA') : `${r[1]}・${cb ? '金融政策' : '経済指標'}`;
       return [`🔴 ${en ? eh(g[0].ts) : hm(g[0].ts)}`, `🟡 ${cb ? '🏦' : r[0]} ${name}`, ...(cat ? ['   ' + c] : [])];
     };
-    const tag = en ? '$BTC #Macro' : '$BTC #経済指標';   // v340: $BTC に
+    const tag = '$BTC';   // v354: タグは $BTC だけ
     const mk = (tn, o) => {
       const rule = '━'.repeat(o.rule), rest = tg.length - tn;
       const body = tg.length ? tg.slice(0, tn).flatMap((g, i) => [...(i ? [''] : []), ...ev(g, o.cat)]) : [en ? 'No scheduled events' : '予定なし'];
@@ -154,7 +154,7 @@ function dailyPost(day, vol = null, ext = null) {   // v195: vol = /api/vol(今�
         ...body, ...(rest > 0 ? ['', en ? `+${rest} more` : `ほか${rest}件`] : []), '', rule,
         ...(o.ex ? EX[lang].slice(0, o.ex) : []),
         ...(nx ? ['', en ? `🟢 NEXT SIGNAL · ${dEn(nx[0].ts)} · ${eh(nx[0].ts)}` : `🟢 次の予定 · ${dJa(nx[0].ts)} · ${hm(nx[0].ts)}`, `🟡 ${isCB(nx) ? '🏦' : (REG[nx[0].c] || ['📅'])[0]} ${en ? groupLine(nx, 'en').toUpperCase() : groupLine(nx, 'ja')}`] : []),
-        '', L.sigOf(lang), tag].join('\n');   // v340: 署名「数字で見るBTCの歴史。」
+        '', tag].join('\n');   // v354: 署名はやめた
     };
     const OPT = [{ cat: 1, rule: 10 }, { rule: 10 }, { rule: 6 }];   // v340: ブランド行はやめて、最後に署名
     for (let tn = tg.length; tn >= 0; tn--) for (let k = EX[lang].length; k >= 0; k--) for (const o of OPT) { const t = mk(tn, { ...o, ex: k }); if (xlen(t) <= 260) return t; }   // 優先: 指標 > 追加の行 > ブランド行・線の長さ   // v195/v202: 追加の行(📊🔁✅)は指標より後回し。260 = 番号の行の分をあける   // v195: 📊の行は指標より後回し
@@ -442,8 +442,8 @@ try {
   if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(force.kind === 'shockbn' || force.kind === 'shockcmp' ? force.kind : next, fwhy);   // v254: ボタンで選んだほう
   else if (n < 1 || n > (L.SHOCK.autoEnd || L.SHOCK.post)) console.log('[x] ショック比較: 期間外', n);   // v329: 自動は30日目まで
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
+  else if (L.SHOCK.mile && !L.SHOCK.mile.includes(n)) console.log('[x] ショック比較: 節目の日ではないので出さない(急変動・最安・回復のきっかけでも)', n + '日目');   // v353: 22日目に急落のきっかけで出てしまったので、節目の日以外は何があっても出さない
   else if (trig && !lsBusy && NOW - lastT >= G.trigGap && today < G.perDay) put1('shockbn', trig);
-  else if (L.SHOCK.mile && !L.SHOCK.mile.includes(n)) console.log('[x] ショック比較: 節目の日ではないので空き枠には出さない', n + '日目');   // v321
   else if (!busy && h >= G.from && h < G.to && NOW - lastT >= G.every && today < (L.SHOCK.mile ? 1 : G.slotPerDay)) put1(next, 'slot' + h);   // v258: 時刻を付けて、同じ日・同じ種類の2本目もぶつからない
   else if (today === 0 && h === G.last && NOW - lastT >= G.every) put1(next, 'slot' + h);   // v251: 22時台まで1本も出ていなければ、空きを待たずに出す(1日最低1本)
   else console.log('[x] ショック比較: 今回は出さない', { n, trig, busy, h, sinceH: Math.round((NOW - lastT) / 36e5) });
