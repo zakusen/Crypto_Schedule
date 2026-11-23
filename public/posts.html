@@ -135,7 +135,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
       <div class="ti"><button class="chip" id="twBtn" title="当初調達額で歴代1位・2位の上場(SpaceX・Anthropic)。上場日からの日数をそろえ、今回のローソク足に前回の道(90日後まで)を光る線で重ねる(コピペで投稿)">🛤 前回の道を重ねる</button><span class="td">SpaceX上場の道 × 今回のAnthropic</span></div>
       <div class="ti"><button class="chip" id="sigBtn" title="先に決めた5つの底のサイン(週足6週連続安・365日高値から-30%・恐怖と強欲≤20・資金調達率7日平均≤0・建玉14日で-15%)の今の点灯数と、過去に4つ以上点灯した全部の回の30日後・90日後を、画像と本文にする(コピペで投稿)">🚦 底のサイン(5つ)</button><span class="td">今の点灯数と、過去に4つ以上点灯した全部の回</span></div>
       <div class="ti"><button class="chip" id="lnBtn" title="価格の線(例 62000)を入れると、過去約2.7年で上からその線に来た回と、その後30日で持ちこたえたか・割り込んだかを、3日足のローソクと表にした画像と本文を作る(コピペで投稿)">📏 この線は何？(サポートの過去)</button><span class="td">線の値段を入れて、過去に来た回とその後</span></div>
-      <div class="ti"><button class="chip" id="bncBtn" title="直近◯時間(1〜72・1時間刻み)の天井から何%下げ、底から何%戻したかを、ローソク足と3つの点(天井・底・いま)で(コピペで投稿)">↩ 天井→底→いま</button><span class="td">◯時間の天井から何%下げ、底から何%戻した</span></div>
+      <div class="ti"><button class="chip" id="bncBtn" title="直近◯時間(1〜72・1時間刻み)の天井から何%下げ、底から何%戻したかを、ローソク足と3つの点(天井・底・いま)で。2017年以降の同じ形(同じ時間・下げ0.7〜1.5倍・戻した割合±15ポイント)の24時間後も(コピペで投稿)">↩ 天井→底→いま</button><span class="td">◯時間の天井から何%下げ、底から何%戻した</span></div>
       <div class="ti"><button class="chip" id="niaBtn" title="急落の最中に。直近1〜72時間(1時間刻みで選べる)の高値から今までのローソク足(縦長)と、過去の同じ急落が24時間以内に半分戻したかを1段にした画像と本文を作る(コピペで投稿)">🌊 ナイアガラ(急落の足)</button><span class="td">時間を選んで縦長のローソク足＋過去の同じ急落の答え</span></div>
       <div class="ti"><button class="chip" id="ipoBtn" title="大型上場の日(コインベース・SpaceX・Anthropic)の取引開始の前後24時間のBTC(15分足)を1枚に重ね、取引開始から24時間後の変化を本文に(コピペで投稿)">🔔 大型上場の日×BTC</button><span class="td">取引開始の前後24時間・15分足</span></div>
       <div class="ti"><button class="chip" id="csBtn" title="BTC×S&P500 の相関(7日・24時間窓)を、自動投稿と同じ記録から本文と画像に(コピペで投稿)">📈 相関 S&P500</button><span class="td">自動投稿と同じ記録から</span></div>
@@ -791,10 +791,15 @@ runBtn('pnBtn', async () => { const now = Date.now(); let j = null; for (const h
 // v355: 週足の連続安
 runBtn('stkBtn', async () => { const now = Date.now(); let j = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=1w&limit=1000`); if (r.ok) { j = await r.json(); break; } } catch (_) {} }
   if (!j) throw new Error('週足が取れません'); return L.streakDraft(j.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]), now); });
-// v359: 天井→底→いま(5分足・1〜72時間)
-runBtn('bncBtn', async () => { const hrs = Number(prompt('直近何時間で見ますか？（1〜72の整数・1時間刻み）', '6')); if (!Number.isInteger(hrs) || hrs < 1 || hrs > 72) throw new Error('1〜72の整数で入れてください');
-  const now = Date.now(); let j = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=1000`); if (r.ok) { j = await r.json(); break; } } catch (_) {} }
-  if (!j) throw new Error('5分足が取れません'); const p = L.bounceDraft(j.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]), now, hrs); if (!p) throw new Error('足が足りません'); return p; });
+// v359→v360: 天井→底→いま(5分足・1〜72時間)＋同じ形の過去(1時間足・2017〜)
+runBtn('bncBtn', async (b) => { const hrs = Number(prompt('直近何時間で見ますか？（1〜72の整数・1時間刻み）', '6')); if (!Number.isInteger(hrs) || hrs < 1 || hrs > 72) throw new Error('1〜72の整数で入れてください');
+  const now = Date.now(), H1 = 36e5; let host = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/ping`); if (r.ok) { host = h; break; } } catch (_) {} } if (!host) throw new Error('Binance に届きません');
+  const j = await (await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=1000`)).json();
+  const starts = []; for (let st = Date.UTC(2017, 7, 17); st < now; st += 1000 * H1) starts.push(st);
+  const got = new Array(starts.length); let done = 0;
+  for (let q = 0; q < starts.length; q += 8) { await Promise.all(starts.slice(q, q + 8).map(async (st, z) => { for (let tr = 0; tr < 3; tr++) { try { const r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${st}&limit=1000`); if (r.ok) { got[q + z] = await r.json(); break; } } catch (_) {} } done++; })); b.textContent = `取得中… ${Math.round(done / starts.length * 100)}%`; }
+  const k1 = []; for (const x of got) for (const y of x || []) k1.push([+y[0], +y[1], +y[2], +y[3], +y[4]]);
+  const p = L.bounceDraft(j.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]), now, hrs, k1); if (!p) throw new Error('足が足りません'); return p; });
 // v341: ニュースと相関(見出しは手で入れる。相関は自動投稿と同じ記録 ct)
 runBtn('ncBtn', async (b) => {
   const hj = prompt('ニュースの見出し(日本語)', 'FRBの議事要旨、AIブームの崩れを金融システムのリスクとして議論'); if (!hj) throw new Error('見出しが空です');

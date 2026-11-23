@@ -1553,7 +1553,22 @@ export function streakDraft(kw, now) {
 }
 // v359: 天井→底→いま(コピペ)。直近 hrs 時間(1〜72・1時間刻み)の5分足で、いちばん高い値(天井)、その後のいちばん安い値(底)、いまの値。
 // 下げ＝底/天井、戻り＝いま/底、下げ幅の何%を戻したか。画像用に5分足を束ねて60〜120本にする
-export function bounceDraft(k5, now, hrs) {
+// v360: 同じ形の過去(1時間足・2017〜)。同じ長さの窓で、天井→底の下げが今回の0.7〜1.5倍、下げ幅を戻した割合が今回±15ポイント。続いた時間は1回(24時間空ける)
+// その後24時間：終値が上か下か、底を割ったか(二番底)、天井を超えたか。結果を見てから幅は変えない
+export const BOUNCE = { lo: 0.7, hi: 1.5, back: 15, after: 24 };
+export function bounceStudy(k1, cur) {
+  const h = cur.hrs, n = k1.length, out = []; let skip = -1;
+  for (let e = h - 1; e < n - BOUNCE.after - 1; e++) { if (e <= skip) continue;
+    let pi = e - h + 1; for (let i = pi; i <= e; i++) if (k1[i][2] > k1[pi][2]) pi = i;
+    let ti = pi; for (let i = pi; i <= e; i++) if (k1[i][3] < k1[ti][3]) ti = i;
+    const P = k1[pi][2], T = k1[ti][3], C = k1[e][4], dn = (T / P - 1) * 100; if (!(dn <= cur.dn * BOUNCE.lo && dn >= cur.dn * BOUNCE.hi)) continue;
+    const back = (C - T) / (P - T) * 100; if (Math.abs(back - cur.back) > BOUNCE.back) continue;
+    let lo = Infinity, hi = 0; for (let i = e + 1; i <= e + BOUNCE.after; i++) { lo = Math.min(lo, k1[i][3]); hi = Math.max(hi, k1[i][2]); }
+    out.push({ t: k1[e][0], dn: +dn.toFixed(2), back: Math.round(back), chg: +((k1[e + BOUNCE.after][4] / C - 1) * 100).toFixed(2), newLow: lo < T, newHigh: hi > P }); skip = e + BOUNCE.after; }
+  const up = out.filter((x) => x.chg > 0).length, srt = out.map((x) => x.chg).sort((a, b) => a - b);
+  return { n: out.length, up, dn: out.length - up, med: srt.length ? srt[Math.floor(srt.length / 2)] : null, newLow: out.filter((x) => x.newLow).length, newHigh: out.filter((x) => x.newHigh).length, ev: out, from: k1[0][0] };
+}
+export function bounceDraft(k5, now, hrs, k1) {
   const n = Math.round(hrs * 12), K = k5.slice(-n); if (K.length < 6) return null;
   let pi = 0; for (let i = 1; i < K.length; i++) if (K[i][2] > K[pi][2]) pi = i;
   let ti = pi; for (let i = pi; i < K.length; i++) if (K[i][3] < K[ti][3]) ti = i;
@@ -1561,7 +1576,8 @@ export function bounceDraft(k5, now, hrs) {
   const st = Math.max(1, Math.ceil(K.length / 120)), bars = []; for (let i = 0; i < K.length; i += st) { const g = K.slice(i, i + st); bars.push([g[0][0], g[0][1], Math.max(...g.map((x) => x[2])), Math.min(...g.map((x) => x[3])), g[g.length - 1][4]]); }
   const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), s2 = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%', hm = (t) => { const d = new Date(t + JST); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; }, hmU = (t) => new Date(t).toISOString().slice(11, 16) + ' UTC';
   const s = { hrs, P, T, C, pT: K[pi][0], tT: K[ti][0], dn: +dn.toFixed(2), up: +up.toFixed(2), back: Math.round(back), bars, step: st * 5, now };
-  const ja = voice({ h: `BTC、${hrs}時間の天井から${s2(dn)}、底から${s2(up)}。`, b: [`天井${$(P)}（${hm(K[pi][0])}）→底${$(T)}（${hm(K[ti][0])}）`, `いま${$(C)}。下げ幅の${s.back}%を戻した`] }, 'ja');
-  const en = voice({ h: `BTC: ${s2(dn)} from the ${hrs}h high, then ${s2(up)} off the low.`, b: [`High ${$(P)} (${hmU(K[pi][0])}) → low ${$(T)} (${hmU(K[ti][0])})`, `Now ${$(C)}, ${s.back}% of the drop won back`] }, 'en');
+  const sd = k1 && k1.length > 1000 ? bounceStudy(k1, s) : null; s.study = sd; const yr = sd ? new Date(sd.from).getUTCFullYear() : null, s1 = (v) => (Math.abs(v) < 0.05 ? '±' : v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%';
+  const ja = voice({ h: `BTC、${hrs}時間の天井から${s2(dn)}、底から${s2(up)}。`, b: [`天井${$(P)}（${hm(K[pi][0])}）→底${$(T)}（${hm(K[ti][0])}）、いま${$(C)}`, sd && sd.n ? `${yr}年以降、同じ形は${sd.n}回。24時間後に上${sd.up}回・下${sd.dn}回（中央値${s1(sd.med)}）` : null, sd && sd.n ? `そのうち底を割ったのは${sd.newLow}回、天井を超えたのは${sd.newHigh}回` : null] }, 'ja');
+  const en = voice({ h: `BTC: ${s2(dn)} from the ${hrs}h high, then ${s2(up)} off the low.`, b: [`High ${$(P)} → low ${$(T)}, now ${$(C)} (${s.back}% of the drop won back)`, sd && sd.n ? `Same shape since ${yr}: ${sd.n} times. 24h later: higher ${sd.up}, lower ${sd.dn} (median ${s1(sd.med)})` : null, sd && sd.n ? `Broke the low: ${sd.newLow}. Topped the high: ${sd.newHigh}` : null] }, 'en');
   return { id: 'bounce:copy:' + now, sr: 'bounce', man: 1, due: now, ja, en, img: { bounce: s } };
 }
