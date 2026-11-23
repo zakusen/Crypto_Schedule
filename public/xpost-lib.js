@@ -394,7 +394,7 @@ export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch
 // v298: 夜のまとめ(sum)・値動きの大きさ(vol)・BTC実況(pat)・ハッキング追跡(hack・bnstatus・bnreply)の自動投稿をやめた(ビューがほぼ無いため。下書きは作り続ける)
 // v328: 自動で出すのは 予定表・BTC×S&P500相関・FOMC/CPI/雇用統計/PCE の予告(1時間前+TOP3)と結果・Binance 2019 vs 2026(90日で自然に終わる) だけ。
 //   止めた: 24時間の清算・巨額清算・指標前後の清算・急変動(と返信・過去比較)・ショック後のBTC・ブームと危機(週・月)・大量清算の後のBTC・週のまとめ。下書きは作られるが投稿されない
-export const AUTO_ON = new Set(['corrts', 'fomc', 'fomcc', 'shockbn']);   // v337: 指標の結果(fomcres)も止めた
+export const AUTO_ON = new Set(['corrts', 'fomc', 'fomcc']);   // v357: Binance 2019 vs 2026(shockbn)も止めた(節目の日以外にも出たため。下書きも作らない)   // v337: 指標の結果(fomcres)も止めた
 export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (AUTO_ON.has(p.sr) || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
@@ -402,7 +402,8 @@ export function dueList(posts, events, now) {
   for (const p of posts || []) { seen.add(p.id); if (!isAuto(p) || !p.due) continue; for (const lg of langsOf(p)) { const d = dueOf(p, lg); if (!(p.done && p.done[lg]) && d > now - winOf(p) && d < now + 8 * DAY) items.push({ id: p.id, due: d }); } }   // v173: 言語ごと
   for (const g of autoGroups(events)) { const id = archId(g), due = g[0].ts + ARCH_WAIT; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }
   for (const g of groups((events || []).filter(MAJOR))) { const id = liqImpId(g), due = liqImpDue(g[0].ts); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v171: 清算の反応(下書きは x_notify が、データが揃ってから作る)
-  for (const m of SHOCK.mile || []) { const d0 = Date.parse((SHOCK.ev.find((e) => e.id === SHOCK.cur) || {}).d0 + 'T00:00:00Z') + m * DAY, due = dayStart(d0 + 12 * H) + 23 * H + 40 * 60000, id = 'shockwake:' + m; if (due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v337: Binance の節目の日の23:40に X post を起こす
+  for (const m of []) {   // v357: Binance の節目の起こしも止めた
+  /* 元: SHOCK.mile */ const d0 = Date.parse((SHOCK.ev.find((e) => e.id === SHOCK.cur) || {}).d0 + 'T00:00:00Z') + m * DAY, due = dayStart(d0 + 12 * H) + 23 * H + 40 * 60000, id = 'shockwake:' + m; if (due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v337: Binance の節目の日の23:40に X post を起こす
   for (const k of [0, 1]) { const due = dayStart(now + k * DAY) + CORRTS.postFrom * H + 10 * 60000, id = 'corrts:' + isoDay(due); if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 2 * DAY) items.push({ id, due }); }   // v336: 相関の定時(0時台)に X post を起こす
   // v337: 夜のまとめ(sum)は止めたので、起こす予定も入れない
   for (const { g, k } of bigGroups(events)) for (let n = 1; n <= FOMC_SLOTS.length; n++) { if (FOMC_OFF.has(n)) continue; const id = fomcId(g[0].ts, n, k), due = n === FOMC_SLOTS.length ? fomcPreDue(g[0].ts) : g[0].ts - FOMC_SLOTS[n - 1]; if (!seen.has(id) && due > now - AUTO_WINDOW && due < now + 8 * DAY) items.push({ id, due }); }   // v208: FOMC の臨時予告

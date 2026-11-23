@@ -439,7 +439,8 @@ try {
   const next = 'shockbn';   // v328: ショック後のBTC(shockcmp)は止めた。Binance 2019 vs 2026 だけ
   const force = null;   // v330: 「ショック比較を今出す」(ボタンから自動投稿)は廃止
   const fwhy = force && force.at && NOW - force.at < 3 * H && force.at > lastT ? 'f' + Math.floor(force.at / 60000) : null;
-  if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(force.kind === 'shockbn' || force.kind === 'shockcmp' ? force.kind : next, fwhy);   // v254: ボタンで選んだほう
+  if (true) console.log('[x] ショック比較: 自動は止めた(v357)。下書きも作らない', n + '日目');
+  else if (fwhy && n >= 1 && !mine.some((p) => p.why === fwhy)) put1(force.kind === 'shockbn' || force.kind === 'shockcmp' ? force.kind : next, fwhy);   // v254: ボタンで選んだほう
   else if (n < 1 || n > (L.SHOCK.autoEnd || L.SHOCK.post)) console.log('[x] ショック比較: 期間外', n);   // v329: 自動は30日目まで
   else if (!mine.length) put1('shockbn', 'first');   // v249: v243 の古い下書き(why なし・出していない)は数えない   // v248: 最初の1本はすぐ出す(空き枠を待たない)
   else if (L.SHOCK.mile && !L.SHOCK.mile.includes(n)) console.log('[x] ショック比較: 節目の日ではないので出さない(急変動・最安・回復のきっかけでも)', n + '日目');   // v353: 22日目に急落のきっかけで出てしまったので、節目の日以外は何があっても出さない
