@@ -2100,7 +2100,7 @@ function drawBounce(g, d, lg) {
   lt(g, en ? `BTC · LAST ${d.hrs} HOURS` : `BTC・直近${d.hrs}時間`, 60, 70, { s: 22, w: 900, f: LN, c: '#9ca3af' });
   lt(g, en ? 'From the high' : '天井から', 60, 146, { s: 56, w: 900 }); g.font = `900 56px ${LJ}`; const w1 = g.measureText(en ? 'From the high ' : '天井から').width;
   lt(g, s2(d.dn), 60 + w1, 146, { s: 56, w: 900, f: LN, c: DN, glow: 'rgba(255,59,79,.45)', b: 8 });
-  lt(g, en ? 'then off the low' : 'そこから', 60, 222, { s: 56, w: 900 }); g.font = `900 56px ${LJ}`; const w2 = g.measureText(en ? 'then off the low ' : 'そこから').width;
+  lt(g, en ? 'then off the low' : '底から', 60, 222, { s: 56, w: 900 }); g.font = `900 56px ${LJ}`; const w2 = g.measureText(en ? 'then off the low ' : '底から').width;
   lt(g, s2(d.up), 60 + w2, 222, { s: 56, w: 900, f: LN, c: UP, glow: 'rgba(22,199,132,.45)', b: 8 });
   const b = d.bars; let hi = Math.max(...b.map((x) => x[2])), lo = Math.min(...b.map((x) => x[3])); const pd = (hi - lo) * 0.1; hi += pd; lo -= pd;
   const x0 = 60, x1 = W - 290, y0 = 300, y1 = 1150, stp = (x1 - x0) / b.length, bw = Math.max(3, stp * 0.64), X = (i) => x0 + stp * (i + 0.5), Y = (v) => y0 + (hi - v) / (hi - lo) * (y1 - y0);

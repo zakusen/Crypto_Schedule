@@ -1561,7 +1561,7 @@ export function bounceDraft(k5, now, hrs) {
   const st = Math.max(1, Math.ceil(K.length / 120)), bars = []; for (let i = 0; i < K.length; i += st) { const g = K.slice(i, i + st); bars.push([g[0][0], g[0][1], Math.max(...g.map((x) => x[2])), Math.min(...g.map((x) => x[3])), g[g.length - 1][4]]); }
   const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), s2 = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%', hm = (t) => { const d = new Date(t + JST); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; }, hmU = (t) => new Date(t).toISOString().slice(11, 16) + ' UTC';
   const s = { hrs, P, T, C, pT: K[pi][0], tT: K[ti][0], dn: +dn.toFixed(2), up: +up.toFixed(2), back: Math.round(back), bars, step: st * 5, now };
-  const ja = voice({ h: `BTC、${hrs}時間の天井から${s2(dn)}、そこから${s2(up)}。`, b: [`天井${$(P)}（${hm(K[pi][0])}）→底${$(T)}（${hm(K[ti][0])}）`, `いま${$(C)}。下げ幅の${s.back}%を戻した`] }, 'ja');
+  const ja = voice({ h: `BTC、${hrs}時間の天井から${s2(dn)}、底から${s2(up)}。`, b: [`天井${$(P)}（${hm(K[pi][0])}）→底${$(T)}（${hm(K[ti][0])}）`, `いま${$(C)}。下げ幅の${s.back}%を戻した`] }, 'ja');
   const en = voice({ h: `BTC: ${s2(dn)} from the ${hrs}h high, then ${s2(up)} off the low.`, b: [`High ${$(P)} (${hmU(K[pi][0])}) → low ${$(T)} (${hmU(K[ti][0])})`, `Now ${$(C)}, ${s.back}% of the drop won back`] }, 'en');
   return { id: 'bounce:copy:' + now, sr: 'bounce', man: 1, due: now, ja, en, img: { bounce: s } };
 }
