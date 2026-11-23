@@ -1564,20 +1564,31 @@ export function bounceStudy(k1, cur) {
     const P = k1[pi][2], T = k1[ti][3], C = k1[e][4], dn = (T / P - 1) * 100; if (!(dn <= cur.dn * BOUNCE.lo && dn >= cur.dn * BOUNCE.hi)) continue;
     const back = (C - T) / (P - T) * 100; if (Math.abs(back - cur.back) > BOUNCE.back) continue;
     let lo = Infinity, hi = 0; for (let i = e + 1; i <= e + BOUNCE.after; i++) { lo = Math.min(lo, k1[i][3]); hi = Math.max(hi, k1[i][2]); }
-    out.push({ t: k1[e][0], dn: +dn.toFixed(2), back: Math.round(back), chg: +((k1[e + BOUNCE.after][4] / C - 1) * 100).toFixed(2), newLow: lo < T, newHigh: hi > P }); skip = e + BOUNCE.after; }
+    const path = []; for (let i = e; i <= e + BOUNCE.after; i++) path.push(+((k1[i][4] / C - 1) * 100).toFixed(2));   // v362: その後24時間の道(いま＝0%)
+    out.push({ path, t: k1[e][0], dn: +dn.toFixed(2), back: Math.round(back), chg: +((k1[e + BOUNCE.after][4] / C - 1) * 100).toFixed(2), newLow: lo < T, newHigh: hi > P }); skip = e + BOUNCE.after; }
   const up = out.filter((x) => x.chg > 0).length, srt = out.map((x) => x.chg).sort((a, b) => a - b);
   return { n: out.length, up, dn: out.length - up, med: srt.length ? srt[Math.floor(srt.length / 2)] : null, newLow: out.filter((x) => x.newLow).length, newHigh: out.filter((x) => x.newHigh).length, ev: out, from: k1[0][0] };
 }
-export function bounceDraft(k5, now, hrs, k1) {
+export function bounceDraft(k5, now, hrs, k1) {   // v361: k1 は使わない(同じ形の過去は bounceCmpDraft で別の投稿に)
   const n = Math.round(hrs * 12), K = k5.slice(-n); if (K.length < 6) return null;
   let pi = 0; for (let i = 1; i < K.length; i++) if (K[i][2] > K[pi][2]) pi = i;
   let ti = pi; for (let i = pi; i < K.length; i++) if (K[i][3] < K[ti][3]) ti = i;
   const P = K[pi][2], T = K[ti][3], C = K[K.length - 1][4], dn = (T / P - 1) * 100, up = (C / T - 1) * 100, back = P > T ? (C - T) / (P - T) * 100 : 0;
   const st = Math.max(1, Math.ceil(K.length / 120)), bars = []; for (let i = 0; i < K.length; i += st) { const g = K.slice(i, i + st); bars.push([g[0][0], g[0][1], Math.max(...g.map((x) => x[2])), Math.min(...g.map((x) => x[3])), g[g.length - 1][4]]); }
   const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), s2 = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%', hm = (t) => { const d = new Date(t + JST); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; }, hmU = (t) => new Date(t).toISOString().slice(11, 16) + ' UTC';
-  const s = { hrs, P, T, C, pT: K[pi][0], tT: K[ti][0], dn: +dn.toFixed(2), up: +up.toFixed(2), back: Math.round(back), bars, step: st * 5, now };
-  const sd = k1 && k1.length > 1000 ? bounceStudy(k1, s) : null; s.study = sd; const yr = sd ? new Date(sd.from).getUTCFullYear() : null, s1 = (v) => (Math.abs(v) < 0.05 ? '±' : v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%';
-  const ja = voice({ h: `BTC、${hrs}時間の天井から${s2(dn)}、底から${s2(up)}。`, b: [`天井${$(P)}（${hm(K[pi][0])}）→底${$(T)}（${hm(K[ti][0])}）、いま${$(C)}`, sd && sd.n ? `${yr}年以降、同じ形は${sd.n}回。24時間後に上${sd.up}回・下${sd.dn}回（中央値${s1(sd.med)}）` : null, sd && sd.n ? `そのうち底を割ったのは${sd.newLow}回、天井を超えたのは${sd.newHigh}回` : null] }, 'ja');
+  const shape = K.map((x) => +((x[4] / C - 1) * 100).toFixed(3));   // v362: 今回の形(いま＝0%)
+  const s = { shape, hrs, P, T, C, pT: K[pi][0], tT: K[ti][0], dn: +dn.toFixed(2), up: +up.toFixed(2), back: Math.round(back), bars, step: st * 5, now };
+  const sd = null; s.study = null; const yr = sd ? new Date(sd.from).getUTCFullYear() : null, s1 = (v) => (Math.abs(v) < 0.05 ? '±' : v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%';
+  const ja = voice({ h: `BTC、${hrs}時間の天井から${s2(dn)}、底から${s2(up)}。`, b: [`天井${$(P)}（${hm(K[pi][0])}）→底${$(T)}（${hm(K[ti][0])}）`, `いま${$(C)}。下げ幅の${s.back}%を戻した`, sd && sd.n ? `${yr}年以降、同じ形は${sd.n}回。24時間後に上${sd.up}回・下${sd.dn}回（中央値${s1(sd.med)}）` : null, sd && sd.n ? `そのうち底を割ったのは${sd.newLow}回、天井を超えたのは${sd.newHigh}回` : null] }, 'ja');
   const en = voice({ h: `BTC: ${s2(dn)} from the ${hrs}h high, then ${s2(up)} off the low.`, b: [`High ${$(P)} → low ${$(T)}, now ${$(C)} (${s.back}% of the drop won back)`, sd && sd.n ? `Same shape since ${yr}: ${sd.n} times. 24h later: higher ${sd.up}, lower ${sd.dn} (median ${s1(sd.med)})` : null, sd && sd.n ? `Broke the low: ${sd.newLow}. Topped the high: ${sd.newHigh}` : null] }, 'en');
   return { id: 'bounce:copy:' + now, sr: 'bounce', man: 1, due: now, ja, en, img: { bounce: s } };
+}
+
+// v361: 同じ形の過去(別の投稿・コピペ)。天井→底→いまの形を出し、bounceStudy の結果を本文と画像に
+export function bounceCmpDraft(k5, now, hrs, k1) {
+  const base = bounceDraft(k5, now, hrs); if (!base) return null; const cur = base.img.bounce, sd = bounceStudy(k1, cur), yr = new Date(sd.from).getUTCFullYear();
+  const s1 = (v) => (Math.abs(v) < 0.05 ? '±' : v > 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%', rng = `${s1(cur.dn * BOUNCE.lo)}〜${s1(cur.dn * BOUNCE.hi)}`, rngB = `${Math.max(0, cur.back - BOUNCE.back)}〜${cur.back + BOUNCE.back}%`;
+  const ja = voice({ h: `この${hrs}時間と同じ形、${yr}年以降で${sd.n}回。`, b: [sd.n ? `24時間後に上${sd.up}回・下${sd.dn}回（中央値${s1(sd.med)}）` : null, sd.n ? `底を割ったのは${sd.newLow}回、天井を超えたのは${sd.newHigh}回` : null, `同じ形＝${hrs}時間で天井から${rng}、下げ幅の${rngB}を戻した`] }, 'ja');
+  const en = voice({ h: `The same ${hrs}h shape: ${sd.n} times since ${yr}.`, b: [sd.n ? `24h later: higher ${sd.up}, lower ${sd.dn} (median ${s1(sd.med)})` : null, sd.n ? `Broke the low: ${sd.newLow}. Topped the high: ${sd.newHigh}` : null, `Shape = ${rng} from the ${hrs}h high, ${rngB} of it won back`] }, 'en');
+  return { id: 'bouncecmp:copy:' + now, sr: 'bouncecmp', man: 1, due: now, ja, en, img: { bcmp: { cur, sd, yr, rng, rngB } } };
 }
