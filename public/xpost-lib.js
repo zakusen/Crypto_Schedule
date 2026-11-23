@@ -1551,3 +1551,17 @@ export function streakDraft(kw, now) {
   const en = voice({ h: cur ? `BTC: ${cur.len} straight red weekly candles (this week not closed yet).` : 'BTC weekly losing streaks.', b: [`${STREAK.min}+ week streaks since ${y0}: ${S.length}${cur ? ', including this one' : ''}.`, ...past.slice(-2).map((x) => `${ym(x.t0, 1)}: ${x.len} weeks (${sg(x.drop)}), ${x.aft == null ? '—' : sg(x.aft)} 4 weeks after it ended.`)], minB: 2 }, 'en');
   return { id: 'streak:copy:' + now, sr: 'streak', man: 1, due: now, ja, en, img: { streak: { kw, S, y0, now } } };
 }
+// v359: 天井→底→いま(コピペ)。直近 hrs 時間(1〜72・1時間刻み)の5分足で、いちばん高い値(天井)、その後のいちばん安い値(底)、いまの値。
+// 下げ＝底/天井、戻り＝いま/底、下げ幅の何%を戻したか。画像用に5分足を束ねて60〜120本にする
+export function bounceDraft(k5, now, hrs) {
+  const n = Math.round(hrs * 12), K = k5.slice(-n); if (K.length < 6) return null;
+  let pi = 0; for (let i = 1; i < K.length; i++) if (K[i][2] > K[pi][2]) pi = i;
+  let ti = pi; for (let i = pi; i < K.length; i++) if (K[i][3] < K[ti][3]) ti = i;
+  const P = K[pi][2], T = K[ti][3], C = K[K.length - 1][4], dn = (T / P - 1) * 100, up = (C / T - 1) * 100, back = P > T ? (C - T) / (P - T) * 100 : 0;
+  const st = Math.max(1, Math.ceil(K.length / 120)), bars = []; for (let i = 0; i < K.length; i += st) { const g = K.slice(i, i + st); bars.push([g[0][0], g[0][1], Math.max(...g.map((x) => x[2])), Math.min(...g.map((x) => x[3])), g[g.length - 1][4]]); }
+  const $ = (v) => '$' + Math.round(v).toLocaleString('en-US'), s2 = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%', hm = (t) => { const d = new Date(t + JST); return `${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; }, hmU = (t) => new Date(t).toISOString().slice(11, 16) + ' UTC';
+  const s = { hrs, P, T, C, pT: K[pi][0], tT: K[ti][0], dn: +dn.toFixed(2), up: +up.toFixed(2), back: Math.round(back), bars, step: st * 5, now };
+  const ja = voice({ h: `BTC、${hrs}時間の天井から${s2(dn)}、そこから${s2(up)}。`, b: [`天井${$(P)}（${hm(K[pi][0])}）→底${$(T)}（${hm(K[ti][0])}）`, `いま${$(C)}。下げ幅の${s.back}%を戻した`] }, 'ja');
+  const en = voice({ h: `BTC: ${s2(dn)} from the ${hrs}h high, then ${s2(up)} off the low.`, b: [`High ${$(P)} (${hmU(K[pi][0])}) → low ${$(T)} (${hmU(K[ti][0])})`, `Now ${$(C)}, ${s.back}% of the drop won back`] }, 'en');
+  return { id: 'bounce:copy:' + now, sr: 'bounce', man: 1, due: now, ja, en, img: { bounce: s } };
+}
