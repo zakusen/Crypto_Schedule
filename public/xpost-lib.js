@@ -1592,3 +1592,22 @@ export function bounceCmpDraft(k5, now, hrs, k1) {
   const en = voice({ h: `The same ${hrs}h shape: ${sd.n} times since ${yr}.`, b: [sd.n ? `24h later: higher ${sd.up}, lower ${sd.dn} (median ${s1(sd.med)})` : null, sd.n ? `Broke the low: ${sd.newLow}. Topped the high: ${sd.newHigh}` : null, `Shape = ${rng} from the ${hrs}h high, ${rngB} of it won back`] }, 'en');
   return { id: 'bouncecmp:copy:' + now, sr: 'bouncecmp', man: 1, due: now, ja, en, img: { bcmp: { cur, sd, yr, rng, rngB } } };
 }
+// v363: 恐怖指数が10を割ったあと(コピペ)。alternative.me の恐怖と強欲指数が10以下になった最初の日(その前30日は10より上)を起点＝0%として、
+// 2018年以降の全回の BTC 日足(Binance)を −30〜+180日で重ねる。線の色＝その日の恐怖と強欲指数の区分。今回(起点から180日たっていない最後の回)は光らせる
+export const FEARX = { th: 10, quiet: 30, pre: 30, post: 180 };
+export const FEAR_BANDS = [[0, 24, '極度の恐怖', 'Extreme fear', '#ff3b4f'], [25, 44, '恐怖', 'Fear', '#ff9f43'], [45, 55, '中立', 'Neutral', '#8a9099'], [56, 75, '強欲', 'Greed', '#7bd88f'], [76, 100, '極度の強欲', 'Extreme greed', '#16c784']];
+export function fearxDraft(kd, fng, now) {
+  const F = new Map(fng.map(([t, v]) => [Math.floor(t / DAY) * DAY, v])), C = new Map(kd.map((x) => [x[0], x[4]])), days = kd.map((x) => x[0]), lastT = days[days.length - 1];
+  const starts = [];
+  for (const t of days) { const v = F.get(t); if (v == null) continue; if (v <= FEARX.th) { let ok = true; for (let q = 1; q <= FEARX.quiet; q++) { const w = F.get(t - q * DAY); if (w != null && w <= FEARX.th) { ok = false; break; } } if (ok) starts.push(t); } }
+  const ep = starts.map((t0) => { const c0 = C.get(t0), p = [], f = []; for (let d = -FEARX.pre; d <= FEARX.post; d++) { const t = t0 + d * DAY, c = C.get(t); if (c == null) continue; p.push([d, (c / c0 - 1) * 100]); f.push(F.get(t) ?? null); }
+    const end = p.find((x) => x[0] === FEARX.post); return { t0, f0: F.get(t0), p, f, end: end ? end[1] : null, live: t0 + FEARX.post * DAY > lastT }; });
+  const cur = ep.filter((e) => e.live).slice(-1)[0] || null, past = ep.filter((e) => e !== cur), done = past.filter((e) => e.end != null);
+  const up = done.filter((e) => e.end > 0).length, srt = done.map((e) => e.end).sort((a, b) => a - b), med = srt.length ? srt[Math.floor(srt.length / 2)] : null;
+  const ym = (t, en) => { const d = new Date(t); return en ? `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()]} ${d.getUTCFullYear()}` : `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月`; };
+  const s0 = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(0) + '%', yr = new Date(days.find((t) => F.has(t)) || days[0]).getUTCFullYear(), fNow = F.get(lastT) ?? F.get(lastT - DAY);
+  const best = done.slice().sort((a, b) => b.end - a.end)[0], worst = done.slice().sort((a, b) => a.end - b.end)[0], kNow = cur ? Math.round((lastT - cur.t0) / DAY) : null;
+  const ja = voice({ h: `恐怖指数が10を割ったあと、${yr}年以降で${done.length}回。`, b: [done.length ? `180日後に上${up}回・下${done.length - up}回（中央値${s0(med)}）` : null, best && worst ? `いちばん上は${ym(best.t0)}の${s0(best.end)}、いちばん下は${ym(worst.t0)}の${s0(worst.end)}` : null, cur ? `今回は10を割って${kNow}日目（いまの指数${fNow}）` : null] }, 'ja');
+  const en = voice({ h: `Fear & Greed below 10: ${done.length} times since ${yr}.`, b: [done.length ? `180 days later: higher ${up}, lower ${done.length - up} (median ${s0(med)})` : null, best && worst ? `Best: ${ym(best.t0, 1)} ${s0(best.end)}. Worst: ${ym(worst.t0, 1)} ${s0(worst.end)}` : null, cur ? `This time: day ${kNow} (index now ${fNow})` : null] }, 'en');
+  return { id: 'fearx:copy:' + now, sr: 'fearx', man: 1, due: now, ja, en, img: { fearx: { past, cur, up, n: done.length, med, yr, fNow, kNow } } };
+}

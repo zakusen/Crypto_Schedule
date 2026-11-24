@@ -133,6 +133,7 @@ label.ck.on{color:var(--up);border-color:var(--up);background:#13261f}
       <div class="ti"><button class="chip" id="stkBtn" title="Binanceの週足(2017〜)で、6週以上続けて下げた時期を全部見つけ、新しい3回を週足のローソクで縦に並べる。過去の回は終わって4週後の変化(コピペで投稿)">📉 週足の連続安</button><span class="td">6週以上の連続安を全部・週足チャート</span></div>
       <div class="ti"><button class="chip" id="pnBtn" title="4時間足(11/10〜今)に、3回のパニック売り(11/13〜14・11/15〜16・今夜)の安値と、②のあとの戻りを印した画像と本文(コピペで投稿)">🔻 パニック売り3回</button><span class="td">4時間足に①②③の安値</span></div>
       <div class="ti"><button class="chip" id="twBtn" title="当初調達額で歴代1位・2位の上場(SpaceX・Anthropic)。上場日からの日数をそろえ、今回のローソク足に前回の道(90日後まで)を光る線で重ねる(コピペで投稿)">🛤 前回の道を重ねる</button><span class="td">SpaceX上場の道 × 今回のAnthropic</span></div>
+      <div class="ti"><button class="chip" id="fxBtn" title="恐怖と強欲指数が10を割った最初の日(その前30日は10より上)を起点に、2018年以降の全回のBTCを−30〜+180日で重ねる。線の色＝その日の指数の区分。今回は光らせる(コピペで投稿)">😱 恐怖指数10割れのあと</button><span class="td">過去の全回を180日重ねる・線の色＝指数</span></div>
       <div class="ti"><button class="chip" id="sigBtn" title="先に決めた5つの底のサイン(週足6週連続安・365日高値から-30%・恐怖と強欲≤20・資金調達率7日平均≤0・建玉14日で-15%)の今の点灯数と、過去に4つ以上点灯した全部の回の30日後・90日後を、画像と本文にする(コピペで投稿)">🚦 底のサイン(5つ)</button><span class="td">今の点灯数と、過去に4つ以上点灯した全部の回</span></div>
       <div class="ti"><button class="chip" id="lnBtn" title="価格の線(例 62000)を入れると、過去約2.7年で上からその線に来た回と、その後30日で持ちこたえたか・割り込んだかを、3日足のローソクと表にした画像と本文を作る(コピペで投稿)">📏 この線は何？(サポートの過去)</button><span class="td">線の値段を入れて、過去に来た回とその後</span></div>
       <div class="ti"><button class="chip" id="bncBtn" title="直近◯時間(1〜72・1時間刻み)の天井から何%下げ、底から何%戻したかを、ローソク足と3つの点(天井・底・いま)で(コピペで投稿)">↩ 天井→底→いま</button><span class="td">◯時間の天井から何%下げ、底から何%戻した</span></div>
@@ -805,6 +806,11 @@ runBtn('bcmpBtn', async (b) => { const hrs = Number(prompt('直近何時間の�
   for (let q = 0; q < starts.length; q += 8) { await Promise.all(starts.slice(q, q + 8).map(async (st, z) => { for (let tr = 0; tr < 3; tr++) { try { const r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=1h&startTime=${st}&limit=1000`); if (r.ok) { got[q + z] = await r.json(); break; } } catch (_) {} } done++; })); b.textContent = `取得中… ${Math.round(done / starts.length * 100)}%`; }
   const k1 = []; for (const x of got) for (const y of x || []) k1.push([+y[0], +y[1], +y[2], +y[3], +y[4]]); if (k1.length < 1000) throw new Error('1時間足が取れません');
   const p = L.bounceCmpDraft(j.map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]), now, hrs, k1); if (!p) throw new Error('足が足りません'); return p; });
+// v363: 恐怖指数が10を割ったあと(Binance 日足 2018〜・alternative.me)
+runBtn('fxBtn', async () => { const now = Date.now(), D = 864e5; let host = null; for (const h of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${h}/api/v3/ping`); if (r.ok) { host = h; break; } } catch (_) {} } if (!host) throw new Error('Binance に届きません');
+  const k = []; for (let a = Date.UTC(2018, 0, 1); a < now; ) { const j = await (await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=1d&startTime=${a}&limit=1000`)).json(); if (!j.length) break; for (const x of j) k.push([+x[0], +x[1], +x[2], +x[3], +x[4]]); a = +j[j.length - 1][0] + D; if (j.length < 1000) break; }
+  const fj = await (await fetch('https://api.alternative.me/fng/?limit=0&format=json')).json(), fng = (fj.data || []).map((x) => [+x.timestamp * 1000, +x.value]); if (!fng.length) throw new Error('恐怖と強欲指数が取れません');
+  return L.fearxDraft(k, fng, now); });
 // v341: ニュースと相関(見出しは手で入れる。相関は自動投稿と同じ記録 ct)
 runBtn('ncBtn', async (b) => {
   const hj = prompt('ニュースの見出し(日本語)', 'FRBの議事要旨、AIブームの崩れを金融システムのリスクとして議論'); if (!hj) throw new Error('見出しが空です');
