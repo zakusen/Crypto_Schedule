@@ -6,7 +6,7 @@ export const M5 = 3e5, H = 36e5, DAY = 24 * H, JST = 9 * H;
 export const REGIONS = ['US', 'JP', 'EU'];
 export const REGION_EN = { US: 'US', JP: 'Japan', EU: 'Euro area' };
 // 投稿する時刻: 今日・今週の予定 = その日の 9:30 / 発表後の値動き = 発表の65分後 / 先週のまとめ = 月曜 10:00
-export const DAILY_AT = 6 * H /* v337: 予定表(日本語)は朝6時 */, ARCH_WAIT = 65 * 60000, WEEK_AT = 10 * H;
+export const DAILY_AT = 9.5 * H /* v365: 予定表(日本語)は9:30に戻す(6時にした 11/20 から 100前後→30前後に落ちたため) */, ARCH_WAIT = 65 * 60000, WEEK_AT = 10 * H;
 
 // ---- 文字の数え方(X: 日本語などは2、URLは23。上限280) ----
 // 絵文字は1つで2と数える(異体字セレクタは数えない・国旗は2文字で1つ)
@@ -380,7 +380,7 @@ export const AUTO_DAILY_FROM = '2026-10-09';   // v104: 10/9 から自動(X の�
 export const SPLIT_FROM = '2026-10-11';                       // この日(日本時間)の分から英日の時刻を分ける
 export const EN_DAILY_AT = 13.5 * H /* v337: 英語の予定表は 13:30 UTC = 日本時間22:30 */, EN_WEEK_AT = 14 * H, EN_LIQDAY_AT = 13 * H;   // 英語: 毎朝の予定 11:30 UTC / 週間記録 土曜 14:00 UTC / 清算のまとめ 13:00 UTC
 // v282: 英語版を出さない種類(英語でビュー・反応が無かったもの)。英語に残す = daily・fomc系・spike・liq・liqday・hack系・histm/histw・midterm など
-export const EN_OFF = new Set(['week', 'sum', 'pat', 'vol', 'shockbn', 'shockcmp']);   // v336: 相関の英語は戻す(予定表・指標と並んでプロフィールのクリック・反応率が高い)
+export const EN_OFF = new Set(['week', 'sum', 'pat', 'vol', 'shockbn', 'shockcmp', 'spike']);   // v365: 急変動の自動は日本語だけ   // v336: 相関の英語は戻す(予定表・指標と並んでプロフィールのクリック・反応率が高い)
 export const langsOf = (p) => (p && Array.isArray(p.langs) && p.langs.length ? p.langs : ['en', 'ja']).filter((lg) => !(lg === 'en' && p && EN_OFF.has(p.sr)));
 export const dueOf = (p, lg) => (p && p.dues && p.dues[lg]) || (p && p.due) || 0;
 export const AUTO_WINDOW = 3 * H;   // 投稿時刻からこの時間を過ぎたものは自動で出さない(古い投稿を急に出さない)
@@ -394,8 +394,10 @@ export const fomcOld = (p) => (p.sr === 'pre' || p.sr === 'arch') && /^(pre|arch
 // v298: 夜のまとめ(sum)・値動きの大きさ(vol)・BTC実況(pat)・ハッキング追跡(hack・bnstatus・bnreply)の自動投稿をやめた(ビューがほぼ無いため。下書きは作り続ける)
 // v328: 自動で出すのは 予定表・BTC×S&P500相関・FOMC/CPI/雇用統計/PCE の予告(1時間前+TOP3)と結果・Binance 2019 vs 2026(90日で自然に終わる) だけ。
 //   止めた: 24時間の清算・巨額清算・指標前後の清算・急変動(と返信・過去比較)・ショック後のBTC・ブームと危機(週・月)・大量清算の後のBTC・週のまとめ。下書きは作られるが投稿されない
-export const AUTO_ON = new Set(['corrts', 'fomc', 'fomcc']);   // v357: Binance 2019 vs 2026(shockbn)も止めた(節目の日以外にも出たため。下書きも作らない)   // v337: 指標の結果(fomcres)も止めた
-export const isAuto = (p) => !p.man && !fomcOld(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (AUTO_ON.has(p.sr) || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
+export const AUTO_ON = new Set(['corrts', 'fomc', 'fomcc', 'spike']);   // v365: 急変動を自動に戻す(日本時間0〜2時に見つけたものだけ・日本語だけ。0〜2時の急変動は平均313)
+export const SPIKE_AUTO_H = [0, 2];   // 日本時間の0:00〜1:59   // v357: Binance 2019 vs 2026(shockbn)も止めた(節目の日以外にも出たため。下書きも作らない)   // v337: 指標の結果(fomcres)も止めた
+const spikeHourOk = (p) => { if (p.sr !== 'spike') return true; const h = new Date((p.due || 0) + 9 * H).getUTCHours(); return h >= SPIKE_AUTO_H[0] && h < SPIKE_AUTO_H[1]; };   // v365
+export const isAuto = (p) => !p.man && !fomcOld(p) && spikeHourOk(p) && !((p.sr === 'fomc' || p.sr === 'fomcc') && p.img && FOMC_OFF.has(p.img.n)) && (AUTO_ON.has(p.sr) || (p.sr === 'daily' && isoDay(p.due || 0) >= AUTO_DAILY_FROM));
 // Worker が見張る「自動投稿の予定」(小さく保つ): 未投稿の自動投稿 + これからの主要指標の発表65分後
 export function dueList(posts, events, now) {
   const items = [], seen = new Set();
