@@ -1615,9 +1615,9 @@ export function fearxDraft(kd, fng, now) {
 }
 
 // v366: BTC × AI・半導体の相関(コピペ)。x_notify が毎時 Pacifica の1時間足から計算してサイトに保存(ca)。S&P500 と同じ24時間窓。並べて、いちばん連動している相手を見出しに
-export const AISYM = [['NVDA', 'NVIDIA', 'NVIDIA'], ['SKHYNIX', 'SKハイニックス', 'SK hynix'], ['SAMSUNG', 'サムスン', 'Samsung'], ['DRAM', 'DRAM価格', 'DRAM price']];
+export const AISYM = [['NVDA', 'NVIDIA', 'NVIDIA'], ['SKHYNIX', 'SKハイニックス', 'SK hynix'], ['SAMSUNG', 'サムスン', 'Samsung', ['SMSN', 'SAMSUNGELEC', 'SSNLF']], ['DRAM', 'DRAM価格', 'DRAM price', ['DRAMEX', 'DDR5', 'MEMORY']]];   // v373: 4番目＝APIでの別名の候補
 // v367: グループ。マスク関連(SpaceX・テスラ)を追加。x_notify は全グループの銘柄をまとめて計算して ca に保存
-export const CORR_GROUPS = { ai: { ja: 'AI・半導体', en: 'AI & chips', syms: AISYM, tags: '$BTC $NVDA' }, musk: { ja: 'イーロン・マスク関連', en: 'Elon Musk companies', syms: [['SPCX', 'SpaceX', 'SpaceX'], ['TESLA', 'テスラ', 'Tesla']], tags: '$BTC $SPCX $TSLA' } };   // v368: tags = 本文の最後のキャッシュタグ
+export const CORR_GROUPS = { ai: { ja: 'AI・半導体', en: 'AI & chips', syms: AISYM, tags: '$BTC $NVDA' }, musk: { ja: 'イーロン・マスク関連', en: 'Elon Musk companies', syms: [['SPCX', 'SpaceX', 'SpaceX', ['SPACEX', 'SPACE']], ['TESLA', 'テスラ', 'Tesla', ['TSLA']]], tags: '$BTC $SPCX $TSLA' } };   // v368: tags = 本文の最後のキャッシュタグ
 export const CORR_ALLSYM = Object.values(CORR_GROUPS).flatMap((g) => g.syms);
 export function aiCorrDraft(doc, now, gk = 'ai') {   // v367: gk = グループ(ai / musk)。v369: 7日の値動き(%)も本文と画像に
   const G = CORR_GROUPS[gk], nm = (sym, en) => { const a = CORR_ALLSYM.find((x) => x[0] === sym); return a ? a[en ? 2 : 1] : sym; }, s2 = (v) => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2), s1 = (v) => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%';
