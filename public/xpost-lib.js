@@ -1351,10 +1351,10 @@ export function likeFixedDraft(F, now) {
 
 // ==== v340→v354: 本文の形。11/21 に書き方を決め直した(くさい文をやめる)
 // 1行目＝事実と数字の意外さを短く / 本文＝1行に1つの事実、数字は3行まで / 締め＝過去の事実があるときだけ(P.fact)。
-// 前置き(P.a「注目したいのは〜」)・名言風の締め(P.c)・署名は使わない。タグは $BTC だけ。箇条書きの「・」「- 」は外す
+// 前置き(P.a「注目したいのは〜」)・名言風の締め(P.c)・署名は使わない。タグは $BTC だけ(v368: 関連銘柄の相関だけ P.tags で銘柄のキャッシュタグを足す)。箇条書きの「・」「- 」は外す
 export function sigOf(lg) { return ''; }
 export function voice(P, lg, tags = '$BTC') {
-  const tg = '$BTC', strip = (x) => String(x).replace(/^\s*(・|- |-\s|①|②|③)\s*/, '').trim();
+  const tg = P.tags || '$BTC', strip = (x) => String(x).replace(/^\s*(・|- |-\s|①|②|③)\s*/, '').trim();
   const b = (P.b || []).filter((x) => x != null && x !== '').map(strip).slice(0, 3);
   const mk = (nb, t) => [P.h, '', ...b.slice(0, nb), ...(P.fact ? ['', P.fact] : []), ...(t ? ['', tg] : [])].join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '');
   for (const t of [1, 0]) for (let nb = b.length; nb >= Math.max(1, Math.min(b.length, P.minB || 1)); nb--) { const x = mk(nb, t); if (xlen(x) <= 280) return x; }
@@ -1612,4 +1612,17 @@ export function fearxDraft(kd, fng, now) {
   const ja = voice({ h: `恐怖指数が10を割ったあと、${yr}年以降で${done.length}回。`, b: [done.length ? `180日後に上${up}回・下${done.length - up}回（中央値${s0(med)}）` : null, best && worst ? `いちばん上は${ym(best.t0)}の${s0(best.end)}、いちばん下は${ym(worst.t0)}の${s0(worst.end)}` : null, cur ? `今回は10を割って${kNow}日目（いまの指数${fNow}）` : null] }, 'ja');
   const en = voice({ h: `Fear & Greed below 10: ${done.length} times since ${yr}.`, b: [done.length ? `180 days later: higher ${up}, lower ${done.length - up} (median ${s0(med)})` : null, best && worst ? `Best: ${ym(best.t0, 1)} ${s0(best.end)}. Worst: ${ym(worst.t0, 1)} ${s0(worst.end)}` : null, cur ? `This time: day ${kNow} (index now ${fNow})` : null] }, 'en');
   return { id: 'fearx:copy:' + now, sr: 'fearx', man: 1, due: now, ja, en, img: { fearx: { past, cur, up, n: done.length, med, yr, fNow, kNow } } };
+}
+
+// v366: BTC × AI・半導体の相関(コピペ)。x_notify が毎時 Pacifica の1時間足から計算してサイトに保存(ca)。S&P500 と同じ24時間窓。並べて、いちばん連動している相手を見出しに
+export const AISYM = [['NVDA', 'NVIDIA', 'NVIDIA'], ['SKHYNIX', 'SKハイニックス', 'SK hynix'], ['SAMSUNG', 'サムスン', 'Samsung'], ['DRAM', 'DRAM価格', 'DRAM price']];
+// v367: グループ。マスク関連(SpaceX・テスラ)を追加。x_notify は全グループの銘柄をまとめて計算して ca に保存
+export const CORR_GROUPS = { ai: { ja: 'AI・半導体', en: 'AI & chips', syms: AISYM, tags: '$BTC $NVDA' }, musk: { ja: 'イーロン・マスク関連', en: 'Elon Musk companies', syms: [['SPCX', 'SpaceX', 'SpaceX'], ['TESLA', 'テスラ', 'Tesla']], tags: '$BTC $SPCX $TSLA' } };   // v368: tags = 本文の最後のキャッシュタグ
+export const CORR_ALLSYM = Object.values(CORR_GROUPS).flatMap((g) => g.syms);
+export function aiCorrDraft(doc, now, gk = 'ai') {   // v367: gk = グループ(ai / musk)
+  const G = CORR_GROUPS[gk], nm = (sym, en) => { const a = CORR_ALLSYM.find((x) => x[0] === sym); return a ? a[en ? 2 : 1] : sym; }, s2 = (v) => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  const it = (doc.items || []).filter((x) => x.now != null && G.syms.some((y) => y[0] === x.sym)).sort((a, b) => b.now - a.now); if (!it.length) return null; const top = it[0], two = (a, en) => a.map((x) => `${nm(x.sym, en)} ${s2(x.now)}`).join(en ? ', ' : '、');
+  const ja = voice({ h: gk === 'ai' ? `BTCといちばん連動しているのは、${nm(top.sym)}（${s2(top.now)}）。` : `BTCと${G.ja}、いちばん連動しているのは${nm(top.sym)}（${s2(top.now)}）。`, b: [two(it.slice(0, 2)), it.length > 2 ? two(it.slice(2)) : null, doc.sp && doc.sp.now != null ? `参考：S&P500 ${s2(doc.sp.now)}（どれも直近24時間の相関）` : null], tags: G.tags }, 'ja');
+  const en = voice({ h: gk === 'ai' ? `BTC moves most with ${nm(top.sym, 1)} right now (${s2(top.now)}).` : `BTC and ${G.en}: closest link is ${nm(top.sym, 1)} (${s2(top.now)}).`, b: [two(it.slice(0, 2), 1), it.length > 2 ? two(it.slice(2), 1) : null, doc.sp && doc.sp.now != null ? `S&P 500 for reference: ${s2(doc.sp.now)} (all 24h correlations)` : null], tags: G.tags }, 'en');
+  return { id: 'aicorr:copy:' + gk + ':' + now, sr: 'aicorr', man: 1, due: now, ja, en, img: { aic: { gk, it, sp: doc.sp || null, at: doc.at } } };
 }

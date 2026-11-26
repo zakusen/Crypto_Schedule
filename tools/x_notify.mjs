@@ -477,6 +477,11 @@ catch (e) { console.log('[x] BTC実況のカードでエラー', e.message); }
 try {
   const st = NOW - (L.CORRTS.days + 2) * DAY, bt = await coin1h('BTC', st, NOW), sp = await pac('SP500', '1h', st, NOW), c = L.corrSeries(bt, sp, NOW);
   if (!c) throw new Error('計算できない');
+  try {   // v366: BTC × AI・半導体(Pacifica: NVDA・SKHYNIX・SAMSUNG・DRAM)。v367: マスク関連(SPCX・TESLA)も。同じ24時間窓の相関。サイトに保存(ca)、posts のコピペボタンで使う
+    const items = []; for (const [sym] of L.CORR_ALLSYM) { try { const k = await pac(sym, '1h', st, NOW), cc = L.corrSeries(bt, k, NOW); if (!cc) continue; const s1 = L.corrStats(cc); items.push({ sym, now: s1.now, ago: s1.ago, lo: s1.lo, hi: s1.hi, r: cc.r }); } catch (e) { console.log('[x] AI・半導体の相関:', sym, e.message); } }
+    const ss = L.corrStats(c); if (items.length) await site('/api/admin/rx-put?name=ca', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ at: NOW, t: c.t, items, sp: { now: ss.now, ago: ss.ago, lo: ss.lo, hi: ss.hi, r: c.r } }) });
+    console.log('[x] AI・半導体の相関:', items.map((x) => x.sym + ' ' + x.now).join(' / '));
+  } catch (e) { console.log('[x] AI・半導体の相関でエラー', e.message); }
   // 出来事(◆)：手で入れたもの(管理画面)・大型ハッキング・急変動。期間内で新しい順に最大4つ
   let man = []; try { man = ((await (await site('/api/admin/rx-one?name=ce')).json()) || {}).ev || []; } catch (_) {}
   const t0 = c.t[0], t1 = c.end, all = [...byId.values(), ...out], evs = [];
