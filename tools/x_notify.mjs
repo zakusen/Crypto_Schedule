@@ -489,10 +489,14 @@ try {
   const st = NOW - (L.CORRTS.days + 2) * DAY, bt = await coin1h('BTC', st, NOW), sp = await pac('SP500', '1h', st, NOW), c = L.corrSeries(bt, sp, NOW);
   if (!c) throw new Error('計算できない');
   try {   // v366: BTC × AI・半導体(Pacifica: NVDA・SKHYNIX・SAMSUNG・DRAM)。v367: マスク関連(SPCX・TESLA)も。同じ24時間窓の相関。サイトに保存(ca)、posts のコピペボタンで使う
-    const items = [], miss = []; for (const [sym0, , , alias] of L.CORR_ALLSYM) { try { let k = null, sym = sym0;
+    const items = [], miss = [], once = async (list) => { const left = []; for (const ent of list) { const [sym0, , , alias] = ent; try { let k = null, sym = sym0;
       for (const nm of [...(alias || []), sym0]) { try { k = await pacSoft(nm, '1h', st, NOW); if (k.length) { sym = sym0; break; } } catch (e) { console.log('[x] AI・半導体の相関:', nm, e.message); } }   // v375: 分かっているAPI名(TSLA など)を先に
-      if (!k || !k.length) { miss.push(sym0); continue; }
-      const cc = L.corrSeries(bt, k, NOW); if (!cc) { console.log('[x] AI・半導体の相関:', sym0, `足は${k.length}本取れたが相関を計算できない(直近24時間の足が足りない)`); continue; } const s1 = L.corrStats(cc); items.push({ sym, now: s1.now, ago: s1.ago, lo: s1.lo, hi: s1.hi, px: k.filter((x) => x[0] >= c.t[0]).map((x) => [x[0], x[4]]) }); /* v369: 値動きの線用に7日分の終値 */ } catch (e) { console.log('[x] AI・半導体の相関:', sym0, e.message); } }
+      if (!k || !k.length) { left.push(ent); miss.push(sym0); continue; }
+      const cc = L.corrSeries(bt, k, NOW); if (!cc) { console.log('[x] AI・半導体の相関:', sym0, `足は${k.length}本取れたが相関を計算できない(直近24時間の足が足りない)`); continue; } const s1 = L.corrStats(cc); items.push({ sym, now: s1.now, ago: s1.ago, lo: s1.lo, hi: s1.hi, px: k.filter((x) => x[0] >= c.t[0]).map((x) => [x[0], x[4]]) }); /* v369: 値動きの線用に7日分の終値 */ } catch (e) { console.log('[x] AI・半導体の相関:', sym0, e.message); } } return left; };
+    // v376: 取れなかった銘柄は20秒あけてもう1回。それでもだめなら、前回の記録(12時間以内)をそのまま使う
+    let left0 = await once(L.CORR_ALLSYM); miss.length = 0; if (left0.length) { await sleep(20000); left0 = await once(left0); }
+    if (miss.length) { let prev = null; try { prev = await (await site('/api/admin/rx-one?name=ca')).json(); } catch (_) {}
+      if (prev && prev.at && NOW - prev.at < 12 * H) for (const m of [...miss]) { const it = (prev.items || []).find((x) => x.sym === m); if (it) { items.push({ ...it, old: prev.at }); miss.splice(miss.indexOf(m), 1); console.log('[x] AI・半導体の相関:', m, '前回の記録を使う', new Date(prev.at).toISOString()); } } }
     const ss = L.corrStats(c); if (items.length) await site('/api/admin/rx-put?name=ca', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ at: NOW, items, btc: bt.filter((x) => x[0] >= c.t[0]).map((x) => [x[0], x[4]]), sp: { now: ss.now, ago: ss.ago, lo: ss.lo, hi: ss.hi, px: sp.filter((x) => x[0] >= c.t[0]).map((x) => [x[0], x[4]]) } }) });
     console.log('[x] AI・半導体の相関:', items.map((x) => x.sym + ' ' + x.now).join(' / '));
     if (miss.length) { const all = await pacSymbols(); console.log('[x] 取れなかった銘柄:', miss.join(', '), '／ Pacifica の銘柄一覧:', all.length ? all.join(', ') : '(一覧も取れず)'); }
