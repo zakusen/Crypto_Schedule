@@ -1615,7 +1615,7 @@ export function fearxDraft(kd, fng, now) {
 }
 
 // v366: BTC × AI・半導体の相関(コピペ)。x_notify が毎時 Pacifica の1時間足から計算してサイトに保存(ca)。S&P500 と同じ24時間窓。並べて、いちばん連動している相手を見出しに
-export const AISYM = [['NVDA', 'NVIDIA', 'NVIDIA'], ['SKHYNIX', 'SKハイニックス', 'SK hynix'], ['SAMSUNG', 'サムスン', 'Samsung', ['SMSN', 'SAMSUNGELEC', 'SSNLF']], ['DRAM', 'DRAM価格', 'DRAM price', ['DRAMEX', 'DDR5', 'MEMORY']]];   // v373: 4番目＝APIでの別名の候補
+export const AISYM = [['NVDA', 'NVIDIA', 'NVIDIA'], ['SKHYNIX', 'SKハイニックス', 'SK hynix'], ['SAMSUNG', 'サムスン', 'Samsung', ['SMSN', 'SAMSUNGELEC', 'SSNLF']], ['DRAM', 'DRAM価格', 'DRAM price', ['DRAMEX', 'DDR5', 'MEMORY']], ['MU', 'マイクロン', 'Micron'], ['SNDK', 'サンディスク', 'SanDisk']];   // v374: Pacifica の一覧にあったマイクロン(MU)・サンディスク(SNDK・キオクシアと工場を共同運営)を追加   // v373: 4番目＝APIでの別名の候補
 // v367: グループ。マスク関連(SpaceX・テスラ)を追加。x_notify は全グループの銘柄をまとめて計算して ca に保存
 export const CORR_GROUPS = { ai: { ja: 'AI・半導体', en: 'AI & chips', syms: AISYM, tags: '$BTC $NVDA' }, musk: { ja: 'イーロン・マスク関連', en: 'Elon Musk companies', syms: [['SPCX', 'SpaceX', 'SpaceX', ['SPACEX', 'SPACE']], ['TESLA', 'テスラ', 'Tesla', ['TSLA']]], tags: '$BTC $SPCX $TSLA' } };   // v368: tags = 本文の最後のキャッシュタグ
 export const CORR_ALLSYM = Object.values(CORR_GROUPS).flatMap((g) => g.syms);
