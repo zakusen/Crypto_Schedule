@@ -1619,10 +1619,12 @@ export const AISYM = [['NVDA', 'NVIDIA', 'NVIDIA'], ['SKHYNIX', 'SKハイニッ�
 // v367: グループ。マスク関連(SpaceX・テスラ)を追加。x_notify は全グループの銘柄をまとめて計算して ca に保存
 export const CORR_GROUPS = { ai: { ja: 'AI・半導体', en: 'AI & chips', syms: AISYM, tags: '$BTC $NVDA' }, musk: { ja: 'イーロン・マスク関連', en: 'Elon Musk companies', syms: [['SPCX', 'SpaceX', 'SpaceX'], ['TESLA', 'テスラ', 'Tesla']], tags: '$BTC $SPCX $TSLA' } };   // v368: tags = 本文の最後のキャッシュタグ
 export const CORR_ALLSYM = Object.values(CORR_GROUPS).flatMap((g) => g.syms);
-export function aiCorrDraft(doc, now, gk = 'ai') {   // v367: gk = グループ(ai / musk)
-  const G = CORR_GROUPS[gk], nm = (sym, en) => { const a = CORR_ALLSYM.find((x) => x[0] === sym); return a ? a[en ? 2 : 1] : sym; }, s2 = (v) => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
-  const it = (doc.items || []).filter((x) => x.now != null && G.syms.some((y) => y[0] === x.sym)).sort((a, b) => b.now - a.now); if (!it.length) return null; const top = it[0], two = (a, en) => a.map((x) => `${nm(x.sym, en)} ${s2(x.now)}`).join(en ? ', ' : '、');
-  const ja = voice({ h: gk === 'ai' ? `BTCといちばん連動しているのは、${nm(top.sym)}（${s2(top.now)}）。` : `BTCと${G.ja}、いちばん連動しているのは${nm(top.sym)}（${s2(top.now)}）。`, b: [two(it.slice(0, 2)), it.length > 2 ? two(it.slice(2)) : null, doc.sp && doc.sp.now != null ? `参考：S&P500 ${s2(doc.sp.now)}（どれも直近24時間の相関）` : null], tags: G.tags }, 'ja');
-  const en = voice({ h: gk === 'ai' ? `BTC moves most with ${nm(top.sym, 1)} right now (${s2(top.now)}).` : `BTC and ${G.en}: closest link is ${nm(top.sym, 1)} (${s2(top.now)}).`, b: [two(it.slice(0, 2), 1), it.length > 2 ? two(it.slice(2), 1) : null, doc.sp && doc.sp.now != null ? `S&P 500 for reference: ${s2(doc.sp.now)} (all 24h correlations)` : null], tags: G.tags }, 'en');
-  return { id: 'aicorr:copy:' + gk + ':' + now, sr: 'aicorr', man: 1, due: now, ja, en, img: { aic: { gk, it, sp: doc.sp || null, at: doc.at } } };
+export function aiCorrDraft(doc, now, gk = 'ai') {   // v367: gk = グループ(ai / musk)。v369: 7日の値動き(%)も本文と画像に
+  const G = CORR_GROUPS[gk], nm = (sym, en) => { const a = CORR_ALLSYM.find((x) => x[0] === sym); return a ? a[en ? 2 : 1] : sym; }, s2 = (v) => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2), s1 = (v) => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%';
+  const chg = (px) => px && px.length > 1 ? (px[px.length - 1][1] / px[0][1] - 1) * 100 : null;
+  const it = (doc.items || []).filter((x) => x.now != null && G.syms.some((y) => y[0] === x.sym)).map((x) => ({ ...x, chg: chg(x.px) })).sort((a, b) => b.now - a.now); if (!it.length) return null; const top = it[0], bc = chg(doc.btc);
+  const ln = (x, en) => `${nm(x.sym, en)} ${s1(x.chg)}（${en ? 'corr ' : '相関'}${s2(x.now)}）`.replace(en ? /（(.*)）/ : /$^/, en ? ' ($1)' : '');
+  const ja = voice({ h: `BTCと${G.ja}、7日の値動き。`, b: [`BTC ${s1(bc)}`, it.map((x) => ln(x)).join('、'), `いちばん連動しているのは${nm(top.sym)}（直近24時間の相関${s2(top.now)}）`], tags: G.tags }, 'ja');
+  const en = voice({ h: `BTC and ${G.en}: the last 7 days.`, b: [`BTC ${s1(bc)}`, it.map((x) => ln(x, 1)).join(', '), `Closest link: ${nm(top.sym, 1)} (24h correlation ${s2(top.now)})`], tags: G.tags }, 'en');
+  return { id: 'aicorr:copy:' + gk + ':' + now, sr: 'aicorr', man: 1, due: now, ja, en, img: { aic: { gk, it, btc: doc.btc || [], bc, sp: doc.sp || null, at: doc.at } } };
 }
