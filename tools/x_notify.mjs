@@ -293,12 +293,12 @@ if (J(NOW).getUTCDay() === 6 && J(NOW).getUTCHours() >= 7) {
 const PAC = 'https://api.pacifica.fi/api/v1';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // v373: AI・マスク関連用。途中の区間(上場前など)で断られても飛ばして続ける。全部だめなら投げる
-async function pacSoft(sym, iv, start, end) {
-  const step = iv === '1h' ? H : 5 * 60000, rows = new Map(); let ok = 0;
-  for (let a = start; a < end; a += 200 * step) { const b = Math.min(end, a + 200 * step); let j = null;
-    for (let k = 0; k < 2 && !j; k++) { if (k) await sleep(1500); try { const r = await fetch(`${PAC}/kline?symbol=${sym}&interval=${iv}&start_time=${a}&end_time=${b}`, { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(15000) }); if (r.ok) j = await r.json(); } catch (_) {} }
-    await sleep(250); if (!j) continue; ok++; for (const x of (Array.isArray(j) ? j : j.data || [])) rows.set(+x.t, [+x.t, +x.o, +x.h, +x.l, +x.c]); }
-  if (!ok) throw new Error(`Pacifica ${sym} ${iv} が取れません`);
+async function pacSoft(sym, iv, start, end) {   // v375: まず一番新しい区間で試し、だめならすぐ諦める(取れない銘柄で問い合わせを使い切らない)。断られたら 1.5→3→6秒待つ
+  const step = iv === '1h' ? H : 5 * 60000, rows = new Map(), spans = []; for (let a = start; a < end; a += 200 * step) spans.push([a, Math.min(end, a + 200 * step)]); spans.reverse();
+  for (let q = 0; q < spans.length; q++) { const [a, b] = spans[q]; let j = null;
+    for (let k = 0; k < (q ? 3 : 4) && !j; k++) { if (k) await sleep(1500 * 2 ** (k - 1)); try { const r = await fetch(`${PAC}/kline?symbol=${sym}&interval=${iv}&start_time=${a}&end_time=${b}`, { headers: { 'User-Agent': 'signal-archive-x-posts/1.0' }, signal: AbortSignal.timeout(15000) }); if (r.ok) j = await r.json(); } catch (_) {} }
+    await sleep(500); if (!j) { if (!q) throw new Error(`Pacifica ${sym} ${iv} が取れません`); continue; }
+    const xs = Array.isArray(j) ? j : j.data || []; if (!q && !xs.length) throw new Error(`Pacifica ${sym} ${iv} の足がまだありません`); for (const x of xs) rows.set(+x.t, [+x.t, +x.o, +x.h, +x.l, +x.c]); }
   return [...rows.values()].sort((x, y) => x[0] - y[0]);
 }
 let PAC_SYMS = null;   // v373: 取れない銘柄があった時だけ、Pacifica の銘柄一覧(/info)を1回取ってログに出す
@@ -490,7 +490,7 @@ try {
   if (!c) throw new Error('計算できない');
   try {   // v366: BTC × AI・半導体(Pacifica: NVDA・SKHYNIX・SAMSUNG・DRAM)。v367: マスク関連(SPCX・TESLA)も。同じ24時間窓の相関。サイトに保存(ca)、posts のコピペボタンで使う
     const items = [], miss = []; for (const [sym0, , , alias] of L.CORR_ALLSYM) { try { let k = null, sym = sym0;
-      for (const nm of [sym0, ...(alias || [])]) { try { k = await pacSoft(nm, '1h', st, NOW); if (k.length) { sym = sym0; break; } } catch (_) {} }
+      for (const nm of [...(alias || []), sym0]) { try { k = await pacSoft(nm, '1h', st, NOW); if (k.length) { sym = sym0; break; } } catch (e) { console.log('[x] AI・半導体の相関:', nm, e.message); } }   // v375: 分かっているAPI名(TSLA など)を先に
       if (!k || !k.length) { miss.push(sym0); continue; }
       const cc = L.corrSeries(bt, k, NOW); if (!cc) { console.log('[x] AI・半導体の相関:', sym0, `足は${k.length}本取れたが相関を計算できない(直近24時間の足が足りない)`); continue; } const s1 = L.corrStats(cc); items.push({ sym, now: s1.now, ago: s1.ago, lo: s1.lo, hi: s1.hi, px: k.filter((x) => x[0] >= c.t[0]).map((x) => [x[0], x[4]]) }); /* v369: 値動きの線用に7日分の終値 */ } catch (e) { console.log('[x] AI・半導体の相関:', sym0, e.message); } }
     const ss = L.corrStats(c); if (items.length) await site('/api/admin/rx-put?name=ca', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ at: NOW, items, btc: bt.filter((x) => x[0] >= c.t[0]).map((x) => [x[0], x[4]]), sp: { now: ss.now, ago: ss.ago, lo: ss.lo, hi: ss.hi, px: sp.filter((x) => x[0] >= c.t[0]).map((x) => [x[0], x[4]]) } }) });
