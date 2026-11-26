@@ -1619,12 +1619,29 @@ export const AISYM = [['NVDA', 'NVIDIA', 'NVIDIA'], ['SKHYNIX', 'SKハイニッ�
 // v367: グループ。マスク関連(SpaceX・テスラ)を追加。x_notify は全グループの銘柄をまとめて計算して ca に保存
 export const CORR_GROUPS = { ai: { ja: 'AI・半導体', en: 'AI & chips', syms: AISYM, tags: '$BTC $NVDA' }, musk: { ja: 'イーロン・マスク関連', en: 'Elon Musk companies', syms: [['SPCX', 'SpaceX', 'SpaceX'], ['TESLA', 'テスラ', 'Tesla', ['TSLA']]], tags: '$BTC $SPCX $TSLA' } };   // v368: tags = 本文の最後のキャッシュタグ
 export const CORR_ALLSYM = Object.values(CORR_GROUPS).flatMap((g) => g.syms);
+// v377: 期間を選べる(1〜6時間は1時間刻み・24時間・7日)。7日は定期実行の記録(1時間足)、それ以外はボタンを押した時に取る(6時間以下は1分足、24時間は5分足)
+export const CA_WINS = [1, 2, 3, 4, 5, 6, 24, 168];
+export const caWinLabel = (w, en) => w >= 168 ? (en ? '7 days' : '7日') : (en ? (w === 1 ? '1 hour' : w + ' hours') : w + '時間');
+export const caIv = (w) => w <= 6 ? '1m' : '5m';
+// btK・spK・symK[sym] = [[開始ms, 始, 高, 安, 終], …]。閉じた足だけ使う。相関は同じ時刻の足どうしの変化率(対数)。揃った足が期待の半分未満なら null
+export function caShort(btK, symK, spK, w, now) {
+  const iv = caIv(w), step = iv === '1m' ? 6e4 : 3e5, t0 = Math.floor((now - w * H) / step) * step, need = (w * H / step) * 0.5;
+  const prep = (k) => (k || []).filter((x) => x[0] + step <= now && x[0] >= t0 - step && x[4] > 0).sort((a, b) => a[0] - b[0]);
+  const B = prep(btK), BM = new Map(B.map((x) => [x[0], x[4]])); if (B.length < 3) return null;
+  const pxOf = (k) => { const a = k.filter((x) => x[0] >= t0 - step); return a.map((x) => [x[0] + step, x[4]]); };   // 終値の時刻(足の終わり)で並べる。最初の1本が起点(0%)
+  const corr = (k) => { const M = new Map(k.map((x) => [x[0], x[4]])), xs = [], ys = [];
+    for (const [t, c] of M) { const p = M.get(t - step), b1 = BM.get(t), b0 = BM.get(t - step); if (p > 0 && b1 > 0 && b0 > 0 && t >= t0) { xs.push(Math.log(b1 / b0)); ys.push(Math.log(c / p)); } }
+    if (xs.length < Math.max(3, need)) return null; const r = pearson(xs, ys); return r == null || !isFinite(r) ? null : Math.round(r * 100) / 100; };
+  const items = []; for (const [sym, k0] of Object.entries(symK || {})) { const k = prep(k0); if (k.length < 3) continue; items.push({ sym, now: corr(k), px: pxOf(k) }); }
+  const S = prep(spK); return { at: now, win: w, iv, items, btc: pxOf(B), sp: S.length >= 3 ? { now: corr(S), px: pxOf(S) } : null };
+}
 export function aiCorrDraft(doc, now, gk = 'ai') {   // v367: gk = グループ(ai / musk)。v369: 7日の値動き(%)も本文と画像に
   const G = CORR_GROUPS[gk], nm = (sym, en) => { const a = CORR_ALLSYM.find((x) => x[0] === sym); return a ? a[en ? 2 : 1] : sym; }, s2 = (v) => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2), s1 = (v) => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '%';
   const chg = (px) => px && px.length > 1 ? (px[px.length - 1][1] / px[0][1] - 1) * 100 : null;
   const it = (doc.items || []).filter((x) => x.now != null && G.syms.some((y) => y[0] === x.sym)).map((x) => ({ ...x, chg: chg(x.px) })).sort((a, b) => b.now - a.now); if (!it.length) return null; const top = it[0], bc = chg(doc.btc);
   const ln = (x, en) => `${nm(x.sym, en)} ${s1(x.chg)}（${en ? 'corr ' : '相関'}${s2(x.now)}）`.replace(en ? /（(.*)）/ : /$^/, en ? ' ($1)' : '');
-  const ja = voice({ h: `BTCと${G.ja}、7日の値動き。`, b: [`BTC ${s1(bc)}`, it.map((x) => ln(x)).join('、'), `いちばん連動しているのは${nm(top.sym)}（直近24時間の相関${s2(top.now)}）`], tags: G.tags }, 'ja');
-  const en = voice({ h: `BTC and ${G.en}: the last 7 days.`, b: [`BTC ${s1(bc)}`, it.map((x) => ln(x, 1)).join(', '), `Closest link: ${nm(top.sym, 1)} (24h correlation ${s2(top.now)})`], tags: G.tags }, 'en');
-  return { id: 'aicorr:copy:' + gk + ':' + now, sr: 'aicorr', man: 1, due: now, ja, en, img: { aic: { gk, it, btc: doc.btc || [], bc, sp: doc.sp || null, at: doc.at } } };
+  const wn = doc.win || 168, P = caWinLabel(wn), PE = caWinLabel(wn, 1), cj = wn >= 168 ? '直近24時間の相関' : P + 'の相関', ce = wn >= 168 ? '24h correlation' : wn + 'h correlation';
+  const ja = voice({ h: `BTCと${G.ja}、${P}の値動き。`, b: [`BTC ${s1(bc)}`, it.map((x) => ln(x)).join('、'), `いちばん連動しているのは${nm(top.sym)}（${cj}${s2(top.now)}）`], tags: G.tags }, 'ja');
+  const en = voice({ h: `BTC and ${G.en}: the last ${PE}.`, b: [`BTC ${s1(bc)}`, it.map((x) => ln(x, 1)).join(', '), `Closest link: ${nm(top.sym, 1)} (${ce} ${s2(top.now)})`], tags: G.tags }, 'en');
+  return { id: 'aicorr:copy:' + gk + ':' + wn + ':' + now, sr: 'aicorr', man: 1, due: now, ja, en, img: { aic: { gk, it, btc: doc.btc || [], bc, sp: doc.sp || null, at: doc.at, win: wn, iv: doc.iv || '1h' } } };
 }

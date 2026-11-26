@@ -816,8 +816,25 @@ runBtn('fxBtn', async () => { const now = Date.now(), D = 864e5; let host = null
 // v366→v367: BTC × AI・半導体／マスク関連(サイトの記録 ca。x_notify が毎時更新)
 const caDraft = async (gk) => { const r = await fetch('/api/admin/rx-one?name=ca', { headers: { 'x-admin-key': getKey() }, cache: 'no-store' }); if (!r.ok) throw new Error('相関の記録が読めません(' + r.status + ')');
   const d = await r.json(); if (!d || !Array.isArray(d.items) || !d.items.length) throw new Error('まだ記録がありません(次の定期実行のあとに)'); const p = L.aiCorrDraft(d, Date.now(), gk); if (!p) throw new Error('この組の銘柄がまだ記録にありません(次の定期実行のあとに)'); return p; };
-runBtn('aicBtn', () => caDraft('ai'));
-runBtn('mskBtn', () => caDraft('musk'));
+// v377: 期間を選ぶ。7日(168)は上の記録、1〜6時間と24時間はその場で取る(Pacifica はまずブラウザから直接、だめならサイト経由)
+const pacK = async (sym, iv, a, b) => { const step = iv === '1m' ? 6e4 : 3e5, rows = new Map();
+  for (let s0 = a; s0 < b; s0 += 200 * step) { const s1 = Math.min(b, s0 + 200 * step), q = `?symbol=${sym}&interval=${iv}&start_time=${s0}&end_time=${s1}`; let j = null;
+    for (let k = 0; k < 3 && !j; k++) { if (k) await new Promise((r) => setTimeout(r, 1200 * k));
+      for (const [u, h] of [['https://api.pacifica.fi/api/v1/kline' + q, {}], ['/api/admin/pac' + q, { 'x-admin-key': getKey() }]]) { try { const r = await fetch(u, { headers: h, cache: 'no-store' }); if (r.ok) { j = await r.json(); break; } } catch (_) {} } }
+    if (!j) throw new Error(sym + ' が取れません'); for (const x of (Array.isArray(j) ? j : j.data || [])) rows.set(+x.t, [+x.t, +x.o, +x.h, +x.l, +x.c]); await new Promise((r) => setTimeout(r, 300)); }
+  return [...rows.values()].sort((x, y) => x[0] - y[0]); };
+const caPick = async (gk) => { const w = Number(prompt('何時間の値動きで作りますか？ 1〜6（1時間刻み）／24／168（＝7日）', '6')); if (!L.CA_WINS.includes(w)) throw new Error(w ? '1〜6・24・168 のどれかで' : '取り消し');
+  if (w >= 168) return caDraft(gk);
+  const now = Date.now(), iv = L.caIv(w), step = iv === '1m' ? 6e4 : 3e5, a = Math.floor((now - w * 36e5) / step) * step - 2 * step;
+  let bt = null; for (const host of ['https://data-api.binance.vision', 'https://api.binance.com']) { try { const r = await fetch(`${host}/api/v3/klines?symbol=BTCUSDT&interval=${iv}&startTime=${a}&limit=1000`); if (r.ok) { bt = (await r.json()).map((x) => [+x[0], +x[1], +x[2], +x[3], +x[4]]); break; } } catch (_) {} }
+  if (!bt) throw new Error('BTC(Binance)が取れません');
+  const G = L.CORR_GROUPS[gk], symK = {}, miss = []; for (const [sym, , , alias] of G.syms) { let k = null; for (const nm of [...(alias || []), sym]) { try { k = await pacK(nm, iv, a, now); if (k.length) break; } catch (_) {} } if (k && k.length) symK[sym] = k; else miss.push(sym); }
+  let sp = null; try { sp = await pacK('SP500', iv, a, now); } catch (_) {}
+  const d = L.caShort(bt, symK, sp, w, now); if (!d || !d.items.some((x) => x.now != null)) throw new Error('足が足りず相関を計算できません' + (miss.length ? '(取れない: ' + miss.join(', ') + ')' : ''));
+  const nul = d.items.filter((x) => x.now == null).map((x) => x.sym); if (miss.length || nul.length) console.log('[相関]', '取れない:', miss.join(', ') || 'なし', '／足が足りない:', nul.join(', ') || 'なし');
+  const p = L.aiCorrDraft(d, now, gk); if (!p) throw new Error('この組の銘柄が取れません'); return p; };
+runBtn('aicBtn', () => caPick('ai'));
+runBtn('mskBtn', () => caPick('musk'));
 // v341: ニュースと相関(見出しは手で入れる。相関は自動投稿と同じ記録 ct)
 runBtn('ncBtn', async (b) => {
   const hj = prompt('ニュースの見出し(日本語)', 'FRBの議事要旨、AIブームの崩れを金融システムのリスクとして議論'); if (!hj) throw new Error('見出しが空です');

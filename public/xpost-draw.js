@@ -945,7 +945,7 @@ function drawChainFlow(g, c, lg) {
   curve(X(D.t), y, X(D.sw), y, PC, 8); curve(X(D.sw), y, X(D.end), y, EC, 6); dia(X(D.sw), y); card(X(D.end) + 4, y - 34, 190, 66, EC, hm(D.end), J(D.endv));
   lt(g, en ? `On-chain records on Ethereum (Etherscan) · as of ${hm(c.now)} UTC` : `Ethereum上のオンチェーン記録（Etherscan）・${hm(c.now)}時点`, 30, 786, { s: 15, w: 500, c: '#7f8ea6' });
 }
-import { BN as BNC, SHOCK, MID, IPO_PRE, IPO_POST, IPO_STEP, TWIN, STREAK, BOUNCE, FEARX, FEAR_BANDS, AISYM, CORR_GROUPS, CORR_ALLSYM } from './xpost-lib.js';
+import { BN as BNC, SHOCK, MID, IPO_PRE, IPO_POST, IPO_STEP, TWIN, STREAK, BOUNCE, FEARX, FEAR_BANDS, AISYM, CORR_GROUPS, CORR_ALLSYM, caWinLabel } from './xpost-lib.js';
 const BNFZ = BNC.fzSteps, BNAAVE = BNC.aaveAt, BNTL = BNC.tl;
 // v237: Binance流出「資金の現況」(sr: bnstatus)。上 = 未凍結ETHの積み上げ＋1時間ごとの交換回数・保有アドレス、左下 = 凍結、右下 = 未凍結のBTC
 function drawBnStatus(g, s, ch, lg) {
@@ -2206,15 +2206,17 @@ function drawAiCorr(g, d, lg) {
     g.beginPath(); g.moveTo(cx - 26 * sc, by - 40 * sc); g.lineTo(cx - 56 * sc, by + 40 * sc); g.lineTo(cx - 26 * sc, by + 30 * sc); g.fill(); g.beginPath(); g.moveTo(cx + 26 * sc, by - 40 * sc); g.lineTo(cx + 56 * sc, by + 40 * sc); g.lineTo(cx + 26 * sc, by + 30 * sc); g.fill();
     g.restore(); }
   lt(g, en ? `BTC × ${GR.en.toUpperCase()}` : `BTC × ${GR.ja}`, 60, 70, { s: 22, w: 900, f: LN, c: '#9ca3af' });
-  lt(g, en ? 'The last 7 days' : `BTCと${GR.ja}、7日の値動き`, 60, 140, { s: d.gk === 'musk' ? 44 : 50, w: 900 });
-  lt(g, en ? `Closest link (24h correlation): ${nm(top.sym)} ${s2(top.now)}` : `いちばん連動（直近24時間の相関）：${nm(top.sym)} ${s2(top.now)}`, 60, 192, { s: 26, w: 800, c: BRAND[top.sym] || '#2ee6ff' });
+  const wn = d.win || 168, P = caWinLabel(wn, en), cw = wn >= 168 ? (en ? '24h' : '直近24時間') : P;   // v377: 期間を選べる
+  lt(g, en ? `The last ${P}` : `BTCと${GR.ja}、${P}の値動き`, 60, 140, { s: d.gk === 'musk' ? 44 : 50, w: 900 });
+  lt(g, en ? `Closest link (${cw} correlation): ${nm(top.sym)} ${s2(top.now)}` : `いちばん連動（${cw}の相関）：${nm(top.sym)} ${s2(top.now)}`, 60, 192, { s: 26, w: 800, c: BRAND[top.sym] || '#2ee6ff' });
   const ser = [{ name: 'BTC', px: d.btc, c: OR, w: 6, btc: 1, chg: d.bc }, ...d.it.map((x, i) => ({ name: nm(x.sym), px: x.px || [], c: BRAND[x.sym] || PAL[i % PAL.length], w: 3.5, r: x.now, chg: x.chg })), ...(d.sp && d.sp.px ? [{ name: 'S&P500', px: d.sp.px, c: '#8a9099', w: 2, dash: 1, r: d.sp.now, chg: d.sp.px.length > 1 ? (d.sp.px[d.sp.px.length - 1][1] / d.sp.px[0][1] - 1) * 100 : null }] : [])].filter((q) => q.px && q.px.length > 1);
   const t0 = Math.min(...ser.map((q) => q.px[0][0])), t1 = Math.max(...ser.map((q) => q.px[q.px.length - 1][0])), pc = (q) => q.px.map(([t, v]) => [t, (v / q.px[0][1] - 1) * 100]);
   const all = ser.flatMap((q) => pc(q).map((x) => x[1])); let hi = Math.max(...all, 1), lo = Math.min(...all, -1); const pd = (hi - lo) * 0.08; hi += pd; lo -= pd;
   const x0 = 110, x1 = 860, y0 = 250, y1 = 930, X = (t) => x0 + (x1 - x0) * (t - t0) / (t1 - t0 || 1), Y = (v) => y0 + (hi - v) / (hi - lo) * (y1 - y0);
   const rough = (hi - lo) / 7, mag = Math.pow(10, Math.floor(Math.log10(rough))), step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((v) => v >= rough);
   for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) { const z = Math.abs(v) < 1e-9; g.strokeStyle = z ? '#3a3f47' : '#111418'; g.lineWidth = z ? 2 : 1; g.beginPath(); g.moveTo(x0, Y(v)); g.lineTo(x1, Y(v)); g.stroke(); lt(g, (v > 0 ? '+' : '') + (+v.toFixed(1)) + '%', x0 - 12, Y(v) + 7, { s: 18, w: 700, f: LN, c: z ? '#9aa3ae' : M, a: 'right' }); }
-  for (let t = Math.ceil(t0 / 864e5) * 864e5; t <= t1; t += 864e5) { const z = new Date(t + (en ? 0 : 9 * 36e5)); lt(g, `${z.getUTCMonth() + 1}/${z.getUTCDate()}`, X(t), y1 + 32, { s: 17, w: 700, f: LN, c: M, a: 'center' }); }
+  const tk = wn >= 168 ? 864e5 : wn >= 24 ? 3 * 36e5 : wn >= 2 ? 36e5 : 6e5, tz = en ? 0 : 9 * 36e5, p2 = (v) => String(v).padStart(2, '0');
+  for (let t = Math.ceil((t0 + tz) / tk) * tk - tz; t <= t1; t += tk) { const z = new Date(t + tz); lt(g, wn >= 168 ? `${z.getUTCMonth() + 1}/${z.getUTCDate()}` : `${p2(z.getUTCHours())}:${p2(z.getUTCMinutes())}`, X(t), y1 + 32, { s: 17, w: 700, f: LN, c: M, a: 'center' }); }
   const order = [...ser.filter((q) => !q.btc), ...ser.filter((q) => q.btc)], labs = [];
   for (const q of order) { const P = pc(q); g.save(); if (q.dash) g.setLineDash([6, 6]); if (q.btc) { g.shadowColor = 'rgba(247,147,26,.6)'; g.shadowBlur = 10; } g.strokeStyle = q.c; g.lineWidth = q.w; g.lineJoin = 'round'; g.beginPath(); P.forEach(([t, v], i) => i ? g.lineTo(X(t), Y(v)) : g.moveTo(X(t), Y(v))); g.stroke(); g.restore();
     const L = P[P.length - 1]; g.fillStyle = q.c; g.beginPath(); g.arc(X(L[0]), Y(L[1]), q.btc ? 8 : 6, 0, 7); g.fill(); labs.push({ y: Y(L[1]), yo: Y(L[1]), q }); }
@@ -2225,12 +2227,13 @@ function drawAiCorr(g, d, lg) {
   // v372: 相関は下の段に大きく。−1〜+1 の横棒、会社の色、数字を大きく
   const cs = ser.filter((q) => !q.btc && q.r != null).sort((a, b) => b.r - a.r), py0 = 1040, rh2 = Math.min(64, 210 / Math.max(1, cs.length)), bx0 = 330, bx1 = 1000, BX = (v) => bx0 + (bx1 - bx0) * (v + 1) / 2;
   g.fillStyle = '#0a0b0e'; g.fillRect(0, py0 - 46, W, 290); g.fillStyle = '#1f2329'; g.fillRect(0, py0 - 46, W, 2);
-  lt(g, en ? 'Correlation with BTC (last 24h)' : 'BTCとの相関（直近24時間）', 60, py0 - 10, { s: 24, w: 900, c: '#e5e7eb' });
+  lt(g, en ? `Correlation with BTC (last ${cw})` : `BTCとの相関（${cw}）`, 60, py0 - 10, { s: 24, w: 900, c: '#e5e7eb' });
   lt(g, en ? '−1 opposite · 0 no link · +1 same way' : '−1 逆に動く・0 無関係・+1 同じ向き', W - 60, py0 - 10, { s: 17, w: 700, c: '#6b7280', a: 'right' });
   cs.forEach((q, k) => { const cy = py0 + 22 + k * rh2 + rh2 / 2; lt(g, q.name, 60, cy + 9, { s: 24, w: 900, c: q.dash ? '#9ca3af' : q.c });
     g.fillStyle = '#15181d'; g.fillRect(bx0, cy - 9, bx1 - bx0, 18); g.fillStyle = '#3a3f47'; g.fillRect(BX(0) - 1, cy - 14, 2, 28);
     g.fillStyle = q.dash ? '#8a9099' : q.c; const xa = Math.min(BX(0), BX(q.r)); g.fillRect(xa, cy - 9, Math.abs(BX(q.r) - BX(0)), 18);
     lt(g, s2(q.r), W - 60, cy + 11, { s: 32, w: 900, f: LN, c: q.dash ? '#9ca3af' : q.c, a: 'right' }); });
-  lt(g, en ? 'Pacifica 1h · start of 7 days = 0% · correlation = last 24h, same as BTC × S&P 500' : 'Pacifica 1時間足・7日前＝0%・相関は直近24時間（BTC×S&P500 と同じ計算）', 60, HH - 40, { s: 17, w: 600, c: '#6b7280' });
+  const ivj = { '1m': '1分足', '5m': '5分足', '1h': '1時間足' }[d.iv || '1h'], ive = { '1m': '1m', '5m': '5m', '1h': '1h' }[d.iv || '1h'];
+  lt(g, wn >= 168 ? (en ? 'Pacifica 1h · start of 7 days = 0% · correlation = last 24h, same as BTC × S&P 500' : 'Pacifica 1時間足・7日前＝0%・相関は直近24時間（BTC×S&P500 と同じ計算）') : (en ? `Pacifica ${ive} · BTC Binance ${ive} · ${P} ago = 0% · correlation over the same ${P} (UTC)` : `Pacifica ${ivj}・BTCは Binance ${ivj}・${P}前＝0%・相関も同じ${P}`), 60, HH - 40, { s: 17, w: 600, c: '#6b7280' });
   lt(g, 'CSA', W - 60, HH - 36, { s: 30, w: 900, f: LN, a: 'right' });
 }

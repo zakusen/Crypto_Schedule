@@ -10,7 +10,7 @@ import { estimateGarch } from './public/garch-model.mjs';
 // KVが空・古い・未接続のときだけ、その場で取得する(ライブ取得)。必要な設定: wrangler.jsonc の KV と cron(鍵は不要)
 
 // どの版が公開されているかを /api/events で確認できるようにする目印(コードを直したら更新する)
-const VERSION = '2026-11-26-v376';
+const VERSION = '2026-11-27-v377';
 const PACIFICA = 'https://api.pacifica.fi/api/v1';
 const SYMS = ['BTC', 'ETH', 'SOL', 'BNB'];
 
@@ -2071,6 +2071,13 @@ export default {
     if (url.pathname === '/api/health') { const r = await health(env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/admin/rx' && request.method === 'POST') { const r = await rxAdmin(request, env); r.headers.set('cache-control', 'no-store'); return r; }
     if (url.pathname === '/api/admin/rx-get' && request.method === 'GET') { const r = await rxGet(request, env); r.headers.set('cache-control', 'no-store'); return r; }
+    if (url.pathname === '/api/admin/pac' && request.method === 'GET') {   // v377: 合言葉つき。短い期間の相関用に Pacifica の1分足・5分足を中継(ブラウザから直接取れない時の予備)
+      if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
+      const sym = url.searchParams.get('symbol') || '', iv = url.searchParams.get('interval') || '', a = +url.searchParams.get('start_time'), b = +url.searchParams.get('end_time');
+      if (!/^[A-Z0-9]{1,12}$/.test(sym) || !['1m', '5m'].includes(iv) || !(a > 0) || !(b > a) || b - a > 2 * 864e5) return json({ error: 'bad query' }, 400);
+      const r = await fetch(PACIFICA + '/kline?symbol=' + sym + '&interval=' + iv + '&start_time=' + a + '&end_time=' + b, { headers: { 'User-Agent': 'signal-archive/1.0' } });
+      return new Response(await r.text(), { status: r.status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+    }
     if (url.pathname === '/api/admin/rx-one' && request.method === 'GET') {   // v72: 合言葉つき。1つの保存をそのまま返す(今は xs だけで使う)
       if (!adminOk(request, env)) return json({ error: 'unauthorized' }, 401);
       const name = url.searchParams.get('name') || '';
