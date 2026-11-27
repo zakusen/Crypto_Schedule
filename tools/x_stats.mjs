@@ -61,14 +61,19 @@ do {
 console.log('[stats] 取った投稿:', tweets.length + '件', npm ? '(クリック数あり)' : '');
 
 // ---- 2) 種類を付ける: 下書きの tw → 1行目の書き方 → 返信は親の種類を引き継ぐ ----
-const LABEL = { daily: '予定表', corrts: 'BTC×S&P500 相関', fomc: '指標(FOMC・CPI など)', fomcc: '指標(FOMC・CPI など)', fomcres: '指標の結果', shockbn: 'Binance 2019/2026', shockcmp: 'ショック後のBTC', spike: '急変動', spikeliq: '急変動', spkcmp: '過去の急変動との比較', liq: '清算', liqday: '清算', liqimp: '清算', histw: 'ブームと危機', histm: 'ブームと危機', liqshock: '大量清算の後のBTC', week: '週のまとめ', sum: '夜のまとめ', midterm: '中間選挙' };
+const LABEL = { daily: '予定表', corrts: 'BTC×S&P500 相関', fomc: '指標(FOMC・CPI など)', fomcc: '指標(FOMC・CPI など)', fomcres: '指標の結果', shockbn: 'Binance 2019/2026', shockcmp: 'ショック後のBTC', spike: '急変動', spikeliq: '急変動', spkcmp: '過去の急変動との比較', liq: '清算', liqday: '清算', liqimp: '清算', histw: 'ブームと危機', histm: 'ブームと危機', liqshock: '大量清算の後のBTC', week: '週のまとめ', sum: '夜のまとめ', midterm: '中間選挙', aicorr: 'AI・半導体 相関', aicorr_ai: 'AI・半導体 相関', aicorr_musk: 'マスク関連 相関', corrau: 'BTC×金 相関' };   /* v378: aicorr はグループ(ai / musk)、corrts は相手が金(au)なら別の種類に */
 const bySr = new Map(); let nDraft = 0, nTw = 0;
+const srOf = (p) => { const id = String(p.id || ''), im = p.img || {};   /* v378: 下書きの sr を、相関の相手ごとに分ける */
+  if (p.sr === 'aicorr') return 'aicorr_' + ((im.aic && im.aic.gk) || id.split(':')[2] || 'ai');
+  if (p.sr === 'corrts' && ((im.corr && im.corr.vs) === 'au' || /^corrts:copy:au:/.test(id))) return 'corrau';
+  return p.sr; };
 if (SITE && KEY) {
   try { const r = await fetch(SITE + '/api/admin/posts', { headers: { 'x-admin-key': KEY }, signal: AbortSignal.timeout(30000) }); const j = await r.json();
-    for (const p of j.posts || []) { nDraft++; for (const [lg, id] of Object.entries(p.tw || {})) { nTw++; bySr.set(String(id), { sr: p.sr, lg }); } } } catch (e) { console.log('[stats] 下書きが読めません:', e.message); }
+    for (const p of j.posts || []) { nDraft++; for (const [lg, id] of Object.entries(p.tw || {})) { nTw++; bySr.set(String(id), { sr: srOf(p), lg }); } } } catch (e) { console.log('[stats] 下書きが読めません:', e.message); }
 } else console.log('[stats] SITE_URL か RX_ADMIN_KEY がないので、下書きとは突き合わせません');
 // v334: 下書きと突き合わせられない投稿(コピペで出した分など)は、1行目の書き方で種類を推定する
-const GUESS = [[/今の連動|相関|correlation/i, 'BTC×S&P500 相関'], [/天井から|from the \d+h high/i, '天井→底→いま'], [/同じ形|same \d+h shape/i, '同じ形の過去'], [/底のサイン|bottom signals/i, '底のサイン'], [/週足で\d+週連続|straight red weekly/i, '週足の連続安'], [/恐怖指数が10を割った|Fear & Greed below 10/i, '恐怖指数10割れ'], [/パニック売り|panic sell/i, 'パニック売り'], [/本日 ·|TODAY ·|Today ·|今日・今週の予定|暗号資産シグナル・アーカイブ|Crypto Signal Archive/, '予定表'], [/まで、あと|in \d+(h|m)|発表後1時間|after the release|TOP3|似ていた過去3回/i, '指標(FOMC・CPI など)'],
+const GUESS = [[/AI・半導体|AI & chips/i, 'AI・半導体 相関'], [/イーロン・マスク関連|Elon Musk companies/i, 'マスク関連 相関'], [/BTCと金、|BTC and gold/i, 'BTC×金 相関'],   /* v378: v366〜の相関投稿。S&P500 より先に見る */
+  [/今の連動|相関|correlation/i, 'BTC×S&P500 相関'], [/天井から|from the \d+h high/i, '天井→底→いま'], [/同じ形|same \d+h shape/i, '同じ形の過去'], [/底のサイン|bottom signals/i, '底のサイン'], [/週足で\d+週連続|straight red weekly/i, '週足の連続安'], [/恐怖指数が10を割った|Fear & Greed below 10/i, '恐怖指数10割れ'], [/パニック売り|panic sell/i, 'パニック売り'], [/本日 ·|TODAY ·|Today ·|今日・今週の予定|暗号資産シグナル・アーカイブ|Crypto Signal Archive/, '予定表'], [/まで、あと|in \d+(h|m)|発表後1時間|after the release|TOP3|似ていた過去3回/i, '指標(FOMC・CPI など)'],
   [/Binance.*(2019|ハッキングから)|Binance hack/i, 'Binance 2019/2026'], [/ショック/, 'ショック後のBTC'], [/大量清算|ロング清算|liquidation.*(30|after)/i, '大量清算の後のBTC'], [/清算|liquidat/i, '清算'], [/⚡|急変動|1時間で|時間で[−-]|直近\d+時間で/, '急変動'],
   [/ブームと危機|booms and crises/i, 'ブームと危機'], [/中間選挙|midterm/i, '中間選挙'], [/恐怖指数|Fear & Greed/i, '恐怖指数'], [/今年\d回目|下げ方|same shape/i, '今年◯回目の下げ方'], [/形が(近|最も)|same shape|今日と同じ形/i, '似た形の過去'], [/リバウンド|bounce/i, 'V字リバウンド'], [/週間|week/i, '週のまとめ']];
 const guess = (t) => { const h = (t || '').split('\n').slice(0, 2).join(' '); for (const [re, k] of GUESS) if (re.test(h)) return k; return null; };
